@@ -10,6 +10,7 @@ class UserRoles extends Table {
   TextColumn get companyId => text().references(Companies, #id)();
   // Role values: 'admin' | 'contractor' | 'client'
   TextColumn get role => text()();
+  DateTimeColumn get createdAt => dateTime()();
 
   @override
   Set<Column> get primaryKey => {id};
