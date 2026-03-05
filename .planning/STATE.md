@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-foundation-03-PLAN.md — Freezed entities, Drift DAOs, Riverpod providers, FastAPI CRUD endpoints
-last_updated: "2026-03-05T07:13:43.504Z"
+stopped_at: Completed 01-foundation-04-PLAN.md — GoRouter role guards, AppShell bottom nav, all placeholder screens
+last_updated: "2026-03-05T07:24:41.530Z"
 last_activity: 2026-03-05 — FastAPI backend scaffold with PostgreSQL RLS, Alembic migrations, Docker Compose, CI pipeline
 progress:
   total_phases: 8
   completed_phases: 0
   total_plans: 5
-  completed_plans: 3
+  completed_plans: 4
   percent: 0
 ---
 
@@ -52,6 +52,7 @@ Progress: [░░░░░░░░░░] 0%
 
 *Updated after each plan completion*
 | Phase 01-foundation P03 | 6 | 2 tasks | 20 files |
+| Phase 01-foundation P04 | 7min | 2 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -73,6 +74,9 @@ Recent decisions affecting current work:
 - [Phase 01-foundation]: TradeType stored as comma-separated text in Drift, ARRAY(String) in PostgreSQL
 - [Phase 01-foundation]: company_id excluded from UserCreate — always from TenantMiddleware ContextVar (tenant isolation)
 - [Phase 01-foundation]: RoleAssignment uses Literal type for role field — Python type safety and OpenAPI schema accuracy
+- [Phase 01-foundation]: StatefulShellRoute.indexedStack used instead of ShellRoute — preserves per-tab navigation stack; navigationShell.goBranch() for tab switching
+- [Phase 01-foundation]: ValueNotifier bridge in routerProvider: ref.listen(authNotifierProvider) -> ValueNotifier<AuthState> -> GoRouter.refreshListenable prevents router rebuild on auth state change
+- [Phase 01-foundation]: NavigationBar (Material 3) used instead of BottomNavigationBar; consistent with useMaterial3: true theme
 
 ### Pending Todos
 
@@ -89,6 +93,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-05T07:13:43.499Z
-Stopped at: Completed 01-foundation-03-PLAN.md — Freezed entities, Drift DAOs, Riverpod providers, FastAPI CRUD endpoints
+Last session: 2026-03-05T07:24:41.526Z
+Stopped at: Completed 01-foundation-04-PLAN.md — GoRouter role guards, AppShell bottom nav, all placeholder screens
 Resume file: None
