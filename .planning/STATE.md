@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-offline-sync-engine 02-03-PLAN.md
-last_updated: "2026-03-05T22:05:32.641Z"
-last_activity: 2026-03-05 — Drift sync_queue/sync_cursor tables, schema v2 migration, transactional outbox wiring in CompanyDao/UserDao
+stopped_at: Completed 02-offline-sync-engine 02-04-PLAN.md
+last_updated: "2026-03-05T22:12:37.376Z"
+last_activity: 2026-03-05 — WorkManager background dispatcher, syncStatusProvider, SyncStatusSubtitle widget, AppShell shared app bar, pull-to-refresh on Home/Jobs/Schedule
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 10
-  completed_plans: 8
-  percent: 70
+  completed_plans: 9
+  percent: 90
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 ## Current Position
 
 Phase: 2 of 8 (Offline Sync Engine)
-Plan: 1 of 5 in current phase — COMPLETE
-Status: Phase 2 in progress — Plan 02-01 complete (Drift outbox foundation)
-Last activity: 2026-03-05 — Drift sync_queue/sync_cursor tables, schema v2 migration, transactional outbox wiring in CompanyDao/UserDao
+Plan: 4 of 5 in current phase — COMPLETE
+Status: Phase 2 in progress — Plans 02-01 through 02-04 complete; only 02-05 remaining
+Last activity: 2026-03-05 — WorkManager dispatcher, sync status provider, app bar subtitle, pull-to-refresh on 3 screens
 
-Progress: [███████░░░] 70%
+Progress: [█████████░] 90%
 
 ## Performance Metrics
 
@@ -57,6 +57,7 @@ Progress: [███████░░░] 70%
 | Phase 02-offline-sync-engine P02 | 4min | 2 tasks | 12 files |
 | Phase 02-offline-sync-engine P01 | 5min | 3 tasks | 10 files |
 | Phase 02-offline-sync-engine P03 | 5min | 2 tasks | 11 files |
+| Phase 02-offline-sync-engine P04 | 5min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -92,6 +93,9 @@ Recent decisions affecting current work:
 - [Phase 02-offline-sync-engine]: connectivity_plus v7 returns List<ConnectivityResult> — checked with .any((r) => r != ConnectivityResult.none)
 - [Phase 02-offline-sync-engine]: Two-phase connectivity check: interface up AND hasInternetAccess — avoids captive portal false positives triggering sync
 - [Phase 02-offline-sync-engine]: After max retries (5), reset attemptCount=0 and leave as pending — retry on next connectivity cycle instead of abandoning
+- [Phase 02-offline-sync-engine]: AppShell provides shared AppBar with SyncStatusSubtitle — individual screens no longer own their AppBar; always-visible subtitle without per-screen duplication
+- [Phase 02-offline-sync-engine]: callbackDispatcher returns Future.value(true) on error — prevents OS WorkManager retry storm from exponential backoff on persistent failures
+- [Phase 02-offline-sync-engine]: Stream merging via dart:async StreamController.broadcast() for combining connectivity + engine status streams without RxDart dependency
 
 ### Pending Todos
 
@@ -108,6 +112,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-05T22:05:32.636Z
-Stopped at: Completed 02-offline-sync-engine 02-03-PLAN.md
+Last session: 2026-03-05T22:12:37.371Z
+Stopped at: Completed 02-offline-sync-engine 02-04-PLAN.md
 Resume file: None
