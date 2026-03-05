@@ -24,6 +24,7 @@ class UserResponse(BaseModel):
     """Schema for user API responses.
 
     Includes company_id (tenant scope), all profile fields, and assigned roles.
+    deleted_at is included for tombstone propagation during delta sync.
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -37,6 +38,7 @@ class UserResponse(BaseModel):
     version: int
     created_at: datetime
     updated_at: datetime
+    deleted_at: datetime | None = None
     roles: list[str] = []
 
 
@@ -53,7 +55,11 @@ class RoleAssignment(BaseModel):
 
 
 class UserRoleResponse(BaseModel):
-    """Schema for user role API responses."""
+    """Schema for user role API responses.
+
+    deleted_at is included for tombstone propagation during delta sync.
+    updated_at is included for delta sync cursor filtering.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -62,3 +68,5 @@ class UserRoleResponse(BaseModel):
     company_id: uuid.UUID
     role: str
     created_at: datetime
+    updated_at: datetime | None = None
+    deleted_at: datetime | None = None

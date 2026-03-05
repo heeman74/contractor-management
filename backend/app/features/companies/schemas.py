@@ -8,8 +8,11 @@ class CompanyCreate(BaseModel):
     """Schema for creating a new company.
 
     All fields except name are optional — company can be updated later.
+    id is optional — when provided by the client (e.g., during sync), it is
+    used as the UUID primary key enabling idempotent creates via ON CONFLICT DO NOTHING.
     """
 
+    id: uuid.UUID | None = None
     name: str = Field(min_length=1)
     address: str | None = None
     phone: str | None = None
@@ -36,6 +39,7 @@ class CompanyResponse(BaseModel):
     """Schema for company API responses.
 
     Includes all fields plus server-generated id, version, and timestamps.
+    deleted_at is included for tombstone propagation during delta sync.
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -50,3 +54,4 @@ class CompanyResponse(BaseModel):
     version: int
     created_at: datetime
     updated_at: datetime
+    deleted_at: datetime | None = None

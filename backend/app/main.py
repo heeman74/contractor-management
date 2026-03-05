@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.tenant import TenantMiddleware
 from app.features.companies.router import router as companies_router
+from app.features.sync.router import router as sync_router
 from app.features.users.router import router as users_router
 
 app = FastAPI(
@@ -27,6 +28,7 @@ app.add_middleware(TenantMiddleware)
 # Feature routers
 app.include_router(companies_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
+app.include_router(sync_router, prefix="/api/v1")
 
 
 @app.get("/health")

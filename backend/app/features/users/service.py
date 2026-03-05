@@ -9,6 +9,7 @@ import uuid
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.tenant import get_current_tenant_id
@@ -48,6 +49,66 @@ async def create_user(db: AsyncSession, data: UserCreate) -> User:
     await db.flush()
     await db.refresh(user)
     return user
+
+
+async def create_user_idempotent(
+    db: AsyncSession, user_id: uuid.UUID, data: UserCreate
+) -> User:
+    """Idempotent user create using INSERT ON CONFLICT DO NOTHING.
+
+    When a client provides a UUID and a user with that id already exists,
+    the insert is silently skipped and the existing record returned.
+    This is the correct behaviour for offline sync retry deduplication.
+
+    company_id is always derived from TenantMiddleware ContextVar.
+    """
+    company_id = _require_tenant_id()
+
+    stmt = (
+        insert(User)
+        .values(
+            id=user_id,
+            company_id=company_id,
+            email=data.email,
+            first_name=data.first_name,
+            last_name=data.last_name,
+            phone=data.phone,
+        )
+        .on_conflict_do_nothing(index_elements=["id"])
+    )
+    await db.execute(stmt)
+
+    user = await db.get(User, user_id)
+    return user  # type: ignore[return-value]
+
+
+async def create_user_role_idempotent(
+    db: AsyncSession, role_id: uuid.UUID, user_id: uuid.UUID, role: str
+) -> UserRole:
+    """Idempotent user role create using INSERT ON CONFLICT DO NOTHING.
+
+    When a client provides a UUID and a user_role with that id already exists,
+    the insert is silently skipped and the existing record returned.
+    This is the correct behaviour for offline sync retry deduplication.
+
+    company_id is always derived from TenantMiddleware ContextVar.
+    """
+    company_id = _require_tenant_id()
+
+    stmt = (
+        insert(UserRole)
+        .values(
+            id=role_id,
+            user_id=user_id,
+            company_id=company_id,
+            role=role,
+        )
+        .on_conflict_do_nothing(index_elements=["id"])
+    )
+    await db.execute(stmt)
+
+    user_role = await db.get(UserRole, role_id)
+    return user_role  # type: ignore[return-value]
 
 
 async def get_user(db: AsyncSession, user_id: uuid.UUID) -> User | None:
