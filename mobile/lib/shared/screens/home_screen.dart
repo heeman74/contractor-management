@@ -6,6 +6,8 @@ import '../../features/auth/domain/auth_state.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../shared/models/user_role.dart';
 import '../../core/routing/route_names.dart';
+import '../../core/di/service_locator.dart';
+import '../../core/sync/sync_engine.dart';
 
 /// Home dashboard — the landing screen after authentication.
 ///
@@ -15,6 +17,10 @@ import '../../core/routing/route_names.dart';
 /// - Client: recent job updates and portal link
 ///
 /// Full content implementations come in Phase 4-5.
+///
+/// Pull-to-refresh: swipe down to trigger [SyncEngine.syncNow] — pushes pending
+/// local mutations then pulls remote changes. Content updates automatically via
+/// Drift reactive streams.
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -22,23 +28,13 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authNotifierProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Home'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => ref.read(authNotifierProvider.notifier).logout(),
-            tooltip: 'Sign out',
-          ),
-        ],
-      ),
-      body: switch (authState) {
-        AuthAuthenticated(:final roles, :final userId) =>
-          _AuthenticatedHome(roles: roles, userId: userId),
-        _ => const Center(child: CircularProgressIndicator()),
-      },
-    );
+    // AppBar is provided by AppShell — no Scaffold/AppBar here.
+    // The shell shows the tab title ("Home") and SyncStatusSubtitle.
+    return switch (authState) {
+      AuthAuthenticated(:final roles, :final userId) =>
+        _AuthenticatedHome(roles: roles, userId: userId),
+      _ => const Center(child: CircularProgressIndicator()),
+    };
   }
 }
 
@@ -52,82 +48,90 @@ class _AuthenticatedHome extends StatelessWidget {
   Widget build(BuildContext context) {
     final roleLabel = roles.map((r) => r.name).join(', ');
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Welcome back!',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Signed in as: $roleLabel',
-                  style: TextStyle(color: Colors.grey[600]),
-                ),
-                Text(
-                  'User ID: $userId',
-                  style: TextStyle(
-                    color: Colors.grey[500],
-                    fontSize: 12,
+    // RefreshIndicator requires a scrollable child to detect the pull gesture.
+    // ListView is already scrollable, so no additional wrapper is needed.
+    return RefreshIndicator(
+      onRefresh: () async {
+        final syncEngine = getIt<SyncEngine>();
+        await syncEngine.syncNow();
+      },
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Welcome back!',
+                    style: Theme.of(context).textTheme.headlineSmall,
                   ),
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  Text(
+                    'Signed in as: $roleLabel',
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
+                  Text(
+                    'User ID: $userId',
+                    style: TextStyle(
+                      color: Colors.grey[500],
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 16),
-        if (roles.contains(UserRole.admin)) ...[
-          _SectionHeader('Admin Features'),
-          _QuickLink(
-            icon: Icons.groups_outlined,
-            title: 'Team Management',
-            subtitle: 'Manage contractors and staff',
-            onTap: () => context.go(RouteNames.adminTeam),
-          ),
-          _QuickLink(
-            icon: Icons.business_outlined,
-            title: 'Client Management',
-            subtitle: 'View and manage clients',
-            onTap: () => context.go(RouteNames.adminClients),
-          ),
           const SizedBox(height: 16),
-        ],
-        if (roles.contains(UserRole.contractor)) ...[
-          _SectionHeader('Contractor Features'),
-          _QuickLink(
-            icon: Icons.event_available_outlined,
-            title: 'My Availability',
-            subtitle: 'Set your working hours — coming Phase 3',
-            onTap: () => context.go(RouteNames.contractorAvailability),
+          if (roles.contains(UserRole.admin)) ...[
+            _SectionHeader('Admin Features'),
+            _QuickLink(
+              icon: Icons.groups_outlined,
+              title: 'Team Management',
+              subtitle: 'Manage contractors and staff',
+              onTap: () => context.go(RouteNames.adminTeam),
+            ),
+            _QuickLink(
+              icon: Icons.business_outlined,
+              title: 'Client Management',
+              subtitle: 'View and manage clients',
+              onTap: () => context.go(RouteNames.adminClients),
+            ),
+            const SizedBox(height: 16),
+          ],
+          if (roles.contains(UserRole.contractor)) ...[
+            _SectionHeader('Contractor Features'),
+            _QuickLink(
+              icon: Icons.event_available_outlined,
+              title: 'My Availability',
+              subtitle: 'Set your working hours — coming Phase 3',
+              onTap: () => context.go(RouteNames.contractorAvailability),
+            ),
+            const SizedBox(height: 16),
+          ],
+          if (roles.contains(UserRole.client)) ...[
+            _SectionHeader('Client Features'),
+            _QuickLink(
+              icon: Icons.dashboard_outlined,
+              title: 'Client Portal',
+              subtitle: 'Track jobs and invoices — coming Phase 5',
+              onTap: () => context.go(RouteNames.clientPortal),
+            ),
+            const SizedBox(height: 16),
+          ],
+          _SectionHeader('Coming Soon'),
+          const _PlaceholderCard(
+            'Phase 4: Jobs',
+            'Create, assign, and track jobs with your team',
           ),
-          const SizedBox(height: 16),
-        ],
-        if (roles.contains(UserRole.client)) ...[
-          _SectionHeader('Client Features'),
-          _QuickLink(
-            icon: Icons.dashboard_outlined,
-            title: 'Client Portal',
-            subtitle: 'Track jobs and invoices — coming Phase 5',
-            onTap: () => context.go(RouteNames.clientPortal),
+          const _PlaceholderCard(
+            'Phase 5: Scheduling',
+            'Smart scheduling with travel time and availability',
           ),
-          const SizedBox(height: 16),
         ],
-        _SectionHeader('Coming Soon'),
-        const _PlaceholderCard(
-          'Phase 4: Jobs',
-          'Create, assign, and track jobs with your team',
-        ),
-        const _PlaceholderCard(
-          'Phase 5: Scheduling',
-          'Smart scheduling with travel time and availability',
-        ),
-      ],
+      ),
     );
   }
 }

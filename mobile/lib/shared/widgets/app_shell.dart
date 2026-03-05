@@ -6,12 +6,19 @@ import '../../features/auth/domain/auth_state.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../shared/models/user_role.dart';
 import '../../core/routing/route_names.dart';
+import 'sync_status_subtitle.dart';
 
-/// Shared app shell — wraps all authenticated routes with a bottom navigation bar.
+/// Shared app shell — wraps all authenticated routes with a bottom navigation bar
+/// and a unified app bar showing the current tab title and sync status subtitle.
 ///
 /// This is the core of the "one unified app with different views" user requirement:
 /// all roles see the same shell and the same core tabs (Home, Jobs, Schedule, Profile).
 /// The only difference is the admin role gets an additional "Team" tab.
+///
+/// The app bar always shows:
+/// - Primary title: current tab name (e.g. "Home", "Jobs", "Schedule")
+/// - Subtitle: [SyncStatusSubtitle] — always visible sync state indicator
+///   (user decision: subtitle stays on screen at all times, no toast/banner)
 ///
 /// Used as the [builder] for the ShellRoute in app_router.dart. The [child] parameter
 /// is the currently active route widget, rendered in the body.
@@ -37,8 +44,29 @@ class AppShell extends ConsumerWidget {
 
     final tabs = _buildTabs(isAdmin);
     final currentIndex = _getCurrentIndex(tabs);
+    final currentTab = tabs[currentIndex];
 
     return Scaffold(
+      appBar: AppBar(
+        // The title is a Column showing the tab name above and sync status below.
+        // AppBar automatically handles centering based on centerTitle theme setting.
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(currentTab.label),
+            const SyncStatusSubtitle(),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () =>
+                ref.read(authNotifierProvider.notifier).logout(),
+            tooltip: 'Sign out',
+          ),
+        ],
+      ),
       body: navigationShell,
       bottomNavigationBar: NavigationBar(
         selectedIndex: currentIndex,
