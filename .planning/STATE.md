@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Phase 1 context gathered
-last_updated: "2026-03-05T06:16:02.975Z"
+stopped_at: Completed 01-foundation-01-PLAN.md — Flutter scaffold created; Flutter SDK install required for flutter pub get + build_runner
+last_updated: "2026-03-05T06:49:52.486Z"
 last_activity: 2026-03-04 — Roadmap created, all 24 v1 requirements mapped to 8 phases
 progress:
   total_phases: 8
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 5
+  completed_plans: 1
   percent: 0
 ---
 
@@ -50,6 +50,7 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: —
 
 *Updated after each plan completion*
+| Phase 01-foundation P01 | 20 | 2 tasks | 22 files |
 
 ## Accumulated Context
 
@@ -63,6 +64,8 @@ Recent decisions affecting current work:
 - Foundation: PostgreSQL RLS + EXCLUDE USING GIST constraint mandatory from first migration — non-recoverable if retrofitted
 - Foundation: Offline-first from first line of Flutter code — no UI widget may await HTTP directly
 - Phase 2: Phase 3 (Scheduling Engine) depends only on Phase 1 — can run in parallel with Phase 2 if needed
+- [Phase 01-foundation]: Flutter scaffold: uuid in runtime deps, setupServiceLocator async-ready, generated files excluded from git
+- [Phase 01-foundation]: Drift pattern: tables in separate files under tables/, UUID PKs via clientDefault, primaryKey override not customConstraint
 
 ### Pending Todos
 
@@ -75,9 +78,10 @@ None yet.
 - Phase 3 (Scheduling Engine): Multi-day availability blocking algorithm needs formal specification before planning
 - Phase 5 (Calendar UI): Flutter calendar drag-and-drop library not yet selected — needs research during plan-phase
 - Phase 6 (Auth — deferred to v2): Multi-tenant login UX (how users identify their company at login) unspecified
+- Flutter SDK not installed — flutter pub get and build_runner cannot run until SDK is installed
 
 ## Session Continuity
 
-Last session: 2026-03-05T06:16:02.957Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-foundation/01-CONTEXT.md
+Last session: 2026-03-05T06:49:46.265Z
+Stopped at: Completed 01-foundation-01-PLAN.md — Flutter scaffold created; Flutter SDK install required for flutter pub get + build_runner
+Resume file: None
