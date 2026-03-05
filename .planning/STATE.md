@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Completed 02-offline-sync-engine 02-01-PLAN.md
-last_updated: "2026-03-05T21:56:20.605Z"
-last_activity: 2026-03-05 — Integration tests proving tenant isolation + role CRUD; Flutter unit tests for auth and routing; seed data script
+status: executing
+stopped_at: Completed 02-offline-sync-engine 02-03-PLAN.md
+last_updated: "2026-03-05T22:05:32.641Z"
+last_activity: 2026-03-05 — Drift sync_queue/sync_cursor tables, schema v2 migration, transactional outbox wiring in CompanyDao/UserDao
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 10
-  completed_plans: 7
+  completed_plans: 8
   percent: 70
 ---
 
@@ -56,6 +56,7 @@ Progress: [███████░░░] 70%
 | Phase 01-foundation P05 | 7min | 2 tasks | 8 files |
 | Phase 02-offline-sync-engine P02 | 4min | 2 tasks | 12 files |
 | Phase 02-offline-sync-engine P01 | 5min | 3 tasks | 10 files |
+| Phase 02-offline-sync-engine P03 | 5min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -88,6 +89,9 @@ Recent decisions affecting current work:
 - [Phase 02-offline-sync-engine]: on_conflict_do_nothing(index_elements=[id]) for idempotent UUID creates — silent on duplicate for sync retry deduplication
 - [Phase 02-offline-sync-engine]: Payload serialization: manually build Map<String, dynamic> from Companion fields — toColumns() returns Map<String, Expression> which cannot be JSON-encoded
 - [Phase 02-offline-sync-engine]: deleteCompany now performs soft delete (sets deletedAt) not hard delete — required for tombstone propagation across devices
+- [Phase 02-offline-sync-engine]: connectivity_plus v7 returns List<ConnectivityResult> — checked with .any((r) => r != ConnectivityResult.none)
+- [Phase 02-offline-sync-engine]: Two-phase connectivity check: interface up AND hasInternetAccess — avoids captive portal false positives triggering sync
+- [Phase 02-offline-sync-engine]: After max retries (5), reset attemptCount=0 and leave as pending — retry on next connectivity cycle instead of abandoning
 
 ### Pending Todos
 
@@ -104,6 +108,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-05T21:56:20.600Z
-Stopped at: Completed 02-offline-sync-engine 02-01-PLAN.md
+Last session: 2026-03-05T22:05:32.636Z
+Stopped at: Completed 02-offline-sync-engine 02-03-PLAN.md
 Resume file: None
