@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Phase 2 context gathered
-last_updated: "2026-03-05T21:15:24.498Z"
+stopped_at: Completed 02-offline-sync-engine 02-02-PLAN.md
+last_updated: "2026-03-05T21:55:39.252Z"
 last_activity: 2026-03-05 — Integration tests proving tenant isolation + role CRUD; Flutter unit tests for auth and routing; seed data script
 progress:
   total_phases: 8
   completed_phases: 1
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 10
+  completed_plans: 6
   percent: 13
 ---
 
@@ -54,6 +54,7 @@ Progress: [█░░░░░░░░░] 13%
 | Phase 01-foundation P03 | 6 | 2 tasks | 20 files |
 | Phase 01-foundation P04 | 7min | 2 tasks | 17 files |
 | Phase 01-foundation P05 | 7min | 2 tasks | 8 files |
+| Phase 02-offline-sync-engine P02 | 4min | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -81,6 +82,9 @@ Recent decisions affecting current work:
 - [Phase 01-foundation P05]: Integration tests use real get_db (no override) — full TenantMiddleware -> ContextVar -> SET LOCAL RLS path tested; mock session would bypass RLS proof
 - [Phase 01-foundation P05]: Alembic migrations run in test setup (subprocess) — RLS policies are migration SQL; create_all cannot reproduce them
 - [Phase 01-foundation P05]: autouse TRUNCATE before each test (not per-test transaction rollback) — multi-request tests require committed data visible across independent sessions
+- [Phase 02-offline-sync-engine]: PostgreSQL trigger set_updated_at() used instead of SQLAlchemy onupdate — fires on bulk/raw SQL updates that bypass ORM
+- [Phase 02-offline-sync-engine]: Default sync cursor is 2000-01-01T00:00:00Z for full first-launch download without client needing to pass epoch
+- [Phase 02-offline-sync-engine]: on_conflict_do_nothing(index_elements=[id]) for idempotent UUID creates — silent on duplicate for sync retry deduplication
 
 ### Pending Todos
 
@@ -97,6 +101,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-05T21:15:24.484Z
-Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-offline-sync-engine/02-CONTEXT.md
+Last session: 2026-03-05T21:55:39.247Z
+Stopped at: Completed 02-offline-sync-engine 02-02-PLAN.md
+Resume file: None
