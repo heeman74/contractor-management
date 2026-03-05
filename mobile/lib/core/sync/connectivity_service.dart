@@ -17,9 +17,12 @@ import 'package:internet_connection_checker_plus/internet_connection_checker_plu
 ///
 /// This avoids unnecessary sync attempts on captive portal or metered networks
 /// where connectivity exists but HTTP requests will fail.
+///
+/// Constructor accepts optional [Connectivity] and [InternetConnection]
+/// overrides for unit testing. Production code uses the default instances.
 class ConnectivityService {
-  final _connectivity = Connectivity();
-  final _internetChecker = InternetConnection();
+  final Connectivity _connectivity;
+  final InternetConnection _internetChecker;
 
   StreamSubscription<List<ConnectivityResult>>? _subscription;
 
@@ -31,6 +34,16 @@ class ConnectivityService {
   /// Emits [true] when the device has verified internet access,
   /// [false] when offline or connectivity is lost.
   final _onlineController = StreamController<bool>.broadcast();
+
+  /// Creates a [ConnectivityService].
+  ///
+  /// [connectivity] and [internetChecker] are optional and default to the
+  /// platform singletons. Override them in unit tests to inject mocks.
+  ConnectivityService({
+    Connectivity? connectivity,
+    InternetConnection? internetChecker,
+  })  : _connectivity = connectivity ?? Connectivity(),
+        _internetChecker = internetChecker ?? InternetConnection();
 
   Stream<bool> get isOnlineStream => _onlineController.stream;
 

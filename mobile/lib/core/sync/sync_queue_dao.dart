@@ -68,6 +68,14 @@ class SyncQueueDao extends DatabaseAccessor<AppDatabase>
     );
   }
 
+  /// Returns ALL items regardless of status — for testing and diagnostics.
+  ///
+  /// Not used in production code paths. Exposed for unit tests that need to
+  /// verify parked items still exist with the correct status/error fields.
+  Future<List<SyncQueueData>> getAllItems() {
+    return select(syncQueue).get();
+  }
+
   /// Reactive stream of the count of pending items.
   ///
   /// Used by the sync status indicator in the app bar:
