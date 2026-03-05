@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-offline-sync-engine 02-04-PLAN.md
-last_updated: "2026-03-05T22:12:37.376Z"
-last_activity: 2026-03-05 — WorkManager background dispatcher, syncStatusProvider, SyncStatusSubtitle widget, AppShell shared app bar, pull-to-refresh on Home/Jobs/Schedule
+stopped_at: Completed 02-offline-sync-engine 02-05-PLAN.md
+last_updated: "2026-03-05T22:24:00.390Z"
+last_activity: 2026-03-05 — WorkManager dispatcher, sync status provider, app bar subtitle, pull-to-refresh on 3 screens
 progress:
   total_phases: 8
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 10
-  completed_plans: 9
+  completed_plans: 10
   percent: 90
 ---
 
@@ -58,6 +58,7 @@ Progress: [█████████░] 90%
 | Phase 02-offline-sync-engine P01 | 5min | 3 tasks | 10 files |
 | Phase 02-offline-sync-engine P03 | 5min | 2 tasks | 11 files |
 | Phase 02-offline-sync-engine P04 | 5min | 2 tasks | 7 files |
+| Phase 02-offline-sync-engine P05 | 7min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -96,6 +97,8 @@ Recent decisions affecting current work:
 - [Phase 02-offline-sync-engine]: AppShell provides shared AppBar with SyncStatusSubtitle — individual screens no longer own their AppBar; always-visible subtitle without per-screen duplication
 - [Phase 02-offline-sync-engine]: callbackDispatcher returns Future.value(true) on error — prevents OS WorkManager retry storm from exponential backoff on persistent failures
 - [Phase 02-offline-sync-engine]: Stream merging via dart:async StreamController.broadcast() for combining connectivity + engine status streams without RxDart dependency
+- [Phase 02-offline-sync-engine]: ConnectivityService refactored to accept optional Connectivity/InternetConnection constructor params for testability without breaking production behavior
+- [Phase 02-offline-sync-engine]: SyncQueueDao.getAllItems() added as test/diagnostic helper for asserting parked item state — not used in production code paths
 
 ### Pending Todos
 
@@ -112,6 +115,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-05T22:12:37.371Z
-Stopped at: Completed 02-offline-sync-engine 02-04-PLAN.md
+Last session: 2026-03-05T22:24:00.386Z
+Stopped at: Completed 02-offline-sync-engine 02-05-PLAN.md
 Resume file: None
