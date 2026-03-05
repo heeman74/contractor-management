@@ -33,14 +33,14 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Company, user, and role data models exist with UUID primary keys, version columns, and tenant_id foreign keys; Alembic manages all schema changes
   4. A test proves Tenant A cannot read or write Tenant B's data through any API endpoint
   5. All three role types (company admin, contractor, client) are represented in the data model and enforced by role-gated route guards in Flutter
-**Plans**: TBD
+**Plans:** 5 plans
 
 Plans:
-- [ ] 01-01: Flutter project scaffold — Drift, Riverpod, go_router, get_it, directory structure
-- [ ] 01-02: FastAPI project scaffold — Docker Compose, PostgreSQL, Alembic, tenant middleware, RLS policies
-- [ ] 01-03: Multi-tenant data models — Company, User, Role entities with UUID PKs, version columns, RLS enforcement
-- [ ] 01-04: Role-gated navigation — go_router guards for admin, contractor, and client routes
-- [ ] 01-05: Tenant isolation tests — E2E tests proving cross-tenant data leakage is impossible
+- [ ] 01-01-PLAN.md — Flutter project scaffold with Drift, Riverpod, go_router, get_it, and feature-first directory structure
+- [ ] 01-02-PLAN.md — FastAPI project scaffold with Docker Compose, PostgreSQL RLS, Alembic migration 0001, tenant middleware, and CI pipeline
+- [ ] 01-03-PLAN.md — Multi-tenant data models: Freezed entities, Drift DAOs, Pydantic schemas, and REST CRUD endpoints
+- [ ] 01-04-PLAN.md — Role-gated navigation with go_router guards, auth stub, app shell with bottom nav, and placeholder screens
+- [ ] 01-05-PLAN.md — Tenant isolation integration tests, role guard unit tests, and seed data script
 
 ### Phase 2: Offline Sync Engine
 **Goal**: The Flutter app stores all data locally first and reliably synchronizes to the backend when connectivity is available, with no data loss or duplication
@@ -189,7 +189,7 @@ Note: Phase 3 (Scheduling Engine) depends only on Phase 1 and can begin in paral
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/5 | Not started | - |
+| 1. Foundation | 0/5 | Planning complete | - |
 | 2. Offline Sync Engine | 0/6 | Not started | - |
 | 3. Scheduling Engine | 0/6 | Not started | - |
 | 4. Job Lifecycle | 0/6 | Not started | - |
