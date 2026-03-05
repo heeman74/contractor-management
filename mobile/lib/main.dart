@@ -1,12 +1,37 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:workmanager/workmanager.dart';
 
 import 'core/di/service_locator.dart';
 import 'core/routing/app_router.dart';
+import 'core/sync/workmanager_dispatcher.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await setupServiceLocator();
+
+  // Initialize WorkManager for periodic background sync (INFRA-04).
+  //
+  // The callbackDispatcher is a top-level function that re-initializes GetIt
+  // in the background isolate before running sync — required because WorkManager
+  // tasks run in a separate Dart isolate with fresh memory (Pitfall 1 RESEARCH.md).
+  //
+  // 15-minute frequency is the Android OS minimum — the OS may defer beyond this
+  // to optimize battery life, but will not fire more frequently (Pitfall 5 RESEARCH.md).
+  //
+  // NetworkType.connected constraint ensures sync only runs when the device has
+  // an active network connection.
+  Workmanager().initialize(callbackDispatcher, isInDebugMode: kDebugMode);
+  Workmanager().registerPeriodicTask(
+    'contractorhub-sync',
+    'backgroundSync',
+    frequency: const Duration(minutes: 15), // Android minimum — Pitfall 5
+    constraints: Constraints(networkType: NetworkType.connected),
+  );
+
+  // IMPORTANT: Do NOT add a loading spinner here or await any data fetch.
+  // App opens showing cached Drift data immediately (user decision: no loading spinner).
   runApp(
     const ProviderScope(
       child: ContractorHubApp(),
