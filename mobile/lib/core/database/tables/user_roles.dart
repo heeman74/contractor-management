@@ -11,6 +11,8 @@ class UserRoles extends Table {
   // Role values: 'admin' | 'contractor' | 'client'
   TextColumn get role => text()();
   DateTimeColumn get createdAt => dateTime()();
+  // Soft-delete for sync tombstone propagation across devices.
+  DateTimeColumn get deletedAt => dateTime().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
