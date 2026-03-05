@@ -51,16 +51,15 @@ Plans:
   2. User can create a record while offline; it appears immediately in the UI and syncs to the backend when connectivity is restored
   3. A record created offline and retried multiple times due to network failure appears exactly once in the backend (idempotency via client-generated UUID)
   4. The app displays a visible sync status indicator ("N items pending", "Syncing...", "All synced") at all times
-  5. A sync conflict between local and server versions resolves predictably — server wins for schedules, field-merge for status updates — with no silent data loss
-**Plans**: TBD
+  5. A sync conflict between local and server versions resolves predictably — server always wins on all entity types — with no silent data loss
+**Plans:** 5 plans
 
 Plans:
-- [ ] 02-01: Drift local DB and sync_queue table — outbox schema, version tracking, migration framework discipline
-- [ ] 02-02: SyncEngine Flutter service — queue drain, exponential backoff, idempotency keys, connectivity detection
-- [ ] 02-03: Backend delta sync endpoint — GET /api/v1/sync?cursor=<timestamp>, idempotent mutation endpoints with client_id deduplication
-- [ ] 02-04: workmanager background sync — foreground-launch primary trigger, periodic fallback, OS kill recovery
-- [ ] 02-05: Sync status UI indicator and offline/online state management
-- [ ] 02-06: Conflict resolution tests — E2E tests for offline-create, offline-edit, concurrent edit, retry deduplication
+- [ ] 02-01-PLAN.md — Drift sync_queue outbox table, sync_cursor table, deleted_at soft-delete columns, schema v2 migration, SyncQueueDao, SyncCursorDao
+- [ ] 02-02-PLAN.md — Backend Alembic migration 0002 (deleted_at, updated_at triggers), delta sync endpoint, idempotent mutation services
+- [ ] 02-03-PLAN.md — SyncEngine service with queue drain, delta pull, SyncRegistry, SyncHandlers, ConnectivityService, DioClient retry interceptor
+- [ ] 02-04-PLAN.md — WorkManager background sync dispatcher, sync status Riverpod provider, app bar subtitle, pull-to-refresh on main screens
+- [ ] 02-05-PLAN.md — SyncEngine unit tests (mock Dio), delta sync and idempotency integration tests (real PostgreSQL)
 
 ### Phase 3: Scheduling Engine
 **Goal**: The backend can compute contractor availability, detect booking conflicts (including travel time buffers), and safely block multiple days for spanning jobs — all enforced at the database level
@@ -190,7 +189,7 @@ Note: Phase 3 (Scheduling Engine) depends only on Phase 1 and can begin in paral
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 5/5 | Complete | 2026-03-05 |
-| 2. Offline Sync Engine | 0/6 | Not started | - |
+| 2. Offline Sync Engine | 0/5 | Planned | - |
 | 3. Scheduling Engine | 0/6 | Not started | - |
 | 4. Job Lifecycle | 0/6 | Not started | - |
 | 5. Calendar and Dispatch UI | 0/6 | Not started | - |
