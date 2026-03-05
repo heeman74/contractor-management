@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-foundation-04-PLAN.md — GoRouter role guards, AppShell bottom nav, all placeholder screens
-last_updated: "2026-03-05T07:24:41.530Z"
-last_activity: 2026-03-05 — FastAPI backend scaffold with PostgreSQL RLS, Alembic migrations, Docker Compose, CI pipeline
+stopped_at: Completed 01-foundation-05-PLAN.md — RLS isolation integration tests, Flutter role guard tests, seed data script
+last_updated: "2026-03-05T07:31:00.000Z"
+last_activity: 2026-03-05 — Integration tests proving tenant isolation + role CRUD; Flutter unit tests for auth and routing; seed data script
 progress:
   total_phases: 8
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 5
-  completed_plans: 4
-  percent: 0
+  completed_plans: 5
+  percent: 13
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 ## Current Position
 
 Phase: 1 of 8 (Foundation)
-Plan: 2 of 5 in current phase
-Status: In progress
-Last activity: 2026-03-05 — FastAPI backend scaffold with PostgreSQL RLS, Alembic migrations, Docker Compose, CI pipeline
+Plan: 5 of 5 in current phase — COMPLETE
+Status: Phase 1 complete — ready for Phase 2 planning
+Last activity: 2026-03-05 — Integration tests proving tenant isolation + role CRUD; Flutter unit tests for auth and routing; seed data script
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█░░░░░░░░░] 13%
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Progress: [░░░░░░░░░░] 0%
 *Updated after each plan completion*
 | Phase 01-foundation P03 | 6 | 2 tasks | 20 files |
 | Phase 01-foundation P04 | 7min | 2 tasks | 17 files |
+| Phase 01-foundation P05 | 7min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -77,6 +78,9 @@ Recent decisions affecting current work:
 - [Phase 01-foundation]: StatefulShellRoute.indexedStack used instead of ShellRoute — preserves per-tab navigation stack; navigationShell.goBranch() for tab switching
 - [Phase 01-foundation]: ValueNotifier bridge in routerProvider: ref.listen(authNotifierProvider) -> ValueNotifier<AuthState> -> GoRouter.refreshListenable prevents router rebuild on auth state change
 - [Phase 01-foundation]: NavigationBar (Material 3) used instead of BottomNavigationBar; consistent with useMaterial3: true theme
+- [Phase 01-foundation P05]: Integration tests use real get_db (no override) — full TenantMiddleware -> ContextVar -> SET LOCAL RLS path tested; mock session would bypass RLS proof
+- [Phase 01-foundation P05]: Alembic migrations run in test setup (subprocess) — RLS policies are migration SQL; create_all cannot reproduce them
+- [Phase 01-foundation P05]: autouse TRUNCATE before each test (not per-test transaction rollback) — multi-request tests require committed data visible across independent sessions
 
 ### Pending Todos
 
@@ -93,6 +97,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-05T07:24:41.526Z
-Stopped at: Completed 01-foundation-04-PLAN.md — GoRouter role guards, AppShell bottom nav, all placeholder screens
+Last session: 2026-03-05T07:31:00.000Z
+Stopped at: Completed 01-foundation-05-PLAN.md — Integration tests, Flutter unit tests, seed data script (Phase 1 complete)
 Resume file: None
