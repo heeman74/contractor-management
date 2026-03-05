@@ -2,45 +2,63 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/di/service_locator.dart';
+import 'core/routing/app_router.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await setupServiceLocator();
   runApp(
     const ProviderScope(
-      child: MyApp(),
+      child: ContractorHubApp(),
     ),
   );
 }
 
-class MyApp extends ConsumerWidget {
-  const MyApp({super.key});
+/// Root app widget — uses MaterialApp.router to hand navigation control to go_router.
+///
+/// The router is provided via routerProvider which uses the ValueNotifier bridge
+/// pattern to avoid router rebuilds on auth state changes (RESEARCH.md Pitfall 4).
+///
+/// Theme uses Material 3 with a professional indigo/blue color scheme appropriate
+/// for a B2B contractor management tool.
+class ContractorHubApp extends ConsumerWidget {
+  const ContractorHubApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return MaterialApp(
+    final router = ref.watch(routerProvider);
+
+    return MaterialApp.router(
       title: 'ContractorHub',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-      ),
-      // go_router wiring happens in Plan 04
-      home: const _AppPlaceholder(),
+      debugShowCheckedModeBanner: false,
+      theme: _buildTheme(),
+      routerConfig: router,
     );
   }
-}
 
-class _AppPlaceholder extends StatelessWidget {
-  const _AppPlaceholder();
+  ThemeData _buildTheme() {
+    const seedColor = Color(0xFF1E4D8C); // Professional deep blue
 
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(
-        child: Text(
-          'ContractorHub',
-          style: TextStyle(fontSize: 24),
+    return ThemeData(
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: seedColor,
+        brightness: Brightness.light,
+      ),
+      useMaterial3: true,
+      appBarTheme: const AppBarTheme(
+        centerTitle: false,
+        elevation: 0,
+        scrolledUnderElevation: 1,
+      ),
+      cardTheme: CardTheme(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.grey.shade200),
         ),
+      ),
+      navigationBarTheme: const NavigationBarThemeData(
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       ),
     );
   }
