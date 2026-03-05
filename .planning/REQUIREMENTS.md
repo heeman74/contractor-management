@@ -11,7 +11,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **INFRA-01**: Multi-tenant company workspace with data isolation per company
 - [x] **INFRA-02**: Three user roles: company admin, contractor, client
-- [ ] **INFRA-03**: Offline-first mobile app with local data storage
+- [x] **INFRA-03**: Offline-first mobile app with local data storage
 - [x] **INFRA-04**: Background sync engine with conflict resolution
 - [x] **INFRA-05**: Flutter mobile app (Android first, iOS second)
 - [x] **INFRA-06**: Python backend API (FastAPI) shared across platforms
@@ -95,7 +95,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INFRA-02 | Phase 1 — Foundation | Complete |
 | INFRA-05 | Phase 1 — Foundation | Complete |
 | INFRA-06 | Phase 1 — Foundation | Complete |
-| INFRA-03 | Phase 2 — Offline Sync Engine | Pending |
+| INFRA-03 | Phase 2 — Offline Sync Engine | Complete |
 | INFRA-04 | Phase 2 — Offline Sync Engine | Complete |
 | SCHED-04 | Phase 3 — Scheduling Engine | Pending |
 | SCHED-05 | Phase 3 — Scheduling Engine | Pending |
