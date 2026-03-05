@@ -1,40 +1,52 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class CompanyCreate(BaseModel):
-    """Schema for creating a new company."""
+    """Schema for creating a new company.
 
-    name: str
+    All fields except name are optional — company can be updated later.
+    """
+
+    name: str = Field(min_length=1)
     address: str | None = None
     phone: str | None = None
-    business_number: str | None = None
+    trade_types: list[str] | None = None
     logo_url: str | None = None
+    business_number: str | None = None
 
 
 class CompanyUpdate(BaseModel):
-    """Schema for updating an existing company."""
+    """Schema for partial update of an existing company.
 
-    name: str | None = None
+    All fields are optional — only provided fields are updated.
+    """
+
+    name: str | None = Field(default=None, min_length=1)
     address: str | None = None
     phone: str | None = None
-    business_number: str | None = None
+    trade_types: list[str] | None = None
     logo_url: str | None = None
+    business_number: str | None = None
 
 
 class CompanyResponse(BaseModel):
-    """Schema for company API responses."""
+    """Schema for company API responses.
+
+    Includes all fields plus server-generated id, version, and timestamps.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
     name: str
     address: str | None
     phone: str | None
-    business_number: str | None
+    trade_types: list[str] | None
     logo_url: str | None
+    business_number: str | None
     version: int
     created_at: datetime
     updated_at: datetime
-
-    model_config = {"from_attributes": True}

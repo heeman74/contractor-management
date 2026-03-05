@@ -51,6 +51,7 @@ def upgrade() -> None:
         sa.Column("phone", sa.String(), nullable=True),
         sa.Column("business_number", sa.String(), nullable=True),
         sa.Column("logo_url", sa.String(), nullable=True),
+        sa.Column("trade_types", sa.ARRAY(sa.String()), nullable=True),
         sa.Column(
             "version", sa.Integer(), nullable=False, server_default=sa.text("1")
         ),

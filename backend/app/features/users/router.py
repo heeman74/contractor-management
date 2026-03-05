@@ -1,19 +1,28 @@
 """Users API router.
 
-Phase 1: stub endpoints. Full CRUD with auth in later phases.
+Endpoints:
+  POST   /api/v1/users/                  — create user (company_id from middleware)
+  GET    /api/v1/users/                  — list users (RLS-filtered to tenant)
+  POST   /api/v1/users/{user_id}/roles   — assign role to user
+  GET    /api/v1/users/{user_id}/roles   — get user's roles
+
+CRITICAL: X-Company-Id header required for all endpoints.
+The TenantMiddleware reads this header and sets the ContextVar that
+drives both RLS (via after_begin event) and explicit company_id
+assignments in service functions.
 """
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.features.users import service
 from app.features.users.schemas import (
+    RoleAssignment,
     UserCreate,
     UserResponse,
-    UserRoleCreate,
     UserRoleResponse,
 )
 
@@ -25,31 +34,52 @@ async def create_user(
     data: UserCreate,
     db: AsyncSession = Depends(get_db),
 ) -> UserResponse:
-    """Create a new user. Phase 1: no auth required."""
+    """Create a new user scoped to the current tenant.
+
+    Requires X-Company-Id header. company_id is set by TenantMiddleware —
+    never by request body.
+    """
     user = await service.create_user(db, data)
     return UserResponse.model_validate(user)
 
 
-@router.get("/{user_id}", response_model=UserResponse)
-async def get_user(
-    user_id: uuid.UUID,
+@router.get("/", response_model=list[UserResponse])
+async def list_users(
     db: AsyncSession = Depends(get_db),
-) -> UserResponse:
-    """Retrieve a user by ID. Phase 1: no auth required."""
-    user = await service.get_user(db, user_id)
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
-    return UserResponse.model_validate(user)
+) -> list[UserResponse]:
+    """List all users for the current tenant (RLS-filtered).
+
+    Requires X-Company-Id header. PostgreSQL RLS automatically restricts
+    results to the current company — no explicit WHERE clause needed.
+    """
+    users = await service.list_users(db)
+    return [UserResponse.model_validate(u) for u in users]
 
 
-@router.post("/roles", response_model=UserRoleResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{user_id}/roles",
+    response_model=UserRoleResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def assign_role(
-    data: UserRoleCreate,
+    user_id: uuid.UUID,
+    data: RoleAssignment,
     db: AsyncSession = Depends(get_db),
 ) -> UserRoleResponse:
-    """Assign a role to a user. Phase 1: no auth required."""
-    user_role = await service.assign_role(db, data)
+    """Assign a role to a user within the current tenant company.
+
+    Supports all three role types: admin, contractor, client.
+    Requires X-Company-Id header.
+    """
+    user_role = await service.assign_role(db, user_id, data)
     return UserRoleResponse.model_validate(user_role)
+
+
+@router.get("/{user_id}/roles", response_model=list[UserRoleResponse])
+async def get_user_roles(
+    user_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> list[UserRoleResponse]:
+    """Get all roles for a specific user within the current tenant."""
+    roles = await service.get_user_roles(db, user_id)
+    return [UserRoleResponse.model_validate(r) for r in roles]
