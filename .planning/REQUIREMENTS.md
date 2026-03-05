@@ -91,13 +91,40 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| — | — | — |
+| INFRA-01 | Phase 1 — Foundation | Pending |
+| INFRA-02 | Phase 1 — Foundation | Pending |
+| INFRA-05 | Phase 1 — Foundation | Pending |
+| INFRA-06 | Phase 1 — Foundation | Pending |
+| INFRA-03 | Phase 2 — Offline Sync Engine | Pending |
+| INFRA-04 | Phase 2 — Offline Sync Engine | Pending |
+| SCHED-04 | Phase 3 — Scheduling Engine | Pending |
+| SCHED-05 | Phase 3 — Scheduling Engine | Pending |
+| SCHED-06 | Phase 3 — Scheduling Engine | Pending |
+| SCHED-07 | Phase 3 — Scheduling Engine | Pending |
+| SCHED-01 | Phase 4 — Job Lifecycle | Pending |
+| SCHED-02 | Phase 4 — Job Lifecycle | Pending |
+| CLNT-01 | Phase 4 — Job Lifecycle | Pending |
+| CLNT-04 | Phase 4 — Job Lifecycle | Pending |
+| SCHED-03 | Phase 5 — Calendar and Dispatch UI | Pending |
+| SCHED-08 | Phase 5 — Calendar and Dispatch UI | Pending |
+| SCHED-09 | Phase 5 — Calendar and Dispatch UI | Pending |
+| FIELD-01 | Phase 6 — Field Workflow | Pending |
+| FIELD-02 | Phase 6 — Field Workflow | Pending |
+| FIELD-03 | Phase 6 — Field Workflow | Pending |
+| FIELD-04 | Phase 6 — Field Workflow | Pending |
+| CLNT-02 | Phase 7 — Client Portal and Notifications | Pending |
+| CLNT-03 | Phase 7 — Client Portal and Notifications | Pending |
+| CLNT-05 | Phase 7 — Client Portal and Notifications | Pending |
+| BIZ-01 | Phase 8 — Business Operations | Pending |
+| BIZ-02 | Phase 8 — Business Operations | Pending |
+| BIZ-03 | Phase 8 — Business Operations | Pending |
+| BIZ-04 | Phase 8 — Business Operations | Pending |
 
 **Coverage:**
 - v1 requirements: 24 total
-- Mapped to phases: 0
-- Unmapped: 24 ⚠️
+- Mapped to phases: 24
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-04*
-*Last updated: 2026-03-04 after initial definition*
+*Last updated: 2026-03-04 after roadmap creation — all 24 requirements mapped*
