@@ -52,7 +52,7 @@ Plans:
   3. A record created offline and retried multiple times due to network failure appears exactly once in the backend (idempotency via client-generated UUID)
   4. The app displays a visible sync status indicator ("N items pending", "Syncing...", "All synced") at all times
   5. A sync conflict between local and server versions resolves predictably — server always wins on all entity types — with no silent data loss
-**Plans:** 7 plans
+**Plans:** 7/7 plans complete
 
 Plans:
 - [x] 02-01-PLAN.md — Drift sync_queue outbox table, sync_cursor table, deleted_at soft-delete columns, schema v2 migration, SyncQueueDao, SyncCursorDao
@@ -191,7 +191,7 @@ Note: Phase 3 (Scheduling Engine) depends only on Phase 1 and can begin in paral
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 5/5 | Complete | 2026-03-05 |
-| 2. Offline Sync Engine | 6/7 | UAT gap closure | 2026-03-06 |
+| 2. Offline Sync Engine | 7/7 | Complete   | 2026-03-06 |
 | 3. Scheduling Engine | 0/6 | Not started | - |
 | 4. Job Lifecycle | 0/6 | Not started | - |
 | 5. Calendar and Dispatch UI | 0/6 | Not started | - |
