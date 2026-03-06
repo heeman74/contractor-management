@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-offline-sync-engine 02-05-PLAN.md
-last_updated: "2026-03-05T22:30:29.346Z"
+stopped_at: Completed 02-offline-sync-engine 02-06-PLAN.md
+last_updated: "2026-03-06T02:50:51.686Z"
 last_activity: 2026-03-05 — WorkManager dispatcher, sync status provider, app bar subtitle, pull-to-refresh on 3 screens
 progress:
   total_phases: 8
   completed_phases: 2
-  total_plans: 10
-  completed_plans: 10
+  total_plans: 11
+  completed_plans: 11
   percent: 90
 ---
 
@@ -59,6 +59,7 @@ Progress: [█████████░] 90%
 | Phase 02-offline-sync-engine P03 | 5min | 2 tasks | 11 files |
 | Phase 02-offline-sync-engine P04 | 5min | 2 tasks | 7 files |
 | Phase 02-offline-sync-engine P05 | 7min | 2 tasks | 7 files |
+| Phase 02-offline-sync-engine P06 | 3min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -99,6 +100,8 @@ Recent decisions affecting current work:
 - [Phase 02-offline-sync-engine]: Stream merging via dart:async StreamController.broadcast() for combining connectivity + engine status streams without RxDart dependency
 - [Phase 02-offline-sync-engine]: ConnectivityService refactored to accept optional Connectivity/InternetConnection constructor params for testability without breaking production behavior
 - [Phase 02-offline-sync-engine]: SyncQueueDao.getAllItems() added as test/diagnostic helper for asserting parked item state — not used in production code paths
+- [Phase 02-offline-sync-engine]: str | None cursor type chosen over datetime | None in sync endpoint — lets Pydantic accept empty string, parsing moved to handler body
+- [Phase 02-offline-sync-engine]: Auth-screen redirect added as prefix check in AuthAuthenticated branch before _checkRoleAccess — /splash and /onboarding always redirect authenticated users to /home
 
 ### Pending Todos
 
@@ -115,6 +118,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-05T22:24:00.386Z
-Stopped at: Completed 02-offline-sync-engine 02-05-PLAN.md
+Last session: 2026-03-06T02:50:51.682Z
+Stopped at: Completed 02-offline-sync-engine 02-06-PLAN.md
 Resume file: None
