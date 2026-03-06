@@ -1,5 +1,5 @@
 ---
-status: complete
+status: diagnosed
 phase: 02-offline-sync-engine
 source: 02-01-SUMMARY.md, 02-02-SUMMARY.md, 02-03-SUMMARY.md, 02-04-SUMMARY.md, 02-05-SUMMARY.md, 02-06-SUMMARY.md
 started: 2026-03-05T22:30:00Z
@@ -74,16 +74,34 @@ skipped: 0
   reason: "User reported: There is user_roles: []"
   severity: minor
   test: 1
-  artifacts: []
-  missing: []
+  root_cause: "user_roles.updated_at is NULL on seeded rows. Migration 0002 added updated_at via ALTER TABLE ADD COLUMN with server_default — PostgreSQL only applies server_default to new inserts, not existing rows. Sync query filters WHERE updated_at > since, and NULL > anything = NULL (not TRUE), so zero rows match."
+  artifacts:
+    - path: "backend/app/features/sync/service.py"
+      issue: "Sync query filters on updated_at > since — NULL rows excluded"
+    - path: "backend/migrations/versions/0002_soft_delete_sync.py"
+      issue: "ADD COLUMN updated_at does not backfill existing rows"
+  missing:
+    - "Add migration 0003 to backfill: UPDATE user_roles SET updated_at = created_at WHERE updated_at IS NULL"
+    - "Optionally make UserRole.updated_at nullable=False to prevent recurrence"
+  debug_session: ".planning/debug/sync-empty-user-roles.md"
 
 - truth: "Sync status shows active syncing state (e.g., 'Syncing 1 of 1...') before transitioning to 'All synced' on connectivity restore"
   status: failed
   reason: "User reported: I says it is all synced, but there is not enough data to see syncing status"
   severity: minor
   test: 7
-  artifacts: []
-  missing: []
+  root_cause: "Two compounding bugs: (1) sync_status_provider.dart yields allSynced immediately on reconnect before engine starts draining (lastEngineStatus is null, defaults to allSynced). (2) connectivity_service.dart fires online event and drainQueue() back-to-back in same event loop turn — Riverpod frame batching collapses rapid state changes so syncing state never gets a frame to paint."
+  artifacts:
+    - path: "mobile/lib/core/sync/sync_status_provider.dart"
+      issue: "Premature allSynced yield on connectivity restore before engine emits syncing state"
+    - path: "mobile/lib/core/sync/connectivity_service.dart"
+      issue: "Online event and onConnected() fire back-to-back with no async gap"
+    - path: "mobile/lib/core/sync/sync_engine.dart"
+      issue: "Missing frame yield after initial syncing emit — drain may complete in one frame"
+  missing:
+    - "Remove premature yield in sync_status_provider.dart — let engine emit its own status"
+    - "Add await Future.delayed(Duration.zero) after syncing emit in sync_engine.dart drainQueue()"
+  debug_session: ".planning/debug/sync-status-not-visible.md"
 
 - truth: "GET /api/v1/sync?cursor= returns a valid JSON response with companies, users, user_roles arrays and a server_timestamp field when cursor is empty or omitted"
   status: resolved
