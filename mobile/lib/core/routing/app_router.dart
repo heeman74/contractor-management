@@ -72,8 +72,11 @@ GoRouter router(Ref ref) {
             ? null
             : RouteNames.onboarding,
 
-        // Authenticated: apply role-based guards
-        AuthAuthenticated(:final roles) => _checkRoleAccess(location, roles),
+        // Authenticated: redirect away from auth-only screens, then apply role guards
+        AuthAuthenticated(:final roles) =>
+            (location == RouteNames.splash || location == RouteNames.onboarding)
+                ? RouteNames.home
+                : _checkRoleAccess(location, roles),
       };
     },
     routes: [
