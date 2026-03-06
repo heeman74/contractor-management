@@ -52,7 +52,7 @@ Plans:
   3. A record created offline and retried multiple times due to network failure appears exactly once in the backend (idempotency via client-generated UUID)
   4. The app displays a visible sync status indicator ("N items pending", "Syncing...", "All synced") at all times
   5. A sync conflict between local and server versions resolves predictably — server always wins on all entity types — with no silent data loss
-**Plans:** 6/6 plans complete
+**Plans:** 7 plans
 
 Plans:
 - [x] 02-01-PLAN.md — Drift sync_queue outbox table, sync_cursor table, deleted_at soft-delete columns, schema v2 migration, SyncQueueDao, SyncCursorDao
@@ -60,7 +60,8 @@ Plans:
 - [x] 02-03-PLAN.md — SyncEngine service with queue drain, delta pull, SyncRegistry, SyncHandlers, ConnectivityService, DioClient retry interceptor
 - [x] 02-04-PLAN.md — WorkManager background sync dispatcher, sync status Riverpod provider, app bar subtitle, pull-to-refresh on main screens
 - [x] 02-05-PLAN.md — SyncEngine unit tests (mock Dio), delta sync and idempotency integration tests (real PostgreSQL)
-- [ ] 02-06-PLAN.md — GAP CLOSURE: Fix sync endpoint empty cursor 422 and GoRouter authenticated redirect from onboarding
+- [x] 02-06-PLAN.md — GAP CLOSURE: Fix sync endpoint empty cursor 422 and GoRouter authenticated redirect from onboarding
+- [ ] 02-07-PLAN.md — GAP CLOSURE: Backfill user_roles.updated_at NULL rows and fix sync status provider premature allSynced on reconnect
 
 ### Phase 3: Scheduling Engine
 **Goal**: The backend can compute contractor availability, detect booking conflicts (including travel time buffers), and safely block multiple days for spanning jobs — all enforced at the database level
@@ -190,7 +191,7 @@ Note: Phase 3 (Scheduling Engine) depends only on Phase 1 and can begin in paral
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 5/5 | Complete | 2026-03-05 |
-| 2. Offline Sync Engine | 6/6 | Complete   | 2026-03-06 |
+| 2. Offline Sync Engine | 6/7 | UAT gap closure | 2026-03-06 |
 | 3. Scheduling Engine | 0/6 | Not started | - |
 | 4. Job Lifecycle | 0/6 | Not started | - |
 | 5. Calendar and Dispatch UI | 0/6 | Not started | - |
