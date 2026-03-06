@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../di/service_locator.dart';
@@ -32,7 +33,6 @@ Stream<SyncStatus> syncStatus(Ref ref) async* {
   // Track the current online state. We start by emitting allSynced so the
   // UI can display immediately with cached data and no loading spinner.
   bool isOnline = true;
-  SyncStatus? lastEngineStatus;
 
   // Emit initial "all synced" so the app bar shows something immediately.
   yield const SyncStatus(SyncState.allSynced, 0);
@@ -53,11 +53,17 @@ Stream<SyncStatus> syncStatus(Ref ref) async* {
         // Device went offline — immediately emit offline status.
         yield const SyncStatus(SyncState.offline, 0);
       } else {
-        // Back online — resume showing engine status (or allSynced default).
-        yield lastEngineStatus ?? const SyncStatus(SyncState.allSynced, 0);
+        // Back online — do NOT yield here. The SyncEngine will emit its own
+        // status (syncing -> allSynced) as it drains the queue via
+        // _onConnectivityRestored(). Yielding a default here would race with
+        // and overwrite the engine's syncing state, causing the UI to never
+        // show "Syncing 1 of 1...".
+        //
+        // If the queue is empty, drainQueue() emits allSynced itself.
+        // If the queue has items, drainQueue() emits syncing first.
+        // Either way, the engine's own emission is the correct source of truth.
       }
     } else if (event is _EngineEvent) {
-      lastEngineStatus = event.status;
       if (isOnline) {
         yield event.status;
       }

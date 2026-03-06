@@ -168,6 +168,12 @@ class SyncEngine {
 
       _syncStatusController.add(SyncStatus(SyncState.syncing, total));
 
+      // Yield to the event loop so Flutter can paint the "Syncing..." state
+      // before we start processing items. Without this, if the queue is small
+      // and the network is fast, drainQueue() can complete in a single frame
+      // and the UI only ever sees the final allSynced state.
+      await Future<void>.delayed(Duration.zero);
+
       for (var i = 0; i < items.length; i++) {
         final item = items[i];
         _syncStatusController.add(
