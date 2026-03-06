@@ -1,9 +1,9 @@
 ---
-status: diagnosed
+status: resolved
 phase: 02-offline-sync-engine
 source: 02-01-SUMMARY.md, 02-02-SUMMARY.md, 02-03-SUMMARY.md, 02-04-SUMMARY.md, 02-05-SUMMARY.md
 started: 2026-03-05T22:30:00Z
-updated: 2026-03-05T22:45:00Z
+updated: 2026-03-06T00:00:00Z
 ---
 
 ## Current Test
@@ -72,7 +72,7 @@ skipped: 5
 ## Gaps
 
 - truth: "GET /api/v1/sync?cursor= returns a valid JSON response with companies, users, user_roles arrays and a server_timestamp field when cursor is empty or omitted"
-  status: failed
+  status: resolved
   reason: "User reported: GET /api/v1/sync?cursor= returns 422 validation error: 'Input should be a valid datetime or date, input is too short'. Empty cursor string is not handled — should default to epoch for full first-launch download."
   severity: major
   test: 1
@@ -85,7 +85,7 @@ skipped: 5
   debug_session: ".planning/debug/sync-empty-cursor-422.md"
 
 - truth: "App bar shows sync status subtitle on all tabs after login"
-  status: failed
+  status: resolved
   reason: "User reported: No response with clicking login buttons."
   severity: blocker
   test: 5
