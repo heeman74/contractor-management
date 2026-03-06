@@ -1,5 +1,5 @@
 ---
-status: complete
+status: diagnosed
 phase: 02-offline-sync-engine
 source: 02-01-SUMMARY.md, 02-02-SUMMARY.md, 02-03-SUMMARY.md, 02-04-SUMMARY.md, 02-05-SUMMARY.md
 started: 2026-03-05T22:30:00Z
@@ -76,17 +76,23 @@ skipped: 5
   reason: "User reported: GET /api/v1/sync?cursor= returns 422 validation error: 'Input should be a valid datetime or date, input is too short'. Empty cursor string is not handled — should default to epoch for full first-launch download."
   severity: major
   test: 1
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "FastAPI/Pydantic type coercion rejects empty string for datetime | None query parameter. The cursor param in router.py is typed as datetime | None with default=None, but when cursor= is present as empty string, Pydantic tries to parse '' as datetime and fails. The epoch fallback logic is unreachable because validation rejects before handler executes."
+  artifacts:
+    - path: "backend/app/features/sync/router.py"
+      issue: "cursor parameter typed as datetime | None — empty string rejected at validation layer"
+  missing:
+    - "Change cursor type to str | None and manually parse/coerce in handler body: empty/None defaults to epoch, non-empty parsed as datetime"
+  debug_session: ".planning/debug/sync-empty-cursor-422.md"
 
 - truth: "App bar shows sync status subtitle on all tabs after login"
   status: failed
   reason: "User reported: No response with clicking login buttons."
   severity: blocker
   test: 5
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "GoRouter redirect function in app_router.dart missing redirect case for authenticated users on auth-only screens. AuthAuthenticated branch only calls _checkRoleAccess() which returns null for /onboarding (not a role-gated route), so user stays on onboarding screen after login. Pre-existing logic gap, not a Phase 2 regression."
+  artifacts:
+    - path: "mobile/lib/core/routing/app_router.dart"
+      issue: "AuthAuthenticated redirect case does not redirect away from /splash or /onboarding to /home"
+  missing:
+    - "Add check in AuthAuthenticated branch: if location is /splash or /onboarding, redirect to /home before calling _checkRoleAccess"
+  debug_session: ".planning/debug/login-buttons-not-responding.md"
