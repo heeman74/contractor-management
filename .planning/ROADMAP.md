@@ -73,15 +73,13 @@ Plans:
   3. A multi-day job blocks the contractor's availability across all days it spans, including partial-day segments correctly
   4. Travel time between consecutive job sites is fetched, cached with TTL, and subtracted from available slot windows before returning results
   5. The scheduling engine is exercised by unit tests independent of any HTTP routing — it is a pure business logic module
-**Plans**: TBD
+**Plans:** 4 plans
 
 Plans:
-- [ ] 03-01: Availability data model — schedules table with EXCLUDE USING GIST constraint, btree_gist extension, contractor availability records
-- [ ] 03-02: Scheduling engine module — get_available_slots(), conflict detection, isolated from routing
-- [ ] 03-03: Multi-day job availability blocking — algorithm for spanning jobs with partial-day segments
-- [ ] 03-04: Travel time integration — mapping API selection, cache layer (Redis, TTL), slot window subtraction
-- [ ] 03-05: Conflict detection API endpoints — available slots, conflict check before booking
-- [ ] 03-06: Scheduling engine tests — unit tests for slot computation, GIST constraint load test (concurrent booking)
+- [ ] 03-01-PLAN.md — Data foundation: Alembic migration 0007 with 6 scheduling tables (GIST constraint on bookings), ORM models, Pydantic schemas
+- [ ] 03-02-PLAN.md — Travel time and geocoding: pluggable provider interfaces, ORS implementations, PostgreSQL cache with TTL
+- [ ] 03-03-PLAN.md — Scheduling engine core: SchedulingRepository, SchedulingService (availability, booking, multi-day, date suggestion)
+- [ ] 03-04-PLAN.md — API endpoints and tests: REST router, unit tests, concurrent booking integration tests, multi-day and travel time tests
 
 ### Phase 4: Job Lifecycle
 **Goal**: Company admins can create, assign, and progress jobs through the full lifecycle, and clients can submit job requests that admins convert into scheduled jobs
@@ -192,7 +190,7 @@ Note: Phase 3 (Scheduling Engine) depends only on Phase 1 and can begin in paral
 |-------|----------------|--------|-----------|
 | 1. Foundation | 5/5 | Complete | 2026-03-05 |
 | 2. Offline Sync Engine | 7/7 | Complete   | 2026-03-06 |
-| 3. Scheduling Engine | 0/6 | Not started | - |
+| 3. Scheduling Engine | 0/4 | Planned | - |
 | 4. Job Lifecycle | 0/6 | Not started | - |
 | 5. Calendar and Dispatch UI | 0/6 | Not started | - |
 | 6. Field Workflow | 0/6 | Not started | - |
