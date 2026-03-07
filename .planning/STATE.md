@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 3 context gathered
-last_updated: "2026-03-07T00:50:27.415Z"
+stopped_at: "Completed 03-01-PLAN.md (scheduling data foundation: migration 0007, ORM models, Pydantic schemas)"
+last_updated: "2026-03-07T01:48:28.507Z"
 last_activity: 2026-03-05 — WorkManager dispatcher, sync status provider, app bar subtitle, pull-to-refresh on 3 screens
 progress:
   total_phases: 8
   completed_phases: 2
-  total_plans: 12
-  completed_plans: 12
+  total_plans: 16
+  completed_plans: 13
   percent: 90
 ---
 
@@ -61,6 +61,7 @@ Progress: [█████████░] 90%
 | Phase 02-offline-sync-engine P05 | 7min | 2 tasks | 7 files |
 | Phase 02-offline-sync-engine P06 | 3min | 2 tasks | 2 files |
 | Phase 02-offline-sync-engine PP07 | 3min | 2 tasks | 4 files |
+| Phase 03-scheduling-engine P01 | 18min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -105,6 +106,9 @@ Recent decisions affecting current work:
 - [Phase 02-offline-sync-engine]: Auth-screen redirect added as prefix check in AuthAuthenticated branch before _checkRoleAccess — /splash and /onboarding always redirect authenticated users to /home
 - [Phase 02-offline-sync-engine]: Backfill via new migration 0003 (not amending 0002) — keeps migration history clean and auditable
 - [Phase 02-offline-sync-engine]: Remove lastEngineStatus variable entirely after removing premature yield — dead code removed to keep provider lean
+- [Phase 03-scheduling-engine]: op.execute raw SQL for all scheduling table creation — Alembic autogenerate unreliable for ExcludeConstraint + TSTZRANGE
+- [Phase 03-scheduling-engine]: TravelTimeCache inherits Base directly — cache entries have no version/deleted_at columns unlike business entities
+- [Phase 03-scheduling-engine]: TRUNCATE scheduling tables explicitly in conftest.py without CASCADE — prevents FK deadlocks from new scheduling table constraints
 
 ### Pending Todos
 
@@ -121,6 +125,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-07T00:50:27.401Z
-Stopped at: Phase 3 context gathered
-Resume file: .planning/phases/03-scheduling-engine/03-CONTEXT.md
+Last session: 2026-03-07T01:48:28.502Z
+Stopped at: Completed 03-01-PLAN.md (scheduling data foundation: migration 0007, ORM models, Pydantic schemas)
+Resume file: None
