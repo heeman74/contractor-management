@@ -1,45 +1,37 @@
 import uuid
-from datetime import datetime
+from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import CheckConstraint, ForeignKey, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.database import Base
+from app.core.base_models import TenantScopedModel
 
 
-class User(Base):
+class User(TenantScopedModel):
     """User — tenant-scoped (RLS enforced via company_id)."""
 
     __tablename__ = "users"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        server_default=func.gen_random_uuid(),
-    )
-    company_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("companies.id"),
-        nullable=False,
-    )
     email: Mapped[str] = mapped_column(String, nullable=False)
+    password_hash: Mapped[str | None] = mapped_column(String, nullable=True)
     first_name: Mapped[str | None] = mapped_column(String, nullable=True)
     last_name: Mapped[str | None] = mapped_column(String, nullable=True)
     phone: Mapped[str | None] = mapped_column(String, nullable=True)
-    version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
-    )
-    deleted_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    # Contractor scheduling fields (added in migration 0007)
+    # home_address and coordinates are the contractor's home base used as the
+    # origin for travel time calculations to the first job of the day.
+    home_address: Mapped[str | None] = mapped_column(String, nullable=True)
+    home_latitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6), nullable=True)
+    home_longitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6), nullable=True)
+    # IANA timezone name (e.g., 'America/Vancouver') for weekly template interpretation.
+    # All datetimes are stored in UTC; timezone is used only for display and local-time conversion.
+    timezone: Mapped[str] = mapped_column(String, nullable=False, server_default="UTC")
+
+    roles: Mapped[list["UserRole"]] = relationship(back_populates="user", lazy="raise")
 
 
-class UserRole(Base):
+class UserRole(TenantScopedModel):
     """UserRole — junction table for user roles within a company.
 
     A user can have multiple roles (e.g., admin in company A, contractor in company B).
@@ -55,28 +47,11 @@ class UserRole(Base):
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        server_default=func.gen_random_uuid(),
-    )
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id"),
         nullable=False,
     )
-    company_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("companies.id"),
-        nullable=False,
-    )
     role: Mapped[str] = mapped_column(String, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
-    )
-    deleted_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+
+    user: Mapped["User"] = relationship(back_populates="roles", lazy="raise")

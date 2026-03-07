@@ -1,41 +1,63 @@
 """Test configuration and fixtures for ContractorHub backend tests.
 
-Multi-tenant test setup:
+Multi-tenant test setup with JWT authentication:
 - Runs Alembic migrations against a test database (preserving RLS policies).
 - Each test gets fresh async clients that exercise the full ASGI stack.
-- two tenant fixtures (tenant_a_client, tenant_b_client) pre-set X-Company-Id headers.
-- seed_two_tenants creates two companies and returns their IDs for isolation tests.
+- seed_two_tenants creates two companies via /auth/register and returns JWT tokens.
+- tenant_a_client and tenant_b_client have Bearer tokens pre-set.
 
 Design:
   Uses the real app get_db dependency (no session injection overrides) so that
-  TenantMiddleware -> ContextVar -> after_begin SET LOCAL RLS path is fully exercised.
-  Companies are created via the API and committed — visible across independent sessions.
-  Function-level isolation is achieved by truncating tables before each test.
+  the full JWT -> get_current_user -> set_current_tenant_id -> after_begin
+  SET LOCAL RLS path is fully exercised.
+
+  The app engine uses NullPool in tests to avoid stale connection pool issues
+  across async test boundaries.
 """
 
 import os
 import subprocess
 import sys
 
+# Set required env vars BEFORE importing app (Settings crashes without these)
+os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://appuser:apppassword@localhost:5432/contractorhub_test")
+os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key-for-integration-tests-min-32")
+
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
+import app.core.database as db_module
+from app.core.rate_limit import limiter
 from app.main import app
+
+# ---------------------------------------------------------------------------
+# Replace app engine with NullPool version to avoid event loop issues in tests.
+# NullPool creates fresh connections per use — no stale pool connections.
+# ---------------------------------------------------------------------------
+_test_app_engine = create_async_engine(
+    os.environ["DATABASE_URL"],
+    echo=False,
+    poolclass=NullPool,
+)
+_test_session_factory = async_sessionmaker(
+    _test_app_engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+)
+# Monkey-patch the app's database module so all app code uses NullPool engine
+db_module.engine = _test_app_engine
+db_module.async_session_factory = _test_session_factory
+
 
 # ---------------------------------------------------------------------------
 # Database URL resolution
 # ---------------------------------------------------------------------------
 
-TEST_DATABASE_URL = os.getenv(
-    "TEST_DATABASE_URL",
-    os.getenv(
-        "DATABASE_URL",
-        "postgresql+asyncpg://appuser:apppassword@localhost:5432/contractorhub_test",
-    ),
-)
+TEST_DATABASE_URL = os.environ["DATABASE_URL"]
 
 _BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 _ALEMBIC_INI = os.path.join(_BACKEND_DIR, "alembic.ini")
@@ -48,15 +70,10 @@ _ALEMBIC_INI = os.path.join(_BACKEND_DIR, "alembic.ini")
 
 @pytest_asyncio.fixture(scope="session")
 async def test_engine():
-    """Create test engine and apply Alembic migrations once for the test session.
-
-    Alembic env.py uses async_engine_from_config (asyncpg), so no psycopg2 needed.
-    The DATABASE_URL env var points to the test database for migration execution.
-    """
+    """Create test engine and apply Alembic migrations once for the test session."""
     env = os.environ.copy()
     env["DATABASE_URL"] = TEST_DATABASE_URL
 
-    # Apply all migrations — idempotent, handles version tracking
     result = subprocess.run(
         [sys.executable, "-m", "alembic", "-c", _ALEMBIC_INI, "upgrade", "head"],
         cwd=_BACKEND_DIR,
@@ -69,7 +86,7 @@ async def test_engine():
             f"Alembic upgrade failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
         )
 
-    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    engine = create_async_engine(TEST_DATABASE_URL, echo=False, poolclass=NullPool)
     yield engine
     await engine.dispose()
 
@@ -81,19 +98,38 @@ async def test_engine():
 
 @pytest_asyncio.fixture(autouse=True)
 async def clean_tables(test_engine):
-    """Truncate tenant-scoped tables before each test to ensure isolation.
+    """Truncate all tables and reset rate limiter before each test.
 
-    RESTART IDENTITY resets sequences. CASCADE handles FK constraints.
-    Uses SET session_replication_role = 'replica' to bypass FK checks during truncate.
+    All tables are listed explicitly in a single TRUNCATE statement (no CASCADE).
+    PostgreSQL acquires all table locks atomically in a single TRUNCATE, preventing
+    deadlocks. TRUNCATE bypasses FORCE ROW LEVEL SECURITY so no RLS policy issues
+    occur even after RESET app.current_company_id.
+
+    Order: bookings first (self-referential FK via parent_booking_id), then other
+    scheduling tables, then auth tables, then companies (parent of all).
     """
-    session_factory = async_sessionmaker(
-        test_engine, class_=AsyncSession, expire_on_commit=False
-    )
-    async with session_factory() as session:
-        await session.execute(
-            text("TRUNCATE TABLE user_roles, users, companies RESTART IDENTITY CASCADE")
+    async with test_engine.connect() as conn:
+        await conn.execute(text("RESET app.current_company_id"))
+        await conn.execute(
+            text(
+                "TRUNCATE TABLE "
+                # Scheduling tables (reference users/companies): children before parents.
+                # bookings listed first due to self-referential parent_booking_id FK.
+                "bookings, "
+                "travel_time_cache, "
+                "job_sites, "
+                "contractor_date_overrides, "
+                "contractor_weekly_schedule, "
+                "contractor_schedule_locks, "
+                # Auth + core tables
+                "refresh_tokens, "
+                "user_roles, "
+                "users, "
+                "companies"
+            )
         )
-        await session.commit()
+        await conn.commit()
+    limiter.reset()
     yield
 
 
@@ -104,10 +140,10 @@ async def clean_tables(test_engine):
 
 @pytest_asyncio.fixture
 async def async_client():
-    """Provide an async test client with NO X-Company-Id header.
+    """Provide an async test client with no auth headers.
 
     Uses in-process ASGI transport. No dependency overrides — the real get_db
-    dependency is used so the full TenantMiddleware -> ContextVar -> RLS path runs.
+    dependency is used so the full JWT -> RLS path runs.
     """
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
@@ -116,65 +152,78 @@ async def async_client():
 
 
 # ---------------------------------------------------------------------------
-# Seed two tenants — committed data visible across independent sessions
+# Auth helpers
+# ---------------------------------------------------------------------------
+
+
+async def register_user(client: AsyncClient, email: str, company_name: str) -> dict:
+    """Register a new user and return the full response data including tokens."""
+    resp = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": email,
+            "password": "TestPass123!",
+            "company_name": company_name,
+        },
+    )
+    assert resp.status_code == 201, f"Registration failed: {resp.text}"
+    return resp.json()
+
+
+# ---------------------------------------------------------------------------
+# Seed two tenants — via /auth/register (creates company + user + admin role)
 # ---------------------------------------------------------------------------
 
 
 @pytest_asyncio.fixture
 async def seed_two_tenants(async_client):
-    """Create Tenant A and Tenant B companies via the API.
+    """Create Tenant A and Tenant B via /auth/register.
 
-    Companies need no X-Company-Id header (they ARE the tenant root).
-    Returns {'tenant_a_id': str, 'tenant_b_id': str}.
+    Returns dict with tenant IDs, user IDs, and access tokens.
     """
-    resp_a = await async_client.post(
-        "/api/v1/companies/",
-        json={"name": "Tenant A Corp"},
+    data_a = await register_user(
+        async_client, "admin@tenant-a.com", "Tenant A Corp"
     )
-    assert resp_a.status_code == 201, f"Failed to create Tenant A: {resp_a.text}"
-
-    resp_b = await async_client.post(
-        "/api/v1/companies/",
-        json={"name": "Tenant B Corp"},
+    data_b = await register_user(
+        async_client, "admin@tenant-b.com", "Tenant B Corp"
     )
-    assert resp_b.status_code == 201, f"Failed to create Tenant B: {resp_b.text}"
 
     return {
-        "tenant_a_id": resp_a.json()["id"],
-        "tenant_b_id": resp_b.json()["id"],
+        "tenant_a_id": data_a["company_id"],
+        "tenant_a_token": data_a["access_token"],
+        "tenant_a_user_id": data_a["user_id"],
+        "tenant_b_id": data_b["company_id"],
+        "tenant_b_token": data_b["access_token"],
+        "tenant_b_user_id": data_b["user_id"],
     }
 
 
 # ---------------------------------------------------------------------------
-# Tenant-scoped clients — X-Company-Id header pre-set
+# Tenant-scoped clients — Bearer token pre-set
 # ---------------------------------------------------------------------------
 
 
 @pytest_asyncio.fixture
 async def tenant_a_client(seed_two_tenants):
-    """Async client with Tenant A's X-Company-Id header set on every request.
+    """Async client with Tenant A's JWT Bearer token set on every request.
 
-    Each request flows: TenantMiddleware sets ContextVar(tenant_a_id)
-    -> get_db opens session -> after_begin executes SET LOCAL RLS variable.
+    Each request flows: get_current_user extracts company_id from JWT
+    -> set_current_tenant_id -> after_begin executes SET LOCAL RLS variable.
     """
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test",
-        headers={"X-Company-Id": seed_two_tenants["tenant_a_id"]},
+        headers={"Authorization": f"Bearer {seed_two_tenants['tenant_a_token']}"},
     ) as ac:
         yield ac
 
 
 @pytest_asyncio.fixture
 async def tenant_b_client(seed_two_tenants):
-    """Async client with Tenant B's X-Company-Id header set on every request.
-
-    Each request flows: TenantMiddleware sets ContextVar(tenant_b_id)
-    -> get_db opens session -> after_begin executes SET LOCAL RLS variable.
-    """
+    """Async client with Tenant B's JWT Bearer token set on every request."""
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test",
-        headers={"X-Company-Id": seed_two_tenants["tenant_b_id"]},
+        headers={"Authorization": f"Bearer {seed_two_tenants['tenant_b_token']}"},
     ) as ac:
         yield ac

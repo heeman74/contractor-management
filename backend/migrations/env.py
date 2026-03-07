@@ -2,11 +2,10 @@ import asyncio
 import os
 from logging.config import fileConfig
 
+from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
-
-from alembic import context
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -25,9 +24,16 @@ if database_url:
 
 # Import all models so Alembic's autogenerate can detect them
 # IMPORTANT: Every new feature module must be imported here
-from app.core.database import Base  # noqa: F401, E402
+#
+# WARNING: Do NOT run `alembic revision --autogenerate` for scheduling tables.
+# Alembic autogenerate has known bugs with ExcludeConstraint + TSTZRANGE
+# (GitHub issues #1184, #1230, #958). All scheduling migrations must be
+# written manually using op.execute(text("...")) raw SQL. See migration 0007.
+import app.features.auth.models  # noqa: F401, E402
 import app.features.companies.models  # noqa: F401, E402
+import app.features.scheduling.models  # noqa: F401, E402
 import app.features.users.models  # noqa: F401, E402
+from app.core.database import Base  # noqa: F401, E402
 
 target_metadata = Base.metadata
 
