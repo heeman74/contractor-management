@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: "Completed 03-03-PLAN.md (SchedulingRepository + SchedulingService: availability engine, booking with two-layer protection, multi-day booking, suggest_dates)"
-last_updated: "2026-03-07T02:04:34.895Z"
+stopped_at: "Completed 03-04-PLAN.md (REST API router + 47-test scheduling suite: GIST concurrency, DST correctness, multi-day all-or-nothing, travel time cache)"
+last_updated: "2026-03-07T02:29:48.276Z"
 last_activity: 2026-03-05 — WorkManager dispatcher, sync status provider, app bar subtitle, pull-to-refresh on 3 screens
 progress:
   total_phases: 8
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 16
-  completed_plans: 15
+  completed_plans: 16
   percent: 90
 ---
 
@@ -64,6 +64,7 @@ Progress: [█████████░] 90%
 | Phase 03-scheduling-engine P01 | 18min | 2 tasks | 9 files |
 | Phase 03-scheduling-engine P02 | 7min | 2 tasks | 7 files |
 | Phase 03-scheduling-engine P03 | 8min | 2 tasks | 2 files |
+| Phase 03-scheduling-engine P04 | 45 | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -118,6 +119,9 @@ Recent decisions affecting current work:
 - [Phase 03-scheduling-engine]: SchedulingRepository encapsulates all DB ops including schedule CRUD helpers, keeping SchedulingService free of raw ORM queries
 - [Phase 03-scheduling-engine]: Optional travel_provider in SchedulingService: None skips travel computation for pure-logic unit testing without external API mocking
 - [Phase 03-scheduling-engine]: Two-level working hours override: ContractorDateOverride > ContractorWeeklySchedule > SchedulingConfig.default_working_hours with DST-safe zoneinfo conversion
+- [Phase 03-scheduling-engine]: Plain APIRouter for scheduling (not CRUDRouter) — custom domain operations, not CRUD
+- [Phase 03-scheduling-engine]: asyncio.gather with separate AsyncClient instances for concurrent race tests — each client gets separate DB session via ASGI transport
+- [Phase 03-scheduling-engine]: pytest.mark.slow on 50-client load test — CI can filter with -m not slow for fast runs
 
 ### Pending Todos
 
@@ -134,6 +138,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-07T02:04:34.891Z
-Stopped at: Completed 03-03-PLAN.md (SchedulingRepository + SchedulingService: availability engine, booking with two-layer protection, multi-day booking, suggest_dates)
+Last session: 2026-03-07T02:29:48.270Z
+Stopped at: Completed 03-04-PLAN.md (REST API router + 47-test scheduling suite: GIST concurrency, DST correctness, multi-day all-or-nothing, travel time cache)
 Resume file: None
