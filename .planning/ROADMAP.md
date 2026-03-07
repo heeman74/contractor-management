@@ -73,7 +73,7 @@ Plans:
   3. A multi-day job blocks the contractor's availability across all days it spans, including partial-day segments correctly
   4. Travel time between consecutive job sites is fetched, cached with TTL, and subtracted from available slot windows before returning results
   5. The scheduling engine is exercised by unit tests independent of any HTTP routing — it is a pure business logic module
-**Plans:** 1/4 plans executed
+**Plans:** 2/4 plans executed
 
 Plans:
 - [ ] 03-01-PLAN.md — Data foundation: Alembic migration 0007 with 6 scheduling tables (GIST constraint on bookings), ORM models, Pydantic schemas
@@ -190,7 +190,7 @@ Note: Phase 3 (Scheduling Engine) depends only on Phase 1 and can begin in paral
 |-------|----------------|--------|-----------|
 | 1. Foundation | 5/5 | Complete | 2026-03-05 |
 | 2. Offline Sync Engine | 7/7 | Complete   | 2026-03-06 |
-| 3. Scheduling Engine | 1/4 | In Progress|  |
+| 3. Scheduling Engine | 2/4 | In Progress|  |
 | 4. Job Lifecycle | 0/6 | Not started | - |
 | 5. Calendar and Dispatch UI | 0/6 | Not started | - |
 | 6. Field Workflow | 0/6 | Not started | - |

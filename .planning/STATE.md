@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: "Completed 03-01-PLAN.md (scheduling data foundation: migration 0007, ORM models, Pydantic schemas)"
-last_updated: "2026-03-07T01:48:28.507Z"
+stopped_at: "Completed 03-02-PLAN.md (travel time + geocoding infrastructure: ORS provider, PostgreSQL cache, bidirectional key normalization)"
+last_updated: "2026-03-07T01:54:25.605Z"
 last_activity: 2026-03-05 — WorkManager dispatcher, sync status provider, app bar subtitle, pull-to-refresh on 3 screens
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 16
-  completed_plans: 13
+  completed_plans: 14
   percent: 90
 ---
 
@@ -62,6 +62,7 @@ Progress: [█████████░] 90%
 | Phase 02-offline-sync-engine P06 | 3min | 2 tasks | 2 files |
 | Phase 02-offline-sync-engine PP07 | 3min | 2 tasks | 4 files |
 | Phase 03-scheduling-engine P01 | 18min | 2 tasks | 9 files |
+| Phase 03-scheduling-engine P02 | 7min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -109,6 +110,10 @@ Recent decisions affecting current work:
 - [Phase 03-scheduling-engine]: op.execute raw SQL for all scheduling table creation — Alembic autogenerate unreliable for ExcludeConstraint + TSTZRANGE
 - [Phase 03-scheduling-engine]: TravelTimeCache inherits Base directly — cache entries have no version/deleted_at columns unlike business entities
 - [Phase 03-scheduling-engine]: TRUNCATE scheduling tables explicitly in conftest.py without CASCADE — prevents FK deadlocks from new scheduling table constraints
+- [Phase 03-scheduling-engine]: httpx.AsyncClient chosen over openrouteservice-py — the official SDK is synchronous and blocks the async event loop
+- [Phase 03-scheduling-engine]: Bidirectional cache key: sort coordinate pairs so A->B == B->A halves ORS API quota usage for scheduling round-trips
+- [Phase 03-scheduling-engine]: Expired cache entries served as fallback on API failure — availability calculation degrades gracefully
+- [Phase 03-scheduling-engine]: GeocodingProvider returns None on no match vs raises GeocodingError on API failure — callers must handle both explicitly
 
 ### Pending Todos
 
@@ -125,6 +130,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-07T01:48:28.502Z
-Stopped at: Completed 03-01-PLAN.md (scheduling data foundation: migration 0007, ORM models, Pydantic schemas)
+Last session: 2026-03-07T01:54:25.600Z
+Stopped at: Completed 03-02-PLAN.md (travel time + geocoding infrastructure: ORS provider, PostgreSQL cache, bidirectional key normalization)
 Resume file: None
