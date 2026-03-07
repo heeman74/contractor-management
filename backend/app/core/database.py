@@ -7,10 +7,8 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import DeclarativeBase
 
+import app.core.tenant  # noqa: F401  # Import tenant module to register the after_begin event listener
 from app.core.config import settings
-
-# Import tenant module to register the after_begin event listener
-import app.core.tenant  # noqa: F401
 
 engine = create_async_engine(
     settings.database_url,

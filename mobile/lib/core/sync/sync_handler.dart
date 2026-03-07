@@ -1,4 +1,4 @@
-import '../sync/sync_queue_dao.dart';
+import '../database/app_database.dart';
 
 /// Abstract interface for entity-specific sync handlers.
 ///

@@ -4,60 +4,35 @@ Endpoints:
   POST   /api/v1/companies/          — create company (tenant root)
   GET    /api/v1/companies/{id}      — get company by ID
   PATCH  /api/v1/companies/{id}      — partial update company
+
+All endpoints require a valid JWT Bearer token.
 """
 
-import uuid
-
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.core.database import get_db
-from app.features.companies import service
+from app.core.base_router import CRUDRouter
 from app.features.companies.schemas import (
     CompanyCreate,
     CompanyResponse,
     CompanyUpdate,
 )
-
-router = APIRouter(prefix="/companies", tags=["companies"])
-
-
-@router.post("/", response_model=CompanyResponse, status_code=status.HTTP_201_CREATED)
-async def create_company(
-    data: CompanyCreate,
-    db: AsyncSession = Depends(get_db),
-) -> CompanyResponse:
-    """Create a new company. No tenant filter — company IS the tenant root."""
-    company = await service.create_company(db, data)
-    return CompanyResponse.model_validate(company)
+from app.features.companies.service import CompanyService
 
 
-@router.get("/{company_id}", response_model=CompanyResponse)
-async def get_company(
-    company_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
-) -> CompanyResponse:
-    """Retrieve a company by ID."""
-    company = await service.get_company(db, company_id)
-    if company is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Company not found",
-        )
-    return CompanyResponse.model_validate(company)
+class CompanyRouter(CRUDRouter):
+    """Company CRUD router — create, get by ID, partial update."""
+
+    prefix = "/companies"
+    tags = ["companies"]
+    service_class = CompanyService
+    create_schema = CompanyCreate
+    update_schema = CompanyUpdate
+    response_schema = CompanyResponse
+
+    def _register_routes(self) -> None:
+        """Company uses create + get + update (no list endpoint)."""
+        self._register_create()
+        self._register_get()
+        self._register_update()
 
 
-@router.patch("/{company_id}", response_model=CompanyResponse)
-async def update_company(
-    company_id: uuid.UUID,
-    data: CompanyUpdate,
-    db: AsyncSession = Depends(get_db),
-) -> CompanyResponse:
-    """Partially update a company profile."""
-    company = await service.update_company(db, company_id, data)
-    if company is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Company not found",
-        )
-    return CompanyResponse.model_validate(company)
+_company_router = CompanyRouter()
+router = _company_router.router

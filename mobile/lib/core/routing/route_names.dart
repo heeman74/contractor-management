@@ -11,6 +11,12 @@ abstract final class RouteNames {
   /// Onboarding / role selection (Phase 1 mock) — shows when unauthenticated.
   static const onboarding = '/onboarding';
 
+  /// Login screen — email + password authentication.
+  static const login = '/login';
+
+  /// Register screen — create a new company + admin account.
+  static const register = '/register';
+
   /// Shown when a user navigates to a route they don't have permission to access.
   static const unauthorized = '/unauthorized';
 

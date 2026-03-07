@@ -81,22 +81,35 @@ SyncQueueData makeSyncQueueItem({
   );
 }
 
+/// Container for test dependencies.
+class TestDeps {
+  final SyncEngine engine;
+  final MockDioClient dioClient;
+  final MockDio dio;
+  final MockSyncQueueDao syncQueueDao;
+  final MockSyncCursorDao syncCursorDao;
+  final MockSyncRegistry registry;
+  final MockSyncHandler companyHandler;
+  final MockSyncHandler userHandler;
+  final MockConnectivityService connectivityService;
+  final MockAppDatabase db;
+
+  TestDeps({
+    required this.engine,
+    required this.dioClient,
+    required this.dio,
+    required this.syncQueueDao,
+    required this.syncCursorDao,
+    required this.registry,
+    required this.companyHandler,
+    required this.userHandler,
+    required this.connectivityService,
+    required this.db,
+  });
+}
+
 /// Build a [SyncEngine] with all dependencies mocked.
-///
-/// Returns a record of the engine and its dependencies so tests can
-/// set up fine-grained stubs and perform targeted verifications.
-({
-  SyncEngine engine,
-  MockDioClient dioClient,
-  MockDio dio,
-  MockSyncQueueDao syncQueueDao,
-  MockSyncCursorDao syncCursorDao,
-  MockSyncRegistry registry,
-  MockSyncHandler companyHandler,
-  MockSyncHandler userHandler,
-  MockConnectivityService connectivityService,
-  MockAppDatabase db,
-}) buildEngine() {
+TestDeps buildEngine() {
   final db = MockAppDatabase();
   final dioClient = MockDioClient();
   final dio = MockDio();
@@ -120,7 +133,7 @@ SyncQueueData makeSyncQueueItem({
 
   final engine = SyncEngine(db, dioClient, registry, connectivityService);
 
-  return (
+  return TestDeps(
     engine: engine,
     dioClient: dioClient,
     dio: dio,
@@ -157,8 +170,7 @@ void main() {
 
   group('SyncEngine.drainQueue', () {
     test('1. FIFO queue drain — push called in createdAt ASC order', () async {
-      final (:engine, :syncQueueDao, :registry, :companyHandler, ...) =
-          buildEngine();
+      final deps = buildEngine();
 
       // Items inserted with different createdAt — DAO returns in FIFO order
       final item1 = makeSyncQueueItem(
@@ -176,21 +188,24 @@ void main() {
 
       // First call returns 3 items, second call (post-drain) returns empty
       var getPendingCallCount = 0;
-      when(() => syncQueueDao.getPendingItems()).thenAnswer((_) async {
+      when(() => deps.syncQueueDao.getPendingItems()).thenAnswer((_) async {
         getPendingCallCount++;
         return getPendingCallCount == 1 ? [item1, item2, item3] : [];
       });
 
-      when(() => registry.getHandler('company')).thenReturn(companyHandler);
-      when(() => companyHandler.push(any())).thenAnswer((_) async {});
-      when(() => syncQueueDao.markSynced(any())).thenAnswer((_) async => 1);
+      when(() => deps.registry.getHandler('company'))
+          .thenReturn(deps.companyHandler);
+      when(() => deps.companyHandler.push(any())).thenAnswer((_) async {});
+      when(() => deps.syncQueueDao.markSynced(any()))
+          .thenAnswer((_) async => 1);
 
-      await engine.drainQueue();
+      await deps.engine.drainQueue();
 
       // Capture all push calls and verify FIFO order
-      final capturedItems = verify(() => companyHandler.push(captureAny()))
-          .captured
-          .cast<SyncQueueData>();
+      final capturedItems =
+          verify(() => deps.companyHandler.push(captureAny()))
+              .captured
+              .cast<SyncQueueData>();
       expect(capturedItems, hasLength(3));
       expect(capturedItems[0].id, equals('item-first'));
       expect(capturedItems[1].id, equals('item-second'));
@@ -199,31 +214,31 @@ void main() {
 
     test('2. Successful sync calls markSynced — row removed from queue',
         () async {
-      final (:engine, :syncQueueDao, :registry, :companyHandler, ...) =
-          buildEngine();
+      final deps = buildEngine();
 
       final item = makeSyncQueueItem(id: 'item-synced');
 
       var getPendingCallCount = 0;
-      when(() => syncQueueDao.getPendingItems()).thenAnswer((_) async {
+      when(() => deps.syncQueueDao.getPendingItems()).thenAnswer((_) async {
         getPendingCallCount++;
         return getPendingCallCount == 1 ? [item] : [];
       });
 
-      when(() => registry.getHandler('company')).thenReturn(companyHandler);
-      when(() => companyHandler.push(any())).thenAnswer((_) async {});
-      when(() => syncQueueDao.markSynced(any())).thenAnswer((_) async => 1);
+      when(() => deps.registry.getHandler('company'))
+          .thenReturn(deps.companyHandler);
+      when(() => deps.companyHandler.push(any())).thenAnswer((_) async {});
+      when(() => deps.syncQueueDao.markSynced(any()))
+          .thenAnswer((_) async => 1);
 
-      await engine.drainQueue();
+      await deps.engine.drainQueue();
 
-      verify(() => syncQueueDao.markSynced('item-synced')).called(1);
-      verifyNever(
-          () => syncQueueDao.markParked(any(), error: any(named: 'error')));
+      verify(() => deps.syncQueueDao.markSynced('item-synced')).called(1);
+      verifyNever(() =>
+          deps.syncQueueDao.markParked(any(), error: any(named: 'error')));
     });
 
     test('3. 4xx error parks item — markParked called, NOT retried', () async {
-      final (:engine, :syncQueueDao, :registry, :companyHandler, ...) =
-          buildEngine();
+      final deps = buildEngine();
 
       final item = makeSyncQueueItem(id: 'item-4xx');
       final dioError = DioException(
@@ -236,28 +251,30 @@ void main() {
       );
 
       var getPendingCallCount = 0;
-      when(() => syncQueueDao.getPendingItems()).thenAnswer((_) async {
+      when(() => deps.syncQueueDao.getPendingItems()).thenAnswer((_) async {
         getPendingCallCount++;
         return getPendingCallCount == 1 ? [item] : [];
       });
 
-      when(() => registry.getHandler('company')).thenReturn(companyHandler);
-      when(() => companyHandler.push(any())).thenThrow(dioError);
-      when(() => syncQueueDao.markParked(any(), error: any(named: 'error')))
+      when(() => deps.registry.getHandler('company'))
+          .thenReturn(deps.companyHandler);
+      when(() => deps.companyHandler.push(any())).thenThrow(dioError);
+      when(() =>
+              deps.syncQueueDao.markParked(any(), error: any(named: 'error')))
           .thenAnswer((_) async {});
 
-      await engine.drainQueue();
+      await deps.engine.drainQueue();
 
       verify(
-        () => syncQueueDao.markParked('item-4xx', error: any(named: 'error')),
+        () =>
+            deps.syncQueueDao.markParked('item-4xx', error: any(named: 'error')),
       ).called(1);
-      verifyNever(() => syncQueueDao.markSynced(any()));
-      verifyNever(() => syncQueueDao.updateAttemptCount(any(), any()));
+      verifyNever(() => deps.syncQueueDao.markSynced(any()));
+      verifyNever(() => deps.syncQueueDao.updateAttemptCount(any(), any()));
     });
 
     test('4. 5xx error increments attemptCount (0 -> 1)', () async {
-      final (:engine, :syncQueueDao, :registry, :companyHandler, ...) =
-          buildEngine();
+      final deps = buildEngine();
 
       // Item starts at attemptCount = 0
       final item = makeSyncQueueItem(id: 'item-5xx', attemptCount: 0);
@@ -271,29 +288,31 @@ void main() {
       );
 
       var getPendingCallCount = 0;
-      when(() => syncQueueDao.getPendingItems()).thenAnswer((_) async {
+      when(() => deps.syncQueueDao.getPendingItems()).thenAnswer((_) async {
         getPendingCallCount++;
         return getPendingCallCount == 1 ? [item] : [];
       });
 
-      when(() => registry.getHandler('company')).thenReturn(companyHandler);
-      when(() => companyHandler.push(any())).thenThrow(dioError);
-      when(() => syncQueueDao.updateAttemptCount(any(), any()))
+      when(() => deps.registry.getHandler('company'))
+          .thenReturn(deps.companyHandler);
+      when(() => deps.companyHandler.push(any())).thenThrow(dioError);
+      when(() => deps.syncQueueDao.updateAttemptCount(any(), any()))
           .thenAnswer((_) async {});
 
-      await engine.drainQueue();
+      await deps.engine.drainQueue();
 
       // newCount = 0 + 1 = 1 (not yet at max of 5)
-      verify(() => syncQueueDao.updateAttemptCount('item-5xx', 1)).called(1);
-      verifyNever(
-          () => syncQueueDao.markParked(any(), error: any(named: 'error')));
-      verifyNever(() => syncQueueDao.markSynced(any()));
+      verify(() => deps.syncQueueDao.updateAttemptCount('item-5xx', 1))
+          .called(1);
+      verifyNever(() =>
+          deps.syncQueueDao.markParked(any(), error: any(named: 'error')));
+      verifyNever(() => deps.syncQueueDao.markSynced(any()));
     });
 
-    test('5. Max retries (attemptCount 4 -> 5) resets count to 0 — stays pending',
+    test(
+        '5. Max retries (attemptCount 4 -> 5) resets count to 0 — stays pending',
         () async {
-      final (:engine, :syncQueueDao, :registry, :companyHandler, ...) =
-          buildEngine();
+      final deps = buildEngine();
 
       // Item is at attemptCount = 4; next failure = attempt 5 = max
       final item = makeSyncQueueItem(id: 'item-max-retry', attemptCount: 4);
@@ -307,53 +326,56 @@ void main() {
       );
 
       var getPendingCallCount = 0;
-      when(() => syncQueueDao.getPendingItems()).thenAnswer((_) async {
+      when(() => deps.syncQueueDao.getPendingItems()).thenAnswer((_) async {
         getPendingCallCount++;
         return getPendingCallCount == 1 ? [item] : [];
       });
 
-      when(() => registry.getHandler('company')).thenReturn(companyHandler);
-      when(() => companyHandler.push(any())).thenThrow(dioError);
-      when(() => syncQueueDao.updateAttemptCount(any(), any()))
+      when(() => deps.registry.getHandler('company'))
+          .thenReturn(deps.companyHandler);
+      when(() => deps.companyHandler.push(any())).thenThrow(dioError);
+      when(() => deps.syncQueueDao.updateAttemptCount(any(), any()))
           .thenAnswer((_) async {});
 
-      await engine.drainQueue();
+      await deps.engine.drainQueue();
 
       // newCount = 4 + 1 = 5 >= _maxAttempts(5) -> reset to 0
-      verify(() => syncQueueDao.updateAttemptCount('item-max-retry', 0))
+      verify(() => deps.syncQueueDao.updateAttemptCount('item-max-retry', 0))
           .called(1);
-      verifyNever(
-          () => syncQueueDao.markParked(any(), error: any(named: 'error')));
+      verifyNever(() =>
+          deps.syncQueueDao.markParked(any(), error: any(named: 'error')));
     });
 
-    test('6. Concurrent drain prevention — second drainQueue() returns immediately',
+    test(
+        '6. Concurrent drain prevention — second drainQueue() returns immediately',
         () async {
-      final (:engine, :syncQueueDao, :registry, :companyHandler, ...) =
-          buildEngine();
+      final deps = buildEngine();
 
       final item = makeSyncQueueItem(id: 'item-concurrent');
       final pushCompleter = Completer<void>();
 
       // Push will block until we release pushCompleter
       var getPendingCallCount = 0;
-      when(() => syncQueueDao.getPendingItems()).thenAnswer((_) async {
+      when(() => deps.syncQueueDao.getPendingItems()).thenAnswer((_) async {
         getPendingCallCount++;
         return getPendingCallCount == 1 ? [item] : [];
       });
 
-      when(() => registry.getHandler('company')).thenReturn(companyHandler);
-      when(() => companyHandler.push(any()))
+      when(() => deps.registry.getHandler('company'))
+          .thenReturn(deps.companyHandler);
+      when(() => deps.companyHandler.push(any()))
           .thenAnswer((_) async => pushCompleter.future);
-      when(() => syncQueueDao.markSynced(any())).thenAnswer((_) async => 1);
+      when(() => deps.syncQueueDao.markSynced(any()))
+          .thenAnswer((_) async => 1);
 
       // Start first drain — will block at handler.push()
-      final firstDrain = engine.drainQueue();
+      final firstDrain = deps.engine.drainQueue();
 
       // Yield to let the first drain start
       await Future<void>.delayed(Duration.zero);
 
       // Start second drain while first is still running
-      await engine.drainQueue();
+      await deps.engine.drainQueue();
 
       // Release the first drain's push
       pushCompleter.complete();
@@ -370,25 +392,28 @@ void main() {
     });
 
     test('10. SyncStatus stream emits syncing then allSynced', () async {
-      final (:engine, :syncQueueDao, :registry, :companyHandler, ...) =
-          buildEngine();
+      final deps = buildEngine();
 
       final item = makeSyncQueueItem(id: 'item-status');
       final emittedStatuses = <SyncStatus>[];
 
-      final sub = engine.statusStream.listen(emittedStatuses.add);
+      final sub = deps.engine.statusStream.listen(emittedStatuses.add);
 
       var getPendingCallCount = 0;
-      when(() => syncQueueDao.getPendingItems()).thenAnswer((_) async {
+      when(() => deps.syncQueueDao.getPendingItems()).thenAnswer((_) async {
         getPendingCallCount++;
         return getPendingCallCount == 1 ? [item] : [];
       });
 
-      when(() => registry.getHandler('company')).thenReturn(companyHandler);
-      when(() => companyHandler.push(any())).thenAnswer((_) async {});
-      when(() => syncQueueDao.markSynced(any())).thenAnswer((_) async => 1);
+      when(() => deps.registry.getHandler('company'))
+          .thenReturn(deps.companyHandler);
+      when(() => deps.companyHandler.push(any())).thenAnswer((_) async {});
+      when(() => deps.syncQueueDao.markSynced(any()))
+          .thenAnswer((_) async => 1);
 
-      await engine.drainQueue();
+      await deps.engine.drainQueue();
+      // Allow microtasks to deliver remaining stream events
+      await Future<void>.delayed(Duration.zero);
       await sub.cancel();
 
       expect(emittedStatuses, isNotEmpty);
@@ -415,11 +440,10 @@ void main() {
     test(
         '7. pullDelta calls handler.applyPulled for each entity in response',
         () async {
-      final (:engine, :dioClient, :dio, :syncCursorDao, :registry,
-             :companyHandler, :userHandler, ...) = buildEngine();
+      final deps = buildEngine();
 
       // Use a recent cursor to trigger delta pull (not null = not first launch)
-      when(() => syncCursorDao.getCursor())
+      when(() => deps.syncCursorDao.getCursor())
           .thenAnswer((_) async => DateTime.utc(2024, 1, 1));
 
       final syncResponse = <String, dynamic>{
@@ -434,7 +458,7 @@ void main() {
         'server_timestamp': '2024-06-01T12:00:00.000000Z',
       };
 
-      when(() => dio.get<Map<String, dynamic>>(
+      when(() => deps.dio.get<Map<String, dynamic>>(
             '/sync',
             queryParameters: any(named: 'queryParameters'),
           )).thenAnswer((_) async => Response(
@@ -443,34 +467,40 @@ void main() {
             statusCode: 200,
           ));
 
-      when(() => companyHandler.applyPulled(any())).thenAnswer((_) async {});
-      when(() => userHandler.applyPulled(any())).thenAnswer((_) async {});
+      when(() => deps.companyHandler.applyPulled(any()))
+          .thenAnswer((_) async {});
+      when(() => deps.userHandler.applyPulled(any()))
+          .thenAnswer((_) async {});
 
       // Fallback handler for user_role (empty list, but handler must be registered)
       final userRoleHandler = MockSyncHandler();
       when(() => userRoleHandler.entityType).thenReturn('user_role');
-      when(() => userRoleHandler.applyPulled(any())).thenAnswer((_) async {});
+      when(() => userRoleHandler.applyPulled(any()))
+          .thenAnswer((_) async {});
 
-      when(() => registry.getHandler('company')).thenReturn(companyHandler);
-      when(() => registry.getHandler('user')).thenReturn(userHandler);
-      when(() => registry.getHandler('user_role')).thenReturn(userRoleHandler);
+      when(() => deps.registry.getHandler('company'))
+          .thenReturn(deps.companyHandler);
+      when(() => deps.registry.getHandler('user'))
+          .thenReturn(deps.userHandler);
+      when(() => deps.registry.getHandler('user_role'))
+          .thenReturn(userRoleHandler);
 
-      when(() => syncCursorDao.updateCursor(any())).thenAnswer((_) async {});
+      when(() => deps.syncCursorDao.updateCursor(any()))
+          .thenAnswer((_) async {});
 
-      await engine.pullDelta();
+      await deps.engine.pullDelta();
 
       // 2 companies should be applied
-      verify(() => companyHandler.applyPulled(any())).called(2);
+      verify(() => deps.companyHandler.applyPulled(any())).called(2);
       // 1 user should be applied
-      verify(() => userHandler.applyPulled(any())).called(1);
+      verify(() => deps.userHandler.applyPulled(any())).called(1);
     });
 
     test('8. pullDelta updates cursor with server_timestamp', () async {
-      final (:engine, :dioClient, :dio, :syncCursorDao, :registry,
-             :companyHandler, ...) = buildEngine();
+      final deps = buildEngine();
 
       const serverTimestamp = '2024-06-15T08:30:00.000000Z';
-      when(() => syncCursorDao.getCursor())
+      when(() => deps.syncCursorDao.getCursor())
           .thenAnswer((_) async => DateTime.utc(2024, 1, 1));
 
       final syncResponse = <String, dynamic>{
@@ -480,7 +510,7 @@ void main() {
         'server_timestamp': serverTimestamp,
       };
 
-      when(() => dio.get<Map<String, dynamic>>(
+      when(() => deps.dio.get<Map<String, dynamic>>(
             '/sync',
             queryParameters: any(named: 'queryParameters'),
           )).thenAnswer((_) async => Response(
@@ -489,35 +519,36 @@ void main() {
             statusCode: 200,
           ));
 
-      when(() => registry.getHandler(any())).thenReturn(companyHandler);
-      when(() => companyHandler.applyPulled(any())).thenAnswer((_) async {});
+      when(() => deps.registry.getHandler(any()))
+          .thenReturn(deps.companyHandler);
+      when(() => deps.companyHandler.applyPulled(any()))
+          .thenAnswer((_) async {});
 
       final capturedTimestamps = <DateTime>[];
-      when(() => syncCursorDao.updateCursor(captureAny()))
+      when(() => deps.syncCursorDao.updateCursor(captureAny()))
           .thenAnswer((invocation) async {
         capturedTimestamps
             .add(invocation.positionalArguments[0] as DateTime);
       });
 
-      await engine.pullDelta();
+      await deps.engine.pullDelta();
 
       expect(capturedTimestamps, hasLength(1));
-      // Verify the cursor was updated with the server timestamp
       expect(
         capturedTimestamps.first,
         equals(DateTime.parse(serverTimestamp)),
-        reason: 'Cursor must be updated to server_timestamp for next delta pull',
+        reason:
+            'Cursor must be updated to server_timestamp for next delta pull',
       );
     });
 
     test(
         '9. pullDelta with null cursor (first launch) omits cursor query param',
         () async {
-      final (:engine, :dioClient, :dio, :syncCursorDao, :registry,
-             :companyHandler, ...) = buildEngine();
+      final deps = buildEngine();
 
       // null = first launch, no cursor param should be sent
-      when(() => syncCursorDao.getCursor()).thenAnswer((_) async => null);
+      when(() => deps.syncCursorDao.getCursor()).thenAnswer((_) async => null);
 
       final syncResponse = <String, dynamic>{
         'companies': <dynamic>[],
@@ -527,7 +558,7 @@ void main() {
       };
 
       Map<String, dynamic>? capturedQueryParams;
-      when(() => dio.get<Map<String, dynamic>>(
+      when(() => deps.dio.get<Map<String, dynamic>>(
             '/sync',
             queryParameters: any(named: 'queryParameters'),
           )).thenAnswer((invocation) async {
@@ -540,11 +571,14 @@ void main() {
         );
       });
 
-      when(() => registry.getHandler(any())).thenReturn(companyHandler);
-      when(() => companyHandler.applyPulled(any())).thenAnswer((_) async {});
-      when(() => syncCursorDao.updateCursor(any())).thenAnswer((_) async {});
+      when(() => deps.registry.getHandler(any()))
+          .thenReturn(deps.companyHandler);
+      when(() => deps.companyHandler.applyPulled(any()))
+          .thenAnswer((_) async {});
+      when(() => deps.syncCursorDao.updateCursor(any()))
+          .thenAnswer((_) async {});
 
-      await engine.pullDelta();
+      await deps.engine.pullDelta();
 
       // First launch: queryParameters must be null so server performs full download
       expect(

@@ -162,31 +162,46 @@ def upgrade() -> None:
     # -------------------------------------------------------------------------
     # Tenant isolation RLS policies
     #
-    # CRITICAL: current_setting('app.current_company_id', true)
-    #   - The `true` second argument = "return NULL if setting is not set"
-    #     (prevents ERROR on superuser sessions, Alembic runs, DBA tooling)
-    #   - Without `true`: ERROR: unrecognized configuration parameter "..."
-    #   - With `true`: NULL::uuid = any uuid evaluates to NULL (not true),
-    #     so no rows match — correct behavior for unscoped sessions.
+    # SELECT: allow reads when no tenant context is set (auth flows like login
+    # need to look up users by email globally) OR when tenant matches.
+    # INSERT/UPDATE/DELETE: require tenant context to match.
+    #
+    # NULLIF handles empty-string GUC values that occur when a connection is
+    # reused from the pool after a previous SET LOCAL.
     # -------------------------------------------------------------------------
-    op.execute(
-        text("""
-        CREATE POLICY tenant_isolation ON users
-        USING (company_id = current_setting('app.current_company_id', true)::uuid)
-    """)
-    )
-    op.execute(
-        text("""
-        CREATE POLICY tenant_isolation ON user_roles
-        USING (company_id = current_setting('app.current_company_id', true)::uuid)
-    """)
-    )
+    for table in ("users", "user_roles"):
+        op.execute(text(f"""
+            CREATE POLICY tenant_select ON {table}
+            FOR SELECT
+            USING (
+                NULLIF(current_setting('app.current_company_id', true), '') IS NULL
+                OR company_id = NULLIF(current_setting('app.current_company_id', true), '')::uuid
+            )
+        """))
+        op.execute(text(f"""
+            CREATE POLICY tenant_write ON {table}
+            FOR INSERT
+            WITH CHECK (company_id = NULLIF(current_setting('app.current_company_id', true), '')::uuid)
+        """))
+        op.execute(text(f"""
+            CREATE POLICY tenant_update ON {table}
+            FOR UPDATE
+            USING (company_id = NULLIF(current_setting('app.current_company_id', true), '')::uuid)
+        """))
+        op.execute(text(f"""
+            CREATE POLICY tenant_delete ON {table}
+            FOR DELETE
+            USING (company_id = NULLIF(current_setting('app.current_company_id', true), '')::uuid)
+        """))
 
 
 def downgrade() -> None:
     # Drop policies before tables
-    op.execute(text("DROP POLICY IF EXISTS tenant_isolation ON user_roles"))
-    op.execute(text("DROP POLICY IF EXISTS tenant_isolation ON users"))
+    for table in ("user_roles", "users"):
+        op.execute(text(f"DROP POLICY IF EXISTS tenant_select ON {table}"))
+        op.execute(text(f"DROP POLICY IF EXISTS tenant_write ON {table}"))
+        op.execute(text(f"DROP POLICY IF EXISTS tenant_update ON {table}"))
+        op.execute(text(f"DROP POLICY IF EXISTS tenant_delete ON {table}"))
 
     # Drop tables in reverse dependency order
     op.drop_table("user_roles")

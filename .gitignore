@@ -1,0 +1,14 @@
+# Environment variables (secrets)
+.env
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# IDE
+.idea/
+
+# OS
+.DS_Store

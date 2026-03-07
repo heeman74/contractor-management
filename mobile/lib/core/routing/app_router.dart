@@ -7,7 +7,9 @@ import '../../features/admin/presentation/screens/client_management_screen.dart'
 import '../../features/admin/presentation/screens/team_management_screen.dart';
 import '../../features/auth/domain/auth_state.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
+import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/onboarding_screen.dart';
+import '../../features/auth/presentation/screens/register_screen.dart';
 import '../../features/auth/presentation/screens/splash_screen.dart';
 import '../../features/auth/presentation/screens/unauthorized_screen.dart';
 import '../../features/client/presentation/screens/client_portal_screen.dart';
@@ -67,16 +69,20 @@ GoRouter router(Ref ref) {
             ? null
             : RouteNames.splash,
 
-        // Not logged in: show onboarding (unless already there)
-        AuthUnauthenticated() => location == RouteNames.onboarding
+        // Not logged in: allow onboarding, login, register screens
+        AuthUnauthenticated() => (location == RouteNames.onboarding ||
+                location == RouteNames.login ||
+                location == RouteNames.register)
             ? null
             : RouteNames.onboarding,
 
         // Authenticated: redirect away from auth-only screens, then apply role guards
-        AuthAuthenticated(:final roles) =>
-            (location == RouteNames.splash || location == RouteNames.onboarding)
-                ? RouteNames.home
-                : _checkRoleAccess(location, roles),
+        AuthAuthenticated(:final roles) => (location == RouteNames.splash ||
+                location == RouteNames.onboarding ||
+                location == RouteNames.login ||
+                location == RouteNames.register)
+            ? RouteNames.home
+            : _checkRoleAccess(location, roles),
       };
     },
     routes: [
@@ -88,6 +94,14 @@ GoRouter router(Ref ref) {
       GoRoute(
         path: RouteNames.onboarding,
         builder: (context, state) => const OnboardingScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.login,
+        builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.register,
+        builder: (context, state) => const RegisterScreen(),
       ),
       GoRoute(
         path: RouteNames.unauthorized,

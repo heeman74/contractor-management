@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../features/company/data/company_dao.dart';
 import '../../features/users/data/user_dao.dart';
@@ -33,17 +34,15 @@ class AppDatabase extends _$AppDatabase {
         onCreate: (m) async {
           await m.createAll();
         },
-        onUpgrade: stepByStep(
-          from1To2: (m, schema) async {
-            // Create new outbox and cursor tables
-            await m.createTable(schema.syncQueue);
-            await m.createTable(schema.syncCursor);
-            // Add soft-delete column to all entity tables
-            await m.addColumn(schema.companies, schema.companies.deletedAt);
-            await m.addColumn(schema.users, schema.users.deletedAt);
-            await m.addColumn(schema.userRoles, schema.userRoles.deletedAt);
-          },
-        ),
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            await m.createTable(syncQueue);
+            await m.createTable(syncCursor);
+            await m.addColumn(companies, companies.deletedAt);
+            await m.addColumn(users, users.deletedAt);
+            await m.addColumn(userRoles, userRoles.deletedAt);
+          }
+        },
       );
 
   static QueryExecutor _openConnection() {

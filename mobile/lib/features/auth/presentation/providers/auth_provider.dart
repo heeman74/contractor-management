@@ -1,49 +1,106 @@
-import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/auth/auth_repository.dart';
+import '../../../../core/di/service_locator.dart';
 import '../../../../shared/models/user_role.dart';
 import '../../domain/auth_state.dart';
 
 part 'auth_provider.g.dart';
 
-/// Phase 1 auth stub — provides mock user authentication for testing route guards
-/// and role-based navigation without real JWT authentication.
-///
-/// In v2 (Phase 6), this will be replaced by a real auth flow:
-/// - Company admin enters email/password (or SSO)
-/// - JWT is validated, company tenant is resolved
-/// - Real userId/companyId/roles are loaded from backend
-///
-/// For now, [setMockUser] allows testers to pick any role combination and explore
-/// the app as that user type. [logout] returns to the unauthenticated state.
-@riverpod
-class AuthNotifier extends _$AuthNotifier {
+class AuthNotifier extends Notifier<AuthState> {
+  late final AuthRepository _authRepository;
+
   @override
   AuthState build() {
-    // Start in loading state — simulates the brief app bootstrap check.
-    // In a real app, this is where we'd check stored tokens/session.
+    _authRepository = getIt<AuthRepository>();
+
+    // Try to restore session from stored tokens on app start
+    _restoreSession();
+
     return const AuthState.loading();
   }
 
-  /// Sets a mock authenticated user for Phase 1 testing.
-  ///
-  /// Call this from the onboarding screen when the tester selects a role.
-  /// [roles] is a Set to support multi-role users — pass multiple roles
-  /// to test a user who has both admin and contractor privileges.
-  void setMockUser({
-    required String userId,
-    required String companyId,
-    required Set<UserRole> roles,
-  }) {
-    state = AuthState.authenticated(
-      userId: userId,
-      companyId: companyId,
-      roles: roles,
-    );
+  Future<void> _restoreSession() async {
+    try {
+      final result = await _authRepository.restoreSession();
+      if (result != null) {
+        state = AuthState.authenticated(
+          userId: result.userId,
+          companyId: result.companyId,
+          roles: result.roles.map(UserRole.fromString).toSet(),
+        );
+      } else {
+        state = const AuthState.unauthenticated();
+      }
+    } catch (_) {
+      state = const AuthState.unauthenticated();
+    }
+  }
+
+  /// Login with email + password.
+  /// Returns null on success, error message on failure.
+  Future<String?> login({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final result = await _authRepository.login(
+        email: email,
+        password: password,
+      );
+      state = AuthState.authenticated(
+        userId: result.userId,
+        companyId: result.companyId,
+        roles: result.roles.map(UserRole.fromString).toSet(),
+      );
+      return null;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        return 'Invalid email or password';
+      }
+      return 'Network error. Please try again.';
+    } catch (e) {
+      return 'An unexpected error occurred';
+    }
+  }
+
+  /// Register a new company + admin user.
+  /// Returns null on success, error message on failure.
+  Future<String?> register({
+    required String email,
+    required String password,
+    required String companyName,
+    String? firstName,
+    String? lastName,
+  }) async {
+    try {
+      final result = await _authRepository.register(
+        email: email,
+        password: password,
+        companyName: companyName,
+        firstName: firstName,
+        lastName: lastName,
+      );
+      state = AuthState.authenticated(
+        userId: result.userId,
+        companyId: result.companyId,
+        roles: result.roles.map(UserRole.fromString).toSet(),
+      );
+      return null;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 409) {
+        return 'Email already registered';
+      }
+      return 'Network error. Please try again.';
+    } catch (e) {
+      return 'An unexpected error occurred';
+    }
   }
 
   /// Clears the current session and returns to the unauthenticated state.
-  /// Routes will redirect to /onboarding after this is called.
-  void logout() {
+  Future<void> logout() async {
+    await _authRepository.logout();
     state = const AuthState.unauthenticated();
   }
 }

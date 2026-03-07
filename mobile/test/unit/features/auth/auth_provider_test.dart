@@ -1,147 +1,200 @@
 /// Unit tests for AuthNotifier state management.
 ///
-/// Tests verify:
-/// - Initial state is AuthLoading
-/// - setMockUser transitions to AuthAuthenticated with correct roles
-/// - logout transitions to AuthUnauthenticated
-/// - Authenticated state with single role contains that role
-/// - Authenticated state with multiple roles contains all specified roles
-///
-/// Uses ProviderContainer for testing Riverpod providers outside of widget context.
-/// No mocktail mocking needed — AuthNotifier has no external dependencies in Phase 1.
-///
-/// NOTE: Requires Flutter SDK + build_runner to generate:
-/// - auth_state.freezed.dart (Freezed sealed class)
-/// - auth_provider.g.dart (Riverpod generator output)
-///
-/// Run setup: cd mobile && dart run build_runner build --delete-conflicting-outputs
+/// Uses mocktail to mock AuthRepository registered in GetIt.
+/// Tests verify auth state transitions through login/logout/register.
 library;
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
+import 'package:contractorhub/core/auth/auth_repository.dart';
+import 'package:contractorhub/core/di/service_locator.dart';
 import 'package:contractorhub/features/auth/domain/auth_state.dart';
 import 'package:contractorhub/features/auth/presentation/providers/auth_provider.dart';
 import 'package:contractorhub/shared/models/user_role.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+
+class MockAuthRepository extends Mock implements AuthRepository {}
 
 void main() {
-  group('AuthNotifier', () {
-    late ProviderContainer container;
+  late MockAuthRepository mockAuthRepo;
+  late ProviderContainer container;
 
-    setUp(() {
-      container = ProviderContainer();
-    });
+  setUp(() {
+    mockAuthRepo = MockAuthRepository();
 
-    tearDown(() {
-      container.dispose();
-    });
+    // Reset GetIt and register mock
+    if (getIt.isRegistered<AuthRepository>()) {
+      getIt.unregister<AuthRepository>();
+    }
+    getIt.registerSingleton<AuthRepository>(mockAuthRepo);
 
-    test('starts in loading state', () {
-      final state = container.read(authNotifierProvider);
-      expect(state, isA<AuthLoading>());
-    });
+    // Default: restoreSession returns null -> unauthenticated
+    when(() => mockAuthRepo.restoreSession()).thenAnswer((_) async => null);
+    // Default: logout succeeds
+    when(() => mockAuthRepo.logout()).thenAnswer((_) async {});
 
-    test('setMockUser transitions to authenticated state', () {
-      final notifier = container.read(authNotifierProvider.notifier);
+    container = ProviderContainer();
+  });
 
-      notifier.setMockUser(
-        userId: 'user-123',
-        companyId: 'company-456',
-        roles: {UserRole.admin},
-      );
+  tearDown(() {
+    container.dispose();
+  });
 
-      final state = container.read(authNotifierProvider);
-      expect(state, isA<AuthAuthenticated>());
+  /// Wait for async _restoreSession to finish.
+  Future<void> waitForRestore() async {
+    // Pump microtasks until state is no longer loading
+    for (var i = 0; i < 20; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      final s = container.read(authNotifierProvider);
+      if (s is! AuthLoading) break;
+    }
+  }
 
-      final authenticated = state as AuthAuthenticated;
-      expect(authenticated.userId, equals('user-123'));
-      expect(authenticated.companyId, equals('company-456'));
-      expect(authenticated.roles, contains(UserRole.admin));
-    });
+  test('starts in loading state, then transitions to unauthenticated', () async {
+    final state = container.read(authNotifierProvider);
+    expect(state, isA<AuthLoading>());
 
-    test('logout transitions to unauthenticated state', () {
-      final notifier = container.read(authNotifierProvider.notifier);
+    await waitForRestore();
+    expect(container.read(authNotifierProvider), isA<AuthUnauthenticated>());
+  });
 
-      // First authenticate
-      notifier.setMockUser(
-        userId: 'user-123',
-        companyId: 'company-456',
-        roles: {UserRole.contractor},
-      );
-      expect(container.read(authNotifierProvider), isA<AuthAuthenticated>());
+  test('login success transitions to authenticated state', () async {
+    await waitForRestore();
 
-      // Then logout
-      notifier.logout();
-      expect(container.read(authNotifierProvider), isA<AuthUnauthenticated>());
-    });
+    when(() => mockAuthRepo.login(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        )).thenAnswer((_) async => AuthResult(
+          userId: 'user-123',
+          companyId: 'company-456',
+          roles: ['admin'],
+        ));
 
-    test('authenticated state with admin role contains UserRole.admin', () {
-      final notifier = container.read(authNotifierProvider.notifier);
+    final notifier = container.read(authNotifierProvider.notifier);
+    final error = await notifier.login(
+      email: 'test@test.com',
+      password: 'password123',
+    );
 
-      notifier.setMockUser(
-        userId: 'admin-user',
-        companyId: 'company-1',
-        roles: {UserRole.admin},
-      );
+    expect(error, isNull);
+    final state = container.read(authNotifierProvider) as AuthAuthenticated;
+    expect(state.userId, equals('user-123'));
+    expect(state.companyId, equals('company-456'));
+    expect(state.roles, contains(UserRole.admin));
+  });
 
-      final state = container.read(authNotifierProvider) as AuthAuthenticated;
-      expect(state.roles, contains(UserRole.admin));
-      expect(state.roles, hasLength(1));
-    });
+  test('login 401 returns error message', () async {
+    await waitForRestore();
 
-    test('authenticated state with multiple roles contains all specified roles', () {
-      final notifier = container.read(authNotifierProvider.notifier);
+    when(() => mockAuthRepo.login(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        )).thenThrow(DioException(
+      requestOptions: RequestOptions(path: '/auth/login'),
+      type: DioExceptionType.badResponse,
+      response: Response(
+        statusCode: 401,
+        requestOptions: RequestOptions(path: '/auth/login'),
+      ),
+    ));
 
-      notifier.setMockUser(
-        userId: 'multi-role-user',
-        companyId: 'company-1',
-        roles: {UserRole.admin, UserRole.contractor},
-      );
+    final notifier = container.read(authNotifierProvider.notifier);
+    final error = await notifier.login(email: 'bad@test.com', password: 'wrong');
 
-      final state = container.read(authNotifierProvider) as AuthAuthenticated;
-      expect(state.roles, contains(UserRole.admin));
-      expect(state.roles, contains(UserRole.contractor));
-      expect(state.roles, hasLength(2));
-    });
+    expect(error, equals('Invalid email or password'));
+  });
 
-    test('setMockUser overwrites previous auth state', () {
-      final notifier = container.read(authNotifierProvider.notifier);
+  test('logout transitions to unauthenticated state', () async {
+    await waitForRestore();
 
-      notifier.setMockUser(
-        userId: 'user-1',
-        companyId: 'company-1',
-        roles: {UserRole.contractor},
-      );
+    when(() => mockAuthRepo.login(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        )).thenAnswer((_) async => AuthResult(
+          userId: 'u-1',
+          companyId: 'c-1',
+          roles: ['contractor'],
+        ));
 
-      notifier.setMockUser(
-        userId: 'user-2',
-        companyId: 'company-2',
-        roles: {UserRole.admin},
-      );
+    final notifier = container.read(authNotifierProvider.notifier);
+    await notifier.login(email: 'x@x.com', password: 'pass1234');
+    expect(container.read(authNotifierProvider), isA<AuthAuthenticated>());
 
-      final state = container.read(authNotifierProvider) as AuthAuthenticated;
-      expect(state.userId, equals('user-2'));
-      expect(state.companyId, equals('company-2'));
-      expect(state.roles, containsAll([UserRole.admin]));
-      expect(state.roles, isNot(contains(UserRole.contractor)));
-    });
+    await notifier.logout();
+    expect(container.read(authNotifierProvider), isA<AuthUnauthenticated>());
+  });
 
-    test('all three role types can be set', () {
-      final notifier = container.read(authNotifierProvider.notifier);
+  test('authenticated state with multiple roles contains all roles', () async {
+    await waitForRestore();
 
-      notifier.setMockUser(
-        userId: 'all-roles-user',
-        companyId: 'company-1',
-        roles: {UserRole.admin, UserRole.contractor, UserRole.client},
-      );
+    when(() => mockAuthRepo.login(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        )).thenAnswer((_) async => AuthResult(
+          userId: 'u-1',
+          companyId: 'c-1',
+          roles: ['admin', 'contractor'],
+        ));
 
-      final state = container.read(authNotifierProvider) as AuthAuthenticated;
-      expect(state.roles, containsAll([
-        UserRole.admin,
-        UserRole.contractor,
-        UserRole.client,
-      ]));
-      expect(state.roles, hasLength(3));
-    });
+    final notifier = container.read(authNotifierProvider.notifier);
+    await notifier.login(email: 'x@x.com', password: 'pass1234');
+
+    final state = container.read(authNotifierProvider) as AuthAuthenticated;
+    expect(state.roles, contains(UserRole.admin));
+    expect(state.roles, contains(UserRole.contractor));
+    expect(state.roles, hasLength(2));
+  });
+
+  test('all three role types can be set', () async {
+    await waitForRestore();
+
+    when(() => mockAuthRepo.login(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        )).thenAnswer((_) async => AuthResult(
+          userId: 'u-1',
+          companyId: 'c-1',
+          roles: ['admin', 'contractor', 'client'],
+        ));
+
+    final notifier = container.read(authNotifierProvider.notifier);
+    await notifier.login(email: 'x@x.com', password: 'pass1234');
+
+    final state = container.read(authNotifierProvider) as AuthAuthenticated;
+    expect(state.roles, containsAll([
+      UserRole.admin,
+      UserRole.contractor,
+      UserRole.client,
+    ]));
+    expect(state.roles, hasLength(3));
+  });
+
+  test('register 409 returns duplicate email message', () async {
+    await waitForRestore();
+
+    when(() => mockAuthRepo.register(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+          companyName: any(named: 'companyName'),
+          firstName: any(named: 'firstName'),
+          lastName: any(named: 'lastName'),
+        )).thenThrow(DioException(
+      requestOptions: RequestOptions(path: '/auth/register'),
+      type: DioExceptionType.badResponse,
+      response: Response(
+        statusCode: 409,
+        requestOptions: RequestOptions(path: '/auth/register'),
+      ),
+    ));
+
+    final notifier = container.read(authNotifierProvider.notifier);
+    final error = await notifier.register(
+      email: 'dupe@test.com',
+      password: 'password123',
+      companyName: 'Test Co',
+    );
+
+    expect(error, equals('Email already registered'));
   });
 }

@@ -1,8 +1,9 @@
 import uuid
-from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
+
+from app.core.base_schemas import TenantResponseSchema
 
 
 class UserCreate(BaseModel):
@@ -20,26 +21,26 @@ class UserCreate(BaseModel):
     phone: str | None = None
 
 
-class UserResponse(BaseModel):
+class UserResponse(TenantResponseSchema):
     """Schema for user API responses.
 
-    Includes company_id (tenant scope), all profile fields, and assigned roles.
-    deleted_at is included for tombstone propagation during delta sync.
+    Inherits id, version, created_at, updated_at, deleted_at, company_id
+    from TenantResponseSchema.
     """
 
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID
-    company_id: uuid.UUID
     email: str
     first_name: str | None
     last_name: str | None
     phone: str | None
-    version: int
-    created_at: datetime
-    updated_at: datetime
-    deleted_at: datetime | None = None
     roles: list[str] = []
+
+    @field_validator("roles", mode="before")
+    @classmethod
+    def extract_role_strings(cls, v):
+        """Convert UserRole ORM objects to plain role strings."""
+        if v and hasattr(v[0], "role"):
+            return [r.role for r in v if getattr(r, "deleted_at", None) is None]
+        return v
 
 
 class RoleAssignment(BaseModel):
@@ -54,19 +55,12 @@ class RoleAssignment(BaseModel):
     role: Literal["admin", "contractor", "client"]
 
 
-class UserRoleResponse(BaseModel):
+class UserRoleResponse(TenantResponseSchema):
     """Schema for user role API responses.
 
-    deleted_at is included for tombstone propagation during delta sync.
-    updated_at is included for delta sync cursor filtering.
+    Inherits id, version, created_at, updated_at, deleted_at, company_id
+    from TenantResponseSchema.
     """
 
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID
     user_id: uuid.UUID
-    company_id: uuid.UUID
     role: str
-    created_at: datetime
-    updated_at: datetime | None = None
-    deleted_at: datetime | None = None

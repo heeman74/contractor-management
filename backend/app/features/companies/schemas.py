@@ -1,7 +1,8 @@
 import uuid
-from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
+
+from app.core.base_schemas import BaseResponseSchema
 
 
 class CompanyCreate(BaseModel):
@@ -35,23 +36,15 @@ class CompanyUpdate(BaseModel):
     business_number: str | None = None
 
 
-class CompanyResponse(BaseModel):
+class CompanyResponse(BaseResponseSchema):
     """Schema for company API responses.
 
-    Includes all fields plus server-generated id, version, and timestamps.
-    deleted_at is included for tombstone propagation during delta sync.
+    Inherits id, version, created_at, updated_at, deleted_at from BaseResponseSchema.
     """
 
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID
     name: str
     address: str | None
     phone: str | None
     trade_types: list[str] | None
     logo_url: str | None
     business_number: str | None
-    version: int
-    created_at: datetime
-    updated_at: datetime
-    deleted_at: datetime | None = None
