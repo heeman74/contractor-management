@@ -114,7 +114,7 @@ Plans:
   3. An overdue job (past scheduled completion with no status change) displays a warning indicator visible to the admin
   4. When a contractor marks a job delayed, the system requires a written reason and a new ETA before accepting the update
   5. Conflict indicators appear explicitly in the calendar view — they are never silent
-**Plans:** 2/6 plans executed
+**Plans:** 3/6 plans executed
 
 Plans:
 - [ ] 05-01-PLAN.md — Data foundation: Drift Bookings/JobSites tables (schema v4), BookingDao with sync queue dual-write, sync handlers, BookingEntity, backend delay endpoint, sync pull extension
@@ -195,7 +195,7 @@ Note: Phase 3 (Scheduling Engine) depends only on Phase 1 and can begin in paral
 | 2. Offline Sync Engine | 7/7 | Complete   | 2026-03-06 |
 | 3. Scheduling Engine | 2/4 | In Progress|  |
 | 4. Job Lifecycle | 9/9 | Complete   | 2026-03-09 |
-| 5. Calendar and Dispatch UI | 2/6 | In Progress|  |
+| 5. Calendar and Dispatch UI | 3/6 | In Progress|  |
 | 6. Field Workflow | 0/6 | Not started | - |
 | 7. Client Portal and Notifications | 0/5 | Not started | - |
 | 8. Business Operations | 0/5 | Not started | - |
