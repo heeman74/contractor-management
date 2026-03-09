@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 04-05-PLAN.md — mobile data layer for job lifecycle
-last_updated: "2026-03-09T02:06:22.821Z"
+stopped_at: Completed 04-job-lifecycle-01-PLAN.md
+last_updated: "2026-03-09T02:19:03.472Z"
 last_activity: 2026-03-05 — WorkManager dispatcher, sync status provider, app bar subtitle, pull-to-refresh on 3 screens
 progress:
   total_phases: 8
   completed_phases: 3
   total_plans: 24
-  completed_plans: 17
+  completed_plans: 18
   percent: 90
 ---
 
@@ -66,6 +66,7 @@ Progress: [█████████░] 90%
 | Phase 03-scheduling-engine P03 | 8min | 2 tasks | 2 files |
 | Phase 03-scheduling-engine P04 | 45 | 2 tasks | 9 files |
 | Phase 04-job-lifecycle P05 | 5min | 2 tasks | 15 files |
+| Phase 04-job-lifecycle P01 | 18min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -125,6 +126,9 @@ Recent decisions affecting current work:
 - [Phase 03-scheduling-engine]: pytest.mark.slow on 50-client load test — CI can filter with -m not slow for fast runs
 - [Phase 04-job-lifecycle]: JSON TEXT columns for statusHistory/tags in Drift (SQLite has no JSONB); decoded at domain layer
 - [Phase 04-job-lifecycle]: DioClient.pushWithIdempotency extended with method param (default POST) enabling PATCH/DELETE sync ops
+- [Phase 04-job-lifecycle]: Job.bookings relationship uses primaryjoin with foreign() string expression — Booking.job_id has no ORM-level ForeignKey() (FK lives only in DB via migration 0008 ALTER TABLE)
+- [Phase 04-job-lifecycle]: StrEnum chosen for JobStatus/Priority/Urgency/Direction — type-safe comparisons and accurate OpenAPI schema generation
+- [Phase 04-job-lifecycle]: _create_job_row helper added to scheduling conftest — bookings_job_id_fkey (migration 0008) requires real jobs rows; seed_contractor provisions one stub job per test run
 
 ### Pending Todos
 
@@ -141,6 +145,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-09T02:06:22.817Z
-Stopped at: Completed 04-05-PLAN.md — mobile data layer for job lifecycle
+Last session: 2026-03-09T02:19:03.467Z
+Stopped at: Completed 04-job-lifecycle-01-PLAN.md
 Resume file: None
