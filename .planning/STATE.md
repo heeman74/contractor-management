@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 04-job-lifecycle-03-PLAN.md
-last_updated: "2026-03-09T02:25:59.578Z"
+stopped_at: Completed 04-job-lifecycle-02-PLAN.md
+last_updated: "2026-03-09T02:26:29.492Z"
 last_activity: 2026-03-05 — WorkManager dispatcher, sync status provider, app bar subtitle, pull-to-refresh on 3 screens
 progress:
   total_phases: 8
@@ -68,6 +68,7 @@ Progress: [█████████░] 90%
 | Phase 04-job-lifecycle P05 | 5min | 2 tasks | 15 files |
 | Phase 04-job-lifecycle P01 | 18min | 2 tasks | 11 files |
 | Phase 04-job-lifecycle P03 | 4min | 2 tasks | 4 files |
+| Phase 04-job-lifecycle P02 | 5min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -133,6 +134,9 @@ Recent decisions affecting current work:
 - [Phase 04-job-lifecycle]: RequestService._accept_request creates Job directly (not via JobService) — avoids circular service import while still pre-filling all fields from request
 - [Phase 04-job-lifecycle]: _validate_rating_window: no 'complete' entry in status_history treated as open window — supports invoiced-without-complete flow without blocking ratings
 - [Phase 04-job-lifecycle]: Anonymous request submission with submitted_email creates new User+UserRole(client) inline — reuses same User model creation pattern from Phase 1 UserService
+- [Phase 04-job-lifecycle]: cancel_job_bookings uses single bulk UPDATE statement (not a loop) to soft-delete bookings
+- [Phase 04-job-lifecycle]: original_status captured before job.status mutation to correctly detect backward direction in booking cancellation
+- [Phase 04-job-lifecycle]: soft_delete_job sets deleted_at (admin removal) distinct from transition_status(cancelled) which sets status only keeping job visible
 
 ### Pending Todos
 
@@ -149,6 +153,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-09T02:25:59.573Z
-Stopped at: Completed 04-job-lifecycle-03-PLAN.md
+Last session: 2026-03-09T02:26:29.487Z
+Stopped at: Completed 04-job-lifecycle-02-PLAN.md
 Resume file: None
