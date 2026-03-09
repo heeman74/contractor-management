@@ -33,7 +33,7 @@ from fastapi import HTTPException, status
 from app.core.base_service import TenantScopedService
 from app.features.jobs.models import Job
 from app.features.jobs.repository import JobRepository
-from app.features.jobs.schemas import JobCreate, JobStatus, JobUpdate
+from app.features.jobs.schemas import DelayReportRequest, JobCreate, JobStatus, JobUpdate
 
 # ---------------------------------------------------------------------------
 # State machine constants
@@ -356,6 +356,70 @@ class JobService(TenantScopedService[Job]):
     async def get_contractor_jobs(self, contractor_id: uuid.UUID) -> list[Job]:
         """All active jobs for a contractor — delegates to repository."""
         return await self.repository.get_jobs_for_contractor(contractor_id)
+
+    async def report_delay(
+        self,
+        job_id: uuid.UUID,
+        data: DelayReportRequest,
+        *,
+        user_id: uuid.UUID,
+    ) -> Job:
+        """Record a delay report against a scheduled or in-progress job.
+
+        Appends a delay entry to status_history (list replacement — NOT in-place
+        append, per CONTEXT.md Pitfall 3) and updates scheduled_completion_date
+        to the new ETA. Increments version to signal record change.
+
+        Raises:
+            404 — job not found
+            409 — version conflict (stale client must re-fetch and retry)
+            422 — job status is not 'scheduled' or 'in_progress'
+        """
+        job = await self.repository.get_by_id(job_id)
+        if job is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Job {job_id} not found",
+            )
+
+        # Optimistic locking — reject stale clients
+        if job.version != data.version:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Version conflict: expected version {data.version}, "
+                    f"job is at version {job.version}. "
+                    "Fetch the latest job and retry."
+                ),
+            )
+
+        # Delays only apply to active jobs (scheduled or in_progress)
+        if job.status not in (JobStatus.scheduled, JobStatus.in_progress):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    f"Cannot report delay: job status is '{job.status}'. "
+                    "Delays can only be reported for jobs that are 'scheduled' or 'in_progress'."
+                ),
+            )
+
+        # Build delay entry and append via list replacement (Pitfall 3: never in-place)
+        delay_entry: dict = {
+            "type": "delay",
+            "reason": data.reason,
+            "new_eta": data.new_eta.isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
+            "user_id": str(user_id),
+        }
+        job.status_history = [*job.status_history, delay_entry]
+
+        # Update scheduled completion date and bump version
+        job.scheduled_completion_date = data.new_eta
+        job.version = job.version + 1  # type: ignore[assignment]
+
+        await self.db.flush()
+        await self.db.refresh(job)
+        return job
 
     async def soft_delete_job(
         self,

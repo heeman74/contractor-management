@@ -297,6 +297,29 @@ class RatingCreate(BaseModel):
     direction: RatingDirection
 
 
+# ---------------------------------------------------------------------------
+# Delay report schema
+# ---------------------------------------------------------------------------
+
+
+class DelayReportRequest(BaseModel):
+    """Request body for PATCH /jobs/{job_id}/delay.
+
+    Appends a delay entry to the job's status_history JSONB array and updates
+    scheduled_completion_date to the new ETA. Used by contractors and admins
+    to signal that a job in progress is running late.
+
+    Fields:
+    - reason: Human-readable explanation for the delay (required, non-empty).
+    - new_eta: The revised completion date (must be a date, not datetime).
+    - version: Current job version for optimistic locking — rejects stale clients.
+    """
+
+    reason: str = Field(min_length=1, description="Reason for the delay")
+    new_eta: date = Field(description="Revised scheduled completion date")
+    version: int = Field(description="Current job version for optimistic locking")
+
+
 class RatingResponse(BaseResponseSchema):
     """Full rating response."""
 

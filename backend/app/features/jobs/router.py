@@ -91,6 +91,7 @@ from app.features.jobs.schemas import (
     ClientProfileResponse,
     ClientPropertyCreate,
     ClientPropertyResponse,
+    DelayReportRequest,
     JobCreate,
     JobRequestCreate,
     JobRequestResponse,
@@ -487,6 +488,32 @@ async def review_job_request_early(
         return JobRequestResponse.model_validate(updated_request)
 
     return JobRequestResponse.model_validate(result)
+
+
+@router.patch("/jobs/{job_id}/delay", response_model=JobResponse)
+async def report_job_delay(
+    job_id: uuid.UUID,
+    data: DelayReportRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> JobResponse:
+    """Report a delay on a scheduled or in-progress job.
+
+    Appends a delay entry to the job's status_history and updates
+    scheduled_completion_date to the new ETA. Both contractors (own jobs)
+    and admins can report delays.
+
+    CRITICAL: Declared BEFORE GET /jobs/{job_id} to prevent FastAPI route
+    shadowing — 'delay' path segment must be matched before {job_id} catch-all.
+
+    Raises:
+    - 404 if job not found
+    - 409 if version conflict (stale client)
+    - 422 if job status is not 'scheduled' or 'in_progress'
+    """
+    svc = JobService(db)
+    job = await svc.report_delay(job_id, data, user_id=current_user.user_id)
+    return JobResponse.model_validate(job)
 
 
 @router.get("/jobs/{job_id}", response_model=JobResponse)

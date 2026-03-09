@@ -123,3 +123,37 @@ class SyncService:
             )
         )
         return list(result.scalars().all())
+
+    # -------------------------------------------------------------------------
+    # Phase 5 — calendar & dispatch entity sync methods
+    # -------------------------------------------------------------------------
+
+    async def get_bookings_since(self, since: datetime) -> list:
+        """Return all bookings changed since the given cursor timestamp.
+
+        Includes both active records and tombstones (deleted_at > since).
+        RLS automatically restricts to the current tenant.
+
+        Note: scheduling.models must be imported before calling this method
+        to ensure Booking is registered in the SQLAlchemy mapper registry.
+        This is handled by the side-effect import in sync/router.py.
+        """
+        from app.features.scheduling.models import Booking
+
+        result = await self.db.execute(
+            select(Booking).where(or_(Booking.updated_at > since, Booking.deleted_at > since))
+        )
+        return list(result.scalars().all())
+
+    async def get_job_sites_since(self, since: datetime) -> list:
+        """Return all job sites changed since the given cursor timestamp.
+
+        Includes both active records and tombstones (deleted_at > since).
+        RLS automatically restricts to the current tenant.
+        """
+        from app.features.scheduling.models import JobSite
+
+        result = await self.db.execute(
+            select(JobSite).where(or_(JobSite.updated_at > since, JobSite.deleted_at > since))
+        )
+        return list(result.scalars().all())

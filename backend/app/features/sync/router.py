@@ -23,13 +23,14 @@ from app.core.database import get_db
 from app.core.security import CurrentUser, get_current_user
 from app.features.companies.schemas import CompanyResponse
 from app.features.jobs.schemas import ClientProfileResponse, JobRequestResponse, JobResponse
+from app.features.scheduling.schemas import BookingResponse
 
 # isort: split
 # Scheduling models must be registered before job models are resolved (same pattern as jobs/router.py)
 import app.features.scheduling.models  # noqa: F401
 
 # isort: split
-from app.features.sync.schemas import SyncResponse
+from app.features.sync.schemas import JobSiteResponse, SyncResponse
 from app.features.sync.service import SyncService
 from app.features.users.schemas import UserResponse, UserRoleResponse
 
@@ -77,6 +78,9 @@ async def delta_sync(
     jobs = await svc.get_jobs_since(since)
     client_profiles = await svc.get_client_profiles_since(since)
     job_requests = await svc.get_job_requests_since(since)
+    # Phase 5 entities — calendar & dispatch
+    bookings = await svc.get_bookings_since(since)
+    job_sites = await svc.get_job_sites_since(since)
 
     return SyncResponse(
         companies=[CompanyResponse.model_validate(c) for c in companies],
@@ -85,5 +89,7 @@ async def delta_sync(
         jobs=[JobResponse.model_validate(j) for j in jobs],
         client_profiles=[ClientProfileResponse.model_validate(p) for p in client_profiles],
         job_requests=[JobRequestResponse.model_validate(r) for r in job_requests],
+        bookings=[BookingResponse.model_validate(b) for b in bookings],
+        job_sites=[JobSiteResponse.model_validate(s) for s in job_sites],
         server_timestamp=datetime.now(UTC).isoformat(),
     )
