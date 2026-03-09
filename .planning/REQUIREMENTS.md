@@ -20,13 +20,13 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **SCHED-01**: Job creation with details (description, address, client, assigned contractor)
 - [x] **SCHED-02**: Job lifecycle stages (Quote → Scheduled → In Progress → Complete → Invoiced)
-- [ ] **SCHED-03**: Drag-and-drop calendar scheduling with color coding
+- [x] **SCHED-03**: Drag-and-drop calendar scheduling with color coding
 - [x] **SCHED-04**: Contractor availability tracking (who's free when)
 - [x] **SCHED-05**: Conflict detection preventing double-bookings
 - [x] **SCHED-06**: Travel time awareness in scheduling (buffer between jobs)
 - [x] **SCHED-07**: Multi-day job support (jobs spanning days/weeks with partial-day assignments)
 - [ ] **SCHED-08**: Overdue task warnings when jobs miss scheduled completion
-- [ ] **SCHED-09**: Forced delay justification — contractor must provide reason + new ETA for overdue jobs
+- [x] **SCHED-09**: Forced delay justification — contractor must provide reason + new ETA for overdue jobs
 
 ### Client Experience
 
@@ -105,9 +105,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SCHED-02 | Phase 4 — Job Lifecycle | Complete |
 | CLNT-01 | Phase 4 — Job Lifecycle | Complete |
 | CLNT-04 | Phase 4 — Job Lifecycle | Complete |
-| SCHED-03 | Phase 5 — Calendar and Dispatch UI | Pending |
+| SCHED-03 | Phase 5 — Calendar and Dispatch UI | Complete |
 | SCHED-08 | Phase 5 — Calendar and Dispatch UI | Pending |
-| SCHED-09 | Phase 5 — Calendar and Dispatch UI | Pending |
+| SCHED-09 | Phase 5 — Calendar and Dispatch UI | Complete |
 | FIELD-01 | Phase 6 — Field Workflow | Pending |
 | FIELD-02 | Phase 6 — Field Workflow | Pending |
 | FIELD-03 | Phase 6 — Field Workflow | Pending |

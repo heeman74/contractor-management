@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 5 context gathered
-last_updated: "2026-03-09T16:54:55.355Z"
+stopped_at: Completed 05-01-PLAN.md
+last_updated: "2026-03-09T18:42:06.296Z"
 last_activity: 2026-03-05 — WorkManager dispatcher, sync status provider, app bar subtitle, pull-to-refresh on 3 screens
 progress:
   total_phases: 8
   completed_phases: 4
-  total_plans: 25
-  completed_plans: 25
+  total_plans: 31
+  completed_plans: 26
   percent: 90
 ---
 
@@ -74,6 +74,7 @@ Progress: [█████████░] 90%
 | Phase 04-job-lifecycle P04 | 11min | 2 tasks | 7 files |
 | Phase 04-job-lifecycle P08 | 120min | 2 tasks | 8 files |
 | Phase 04-job-lifecycle P09 | 2min | 2 tasks | 5 files |
+| Phase 05-calendar-and-dispatch-ui P01 | 13min | 2 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -157,6 +158,10 @@ Recent decisions affecting current work:
 - [Phase 04-job-lifecycle P08]: Seed idempotency: SET LOCAL RLS context before SELECT COUNT existence checks — RLS hides rows from appuser without app.current_company_id set
 - [Phase 04-job-lifecycle P08]: asyncpg SET LOCAL incompatibility: parameterized SET commands fail with PostgresSyntaxError; use f-string formatting with UUID values (safe — UUIDs from PostgreSQL not user input)
 - [Phase 04-job-lifecycle]: image_picker ^1.1.2 added as production dependency; no try/catch around pickImage per CLAUDE.md; jobRequestForm as sibling route in Branch 6; context.go() for portal-to-form navigation
+- [Phase 05-calendar-and-dispatch-ui]: Drift schema v4: Bookings + JobSites tables added via migration from v3
+- [Phase 05-calendar-and-dispatch-ui]: JobSiteSyncHandler is pull-only — push() throws StateError (job sites are read-only on mobile)
+- [Phase 05-calendar-and-dispatch-ui]: delay endpoint declared BEFORE GET /jobs/{job_id} to prevent FastAPI route shadowing
+- [Phase 05-calendar-and-dispatch-ui]: bookings/job_sites fields in SyncResponse default to empty list for Phase 4 client backwards compatibility
 
 ### Pending Todos
 
@@ -173,6 +178,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-09T16:54:55.338Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-calendar-and-dispatch-ui/05-CONTEXT.md
+Last session: 2026-03-09T18:42:06.289Z
+Stopped at: Completed 05-01-PLAN.md
+Resume file: None
