@@ -91,17 +91,18 @@ Plans:
   3. Client CRM shows a client profile with full job history — every job associated with that client across all lifecycle stages
   4. A client can submit a job request with preferred dates; it appears in the admin review queue; admin can convert it to a scheduled job
   5. Both job creation flows (client-initiated and company-assigned) produce jobs in the same unified pipeline visible to admins
-**Plans:** 8/8 plans executed — COMPLETE
+**Plans:** 9 plans (8 executed, 1 gap closure pending)
 
 Plans:
-- [ ] 04-01-PLAN.md — Backend data foundation: Alembic migration 0008 with 5 tables (jobs, client_profiles, client_properties, job_requests, ratings), ORM models, Pydantic schemas
-- [ ] 04-02-PLAN.md — Job service layer: JobRepository + JobService with lifecycle state machine, role-based transitions, version-checked updates, full-text search
-- [ ] 04-03-PLAN.md — CRM and request services: CrmService (client profiles, saved properties), RequestService (submit, review, accept-to-job conversion), RatingService (mutual ratings with 30-day window)
-- [ ] 04-04-PLAN.md — REST API layer: Job router with all endpoints, Jinja2 web form for client requests, sync endpoint extension for jobs/profiles/requests
-- [ ] 04-05-PLAN.md — Mobile data layer: Drift tables (jobs, client_profiles, client_properties, job_requests), JobDao with sync queue dual-write, sync handlers, database migration v2->v3
-- [ ] 04-06-PLAN.md — Mobile job UI: Admin pipeline (kanban + list toggle), 4-step job creation wizard, tabbed job detail, contractor job list with quick-action transitions
-- [ ] 04-07-PLAN.md — Mobile client UI: Client CRM screen (searchable, expandable cards), client detail (profile, properties, history, ratings), request review queue, in-app request form
+- [x] 04-01-PLAN.md — Backend data foundation: Alembic migration 0008 with 5 tables (jobs, client_profiles, client_properties, job_requests, ratings), ORM models, Pydantic schemas
+- [x] 04-02-PLAN.md — Job service layer: JobRepository + JobService with lifecycle state machine, role-based transitions, version-checked updates, full-text search
+- [x] 04-03-PLAN.md — CRM and request services: CrmService (client profiles, saved properties), RequestService (submit, review, accept-to-job conversion), RatingService (mutual ratings with 30-day window)
+- [x] 04-04-PLAN.md — REST API layer: Job router with all endpoints, Jinja2 web form for client requests, sync endpoint extension for jobs/profiles/requests
+- [x] 04-05-PLAN.md — Mobile data layer: Drift tables (jobs, client_profiles, client_properties, job_requests), JobDao with sync queue dual-write, sync handlers, database migration v2->v3
+- [x] 04-06-PLAN.md — Mobile job UI: Admin pipeline (kanban + list toggle), 4-step job creation wizard, tabbed job detail, contractor job list with quick-action transitions
+- [x] 04-07-PLAN.md — Mobile client UI: Client CRM screen (searchable, expandable cards), client detail (profile, properties, history, ratings), request review queue, in-app request form
 - [x] 04-08-PLAN.md — Backend tests and seed data: State machine unit tests, job lifecycle integration tests, CRM + request flow tests, demo seed data at every lifecycle stage
+- [ ] 04-09-PLAN.md — GAP CLOSURE: Functional photo picker (image_picker) and GoRoute registration for in-app job request form
 
 ### Phase 5: Calendar and Dispatch UI
 **Goal**: Company admins can visually schedule and reschedule contractor assignments using a drag-and-drop calendar that surfaces conflicts, travel time gaps, and overdue job warnings
@@ -193,7 +194,7 @@ Note: Phase 3 (Scheduling Engine) depends only on Phase 1 and can begin in paral
 | 1. Foundation | 5/5 | Complete | 2026-03-05 |
 | 2. Offline Sync Engine | 7/7 | Complete   | 2026-03-06 |
 | 3. Scheduling Engine | 2/4 | In Progress|  |
-| 4. Job Lifecycle | 8/8 | Complete   | 2026-03-09 |
+| 4. Job Lifecycle | 8/9 | Gap Closure | - |
 | 5. Calendar and Dispatch UI | 0/6 | Not started | - |
 | 6. Field Workflow | 0/6 | Not started | - |
 | 7. Client Portal and Notifications | 0/5 | Not started | - |
