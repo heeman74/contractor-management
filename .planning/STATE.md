@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 04-job-lifecycle-06-PLAN.md
-last_updated: "2026-03-09T02:54:35.744Z"
+stopped_at: Completed 04-job-lifecycle-04-PLAN.md
+last_updated: "2026-03-09T03:10:19.806Z"
 last_activity: 2026-03-05 — WorkManager dispatcher, sync status provider, app bar subtitle, pull-to-refresh on 3 screens
 progress:
   total_phases: 8
   completed_phases: 3
   total_plans: 24
-  completed_plans: 22
+  completed_plans: 23
   percent: 90
 ---
 
@@ -71,6 +71,7 @@ Progress: [█████████░] 90%
 | Phase 04-job-lifecycle P02 | 5min | 2 tasks | 2 files |
 | Phase 04-job-lifecycle P07 | 15min | 2 tasks | 15 files |
 | Phase 04-job-lifecycle P06 | 90 | 2 tasks | 14 files |
+| Phase 04-job-lifecycle P04 | 11min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -145,6 +146,9 @@ Recent decisions affecting current work:
 - [Phase 04-job-lifecycle]: StateProvider imported from package:riverpod/legacy.dart — moved out of flutter_riverpod main export in Riverpod 3
 - [Phase 04-job-lifecycle]: InternetConnection().hasInternetAccess used directly in wizard — ConnectivityService not designed for one-shot queries
 - [Phase 04-job-lifecycle]: CRM screens (ClientCrmScreen, ClientDetailScreen, RequestReviewScreen) implemented in Plan 06 ahead of Plan 07 — required by router
+- [Phase 04-job-lifecycle]: scheduling.models side-effect import must precede CrmService import in router — crm_repository.py triggers configure_mappers() via joinedload at class definition time before Booking is in the mapper registry
+- [Phase 04-job-lifecycle]: response_model=None required on all status_code=204 DELETE routes in FastAPI 0.115 to avoid AssertionError
+- [Phase 04-job-lifecycle]: isort: split comment preserves mandatory import ordering when side-effect imports must precede configure_mappers() trigger
 
 ### Pending Todos
 
@@ -161,6 +165,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-09T02:54:35.740Z
-Stopped at: Completed 04-job-lifecycle-06-PLAN.md
+Last session: 2026-03-09T03:10:19.801Z
+Stopped at: Completed 04-job-lifecycle-04-PLAN.md
 Resume file: None
