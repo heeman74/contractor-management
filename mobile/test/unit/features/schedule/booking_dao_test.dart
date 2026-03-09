@@ -143,7 +143,7 @@ void main() {
       'watchBookingsByContractorAndDate filters by contractor and date',
       () async {
         final today = DateTime.now();
-        final todayStart = DateTime(today.year, today.month, today.day, 9, 0);
+        final todayStart = DateTime(today.year, today.month, today.day, 9);
         final tomorrow = todayStart.add(const Duration(days: 1));
 
         // Booking for contractor-1 on today
@@ -192,7 +192,7 @@ void main() {
       () async {
         final bookingId = _uuid.v4();
         final today = DateTime.now();
-        final todayStart = DateTime(today.year, today.month, today.day, 9, 0);
+        final todayStart = DateTime(today.year, today.month, today.day, 9);
 
         await db.bookingDao.insertBooking(makeBooking(
           id: bookingId,
@@ -235,9 +235,9 @@ void main() {
         final bookingId = _uuid.v4();
         final today = DateTime.now();
         final originalStart =
-            DateTime(today.year, today.month, today.day, 9, 0);
+            DateTime(today.year, today.month, today.day, 9);
         final originalEnd = originalStart.add(const Duration(hours: 2));
-        final newStart = DateTime(today.year, today.month, today.day, 11, 0);
+        final newStart = DateTime(today.year, today.month, today.day, 11);
         final newEnd = newStart.add(const Duration(hours: 3));
 
         await db.bookingDao.insertBooking(makeBooking(
@@ -325,8 +325,8 @@ void main() {
       () async {
         final bookingId = _uuid.v4();
         final now = DateTime.now();
-        final originalStart = DateTime(now.year, now.month, now.day, 9, 0);
-        final newStart = DateTime(now.year, now.month, now.day, 14, 0);
+        final originalStart = DateTime(now.year, now.month, now.day, 9);
+        final newStart = DateTime(now.year, now.month, now.day, 14);
 
         // Insert original via insertBooking (creates a CREATE sync entry)
         await db.bookingDao.insertBooking(makeBooking(
@@ -373,19 +373,18 @@ void main() {
       'watchUnscheduledJobs excludes jobs that have active bookings on the given date',
       () async {
         final today = DateTime.now();
-        final todayStart = DateTime(today.year, today.month, today.day, 9, 0);
+        final todayStart = DateTime(today.year, today.month, today.day, 9);
 
         // Insert two jobs via raw DB (company row inserted in setUp)
         final jobWithBookingId = _uuid.v4();
         final jobWithoutBookingId = _uuid.v4();
 
+        // default status is 'quote'
         await db.into(db.jobs).insert(makeJob(
               id: jobWithBookingId,
-              status: 'quote',
             ));
         await db.into(db.jobs).insert(makeJob(
               id: jobWithoutBookingId,
-              status: 'quote',
             ));
 
         // Create a booking for the first job on today
