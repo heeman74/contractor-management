@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Offline Sync Engine** - Local SQLite with transactional outbox, background sync, and conflict resolution (UAT gap closure in progress) (completed 2026-03-06)
 - [ ] **Phase 3: Scheduling Engine** - Conflict detection, travel time awareness, multi-day jobs, and availability tracking
 - [x] **Phase 4: Job Lifecycle** - Job CRUD, lifecycle state machine, client CRM, and dual job creation flows (completed 2026-03-09)
-- [ ] **Phase 5: Calendar and Dispatch UI** - Drag-and-drop calendar, overdue warnings, and delay justification flow
+- [x] **Phase 5: Calendar and Dispatch UI** - Drag-and-drop calendar, overdue warnings, and delay justification flow (completed 2026-03-09)
 - [ ] **Phase 6: Field Workflow** - Job notes, photo capture, GPS address, drawing pad, and time tracking
 - [ ] **Phase 7: Client Portal and Notifications** - Client-facing job status, progress photos, delay visibility, and push notifications
 - [ ] **Phase 8: Business Operations** - Digital quoting, quote approval, invoicing, and reporting dashboard
@@ -114,7 +114,7 @@ Plans:
   3. An overdue job (past scheduled completion with no status change) displays a warning indicator visible to the admin
   4. When a contractor marks a job delayed, the system requires a written reason and a new ETA before accepting the update
   5. Conflict indicators appear explicitly in the calendar view — they are never silent
-**Plans:** 5/6 plans executed
+**Plans:** 6/6 plans complete
 
 Plans:
 - [ ] 05-01-PLAN.md — Data foundation: Drift Bookings/JobSites tables (schema v4), BookingDao with sync queue dual-write, sync handlers, BookingEntity, backend delay endpoint, sync pull extension
@@ -195,7 +195,7 @@ Note: Phase 3 (Scheduling Engine) depends only on Phase 1 and can begin in paral
 | 2. Offline Sync Engine | 7/7 | Complete   | 2026-03-06 |
 | 3. Scheduling Engine | 2/4 | In Progress|  |
 | 4. Job Lifecycle | 9/9 | Complete   | 2026-03-09 |
-| 5. Calendar and Dispatch UI | 5/6 | In Progress|  |
+| 5. Calendar and Dispatch UI | 6/6 | Complete   | 2026-03-09 |
 | 6. Field Workflow | 0/6 | Not started | - |
 | 7. Client Portal and Notifications | 0/5 | Not started | - |
 | 8. Business Operations | 0/5 | Not started | - |

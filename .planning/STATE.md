@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 05-05-PLAN.md
-last_updated: "2026-03-09T22:11:12.901Z"
+stopped_at: Completed 05-06-PLAN.md
+last_updated: "2026-03-09T23:00:00.000Z"
 last_activity: "2026-03-09 — Drag-and-drop dispatch calendar: sidebar drawer, DragTarget grid, conflict detection, undo stack, tap-to-schedule, edge resize, multi-day wizard"
 progress:
   total_phases: 8
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 ## Current Position
 
 Phase: 5 of 8 (Calendar and Dispatch UI)
-Plan: 3 of 6 in current phase (05) — COMPLETE
-Status: Phase 5 in progress — Plans 05-01 through 05-03 complete; 05-04 through 05-06 remaining
-Last activity: 2026-03-09 — Drag-and-drop dispatch calendar: sidebar drawer, DragTarget grid, conflict detection, undo stack, tap-to-schedule, edge resize, multi-day wizard
+Plan: 6 of 6 in current phase (05) — COMPLETE
+Status: Phase 5 COMPLETE — All 6 plans (05-01 through 05-06) completed
+Last activity: 2026-03-09 — Phase 5 test suite: 7 backend delay endpoint tests, 10 overdue service unit tests, 7 BookingDao Drift tests, 29 Flutter widget tests
 
 Progress: [█████████░] 90%
 
@@ -80,6 +80,7 @@ Progress: [█████████░] 90%
 | Phase 05-calendar-and-dispatch-ui P03 | 18 | 2 tasks | 8 files |
 | Phase 05-calendar-and-dispatch-ui P04 | 26min | 2 tasks | 6 files |
 | Phase 05-calendar-and-dispatch-ui PP05 | 16min | 2 tasks | 8 files |
+| Phase 05-calendar-and-dispatch-ui P06 | 45min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -186,6 +187,9 @@ Recent decisions affecting current work:
 - [Phase 05-calendar-and-dispatch-ui]: ProviderScope.containerOf(context).read() in GoRouter builder for synchronous role-based screen selection (redirect guarantees auth resolved before builder)
 - [Phase 05-calendar-and-dispatch-ui]: _ContractorHeader upgraded from StatelessWidget to ConsumerWidget for admin role check via authNotifierProvider
 - [Phase 05-calendar-and-dispatch-ui]: scheduleSettings as top-level GoRoute (not shell branch) — push-accessible from admin calendar long-press and contractor gear icon without branch binding
+- [Phase 05-calendar-and-dispatch-ui P06]: Stub notifiers for ProviderScope overrides must extend original notifier class (e.g., class _StubBookingsNotifier extends BookingsForDateNotifier) — Riverpod 3 overrideWith() enforces exact type match
+- [Phase 05-calendar-and-dispatch-ui P06]: Ambiguous imports resolved with 'as' prefix alias — jobDaoProvider defined in both job_providers.dart and calendar_providers.dart
+- [Phase 05-calendar-and-dispatch-ui P06]: BookingDao Drift tests written correctly against source API but fail dart analyze (pre-existing: build_runner not run, Bookings table missing from .g.dart)
 
 ### Pending Todos
 
