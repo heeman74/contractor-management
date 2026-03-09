@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 05-04-PLAN.md
-last_updated: "2026-03-09T21:52:38.911Z"
+stopped_at: Completed 05-05-PLAN.md
+last_updated: "2026-03-09T22:11:12.901Z"
 last_activity: "2026-03-09 — Drag-and-drop dispatch calendar: sidebar drawer, DragTarget grid, conflict detection, undo stack, tap-to-schedule, edge resize, multi-day wizard"
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 31
-  completed_plans: 29
+  completed_plans: 30
   percent: 90
 ---
 
@@ -79,6 +79,7 @@ Progress: [█████████░] 90%
 | Phase 05-calendar-and-dispatch-ui P03 | 18min | 2 tasks | 8 files |
 | Phase 05-calendar-and-dispatch-ui P03 | 18 | 2 tasks | 8 files |
 | Phase 05-calendar-and-dispatch-ui P04 | 26min | 2 tasks | 6 files |
+| Phase 05-calendar-and-dispatch-ui PP05 | 16min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -181,6 +182,10 @@ Recent decisions affecting current work:
 - [Phase 05-calendar-and-dispatch-ui]: OverdueJobInfo returned as enriched model from overdueJobsProvider replacing raw JobEntity list
 - [Phase 05-calendar-and-dispatch-ui]: Report Delay placed in bottomNavigationBar not FAB — visible on all three tabs
 - [Phase 05-calendar-and-dispatch-ui]: DelayJustificationDialog.show() static factory reads JobDao from GetIt directly — clean API, avoids provider coupling inside dialog
+- [Phase 05-calendar-and-dispatch-ui]: GestureDetector.onHorizontalDragEnd for week/month swipe navigation — avoids PageView scroll controller lifecycle complexity in paginated contractor rows
+- [Phase 05-calendar-and-dispatch-ui]: ProviderScope.containerOf(context).read() in GoRouter builder for synchronous role-based screen selection (redirect guarantees auth resolved before builder)
+- [Phase 05-calendar-and-dispatch-ui]: _ContractorHeader upgraded from StatelessWidget to ConsumerWidget for admin role check via authNotifierProvider
+- [Phase 05-calendar-and-dispatch-ui]: scheduleSettings as top-level GoRoute (not shell branch) — push-accessible from admin calendar long-press and contractor gear icon without branch binding
 
 ### Pending Todos
 
@@ -197,6 +202,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-09T21:52:38.906Z
-Stopped at: Completed 05-04-PLAN.md
+Last session: 2026-03-09T22:11:12.895Z
+Stopped at: Completed 05-05-PLAN.md
 Resume file: None
