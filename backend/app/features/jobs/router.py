@@ -226,6 +226,269 @@ async def get_my_contractor_jobs(
     return [JobResponse.model_validate(j) for j in jobs]
 
 
+# NOTE: /jobs/requests* and /jobs/request/{company_id} routes are declared BEFORE
+# /jobs/{job_id} so that FastAPI matches the specific literal path segments before the
+# catch-all UUID path parameter. Declaring them after would cause "requests" to be
+# parsed as a UUID job_id, resulting in 422 Unprocessable Entity on every request.
+
+
+@router.get("/jobs/request/{company_id}", response_class=HTMLResponse, include_in_schema=False)
+async def render_job_request_form(
+    request: Request,
+    company_id: uuid.UUID,
+) -> HTMLResponse:
+    """Render the Jinja2 web form for anonymous client job request submissions.
+
+    No authentication required — this is the public-facing intake form.
+    """
+    return templates.TemplateResponse(
+        request,
+        "job_request.html",
+        {"company_id": str(company_id), "success": False},
+    )
+
+
+@router.post("/jobs/request/{company_id}", response_class=HTMLResponse, include_in_schema=False)
+async def submit_job_request_form(
+    request: Request,
+    company_id: uuid.UUID,
+    submitted_name: Annotated[str | None, Form()] = None,
+    submitted_email: Annotated[str | None, Form()] = None,
+    submitted_phone: Annotated[str | None, Form()] = None,
+    description: Annotated[str, Form()] = "",
+    trade_type: Annotated[str | None, Form()] = None,
+    urgency: Annotated[str, Form()] = "normal",
+    property_address: Annotated[str | None, Form()] = None,
+    preferred_date_start: Annotated[str | None, Form()] = None,
+    preferred_date_end: Annotated[str | None, Form()] = None,
+    budget_min: Annotated[str | None, Form()] = None,
+    budget_max: Annotated[str | None, Form()] = None,
+    photos: Annotated[list[UploadFile] | None, File()] = None,
+    db: AsyncSession = Depends(get_db),
+) -> HTMLResponse:
+    """Handle multipart/form-data job request submission from the web form.
+
+    Declared before /jobs/{job_id} to prevent FastAPI route shadowing.
+    - Validates photo count (max 5) and content type (JPEG/PNG/HEIC).
+    - Saves photos to uploads/job_requests/{request_id}/ using aiofiles.
+    - Creates a JobRequest via RequestService.
+    - Returns success HTML on completion.
+
+    No authentication required — this is the public-facing intake form.
+    """
+    # Validate description is present
+    if not description.strip():
+        return templates.TemplateResponse(
+            request,
+            "job_request.html",
+            {"company_id": str(company_id), "success": False, "error": "Description is required"},
+            status_code=400,
+        )
+
+    # Validate photos
+    valid_photos: list[UploadFile] = []
+    if photos:
+        for photo in photos:
+            if photo.filename:  # skip empty file inputs
+                valid_photos.append(photo)
+
+    if len(valid_photos) > _MAX_PHOTOS:
+        return templates.TemplateResponse(
+            request,
+            "job_request.html",
+            {
+                "company_id": str(company_id),
+                "success": False,
+                "error": f"Maximum {_MAX_PHOTOS} photos allowed",
+            },
+            status_code=400,
+        )
+
+    for photo in valid_photos:
+        content_type = (photo.content_type or "").lower()
+        if content_type not in _ALLOWED_PHOTO_TYPES:
+            return templates.TemplateResponse(
+                request,
+                "job_request.html",
+                {
+                    "company_id": str(company_id),
+                    "success": False,
+                    "error": "Only JPEG, PNG, and HEIC images are accepted",
+                },
+                status_code=400,
+            )
+
+    # Parse optional date/decimal fields
+    import contextlib
+    from decimal import Decimal, InvalidOperation
+
+    parsed_start: date | None = None
+    parsed_end: date | None = None
+    parsed_budget_min: Decimal | None = None
+    parsed_budget_max: Decimal | None = None
+
+    if preferred_date_start:
+        with contextlib.suppress(ValueError):
+            parsed_start = date.fromisoformat(preferred_date_start)
+
+    if preferred_date_end:
+        with contextlib.suppress(ValueError):
+            parsed_end = date.fromisoformat(preferred_date_end)
+
+    if budget_min:
+        with contextlib.suppress(InvalidOperation):
+            parsed_budget_min = Decimal(budget_min)
+
+    if budget_max:
+        with contextlib.suppress(InvalidOperation):
+            parsed_budget_max = Decimal(budget_max)
+
+    # Set tenant context so RLS allows anonymous user creation for web form submissions.
+    # The web form has no JWT auth, so TenantMiddleware leaves _current_tenant_id=None.
+    # Without setting it here, any User INSERT triggered by submitted_email would fail
+    # the RLS policy (requires app.current_company_id to be set per transaction).
+    from app.core.tenant import set_current_tenant_id
+
+    set_current_tenant_id(company_id)
+
+    # Build request create schema
+    from app.features.jobs.schemas import JobUrgency
+
+    urgency_value = JobUrgency.urgent if urgency == "urgent" else JobUrgency.normal
+
+    job_request_data = JobRequestCreate(
+        description=description,
+        trade_type=trade_type or None,
+        urgency=urgency_value,
+        preferred_date_start=parsed_start,
+        preferred_date_end=parsed_end,
+        budget_min=parsed_budget_min,
+        budget_max=parsed_budget_max,
+        submitted_name=submitted_name,
+        submitted_email=submitted_email,
+        submitted_phone=submitted_phone,
+    )
+
+    svc = RequestService(db)
+    job_request = await svc.submit_request(
+        data=job_request_data,
+        company_id=company_id,
+        client_id=None,
+        photo_paths=[],  # files saved below after request is created
+    )
+
+    # Save photos to disk after request is created (we need request ID for directory)
+    photo_paths: list[str] = []
+    if valid_photos:
+        upload_dir = Path("uploads") / "job_requests" / str(job_request.id)
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        for photo in valid_photos:
+            safe_name = Path(photo.filename or "photo").name
+            dest = upload_dir / safe_name
+            content = await photo.read()
+            async with aiofiles.open(dest, "wb") as f:
+                await f.write(content)
+            photo_paths.append(str(dest))
+
+        # Update the photos list on the created request (list replacement per CLAUDE.md)
+        if photo_paths:
+            job_request.photos = photo_paths
+            await db.flush()
+
+    return templates.TemplateResponse(
+        request,
+        "job_request.html",
+        {"company_id": str(company_id), "success": True},
+    )
+
+
+@router.post(
+    "/jobs/requests",
+    status_code=status.HTTP_201_CREATED,
+    response_model=JobRequestResponse,
+)
+async def submit_in_app_job_request_early(
+    data: JobRequestCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> JobRequestResponse:
+    """Submit a job request from the mobile app (authenticated, JSON body).
+
+    Declared here (before /jobs/{job_id}) to prevent route shadowing.
+    """
+    svc = RequestService(db)
+    job_request = await svc.submit_request(
+        data=data,
+        company_id=current_user.company_id,
+        client_id=current_user.user_id,
+    )
+    return JobRequestResponse.model_validate(job_request)
+
+
+@router.get("/jobs/requests", response_model=list[JobRequestResponse])
+async def list_job_requests_early(
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> list[JobRequestResponse]:
+    """List all pending job requests for admin review.
+
+    Declared here (before /jobs/{job_id}) to prevent route shadowing.
+    """
+    svc = RequestService(db)
+    requests = await svc.list_pending_requests(
+        company_id=current_user.company_id,
+        offset=offset,
+        limit=limit,
+    )
+    return [JobRequestResponse.model_validate(r) for r in requests]
+
+
+@router.get("/jobs/requests/{request_id}", response_model=JobRequestResponse)
+async def get_job_request_early(
+    request_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> JobRequestResponse:
+    """Get a single job request by ID.
+
+    Declared here (before /jobs/{job_id}) to prevent route shadowing.
+    """
+    svc = RequestService(db)
+    job_request = await svc.get_request(request_id)
+    return JobRequestResponse.model_validate(job_request)
+
+
+@router.post("/jobs/requests/{request_id}/review", response_model=JobRequestResponse)
+async def review_job_request_early(
+    request_id: uuid.UUID,
+    action: JobRequestReviewAction,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> JobRequestResponse:
+    """Admin review action on a pending job request.
+
+    Declared here (before /jobs/{job_id}) to prevent route shadowing.
+    """
+    svc = RequestService(db)
+    result = await svc.review_request(
+        request_id=request_id,
+        action=action.action,
+        admin_user_id=current_user.user_id,
+        decline_reason=action.decline_reason,
+        decline_message=action.decline_message,
+    )
+    from app.features.jobs.models import Job
+
+    if isinstance(result, Job):
+        updated_request = await svc.get_request(request_id)
+        return JobRequestResponse.model_validate(updated_request)
+
+    return JobRequestResponse.model_validate(result)
+
+
 @router.get("/jobs/{job_id}", response_model=JobResponse)
 async def get_job(
     job_id: uuid.UUID,
@@ -504,263 +767,11 @@ async def remove_client_property(
 
 
 # ---------------------------------------------------------------------------
-# Job Request endpoints — web form (public)
+# NOTE: The job request routes (web form + in-app) are declared BEFORE /jobs/{job_id}
+# above, to prevent FastAPI from shadowing them with the {job_id} path parameter route.
+# The old declarations below were removed as part of the route ordering fix.
+# See the early declarations around line 235 for the actual handler implementations.
 # ---------------------------------------------------------------------------
-
-
-@router.get("/jobs/request/{company_id}", response_class=HTMLResponse, include_in_schema=False)
-async def render_job_request_form(
-    request: Request,
-    company_id: uuid.UUID,
-) -> HTMLResponse:
-    """Render the Jinja2 web form for anonymous client job request submissions.
-
-    No authentication required — this is the public-facing intake form.
-    """
-    return templates.TemplateResponse(
-        request,
-        "job_request.html",
-        {"company_id": str(company_id), "success": False},
-    )
-
-
-@router.post("/jobs/request/{company_id}", response_class=HTMLResponse, include_in_schema=False)
-async def submit_job_request_form(
-    request: Request,
-    company_id: uuid.UUID,
-    submitted_name: Annotated[str | None, Form()] = None,
-    submitted_email: Annotated[str | None, Form()] = None,
-    submitted_phone: Annotated[str | None, Form()] = None,
-    description: Annotated[str, Form()] = "",
-    trade_type: Annotated[str | None, Form()] = None,
-    urgency: Annotated[str, Form()] = "normal",
-    property_address: Annotated[str | None, Form()] = None,
-    preferred_date_start: Annotated[str | None, Form()] = None,
-    preferred_date_end: Annotated[str | None, Form()] = None,
-    budget_min: Annotated[str | None, Form()] = None,
-    budget_max: Annotated[str | None, Form()] = None,
-    photos: Annotated[list[UploadFile] | None, File()] = None,
-    db: AsyncSession = Depends(get_db),
-) -> HTMLResponse:
-    """Handle multipart/form-data job request submission from the web form.
-
-    - Validates photo count (max 5) and content type (JPEG/PNG/HEIC).
-    - Saves photos to uploads/job_requests/{request_id}/ using aiofiles.
-    - Creates a JobRequest via RequestService.
-    - Returns success HTML on completion.
-
-    No authentication required — this is the public-facing intake form.
-    """
-    # Validate description is present
-    if not description.strip():
-        return templates.TemplateResponse(
-            request,
-            "job_request.html",
-            {"company_id": str(company_id), "success": False, "error": "Description is required"},
-            status_code=400,
-        )
-
-    # Validate photos
-    valid_photos: list[UploadFile] = []
-    if photos:
-        for photo in photos:
-            if photo.filename:  # skip empty file inputs
-                valid_photos.append(photo)
-
-    if len(valid_photos) > _MAX_PHOTOS:
-        return templates.TemplateResponse(
-            request,
-            "job_request.html",
-            {
-                "company_id": str(company_id),
-                "success": False,
-                "error": f"Maximum {_MAX_PHOTOS} photos allowed",
-            },
-            status_code=400,
-        )
-
-    for photo in valid_photos:
-        content_type = (photo.content_type or "").lower()
-        if content_type not in _ALLOWED_PHOTO_TYPES:
-            return templates.TemplateResponse(
-                request,
-                "job_request.html",
-                {
-                    "company_id": str(company_id),
-                    "success": False,
-                    "error": "Only JPEG, PNG, and HEIC images are accepted",
-                },
-                status_code=400,
-            )
-
-    # Parse optional date/decimal fields
-    import contextlib
-    from decimal import Decimal, InvalidOperation
-
-    parsed_start: date | None = None
-    parsed_end: date | None = None
-    parsed_budget_min: Decimal | None = None
-    parsed_budget_max: Decimal | None = None
-
-    if preferred_date_start:
-        with contextlib.suppress(ValueError):
-            parsed_start = date.fromisoformat(preferred_date_start)
-
-    if preferred_date_end:
-        with contextlib.suppress(ValueError):
-            parsed_end = date.fromisoformat(preferred_date_end)
-
-    if budget_min:
-        with contextlib.suppress(InvalidOperation):
-            parsed_budget_min = Decimal(budget_min)
-
-    if budget_max:
-        with contextlib.suppress(InvalidOperation):
-            parsed_budget_max = Decimal(budget_max)
-
-    # Build request create schema
-    from app.features.jobs.schemas import JobUrgency
-
-    urgency_value = JobUrgency.urgent if urgency == "urgent" else JobUrgency.normal
-
-    job_request_data = JobRequestCreate(
-        description=description,
-        trade_type=trade_type or None,
-        urgency=urgency_value,
-        preferred_date_start=parsed_start,
-        preferred_date_end=parsed_end,
-        budget_min=parsed_budget_min,
-        budget_max=parsed_budget_max,
-        submitted_name=submitted_name,
-        submitted_email=submitted_email,
-        submitted_phone=submitted_phone,
-    )
-
-    svc = RequestService(db)
-    job_request = await svc.submit_request(
-        data=job_request_data,
-        company_id=company_id,
-        client_id=None,
-        photo_paths=[],  # files saved below after request is created
-    )
-
-    # Save photos to disk after request is created (we need request ID for directory)
-    photo_paths: list[str] = []
-    if valid_photos:
-        upload_dir = Path("uploads") / "job_requests" / str(job_request.id)
-        upload_dir.mkdir(parents=True, exist_ok=True)
-
-        for photo in valid_photos:
-            safe_name = Path(photo.filename or "photo").name
-            dest = upload_dir / safe_name
-            content = await photo.read()
-            async with aiofiles.open(dest, "wb") as f:
-                await f.write(content)
-            photo_paths.append(str(dest))
-
-        # Update the photos list on the created request (list replacement per CLAUDE.md)
-        if photo_paths:
-            job_request.photos = photo_paths
-
-            await db.flush()
-
-    return templates.TemplateResponse(
-        request,
-        "job_request.html",
-        {"company_id": str(company_id), "success": True},
-    )
-
-
-# ---------------------------------------------------------------------------
-# Job Request endpoints — in-app (auth required)
-# ---------------------------------------------------------------------------
-
-
-@router.post(
-    "/jobs/requests",
-    status_code=status.HTTP_201_CREATED,
-    response_model=JobRequestResponse,
-)
-async def submit_in_app_job_request(
-    data: JobRequestCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user),
-) -> JobRequestResponse:
-    """Submit a job request from the mobile app (authenticated, JSON body)."""
-    svc = RequestService(db)
-    job_request = await svc.submit_request(
-        data=data,
-        company_id=current_user.company_id,
-        client_id=current_user.user_id,
-    )
-    return JobRequestResponse.model_validate(job_request)
-
-
-@router.get("/jobs/requests", response_model=list[JobRequestResponse])
-async def list_job_requests(
-    offset: int = Query(default=0, ge=0),
-    limit: int = Query(default=50, ge=1, le=200),
-    db: AsyncSession = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user),
-) -> list[JobRequestResponse]:
-    """List all pending job requests for admin review. Returns oldest first."""
-    svc = RequestService(db)
-    requests = await svc.list_pending_requests(
-        company_id=current_user.company_id,
-        offset=offset,
-        limit=limit,
-    )
-    return [JobRequestResponse.model_validate(r) for r in requests]
-
-
-@router.get("/jobs/requests/{request_id}", response_model=JobRequestResponse)
-async def get_job_request(
-    request_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user),
-) -> JobRequestResponse:
-    """Get a single job request by ID. Returns 404 if not found."""
-    svc = RequestService(db)
-    job_request = await svc.get_request(request_id)
-    return JobRequestResponse.model_validate(job_request)
-
-
-@router.post("/jobs/requests/{request_id}/review", response_model=JobRequestResponse)
-async def review_job_request(
-    request_id: uuid.UUID,
-    action: JobRequestReviewAction,
-    db: AsyncSession = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user),
-) -> JobRequestResponse:
-    """Admin review action on a pending job request.
-
-    Actions:
-    - accepted: Creates a Job at Quote stage. Returns the new JobResponse.
-    - declined: Stores decline_reason and decline_message. Returns JobRequestResponse.
-    - info_requested: Sets status=info_requested. Returns JobRequestResponse.
-
-    Returns 404 if request not found.
-    Returns 422 if request is not in 'pending' status.
-    """
-    svc = RequestService(db)
-    result = await svc.review_request(
-        request_id=request_id,
-        action=action.action,
-        admin_user_id=current_user.user_id,
-        decline_reason=action.decline_reason,
-        decline_message=action.decline_message,
-    )
-    # review_request returns either JobRequest (declined/info_requested) or Job (accepted)
-    # For accepted, the converted Job is returned but we still respond with JobRequestResponse
-    # by fetching the updated request. The mobile app tracks converted_job_id.
-    from app.features.jobs.models import Job
-
-    if isinstance(result, Job):
-        # Accepted: fetch the updated request to return JobRequestResponse
-        updated_request = await svc.get_request(request_id)
-        return JobRequestResponse.model_validate(updated_request)
-
-    return JobRequestResponse.model_validate(result)
 
 
 # ---------------------------------------------------------------------------

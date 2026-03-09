@@ -174,6 +174,26 @@ class CrmRepository(TenantScopedRepository[ClientProfile]):
         )
         return result.scalars().first()
 
+    async def soft_delete_property(self, property_id: uuid.UUID) -> bool:
+        """Soft-delete a ClientProperty by setting deleted_at.
+
+        Uses a direct select on ClientProperty (not the CrmRepository model=ClientProfile).
+        Returns False if the property is not found.
+        """
+        from datetime import UTC, datetime
+
+        result = await self.db.execute(
+            select(ClientProperty)
+            .where(ClientProperty.id == property_id)
+            .where(ClientProperty.deleted_at.is_(None))
+        )
+        prop = result.scalars().first()
+        if prop is None:
+            return False
+        prop.deleted_at = datetime.now(UTC)
+        await self.db.flush()
+        return True
+
     async def recalculate_average_rating(self, ratee_id: uuid.UUID) -> Decimal | None:
         """Compute AVG(stars) for all ratings WHERE ratee_id matches.
 

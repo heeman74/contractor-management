@@ -142,8 +142,10 @@ class CrmService(TenantScopedService[ClientProfile]):
         """Soft-delete a client property association.
 
         Raises 404 if the property does not exist.
+        Uses crm_repo.soft_delete_property (not the inherited soft_delete which
+        queries by ClientProfile.id — the repository model type — not ClientProperty.id).
         """
-        deleted = await self.crm_repo.soft_delete(property_id)
+        deleted = await self.crm_repo.soft_delete_property(property_id)
         if not deleted:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
