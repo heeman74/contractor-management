@@ -114,15 +114,15 @@ Plans:
   3. An overdue job (past scheduled completion with no status change) displays a warning indicator visible to the admin
   4. When a contractor marks a job delayed, the system requires a written reason and a new ETA before accepting the update
   5. Conflict indicators appear explicitly in the calendar view — they are never silent
-**Plans**: TBD
+**Plans:** 6 plans
 
 Plans:
-- [ ] 05-01: Flutter calendar library integration — drag-and-drop, time slots, Flutter package selection
-- [ ] 05-02: Calendar scheduling UI — contractor lanes, color coding by status, conflict indicators, travel time buffer visualization
-- [ ] 05-03: Team availability overview — who's free when, contractor utilization at a glance
-- [ ] 05-04: Overdue job detection and warnings — backend detection logic, admin UI warning indicators
-- [ ] 05-05: Forced delay justification — contractor delay flow (reason + new ETA required), state transition guard
-- [ ] 05-06: Calendar and dispatch UI tests — E2E test for drag-and-drop scheduling, conflict prevention, delay justification flow
+- [ ] 05-01-PLAN.md — Data foundation: Drift Bookings/JobSites tables (schema v4), BookingDao with sync queue dual-write, sync handlers, BookingEntity, backend delay endpoint, sync pull extension
+- [ ] 05-02-PLAN.md — Calendar core: Day view with CustomPainter grid, paginated contractor lanes, color-coded booking cards, travel time hatched blocks, overdue severity indicators
+- [ ] 05-03-PLAN.md — Drag-and-drop dispatch: Unscheduled jobs sidebar drawer, DragTarget grid, tap-to-schedule, cross-lane reassignment, edge resize, undo snackbar, multi-day wizard
+- [ ] 05-04-PLAN.md — Overdue and delay: Expandable overdue panel, bottom nav badge, delay justification dialog, job detail Report Delay button, offline delay mutation
+- [ ] 05-05-PLAN.md — Views and contractor: Week view (collapsed cards), month view (count badges), contractor personal schedule (list + calendar toggle), schedule settings screen, route registration
+- [ ] 05-06-PLAN.md — Tests: Backend delay endpoint integration tests, overdue service unit tests, BookingDao Drift tests, calendar widget tests, delay dialog tests, E2E scheduling flow
 
 ### Phase 6: Field Workflow
 **Goal**: Contractors can capture job notes, photos, GPS location, sketches, and time on-site from their mobile device — all while offline — and the data syncs when connectivity returns
