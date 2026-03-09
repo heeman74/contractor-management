@@ -1,4 +1,4 @@
-# Phase 5: Calendar and Dispatch UI - Research
+# Phase 5: Calendar and Dispatch UI — Research
 
 **Researched:** 2026-03-09
 **Domain:** Flutter calendar UI, drag-and-drop scheduling, Drift local bookings, FastAPI delay endpoint
@@ -104,20 +104,20 @@
 
 | ID | Description | Research Support |
 |----|-------------|-----------------|
-| SCHED-03 | Drag-and-drop calendar scheduling with color coding | Custom calendar widget using Flutter's built-in Draggable/DragTarget + LongPressDraggable; custom painter for contractor lane grid; patterns_canvas for travel time hatching |
-| SCHED-08 | Overdue task warnings when jobs miss scheduled completion | Local Drift computation (compare DateTime.now() vs scheduledCompletionDate); Badge widget on NavigationBar Schedule tab; tiered severity (1-3 days = warning, 4+ = critical) |
-| SCHED-09 | Forced delay justification — contractor must provide reason + new ETA | New PATCH /jobs/{id}/delay backend endpoint; delay entry in status_history JSONB; Drift local update + sync queue push; offline-capable like other job mutations |
+| SCHED-03 | Drag-and-drop calendar scheduling with color coding | Flutter `Draggable`/`LongPressDraggable`/`DragTarget` (built-in, stable). Custom `CustomPainter` grid recommended for multi-contractor lane layout. Status color palette defined in locked decisions, extend `JobStatus.calendarColor` getter. |
+| SCHED-08 | Overdue task warnings when jobs miss scheduled completion | Local computation from Drift `scheduledCompletionDate` field vs `DateTime.now()`. Tiered severity is pure Dart. Flutter `Badge` widget (Material 3) wraps `NavigationDestination` icon. Works offline. |
+| SCHED-09 | Forced delay justification — contractor must provide reason + new ETA | New `PATCH /api/v1/jobs/{job_id}/delay` backend endpoint appending `{type: "delay", ...}` to `status_history` JSONB and updating `scheduled_completion_date`. Offline-first: Drift mutation + sync queue dual-write identical to existing job mutations in `JobDao`. |
 </phase_requirements>
 
 ---
 
 ## Summary
 
-Phase 5 builds the visual dispatch interface on top of already-complete backend scheduling and job lifecycle engines (Phases 3 and 4). The primary technical challenge is the custom multi-contractor lane calendar widget on mobile — no off-the-shelf Flutter package supports the exact dispatch-board layout with paginated side-by-side contractor lanes, sidebar drag source, and offline-first sync. The calendar will be built as a custom Flutter widget using standard `Draggable`/`DragTarget`/`LongPressDraggable` primitives rather than adopting an opinionated third-party calendar package.
+Phase 5 builds the visual dispatch interface on top of the already-complete backend scheduling and job lifecycle engines (Phases 3 and 4). The primary technical challenge is the custom multi-contractor lane calendar widget — no off-the-shelf Flutter package supports the exact dispatch-board layout with paginated side-by-side contractor lanes, travel-time hatching, sidebar drag source, and offline-first sync. The calendar is built as a custom Flutter widget using standard `Draggable`/`DragTarget`/`LongPressDraggable` primitives rather than adopting an opinionated third-party calendar package (all evaluated packages were rejected for concrete reasons detailed in Standard Stack below).
 
-Three areas of new code are required: (1) the Flutter calendar widget complex (UI only — the data layer and backend already exist), (2) a Drift `Bookings` table at schema version 4 with its DAO and sync handler, and (3) a new backend endpoint `PATCH /api/v1/jobs/{id}/delay` that appends a delay entry to `status_history` and updates `scheduled_completion_date`. Overdue detection is pure client-side logic against the existing Drift jobs table — no new backend query is needed.
+Three areas of new code are required: (1) the Flutter calendar widget complex (UI only — all backend APIs already exist), (2) a Drift `Bookings` table at schema version 4 with its DAO and sync handler, and (3) a new backend endpoint `PATCH /api/v1/jobs/{id}/delay` that appends a delay entry to `status_history` and updates `scheduled_completion_date`. Overdue detection is pure client-side logic against the existing Drift `jobs` table — no new backend query needed.
 
-**Primary recommendation:** Build the day-view calendar as a custom `CustomPainter`-backed widget with a `ScrollController` for the time axis and a `PageView` for contractor-lane pagination. Use `patterns_canvas` for diagonal-striped travel time blocks. Use Flutter's `Badge` widget (Material 3, available since Flutter 3.22) for the bottom nav overdue count. Follow the existing `JobDao`/`JobSyncHandler` pattern exactly for `BookingDao`/`BookingSyncHandler`.
+**Primary recommendation:** Build the day-view calendar as a custom `CustomPainter`-backed widget with a `ScrollController` for the time axis and a `PageView` for contractor-lane pagination. Use `patterns_canvas` for diagonal-striped travel time blocks. Use Flutter's `Badge` widget (Material 3) for the bottom nav overdue count. Follow the existing `JobDao`/`JobSyncHandler` pattern exactly for `BookingDao`/`BookingSyncHandler`.
 
 ---
 
@@ -127,32 +127,42 @@ Three areas of new code are required: (1) the Flutter calendar widget complex (U
 
 | Library | Version | Purpose | Why Standard |
 |---------|---------|---------|--------------|
-| flutter | 3.32+ | UI framework | Already in project; CustomPainter + Draggable cover all calendar needs natively |
-| flutter_riverpod | ^3.2.1 | State management | Already in project; StateProvider (legacy import) for view toggles, AsyncNotifier for data |
-| drift | ^2.32.0 | Local DB | Already in project; add Bookings table via migration v4 |
-| dio | ^5.9.2 | HTTP client | Already in project; delay push via existing DioClient.pushWithIdempotency |
-| go_router | ^17.1.0 | Navigation | Already in project; add contractor calendar + schedule settings routes |
-| freezed_annotation | ^3.1.0 | Immutable entities | Already in project; BookingEntity, CalendarViewState |
+| flutter | 3.32+ | UI framework | Already in project; `CustomPainter` + `Draggable` + `DragTarget` cover all calendar needs natively |
+| flutter_riverpod | ^3.2.1 | State management | Already in project; `StateProvider` (legacy import) for view toggles, `AsyncNotifier` for data |
+| drift | ^2.32.0 | Local DB | Already in project; add `Bookings` + `JobSites` tables via migration v4 |
+| dio | ^5.9.2 | HTTP client | Already in project; booking push + delay report via existing `DioClient.pushWithIdempotency` |
+| go_router | ^17.1.0 | Navigation | Already in project; add contractor calendar + schedule settings routes to Branch 2 |
+| freezed_annotation | ^3.1.0 | Immutable entities | Already in project; `BookingEntity` follows `JobEntity` pattern |
 
 ### New Dependency (One Addition)
 
 | Library | Version | Purpose | Why Standard |
 |---------|---------|---------|--------------|
-| patterns_canvas | ^0.5.0 | Diagonal stripe pattern for travel time blocks | Pure Dart, no platform channels, MIT license, paints directly onto Canvas API |
+| patterns_canvas | ^0.5.0 | Diagonal stripe pattern for travel time blocks | Pure Dart, no platform channels, MIT license, verified publisher (whidev.com), paints directly via Canvas API; avoids hand-rolling diagonal line loops |
 
-### NOT Needed (Packages Evaluated and Rejected)
+### Calendar Package Decision (Claude's Discretion Area — RESOLVED)
 
-| Package | Reason Rejected |
-|---------|-----------------|
-| syncfusion_flutter_calendar | Commercial license required; resource view exists but is heavily opinionated — fighting it for custom dispatch layout costs more than building custom |
-| kalender | v0.15.0 (recent), MIT, drag-drop supported, but NO multi-resource side-by-side lane support (confirmed from GitHub README) — the core requirement for this dispatch board |
-| table_calendar | Month/week views only, no time axis, no drag-drop, no lanes |
-| infinite_calendar_view | Timeline view, but no multi-resource lanes; limited customization of time region backgrounds |
+All third-party calendar packages were evaluated and rejected. The recommendation is a custom `CustomPainter` + `Stack` implementation.
 
-**Installation:**
+| Package | Verdict | Reason |
+|---------|---------|--------|
+| kalender (v0.15.0) | REJECTED | Pre-1.0 API instability explicitly stated ("API will most likely change until 1.0"). No multi-resource side-by-side contractor lane support — assumes one timeline. |
+| syncfusion_flutter_calendar | REJECTED | Commercial license required for production. Resource view exists but is heavily opinionated and fights customization. |
+| table_calendar | REJECTED | Month/week date-picker only. No time axis. No drag-drop. No contractor lanes. |
+| infinite_calendar_view | REJECTED | Timeline view without multi-resource lanes. Limited customization of background regions. |
+| Custom (recommended) | SELECTED | Full control over contractor lanes, travel-time blocks, conflict highlights, overdue borders. Project already demonstrates custom layout fluency via `KanbanBoard` widget. |
+
+**Installation (new dependency only):**
 ```bash
-flutter pub add patterns_canvas
+cd mobile && flutter pub add patterns_canvas
 ```
+
+### Alternatives Considered
+| Instead of | Could Use | Tradeoff |
+|------------|-----------|----------|
+| Custom `CustomPainter` | kalender package | kalender saves time on basic layout but doesn't support multi-contractor lane mode; pre-1.0 API risk |
+| `patterns_canvas` | Hand-rolled diagonal line loop | Functionally identical; `patterns_canvas` is ~150 lines saved; low dependency risk (MIT, stable) |
+| `LongPressDraggable` | `Draggable` (instant) | `Draggable` conflicts with scroll gestures on mobile; long-press delay naturally separates scroll from drag intent |
 
 ---
 
@@ -161,186 +171,101 @@ flutter pub add patterns_canvas
 ### Recommended Project Structure
 
 ```
-mobile/lib/features/schedule/
+mobile/lib/features/schedule/            # NEW feature domain
 ├── data/
-│   ├── booking_dao.dart              # Drift DAO for Bookings table
-│   ├── booking_dao.g.dart            # Generated
-│   ├── booking_sync_handler.dart     # SyncHandler: push CREATE/UPDATE/DELETE, applyPulled
-│   └── job_site_sync_handler.dart    # SyncHandler: applyPulled for JobSite entities
+│   ├── booking_dao.dart                 # Drift DAO: dual-write pattern (mirrors JobDao)
+│   ├── booking_dao.g.dart               # Generated
+│   ├── booking_sync_handler.dart        # SyncHandler: push CREATE/UPDATE/DELETE, applyPulled
+│   └── job_site_sync_handler.dart       # SyncHandler: applyPulled only (read-only from server)
 ├── domain/
-│   ├── booking_entity.dart           # Freezed entity (mirrors Booking backend model)
-│   ├── booking_entity.freezed.dart   # Generated
-│   └── overdue_service.dart          # Pure Dart: computes overdue status from job list
-├── presentation/
-│   ├── providers/
-│   │   ├── calendar_providers.dart   # AsyncNotifier for bookings/availability, StateProviders for view/date/filters
-│   │   └── overdue_providers.dart    # Derived provider: counts and lists overdue jobs
-│   ├── screens/
-│   │   ├── schedule_screen.dart      # Replaces placeholder; root of admin dispatch calendar
-│   │   ├── contractor_schedule_screen.dart   # Contractor's personal view (list + single lane)
-│   │   └── schedule_settings_screen.dart     # Weekly template management for contractors
-│   └── widgets/
-│       ├── calendar_day_view.dart          # Day view: paginated contractor lanes + time axis
-│       ├── calendar_week_view.dart         # Week view: collapsed job cards per contractor
-│       ├── calendar_month_view.dart        # Month view: job count badges per day
-│       ├── contractor_lane.dart            # Single contractor's time row with DragTarget cells
-│       ├── booking_card.dart               # Draggable card: color, overdue badge, delay badge
-│       ├── travel_time_block.dart          # Hatched "in transit" block using patterns_canvas
-│       ├── unscheduled_jobs_drawer.dart    # Collapsible sidebar with LongPressDraggable cards
-│       ├── overdue_panel.dart              # Expandable panel listing overdue jobs
-│       └── delay_justification_dialog.dart # Modal: reason text field + ETA date picker
-```
+│   ├── booking_entity.dart              # Freezed entity (mirrors Booking backend model)
+│   ├── booking_entity.freezed.dart      # Generated
+│   └── booking_entity.g.dart           # Generated
+└── presentation/
+    ├── providers/
+    │   ├── calendar_providers.dart      # AsyncNotifier for bookings + availability; StateProviders for view/date/filters
+    │   ├── calendar_providers.g.dart    # Generated
+    │   └── overdue_providers.dart       # Derived: overdue count + list from jobs stream
+    ├── screens/
+    │   ├── schedule_screen.dart         # Replaces placeholder; root admin dispatch calendar
+    │   ├── contractor_schedule_screen.dart   # Contractor personal view (list + single lane toggle)
+    │   └── schedule_settings_screen.dart     # Weekly template management (calls scheduling API)
+    └── widgets/
+        ├── calendar_day_view.dart       # CustomPainter grid + Stack + paginated lanes
+        ├── calendar_week_view.dart      # Collapsed job cards per contractor
+        ├── calendar_month_view.dart     # Job count badges per day
+        ├── contractor_lane.dart         # Single contractor row: DragTarget cells + booking cards
+        ├── booking_card.dart            # LongPressDraggable card: color, overdue badge, delay badge
+        ├── travel_time_block.dart       # patterns_canvas diagonal stripes
+        ├── unscheduled_jobs_drawer.dart # EndDrawer with filterable job queue (LongPressDraggable cards)
+        ├── overdue_panel.dart           # Expandable AnimatedContainer listing overdue jobs
+        └── delay_justification_dialog.dart  # StatefulBuilder dialog: reason field + date picker
 
-```
 mobile/lib/core/database/tables/
-└── bookings.dart    # New Drift table, schemaVersion → 4
-```
+├── bookings.dart                        # NEW Drift table (schemaVersion v4)
+└── job_sites.dart                       # NEW Drift table (for sync pull)
 
-```
 backend/app/features/jobs/
-├── router.py    # Add PATCH /jobs/{id}/delay endpoint
-├── service.py   # Add report_delay() method to JobService
-└── schemas.py   # Add DelayReportRequest schema
+├── router.py   # Add PATCH /jobs/{job_id}/delay (BEFORE existing /jobs/{job_id} route)
+├── service.py  # Add report_delay() method to JobService
+└── schemas.py  # Add DelayReportRequest schema
 ```
 
-### Pattern 1: Custom Calendar Day View with CustomPainter + DragTarget Grid
+### Pattern 1: Drift Schema v4 Migration
 
-**What:** The day view renders a time axis on the left and a horizontally paginated grid of contractor lanes. Each lane is a column of `DragTarget` cells (one per time-slot increment, e.g., 15 minutes). Booking cards are `LongPressDraggable` widgets absolutely positioned within their contractor lane using a `Stack`.
-
-**When to use:** Whenever no off-the-shelf package fits the exact multi-resource dispatch-board layout. Building custom is cost-justified here because the data layer (availability, conflict API) is already done.
-
-**Key considerations:**
-- The time axis and lane backgrounds are drawn with `CustomPainter` for performance (avoids widget-per-minute overhead)
-- `DragTarget` cells snap dropped bookings to 15-minute increments
-- `PageView` handles contractor lane pagination (5 per page)
-- A shared `ScrollController` synchronizes vertical scroll across the time axis and all lane columns
-- Non-working hour regions are painted gray by the `CustomPainter` using `BlockedInterval` data with `reason == "outside_working_hours"` or `reason == "time_off"`
-
+**What:** Add `Bookings` and `JobSites` tables; bump `schemaVersion` to 4.
+**When to use:** Required for local booking storage (offline-first dispatch board).
+**Example:**
 ```dart
-// Source: Flutter official docs - CustomPainter
-class CalendarGridPainter extends CustomPainter {
-  final List<BlockedInterval> blockedIntervals;
-  final DateTime dayStart; // start of 24h range
-  final double pixelsPerMinute;
+// mobile/lib/core/database/tables/bookings.dart
+class Bookings extends Table {
+  TextColumn get id => text().clientDefault(() => const Uuid().v4())();
+  TextColumn get companyId => text()();
+  TextColumn get contractorId => text()();
+  TextColumn get jobId => text()();
+  TextColumn get jobSiteId => text().nullable()();
+  // TSTZRANGE stored as two UTC datetimes (SQLite has no TSTZRANGE)
+  DateTimeColumn get timeRangeStart => dateTime()();
+  DateTimeColumn get timeRangeEnd => dateTime()();
+  IntColumn get dayIndex => integer().nullable()();
+  TextColumn get parentBookingId => text().nullable()();
+  TextColumn get notes => text().nullable()();
+  IntColumn get version => integer().withDefault(const Constant(1))();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
 
   @override
-  void paint(Canvas canvas, Size size) {
-    // Draw hour lines
-    final linePaint = Paint()
-      ..color = Colors.grey.shade200
-      ..strokeWidth = 0.5;
-    for (int hour = 0; hour < 24; hour++) {
-      final y = hour * 60 * pixelsPerMinute;
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), linePaint);
-    }
+  Set<Column> get primaryKey => {id};
+}
 
-    // Draw non-working hour shading
-    final shadePaint = Paint()
-      ..color = Colors.grey.shade100
-      ..style = PaintingStyle.fill;
-    for (final interval in blockedIntervals) {
-      if (interval.reason == 'outside_working_hours' ||
-          interval.reason == 'time_off') {
-        final top = _minutesFromDayStart(interval.start) * pixelsPerMinute;
-        final bottom = _minutesFromDayStart(interval.end) * pixelsPerMinute;
-        canvas.drawRect(Rect.fromLTRB(0, top, size.width, bottom), shadePaint);
-      }
-    }
-  }
-  // ...
+// In AppDatabase:
+@override
+int get schemaVersion => 4;  // was 3
+
+// In onUpgrade:
+if (from < 4) {
+  await m.createTable(bookings);
+  await m.createTable(jobSites);
 }
 ```
 
-### Pattern 2: LongPressDraggable + DragTarget for Booking Drag
+### Pattern 2: BookingDao Dual-Write (mirrors JobDao exactly)
 
-**What:** Each booking card wraps in `LongPressDraggable`. The DragTarget cells in the contractor lane grid use `onWillAcceptWithDetails` to visually validate the drop (green highlight for free, red for conflict) and `onAcceptWithDetails` to trigger the booking API call. On conflict, the SnackBar shows the conflicting job name; the card snaps back automatically because no state update is made.
-
+**What:** Every mutation writes to `Bookings` table AND `SyncQueue` in a single `db.transaction`. This is the established outbox pattern from `JobDao`.
+**When to use:** Every booking CREATE/UPDATE/DELETE.
+**Example:**
 ```dart
-// Source: Flutter official docs - LongPressDraggable
-LongPressDraggable<BookingDragData>(
-  data: BookingDragData(jobId: job.id, durationMinutes: job.estimatedDurationMinutes ?? 60),
-  feedback: Material(
-    elevation: 4,
-    borderRadius: BorderRadius.circular(8),
-    child: SizedBox(
-      width: laneWidth,
-      height: durationToPixels(job.estimatedDurationMinutes ?? 60),
-      child: BookingCard(job: job, isDragging: true),
-    ),
-  ),
-  childWhenDragging: Opacity(
-    opacity: 0.3,
-    child: BookingCard(job: job),
-  ),
-  child: BookingCard(job: job),
-)
-```
-
-```dart
-// DragTarget cell (15-minute time slot within a contractor lane)
-DragTarget<BookingDragData>(
-  onWillAcceptWithDetails: (details) {
-    // Check against local Drift data — instant, offline-capable
-    return !hasConflict(contractorId, slotStart, details.data.durationMinutes);
-  },
-  onAcceptWithDetails: (details) async {
-    // Call POST /api/v1/scheduling/bookings (or local Drift insert + sync queue)
-    await ref.read(calendarProvidersNotifier.notifier).bookSlot(
-      contractorId: contractorId,
-      jobId: details.data.jobId,
-      start: slotStart,
-      durationMinutes: details.data.durationMinutes,
-    );
-  },
-  builder: (context, candidateData, rejectedData) {
-    final isHighlighted = candidateData.isNotEmpty;
-    return Container(
-      height: slotHeightPx,
-      color: isHighlighted ? Colors.green.withOpacity(0.2) : Colors.transparent,
-    );
-  },
-)
-```
-
-### Pattern 3: Travel Time Hatched Block via patterns_canvas
-
-**What:** `BlockedInterval` entries with `reason == "travel_buffer"` render as hatched rectangles overlaid on the contractor lane using a `CustomPainter` that calls `patterns_canvas`.
-
-```dart
-// Source: patterns_canvas 0.5.0 (MIT)
-import 'package:patterns_canvas/patterns_canvas.dart';
-
-class TravelTimeBlockPainter extends CustomPainter {
-  final Rect blockRect;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    DiagonalStripesLight(
-      bgColor: Colors.grey.shade200,
-      fgColor: Colors.grey.shade400,
-    ).paintOnRect(canvas, size, blockRect);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-```
-
-### Pattern 4: Drift BookingDao with Sync Queue (mirrors JobDao)
-
-**What:** `BookingDao` follows the exact same transactional outbox pattern as `JobDao`. Every mutation writes to `Bookings` table AND `SyncQueue` atomically.
-
-```dart
-// Source: existing JobDao pattern in mobile/lib/features/jobs/data/job_dao.dart
+// Source: established pattern from mobile/lib/features/jobs/data/job_dao.dart
 @DriftAccessor(tables: [Bookings, SyncQueue])
 class BookingDao extends DatabaseAccessor<AppDatabase> with _$BookingDaoMixin {
   BookingDao(super.db);
 
-  Stream<List<BookingEntity>> watchBookingsByContractor(
+  Stream<List<BookingEntity>> watchBookingsByContractorDate(
     String contractorId,
     DateTime date,
   ) {
-    final dayStart = DateTime(date.year, date.month, date.day);
+    final dayStart = DateTime(date.year, date.month, date.day).toUtc();
     final dayEnd = dayStart.add(const Duration(days: 1));
     return (select(bookings)
           ..where((tbl) =>
@@ -363,170 +288,288 @@ class BookingDao extends DatabaseAccessor<AppDatabase> with _$BookingDaoMixin {
       ));
     });
   }
-  // ... upsertBookingFromSync, softDeleteBooking, updateBookingTime
+
+  Future<void> upsertBookingFromSync(BookingsCompanion companion) async {
+    await into(bookings).insertOnConflictUpdate(companion);
+  }
 }
 ```
 
-### Pattern 5: Drift Bookings Table (schema v4)
+### Pattern 3: Custom Calendar Day View with CustomPainter + DragTarget Grid
 
-**What:** New Drift table mirroring the backend `Booking` model. The time range is split into two DateTime columns (SQLite has no native TSTZRANGE). The `day_index` and `parent_booking_id` columns support multi-day jobs.
+**What:** The day view renders a time axis and a `PageView` of contractor lane pages (5 per page). Each lane is a `Stack` with a `CustomPainter` background (grid lines, shading) and absolute-positioned `DragTarget` cells and booking cards on top.
 
+**Key structural insight:** Drawing 1440 widgets per lane (one per minute) is too expensive. The grid is a single `CustomPainter`; only actual bookings + DragTarget cells are separate widgets.
+
+**Example:**
 ```dart
-// New file: mobile/lib/core/database/tables/bookings.dart
-class Bookings extends Table {
-  TextColumn get id => text().clientDefault(() => const Uuid().v4())();
-  TextColumn get companyId => text()();
-  TextColumn get contractorId => text()();
-  TextColumn get jobId => text()();
-  TextColumn get jobSiteId => text().nullable()();
-  // TSTZRANGE stored as two UTC datetimes (SQLite limitation)
-  DateTimeColumn get timeRangeStart => dateTime()();
-  DateTimeColumn get timeRangeEnd => dateTime()();
-  IntColumn get dayIndex => integer().nullable()();
-  TextColumn get parentBookingId => text().nullable()();
-  TextColumn get notes => text().nullable()();
-  IntColumn get version => integer().withDefault(const Constant(1))();
-  DateTimeColumn get createdAt => dateTime()();
-  DateTimeColumn get updatedAt => dateTime()();
-  DateTimeColumn get deletedAt => dateTime().nullable()();
+// Source: Flutter CustomPainter official docs
+class CalendarGridPainter extends CustomPainter {
+  final List<BlockedInterval> blockedIntervals;
+  final double pixelsPerMinute;  // e.g., 1.5px/minute = 90px/hour
+  final DateTime dayStart;
 
   @override
-  Set<Column> get primaryKey => {id};
+  void paint(Canvas canvas, Size size) {
+    final linePaint = Paint()
+      ..color = Colors.grey.shade200
+      ..strokeWidth = 0.5;
+    // Hour lines
+    for (int hour = 0; hour < 24; hour++) {
+      final y = hour * 60 * pixelsPerMinute;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), linePaint);
+    }
+    // Non-working hour shading
+    final shadePaint = Paint()
+      ..color = Colors.grey.shade100.withOpacity(0.8)
+      ..style = PaintingStyle.fill;
+    for (final interval in blockedIntervals) {
+      if (interval.reason == 'outside_working_hours' ||
+          interval.reason == 'time_off') {
+        final top = _minuteOffset(interval.start) * pixelsPerMinute;
+        final bottom = _minuteOffset(interval.end) * pixelsPerMinute;
+        canvas.drawRect(Rect.fromLTRB(0, top, size.width, bottom), shadePaint);
+      }
+    }
+  }
+
+  double _minuteOffset(DateTime dt) =>
+      dt.difference(dayStart).inMinutes.toDouble();
+
+  @override
+  bool shouldRepaint(CalendarGridPainter old) =>
+      old.pixelsPerMinute != pixelsPerMinute ||
+      old.blockedIntervals != blockedIntervals;
 }
 ```
 
-**AppDatabase migration:**
-```dart
-// Bump schemaVersion from 3 → 4
-@override
-int get schemaVersion => 4;
+### Pattern 4: LongPressDraggable + DragTarget for Booking Drop
 
-// In onUpgrade:
-if (from < 4) {
-  await m.createTable(bookings);
-  // JobSites table also needed for sync pull
-  await m.createTable(jobSites);
+**What:** Booking cards in the lane and unscheduled cards in the sidebar are `LongPressDraggable`. The contractor lane has `DragTarget` cells (15-minute slot height each). `onWillAcceptWithDetails` checks local Drift data for conflicts (synchronous, offline-capable); `onAcceptWithDetails` triggers the Drift dual-write + sync queue.
+
+**Critical:** `onWillAccept` is deprecated since Flutter 3.14. Use `onWillAcceptWithDetails`.
+
+```dart
+// Source: https://api.flutter.dev/flutter/widgets/LongPressDraggable-class.html
+LongPressDraggable<BookingDragData>(
+  data: BookingDragData(
+    jobId: job.id,
+    jobDescription: job.description,
+    durationMinutes: job.estimatedDurationMinutes ?? 60,
+  ),
+  feedback: Material(
+    elevation: 6,
+    borderRadius: BorderRadius.circular(8),
+    child: SizedBox(
+      width: laneWidth - 8,
+      height: (job.estimatedDurationMinutes ?? 60) * pixelsPerMinute,
+      child: BookingCard(job: job, isDragging: true),
+    ),
+  ),
+  childWhenDragging: Opacity(opacity: 0.3, child: BookingCard(job: job)),
+  child: BookingCard(job: job),
+)
+
+// DragTarget — one per 15-minute time slot per contractor lane
+DragTarget<BookingDragData>(
+  onWillAcceptWithDetails: (details) {
+    // Synchronous check against local Drift data — no network call
+    return _isSlotFree(contractorId, slotStart, details.data.durationMinutes);
+  },
+  onAcceptWithDetails: (details) {
+    _scheduleBooking(details.data, contractorId, slotStart);
+  },
+  builder: (context, candidateData, rejectedData) {
+    final isActive = candidateData.isNotEmpty;
+    final hasConflict = rejectedData.isNotEmpty;
+    return Container(
+      height: slotHeightPx,  // 15 * pixelsPerMinute
+      color: isActive
+          ? Colors.green.withOpacity(0.25)
+          : hasConflict
+              ? Colors.red.withOpacity(0.25)
+              : Colors.transparent,
+    );
+  },
+)
+```
+
+### Pattern 5: Travel Time Hatched Block (patterns_canvas)
+
+**What:** `BlockedInterval` entries with `reason == "travel_buffer"` render as diagonal-striped rectangles on the contractor lane.
+
+```dart
+// Source: https://pub.dev/packages/patterns_canvas (v0.5.0, MIT)
+import 'package:patterns_canvas/patterns_canvas.dart';
+
+class TravelTimeBlockPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    DiagonalStripesLight(
+      bgColor: Colors.grey.shade200,
+      fgColor: Colors.grey.shade400,
+    ).paintOnRect(canvas, size, rect);
+  }
+
+  @override
+  bool shouldRepaint(TravelTimeBlockPainter old) => false;
+}
+
+class TravelTimeBlock extends StatelessWidget {
+  final double heightPixels;
+  final double widthPixels;
+  const TravelTimeBlock({required this.heightPixels, required this.widthPixels, super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: heightPixels,
+      width: widthPixels,
+      child: CustomPaint(painter: TravelTimeBlockPainter()),
+    );
+  }
 }
 ```
 
 ### Pattern 6: Overdue Detection (Pure Local Computation)
 
-**What:** A derived Riverpod provider computes overdue jobs by filtering the existing `watchJobsByCompany` stream. No backend endpoint needed — uses data already in Drift from normal job sync.
+**What:** A Riverpod derived provider computes overdue jobs by filtering the existing `jobListNotifierProvider` stream. Zero network calls — works fully offline.
+
+**Date normalization critical:** Compare date portions only to avoid timezone-induced false positives on the due date itself.
 
 ```dart
-// Source: Riverpod 3 Provider (from existing project patterns)
+// Source: Riverpod 3 provider pattern (mirrors existing job_providers.dart)
+// import 'package:flutter_riverpod/legacy.dart'; not needed here — not a StateProvider
+
 @riverpod
-int overdueJobCount(OverdueJobCountRef ref) {
-  final jobsAsync = ref.watch(jobsByCompanyProvider);
+List<JobEntity> overdueJobs(OverdueJobsRef ref) {
+  final jobsAsync = ref.watch(jobListNotifierProvider);
   return jobsAsync.when(
     data: (jobs) {
-      final today = DateTime.now();
+      final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
       return jobs.where((job) {
         final isActiveStatus = job.status == 'scheduled' || job.status == 'in_progress';
-        final completionDate = job.scheduledCompletionDate;
-        if (!isActiveStatus || completionDate == null) return false;
-        return today.isAfter(completionDate);
-      }).length;
+        final eta = job.scheduledCompletionDate;
+        if (!isActiveStatus || eta == null || job.deletedAt != null) return false;
+        // Compare date portions only (avoid UTC midnight vs local noon false positives)
+        final etaDate = DateTime(eta.year, eta.month, eta.day);
+        return today.isAfter(etaDate);
+      }).toList();
     },
-    loading: () => 0,
-    error: (_, __) => 0,
+    loading: () => [],
+    error: (_, __) => [],
   );
 }
 
+@riverpod
+int overdueJobCount(OverdueJobCountRef ref) =>
+    ref.watch(overdueJobsProvider).length;
+
 OverdueSeverity computeSeverity(DateTime scheduledCompletionDate) {
-  final daysOverdue = DateTime.now().difference(scheduledCompletionDate).inDays;
-  if (daysOverdue >= 4) return OverdueSeverity.critical;  // red border
-  if (daysOverdue >= 1) return OverdueSeverity.warning;   // yellow/orange border
+  final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+  final etaDate = DateTime(
+    scheduledCompletionDate.year,
+    scheduledCompletionDate.month,
+    scheduledCompletionDate.day,
+  );
+  final daysOverdue = today.difference(etaDate).inDays;
+  if (daysOverdue >= 4) return OverdueSeverity.critical;   // red border
+  if (daysOverdue >= 1) return OverdueSeverity.warning;    // orange border
   return OverdueSeverity.none;
 }
 ```
 
-### Pattern 7: Bottom Nav Badge for Overdue Count
+### Pattern 7: NavigationBar Badge (AppShell modification)
 
-**What:** Flutter's Material 3 `Badge` widget wraps the Schedule tab icon in `AppShell`. The badge count comes from the `overdueJobCountProvider`.
+**What:** Flutter's built-in Material 3 `Badge` widget wraps the Schedule tab icon. The badge count comes from `overdueJobCountProvider`. `AppShell` must become a `ConsumerWidget` (it already is — confirmed in codebase) and pass the count to the `NavigationDestination`.
 
 ```dart
-// Source: Flutter Badge class - material library
-// AppShell NavigationBar destination for Schedule tab:
+// Source: Flutter Badge class - material library (Material 3)
+// In app_shell.dart — build() now watches overdueJobCountProvider:
+final overdueCount = ref.watch(overdueJobCountProvider);
+
 NavigationDestination(
   icon: Badge(
     isLabelVisible: overdueCount > 0,
     label: Text('$overdueCount'),
+    backgroundColor: Colors.red,
     child: const Icon(Icons.calendar_month_outlined),
   ),
   selectedIcon: Badge(
     isLabelVisible: overdueCount > 0,
     label: Text('$overdueCount'),
+    backgroundColor: Colors.red,
     child: const Icon(Icons.calendar_month),
   ),
   label: 'Schedule',
-)
+),
 ```
-
-**Important:** In Riverpod 3, `StateProvider` for view toggles (day/week/month, contractor page index) must be imported from `package:riverpod/legacy.dart` — this is already the established project pattern (documented in STATE.md: `StateProvider imported from package:riverpod/legacy.dart`).
 
 ### Pattern 8: Delay Justification Backend Endpoint (New)
 
-**What:** New `PATCH /api/v1/jobs/{id}/delay` endpoint appends a delay entry to `status_history` and updates `scheduled_completion_date`. This is NOT a status transition (job stays in same lifecycle state) — it is a separate mutation using existing service patterns.
+**What:** New `PATCH /api/v1/jobs/{job_id}/delay` endpoint appends a `{type: "delay", ...}` entry to `status_history` JSONB and updates `scheduled_completion_date`. NOT a status lifecycle transition — job stays in same status. Follows the same list-replacement pattern established in `transition_status`.
+
+**Route ordering critical:** Declare BEFORE `GET /jobs/{job_id}` to prevent FastAPI matching "delay" as a UUID job_id parameter (established STATE.md pattern for route ordering).
 
 ```python
 # backend/app/features/jobs/schemas.py — Add:
 class DelayReportRequest(BaseModel):
     """Payload for reporting a job delay.
 
-    Appends a delay entry to status_history JSONB and updates
-    scheduled_completion_date to the new ETA. Does NOT change job.status.
+    Appends a {type: delay} entry to status_history JSONB and updates
+    scheduled_completion_date to new_eta. Does NOT change job.status.
+    version is required for optimistic locking (same as JobTransitionRequest).
     """
-    reason: str = Field(min_length=1, description="Required written delay reason")
-    new_eta: date = Field(description="New expected completion date (YYYY-MM-DD)")
-    version: int = Field(description="Current job version for optimistic locking")
+    reason: str = Field(min_length=1)
+    new_eta: date
+    version: int
 
 
-# backend/app/features/jobs/service.py — Add to JobService:
+# backend/app/features/jobs/service.py — Add to JobService class:
 async def report_delay(
     self,
     job_id: uuid.UUID,
-    data: DelayReportRequest,
+    data: "DelayReportRequest",
     *,
     user_id: uuid.UUID,
 ) -> Job:
-    """Append a delay entry to status_history and update scheduled_completion_date.
+    """Append delay entry to status_history; update scheduled_completion_date.
 
-    Validates job is in 'scheduled' or 'in_progress' status.
-    Does NOT transition status — delay is informational only.
-    Uses optimistic locking (version check) consistent with transition_status().
+    Validates: job exists, version matches, job is in scheduled/in_progress.
+    Does NOT transition lifecycle status.
+    Uses list replacement (not in-place append) per Pitfall 3 pattern.
     """
     job = await self.repository.get_by_id(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
-
     if job.version != data.version:
-        raise HTTPException(status_code=409, detail="Version conflict — fetch latest and retry")
-
+        raise HTTPException(
+            status_code=409,
+            detail=f"Version conflict: expected {data.version}, job is at {job.version}. Fetch latest and retry.",
+        )
     if job.status not in ('scheduled', 'in_progress'):
         raise HTTPException(
             status_code=422,
-            detail="Delay can only be reported on jobs in 'scheduled' or 'in_progress' status",
+            detail="Delay can only be reported on jobs in 'scheduled' or 'in_progress' status.",
         )
-
-    delay_entry = {
+    delay_entry: dict[str, Any] = {
         "type": "delay",
         "reason": data.reason,
         "new_eta": data.new_eta.isoformat(),
         "timestamp": datetime.now(UTC).isoformat(),
         "user_id": str(user_id),
     }
+    # List replacement (never in-place append) — SQLAlchemy JSONB change detection
     job.status_history = [*job.status_history, delay_entry]
     job.scheduled_completion_date = data.new_eta
     job.version = job.version + 1  # type: ignore[assignment]
-
     await self.db.flush()
     await self.db.refresh(job)
     return job
-```
 
-```python
-# backend/app/features/jobs/router.py — Add before /jobs/{job_id}:
+
+# backend/app/features/jobs/router.py — Add BEFORE existing /jobs/{job_id} routes:
 @router.patch("/jobs/{job_id}/delay", response_model=JobResponse)
 async def report_job_delay(
     job_id: uuid.UUID,
@@ -534,24 +577,89 @@ async def report_job_delay(
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> JobResponse:
-    """Report a delay for a job in 'scheduled' or 'in_progress' status.
+    """Report a delay for a job in scheduled/in_progress status.
 
-    Appends a delay entry to status_history and updates scheduled_completion_date.
-    Available to both contractors (own jobs) and admins. Does NOT change job status.
-    Returns 404 if job not found, 409 on version conflict, 422 if wrong status.
+    Available to contractors (own jobs) and admins. Does NOT change job status.
+    Returns 404 if not found, 409 on version conflict, 422 if wrong status.
     """
     svc = JobService(db)
     job = await svc.report_delay(job_id, delay_data, user_id=current_user.id)
     return JobResponse.model_validate(job)
 ```
 
+### Pattern 9: Undo Snackbar (5-second explicit duration)
+
+**What:** Show `SnackBar` immediately on drop with explicit `duration`. Apply sync queue write only after undo window expires.
+
+**Breaking change (Flutter 3.29+):** `SnackBar` with an `action` no longer auto-dismisses. Must set `duration` explicitly.
+
+```dart
+// Source: Flutter docs + confirmed breaking change in 3.29
+ScaffoldMessenger.of(context).showSnackBar(
+  SnackBar(
+    content: Text('Booked: ${job.description}'),
+    // REQUIRED: must be explicit — Flutter 3.29+ no longer auto-dismisses with action
+    duration: const Duration(seconds: 5),
+    action: SnackBarAction(
+      label: 'Undo',
+      onPressed: () => ref.read(calendarNotifier.notifier).undoLastOperation(),
+    ),
+  ),
+);
+```
+
+### Pattern 10: SyncEngine pullDelta Extension for Bookings
+
+**What:** `SyncEngine.pullDelta()` hardcodes entity types. Add `bookings` and `job_sites` handlers to the pull loop. This mirrors the existing pattern for `companies`, `users`, `user_roles`, `jobs`.
+
+```dart
+// In mobile/lib/core/sync/sync_engine.dart pullDelta():
+final List<dynamic>? pullBookings = data['bookings'] as List<dynamic>?;
+if (pullBookings != null) {
+  final handler = _registry.getHandler('booking');
+  for (final entity in pullBookings) {
+    await handler.applyPulled(entity as Map<String, dynamic>);
+  }
+}
+
+final List<dynamic>? pullJobSites = data['job_sites'] as List<dynamic>?;
+if (pullJobSites != null) {
+  final handler = _registry.getHandler('job_site');
+  for (final entity in pullJobSites) {
+    await handler.applyPulled(entity as Map<String, dynamic>);
+  }
+}
+```
+
+### Pattern 11: Unscheduled Jobs Sidebar as EndDrawer
+
+**What:** Use `Scaffold.endDrawer` to keep the full calendar visible when the drawer is closed. Open via `scaffoldKey.currentState!.openEndDrawer()`.
+
+```dart
+Scaffold(
+  key: _scaffoldKey,
+  endDrawer: UnscheduledJobsDrawer(
+    // Close drawer when user starts dragging (gives full calendar visibility)
+    onDragStarted: () => _scaffoldKey.currentState?.closeEndDrawer(),
+  ),
+  body: CalendarDayView(...),
+  floatingActionButton: FloatingActionButton(
+    onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
+    child: const Icon(Icons.queue),
+    tooltip: 'Unscheduled jobs',
+  ),
+)
+```
+
 ### Anti-Patterns to Avoid
 
-- **Nested ScrollViews with shared direction:** The day view has a vertical ScrollController (time axis) and horizontal PageView (contractor lanes). Mixing both axes in the same scroll context causes gesture conflicts. Solution: the vertical scroll handles the time axis; the PageView is a sibling that only scrolls horizontally.
-- **Widget-per-minute time grid:** Building 1440 widget cells per contractor lane causes layout thrashing. Use `CustomPainter` for the background grid; only actual booking cards are widgets.
-- **DragTarget covering entire contractor lane:** A single DragTarget for the full lane cannot provide 15-minute snap zones. Use a `Stack` with a `ListView` of thin DragTarget strips behind the booking cards.
-- **In-place status_history mutation:** The backend pattern uses list replacement `[*job.status_history, new_entry]` not `.append()`. The Flutter side must do the same: decode → add entry → re-encode to JSON string.
-- **Calling DioClient directly from drag callbacks:** Drag operations must be synchronous enough to provide immediate visual feedback. Queue to Drift + sync queue (offline-first pattern), not direct HTTP. Visual feedback is instant from local state; sync happens in background.
+- **Nested ScrollViews with shared direction:** The day view has a vertical `ScrollController` (time axis) and horizontal `PageView` (contractor lane pages). Keep these as siblings, not nested scrollables.
+- **Widget-per-minute time grid:** Building 1440 widget cells per lane causes layout thrashing. Use `CustomPainter` for the grid background; only actual bookings and `DragTarget` cells are widgets.
+- **`onWillAccept` on DragTarget:** Deprecated since Flutter 3.14. Use `onWillAcceptWithDetails` with `DragTargetDetails<T>`.
+- **In-place status_history mutation in backend:** `job.status_history.append(entry)` is never detected by SQLAlchemy JSONB change tracking. Always use list replacement: `job.status_history = [*job.status_history, entry]`. (Established pitfall from Phase 4 STATE.md.)
+- **Calling DioClient directly from drag callbacks:** Drag accept callbacks must be fast. Use Drift dual-write (offline-first) — sync happens in background. Never `await` HTTP inside `onAcceptWithDetails`.
+- **Declaring delay route after /jobs/{job_id}:** FastAPI would match "delay" as a UUID job_id param and return 422. (Established pitfall from Phase 4 route ordering STATE.md.)
+- **Unregistered sync handlers silently park items:** `SyncEngine.drainQueue` catches `StateError` for unregistered entity types and calls `markParked`. Register `BookingSyncHandler` and `JobSiteSyncHandler` in `setupServiceLocator` BEFORE `SyncEngine.initialize()`.
 
 ---
 
@@ -559,12 +667,15 @@ async def report_job_delay(
 
 | Problem | Don't Build | Use Instead | Why |
 |---------|-------------|-------------|-----|
-| Diagonal stripe "travel time" blocks | Custom line-drawing painter | `patterns_canvas` DiagonalStripesLight | Edge cases: angle, spacing, clipping to rect boundaries; patterns_canvas handles all of this |
-| Overdue count badge on nav bar | Stacked Container + Positioned | Flutter `Badge` widget (Material 3) | Built-in, theme-aware, handles label overflow, correct M3 semantics |
-| Snackbar-with-undo dismissal | Timer + manual widget management | `ScaffoldMessenger.showSnackBar` + `SnackBarAction` + `duration` | Flutter 3.29+ changed SnackBar with action to NOT auto-dismiss; set `SnackBar(duration: const Duration(seconds: 5))` explicitly |
-| Conflict check before drag accept | Custom local overlap logic | Read from local Drift bookings stream | Drift already has all bookings locally; compare `timeRangeStart`/`timeRangeEnd` — no HTTP needed for live drag feedback |
-| Date picker for ETA | Custom date input | `showDatePicker()` | Built-in Material date picker with locale support; no package needed |
-| Booking sync push | Custom HTTP logic | `DioClient.pushWithIdempotency(..., method: 'PATCH')` | Already extended in Phase 4 for PATCH/DELETE; booking CREATE/UPDATE/DELETE maps directly |
+| Diagonal stripe "travel time" blocks | Custom line-drawing paint loop | `patterns_canvas` `DiagonalStripesLight.paintOnRect()` | Handles clip boundaries, angle, spacing, bg/fg color automatically |
+| Overdue badge on nav bar | Stacked `Container` + `Positioned` | Flutter `Badge` widget (Material 3) | Built-in, theme-aware, handles label overflow; already available in this project (Flutter 3.32+) |
+| Conflict check during live drag | Custom in-memory overlap logic | Query local Drift `Bookings` stream | Drift already has all bookings locally; simple DateTime range overlap check on the existing stream |
+| Date picker for delay ETA | Custom date input field | `showDatePicker()` (built-in) | Material date picker with locale support; `firstDate` constraint prevents past ETAs |
+| Booking sync push | Custom HTTP client logic | `DioClient.pushWithIdempotency(method: 'PATCH')` | Already extended in Phase 4 to support PATCH/DELETE; booking operations map directly |
+| Scroll sync across contractor lanes + time axis | Complex ScrollNotifier chains | Shared `ScrollController` instance passed to all vertical scrollables | Flutter `ScrollController` supports multiple attached positions (built-in behavior, see `ScrollController.positions`) |
+| Snackbar auto-dismiss detection | Timer management | `ScaffoldMessenger.showSnackBar` with explicit `duration` | Built-in; handles dismissal, action callbacks, and queue management |
+
+**Key insight:** The scheduling engine (Phase 3) and job lifecycle (Phase 4) built all backend conflict detection, availability computation, booking creation, and status_history management. Phase 5 is entirely UI consumption of those APIs — the logic is done; only the visualization remains.
 
 ---
 
@@ -572,63 +683,94 @@ async def report_job_delay(
 
 ### Pitfall 1: SnackBar with Action Does Not Auto-Dismiss in Flutter 3.29+
 
-**What goes wrong:** Undo snackbar stays visible forever, blocking the UI.
-**Why it happens:** Breaking change introduced in Flutter 3.29 — `SnackBar` with an `action` no longer auto-dismisses by default.
-**How to avoid:** Always set an explicit `duration: const Duration(seconds: 5)` on the SnackBar. Verify behavior in your Flutter version. Official breaking change doc: https://docs.flutter.dev/release/breaking-changes/snackbar-with-action-behavior-update
-**Warning signs:** Snackbar visible after 5+ seconds in testing.
+**What goes wrong:** The undo snackbar stays visible indefinitely, blocking the UI.
+**Why it happens:** Flutter 3.29 introduced a breaking change — `SnackBar` with an `action` no longer auto-dismisses by default to comply with Material Design accessibility guidelines.
+**How to avoid:** Always set an explicit `duration: const Duration(seconds: 5)` on every `SnackBar` in this phase.
+**Warning signs:** Snackbar visible after 10+ seconds during testing.
 
 ### Pitfall 2: StateProvider Import in Riverpod 3
 
-**What goes wrong:** `StateProvider` import fails or produces deprecation warnings.
+**What goes wrong:** `StateProvider` import fails or produces deprecation warnings in new schedule provider files.
 **Why it happens:** Riverpod 3 moved `StateProvider` to `package:riverpod/legacy.dart`.
-**How to avoid:** Import `package:flutter_riverpod/legacy.dart` for all `StateProvider` and `StateNotifierProvider` uses — this is already the project-established pattern (see STATE.md Decisions).
-**Warning signs:** "StateProvider is not defined" or IDE warnings about deprecated imports.
+**How to avoid:** Use `import 'package:riverpod/legacy.dart';` for all `StateProvider` and `StateNotifierProvider` uses. This is already the established project pattern — documented in STATE.md and visible in `job_providers.dart`.
+**Warning signs:** "StateProvider is not defined" compilation error.
 
-### Pitfall 3: Synchronized Vertical Scroll Across Contractor Lanes
+### Pitfall 3: Synchronized Vertical Scroll Requires Shared ScrollController
 
-**What goes wrong:** Time axis and contractor lanes scroll independently; the "now" line drifts out of sync.
-**Why it happens:** Each `ListView` or `SingleChildScrollView` has its own scroll position.
-**How to avoid:** Share a single `ScrollController` across the time axis column and all contractor lane columns. Pass `controller: sharedScrollController` to every vertical scrollable child. Use `LinkedScrollControllerGroup` from the `linked_scroll_controller` pub package, OR manually implement by listening to one controller and driving others.
-**Warning signs:** Time axis shows different time than the visible booking slots.
+**What goes wrong:** Time axis and contractor lanes scroll independently; "now" line drifts out of sync with visible time slots.
+**Why it happens:** Each `SingleChildScrollView` or `ListView` creates its own scroll position by default.
+**How to avoid:** Create one `ScrollController` in the parent widget state and pass it to both the time axis column and each contractor lane column. Flutter's `ScrollController` supports multiple attached positions — driving them in sync.
+**Warning signs:** Time axis shows "9:00 AM" while contractor lane content shows "2:00 PM" area.
 
-### Pitfall 4: Drift DateTime Columns Are in UTC — Local Time Display Must Convert
+### Pitfall 4: Drift DateTime Is UTC — Display Must Call .toLocal()
 
-**What goes wrong:** Booking times displayed in wrong timezone (off by hours).
-**Why it happens:** Drift stores `DateTime` as UTC microseconds. Backend sends UTC ISO-8601 strings. Display needs to show times in the device's local timezone.
-**How to avoid:** Always convert stored/received UTC `DateTime` to local before display: `booking.timeRangeStart.toLocal()`. Store in Drift as UTC (backend sends UTC); display with `.toLocal()`.
-**Warning signs:** Bookings appear to start at wrong hours on device.
+**What goes wrong:** Booking times display wrong timezone (off by hours for non-UTC users).
+**Why it happens:** Drift stores `DateTime` as UTC microseconds. The backend sends UTC ISO-8601 strings. Display without `.toLocal()` shows UTC times.
+**How to avoid:** When rendering booking start/end times in any widget, always convert: `booking.timeRangeStart.toLocal()`. Store in Drift as UTC; display with `.toLocal()`.
+**Warning signs:** Bookings appear to start/end at wrong hours on device.
 
-### Pitfall 5: Route Shadowing When Adding /jobs/{id}/delay
+### Pitfall 5: Route Ordering — Delay Endpoint Must Be Before /jobs/{job_id}
 
-**What goes wrong:** FastAPI matches `/jobs/{job_id}/delay` as `job_id = "delay"` and hits the `GET /jobs/{job_id}` route with a non-UUID param, returning 422.
-**Why it happens:** FastAPI route ordering — declared routes are matched in order.
-**How to avoid:** Declare `PATCH /jobs/{job_id}/delay` BEFORE `GET /jobs/{job_id}` in the router. This is the established pattern in Phase 4 (see STATE.md: "Route ordering in FastAPI: /jobs/requests* must be declared BEFORE /jobs/{job_id}").
-**Warning signs:** 422 Unprocessable Entity with `msg: value is not a valid uuid` when calling the delay endpoint.
+**What goes wrong:** `PATCH /api/v1/jobs/{job_id}/delay` returns 422 "value is not a valid uuid" when called, because FastAPI matches "delay" as the `job_id` path parameter against the earlier `GET /jobs/{job_id}` route.
+**Why it happens:** FastAPI route matching is first-match-wins in declaration order.
+**How to avoid:** Declare `PATCH /jobs/{job_id}/delay` BEFORE any `@router.get("/{job_id}")`, `@router.patch("/{job_id}")`, or `@router.delete("/{job_id}")` routes. This is the established STATE.md pattern from Phase 4.
+**Warning signs:** 422 with UUID validation error when the delay endpoint URL is correct.
 
-### Pitfall 6: Drag Gesture Conflict Between Lane Scroll and Booking Drag
+### Pitfall 6: Drag Gesture Conflict Between Scroll and Booking Drag
 
-**What goes wrong:** Trying to scroll the time axis also initiates a drag on a booking card.
-**Why it happens:** `LongPressDraggable` requires a long-press, which by default also scrolls. The gesture arena has a conflict.
-**How to avoid:** Use `LongPressDraggable` (not `Draggable`) — the long-press delay naturally separates scroll intent from drag intent on mobile. Avoid `Draggable` (instant drag) which fights scroll gestures. The `hapticFeedbackOnStart: true` default gives the user tactile confirmation that drag mode has started.
-**Warning signs:** Calendar scrolling accidentally triggers drag mode.
+**What goes wrong:** Attempting to scroll the time axis accidentally initiates a drag on a booking card.
+**Why it happens:** Flutter's gesture arena has ambiguity between vertical scroll and drag gestures.
+**How to avoid:** Use `LongPressDraggable` (not `Draggable`). The long-press delay (300ms+ default) naturally separates scroll intent from drag intent. The haptic feedback confirms drag mode started. Never use `Draggable` for booking cards — it fires immediately and conflicts with scroll.
+**Warning signs:** Calendar scrolling unpredictably initiates drag mode.
 
-### Pitfall 7: Drift Migration Version Must Be Sequential
+### Pitfall 7: Drift Migration Must Handle All Upgrade Paths
 
-**What goes wrong:** `MigrationStrategy.onUpgrade` skips bookings table creation for users upgrading from v1 or v2.
-**Why it happens:** Upgrade guards like `if (from < 4)` only run if `from < 4`. But if `from` is 1, the `from < 3` guard also runs, which may add columns that don't exist in v1. Each guard must be independent.
-**How to avoid:** Keep each migration block self-contained. Always test upgrade from version 1 to current (full cold migration path), not just N-1 to N.
-**Warning signs:** `DatabaseException: table bookings not found` on first launch for existing users.
+**What goes wrong:** `if (from < 4)` block creates bookings table, but for a user upgrading from v1, the `if (from < 2)` and `if (from < 3)` blocks also run — they must be self-contained. If any block references tables that don't exist in older schemas, migration fails.
+**Why it happens:** Each migration guard runs independently. The v4 guard adds tables that reference `companies` — that table exists from v1. The migration is safe, but this must be verified for every column reference.
+**How to avoid:** Each migration block is self-contained with no references to columns or tables added in later blocks. Test cold migration from v1 to v4 (full install path), not just v3 to v4.
+**Warning signs:** `DatabaseException: table X not found` on first launch for existing users upgrading from old app version.
+
+### Pitfall 8: Overdue Computation Time-of-Day Normalization
+
+**What goes wrong:** Jobs appear overdue during the morning on their scheduled completion date.
+**Why it happens:** `scheduledCompletionDate` is stored as a UTC datetime with time component = 00:00:00Z. A device in UTC+5 at 8:00 AM local time is already past midnight UTC on that date.
+**How to avoid:** Compare date portions only — strip the time component from both `now` and `eta`:
+```dart
+final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+final etaDate = DateTime(eta.year, eta.month, eta.day);
+return today.isAfter(etaDate);  // only true on the NEXT calendar day
+```
+**Warning signs:** Booking cards show overdue warning on the scheduled completion date itself (before end of day).
 
 ---
 
 ## Code Examples
 
-### Booking Entity (Freezed)
+Verified patterns from codebase and official documentation:
+
+### JobStatus Color Mapping Extension
 
 ```dart
-// Source: established project pattern (see job_entity.dart)
+// Extend existing mobile/lib/features/jobs/domain/job_status.dart
+// Add this getter to the JobStatus enum:
+Color get calendarColor {
+  return switch (this) {
+    JobStatus.quote => Colors.grey,
+    JobStatus.scheduled => Colors.blue,
+    JobStatus.inProgress => Colors.orange,
+    JobStatus.complete => Colors.green,
+    JobStatus.invoiced => Colors.purple,
+    JobStatus.cancelled => Colors.red,
+  };
+}
+```
+
+### Booking Entity (Freezed pattern from job_entity.dart)
+
+```dart
+// Source: mobile/lib/features/jobs/domain/job_entity.dart pattern
 @freezed
-class BookingEntity with _$BookingEntity {
+abstract class BookingEntity with _$BookingEntity {
   const factory BookingEntity({
     required String id,
     required String companyId,
@@ -645,113 +787,100 @@ class BookingEntity with _$BookingEntity {
     required DateTime updatedAt,
     DateTime? deletedAt,
   }) = _BookingEntity;
+
+  factory BookingEntity.fromJson(Map<String, dynamic> json) =>
+      _$BookingEntityFromJson(json);
+}
+```
+
+### Overdue Booking Card Border
+
+```dart
+// Computed in booking_card.dart based on job's scheduledCompletionDate
+BoxDecoration? _overdueDecoration(JobEntity job) {
+  final eta = job.scheduledCompletionDate;
+  if (eta == null) return null;
+  final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+  final etaDate = DateTime(eta.year, eta.month, eta.day);
+  final daysOverdue = today.difference(etaDate).inDays;
+  if (daysOverdue >= 4) {
+    return BoxDecoration(
+      border: Border.all(color: Colors.red, width: 2),
+      borderRadius: BorderRadius.circular(6),
+    );
+  }
+  if (daysOverdue >= 1) {
+    return BoxDecoration(
+      border: Border.all(color: Colors.orange, width: 2),
+      borderRadius: BorderRadius.circular(6),
+    );
+  }
+  return null;
 }
 ```
 
 ### Delay Justification Dialog (Flutter)
 
 ```dart
-// Contractor triggers this from job detail screen; admin can also trigger
-Future<void> showDelayJustificationDialog(BuildContext context, JobEntity job) async {
+// Uses StatefulBuilder inside showDialog so ETA state updates rebuild in-dialog
+Future<(String reason, DateTime eta)?> showDelayDialog(
+  BuildContext context,
+  JobEntity job,
+) async {
   final reasonController = TextEditingController();
   DateTime? selectedEta;
 
-  final confirmed = await showDialog<bool>(
+  return showDialog<(String, DateTime)?>(
     context: context,
-    barrierDismissible: false,  // Required fields — no accidental dismiss
-    builder: (ctx) => AlertDialog(
-      title: const Text('Report Delay'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextFormField(
-            controller: reasonController,
-            decoration: const InputDecoration(
-              labelText: 'Reason for delay *',
-              hintText: 'Describe the reason...',
+    barrierDismissible: false,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setState) => AlertDialog(
+        title: const Text('Report Delay'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: reasonController,
+              decoration: const InputDecoration(
+                labelText: 'Reason for delay *',
+                hintText: 'Describe what caused the delay...',
+              ),
+              maxLines: 3,
             ),
-            maxLines: 3,
-            validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+            const SizedBox(height: 16),
+            ListTile(
+              title: Text(selectedEta == null
+                  ? 'Select new ETA *'
+                  : 'New ETA: ${DateFormat.yMMMd().format(selectedEta!)}'),
+              trailing: const Icon(Icons.calendar_today),
+              onTap: () async {
+                final picked = await showDatePicker(
+                  context: ctx,
+                  initialDate: DateTime.now().add(const Duration(days: 1)),
+                  firstDate: DateTime.now().add(const Duration(days: 1)),
+                  lastDate: DateTime.now().add(const Duration(days: 365)),
+                );
+                if (picked != null) setState(() => selectedEta = picked);
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
           ),
-          const SizedBox(height: 16),
-          ListTile(
-            title: Text(selectedEta == null
-                ? 'Select new ETA *'
-                : 'New ETA: ${DateFormat.yMd().format(selectedEta!)}'),
-            trailing: const Icon(Icons.date_range),
-            onTap: () async {
-              final picked = await showDatePicker(
-                context: ctx,
-                initialDate: job.scheduledCompletionDate ?? DateTime.now().add(const Duration(days: 1)),
-                firstDate: DateTime.now().add(const Duration(days: 1)),
-                lastDate: DateTime.now().add(const Duration(days: 365)),
-              );
-              if (picked != null) {
-                // setState inside dialog via StatefulBuilder
-              }
-            },
+          ElevatedButton(
+            onPressed: (reasonController.text.isNotEmpty && selectedEta != null)
+                ? () => Navigator.pop(ctx, (reasonController.text, selectedEta!))
+                : null,
+            child: const Text('Submit'),
           ),
         ],
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-        ElevatedButton(
-          onPressed: () {
-            if (reasonController.text.isNotEmpty && selectedEta != null) {
-              Navigator.pop(ctx, true);
-            }
-          },
-          child: const Text('Submit'),
-        ),
-      ],
     ),
   );
-
-  if (confirmed == true) {
-    // Delegate to provider → Drift write + sync queue (offline-first)
-  }
 }
-```
-
-### Undo Snackbar (5-second, Explicit Duration)
-
-```dart
-// Source: Flutter docs + breaking change note (flutter 3.29+)
-ScaffoldMessenger.of(context).showSnackBar(
-  SnackBar(
-    content: Text('Booked: ${job.description} at ${formatTime(slotStart)}'),
-    duration: const Duration(seconds: 5),  // REQUIRED — no auto-dismiss with action in 3.29+
-    action: SnackBarAction(
-      label: 'Undo',
-      onPressed: () {
-        ref.read(calendarProvidersNotifier.notifier).undoLastBooking();
-      },
-    ),
-  ),
-);
-```
-
-### NavigationBar Badge for Overdue Count
-
-```dart
-// Source: Flutter Badge class - material library
-// In AppShell._buildTabs():
-final overdueCount = ref.watch(overdueJobCountProvider);
-
-// Schedule tab destination:
-NavigationDestination(
-  icon: Badge(
-    isLabelVisible: overdueCount > 0,
-    label: Text('$overdueCount'),  // Caps at 99 visually if needed
-    child: const Icon(Icons.calendar_month_outlined),
-  ),
-  selectedIcon: Badge(
-    isLabelVisible: overdueCount > 0,
-    label: Text('$overdueCount'),
-    child: const Icon(Icons.calendar_month),
-  ),
-  label: 'Schedule',
-),
 ```
 
 ---
@@ -760,65 +889,72 @@ NavigationDestination(
 
 | Old Approach | Current Approach | When Changed | Impact |
 |--------------|------------------|--------------|--------|
-| SnackBar with action auto-dismisses | Must set explicit `duration` | Flutter 3.29 (2025) | Undo snackbar would stick forever without explicit duration |
-| `StateProvider` in main riverpod export | `StateProvider` in `legacy.dart` | Riverpod 3.0 | Import must be `package:flutter_riverpod/legacy.dart` |
-| Custom Container + Positioned for badges | Flutter `Badge` widget | Flutter 3.22+ (M3) | Native, theme-aware badge; no custom stacking needed |
-| `BottomNavigationBar` | `NavigationBar` (Material 3) | Flutter 3.x | Project already uses M3 `NavigationBar`; Badge wraps icon naturally |
+| `SnackBar` with action auto-dismisses | Must set explicit `duration` | Flutter 3.29 (2025) | Undo snackbar stays forever without `duration: const Duration(seconds: 5)` |
+| `StateProvider` in main riverpod export | `StateProvider` in `legacy.dart` | Riverpod 3.0 | Import must be `package:riverpod/legacy.dart` (already done in `job_providers.dart`) |
+| Custom `Container` + `Positioned` for nav badges | Flutter `Badge` widget | Flutter 3.22+ (Material 3) | Native, theme-aware badge; no custom stacking needed |
+| `onWillAccept` on `DragTarget` | `onWillAcceptWithDetails` | Flutter 3.14 | Must use `WithDetails` variant; old callback deprecated |
+| `BottomNavigationBar` | `NavigationBar` (Material 3) | Flutter 3.x | Project already uses M3 `NavigationBar` — `Badge` wraps icon naturally |
 
-**Deprecated/outdated:**
-- `Draggable` for mobile drag-and-drop: prefer `LongPressDraggable` to avoid conflicts with scroll gestures
-- `StateProvider` in main riverpod import: moved to legacy, use `package:flutter_riverpod/legacy.dart`
+**Deprecated/outdated (avoid):**
+- `Draggable` for mobile booking cards: use `LongPressDraggable` to avoid scroll conflict
+- `onWillAccept` on `DragTarget`: use `onWillAcceptWithDetails`
+- `StateProvider` in main Riverpod export: use `package:riverpod/legacy.dart`
 
 ---
 
 ## Open Questions
 
-1. **JobSite sync handler — should it upsert without a CREATE push?**
-   - What we know: `JobSite` records are created by admin (via geocoding in Phase 3); the mobile app only needs to read them, not create them offline.
-   - What's unclear: Whether `job_site_sync_handler.dart` needs push logic or only `applyPulled`.
-   - Recommendation: Implement `applyPulled` only (read-only sync from server); no CREATE push from mobile for job sites. Mobile creates bookings that reference a `job_site_id` chosen from a pre-synced list.
+1. **Does the backend `/api/v1/sync` pull endpoint already include `bookings` and `job_sites`?**
+   - What we know: The backend pull endpoint already handles `companies`, `users`, `user_roles`, `jobs`, `client_profiles`, `client_properties`, `job_requests`. Bookings and job_sites are backend entities from Phase 3.
+   - What's unclear: Whether they were added to the pull payload during Phase 3 implementation.
+   - Recommendation: Check the backend sync router before implementing `BookingSyncHandler.applyPulled`. If the pull payload doesn't include `bookings`, add them to the backend sync handler in Plan 01.
 
-2. **Booking sync: which entity type string does the server pull endpoint filter on?**
-   - What we know: The sync pull endpoint at `/api/v1/sync/pull` returns entities by type based on `updated_at > cursor`. Bookings and job_sites need to be added to the pull handler registry.
-   - What's unclear: Whether the backend pull handler for `booking` and `job_site` entities exists or needs to be created.
-   - Recommendation: Check the backend `sync/` module for existing entity registrations. If missing, add `booking` and `job_site` to the pull handler (follow existing `job` pattern). This is a Phase 5 Plan 05-01 task.
+2. **`estimated_duration_minutes` is null on some jobs — what duration to use during drag?**
+   - What we know: `JobEntity.estimatedDurationMinutes` is `int?` (nullable). Some jobs may not have a duration set.
+   - Recommendation: Default to 60 minutes when null. Show a visual indicator ("~1h") on the dragged feedback card to signal that duration is estimated.
 
-3. **How to handle `estimated_duration_minutes = null` during drag?**
-   - What we know: The booking card auto-sizes based on `estimated_duration_minutes`. Some jobs may have null duration.
-   - Recommendation: Default to 60 minutes when null. Show a visual indicator on the booking card ("duration unset") so admin knows to check job details.
+3. **Undo window: defer sync queue write vs. CREATE+DELETE sequence?**
+   - What we know: The 5-second undo window means the sync_queue write should ideally be deferred. Immediate sync_queue write + DELETE on undo creates a CREATE+DELETE pair in the outbox that must be ordered correctly.
+   - Recommendation: Use `Timer(const Duration(seconds: 5), _writeSyncQueueEntry)` inside `BookingDao`. Cancel the timer if undo is pressed. Only the Drift entity table write is immediate (for optimistic UI). The outbox write is deferred. Document this explicitly in `BookingDao` comments as a design decision.
 
 ---
 
 ## Sources
 
-### Primary (HIGH confidence)
-- Codebase: `/mobile/lib/core/database/app_database.dart` — confirmed schemaVersion = 3; v4 is next
-- Codebase: `/mobile/lib/features/jobs/data/job_dao.dart` — transactional outbox pattern to follow
-- Codebase: `/backend/app/features/scheduling/schemas.py` — `BlockedInterval` reason enum values
-- Codebase: `/backend/app/features/scheduling/router.py` — all scheduling endpoints (availability, bookings, conflicts, suggest-dates)
-- Codebase: `/backend/app/features/jobs/service.py` — status_history list-replacement pattern (Pitfall 3)
-- Codebase: `/backend/app/features/jobs/schemas.py` — `StatusHistoryEntry` shape; delay entry will use same JSONB array
-- Flutter official docs: `LongPressDraggable`, `DragTarget`, `CustomPainter`, `Badge`, `SnackBar`
+### Primary (HIGH confidence — verified against project codebase)
+- `/mobile/lib/features/jobs/data/job_dao.dart` — dual-write transaction pattern; `BookingDao` template
+- `/mobile/lib/core/database/app_database.dart` — `schemaVersion = 3`; v4 migration pattern
+- `/mobile/lib/core/sync/sync_engine.dart` — `pullDelta` entity handling loop; `drainQueue` pattern
+- `/mobile/lib/core/routing/app_router.dart` — Branch 2 sub-route pattern; `StatefulShellBranch`
+- `/mobile/lib/shared/widgets/app_shell.dart` — `NavigationBar` structure; `ConsumerWidget` confirmed
+- `/mobile/lib/features/jobs/presentation/widgets/kanban_board.dart` — custom layout precedent
+- `/mobile/lib/features/jobs/domain/job_status.dart` — `JobStatus` enum for color mapping extension
+- `/mobile/lib/features/jobs/presentation/providers/job_providers.dart` — `import 'package:riverpod/legacy.dart'` pattern; `AsyncNotifier` pattern
+- `/backend/app/features/scheduling/router.py` — all scheduling endpoints verified
+- `/backend/app/features/scheduling/schemas.py` — `BlockedInterval`, `BookingResponse`, `ConflictDetail`
+- `/backend/app/features/jobs/service.py` — `status_history` list replacement pattern
 
-### Secondary (MEDIUM confidence)
-- [pub.dev kalender 0.15.0](https://pub.dev/packages/kalender) — confirmed: no multi-resource side-by-side lane support → rejected
-- [pub.dev syncfusion_flutter_calendar 32.2.8](https://pub.dev/packages/syncfusion_flutter_calendar) — confirmed: commercial license required, resource view exists but opinionated → rejected for this project
-- [pub.dev patterns_canvas 0.5.0](https://pub.dev/packages/patterns_canvas) — confirmed: pure Dart, MIT, `DiagonalStripesLight.paintOnRect()` for travel time blocks
-- [Flutter breaking change: SnackBar with action behavior](https://docs.flutter.dev/release/breaking-changes/snackbar-with-action-behavior-update) — confirmed: must set explicit `duration`
-- [Flutter Badge class](https://api.flutter.dev/flutter/material/Badge-class.html) — Material 3 badge, `isLabelVisible`, `label` constructor
+### Secondary (HIGH confidence — official sources)
+- [Flutter DragTarget API](https://api.flutter.dev/flutter/widgets/DragTarget-class.html) — `onWillAcceptWithDetails` confirmed; `onWillAccept` deprecated after 3.14
+- [Flutter LongPressDraggable API](https://api.flutter.dev/flutter/widgets/LongPressDraggable-class.html) — `hapticFeedbackOnStart`, `feedback`, `childWhenDragging` confirmed
+- [patterns_canvas pub.dev](https://pub.dev/packages/patterns_canvas) — v0.5.0, MIT license, verified publisher (whidev.com), `DiagonalStripesLight.paintOnRect()` API verified
+- [kalender pub.dev](https://pub.dev/packages/kalender) — v0.15.0, pre-1.0 API instability confirmed → rejected
+- [Flutter Badge class](https://api.flutter.dev/flutter/material/Badge-class.html) — `isLabelVisible`, `label`, `backgroundColor` confirmed for Material 3
 
-### Tertiary (LOW confidence)
-- `linked_scroll_controller` package for synchronized vertical scroll across lanes — not verified against pub.dev, but commonly referenced pattern. Validate during Plan 05-02.
+### Tertiary (MEDIUM confidence — WebSearch, consistent with project patterns)
+- Flutter 3.29 SnackBar breaking change — explicit `duration` required with `action`; consistent with official changelog reference
+- Riverpod 3 `StateProvider` legacy import — consistent with existing `job_providers.dart` pattern in codebase
 
 ---
 
 ## Metadata
 
 **Confidence breakdown:**
-- Standard stack: HIGH — all existing packages confirmed from pubspec.yaml; one new dep (`patterns_canvas`) verified on pub.dev
-- Architecture: HIGH — custom calendar approach confirmed by rejecting all third-party packages (lacking multi-resource lane support); all patterns mirror existing codebase patterns
-- Pitfalls: HIGH — most sourced from existing STATE.md decisions or official Flutter breaking change docs; Pitfall 3 (scroll sync) is MEDIUM until implementation is tested
-- Delay endpoint design: HIGH — mirrors `transition_status` pattern exactly; no new OOP base classes needed
+- Standard stack: HIGH — all existing packages confirmed from `pubspec.yaml`; `patterns_canvas` verified on pub.dev; calendar package decision supported by concrete rejection reasons for all alternatives
+- Architecture: HIGH — all patterns derived directly from existing codebase (JobDao, SyncEngine, AppShell, KanbanBoard, job_providers)
+- Pitfalls: HIGH — each pitfall sourced from STATE.md decisions (Phases 2, 3, 4), official Flutter breaking change docs, or SQLAlchemy JSONB behavior documented in Phase 4
+- Delay endpoint: HIGH — mirrors `transition_status` pattern exactly; no new OOP base classes needed
+- Scroll sync (Pitfall 3): MEDIUM — Flutter `ScrollController.positions` supports multi-attachment but needs validation during Plan 05-02 implementation
 
 **Research date:** 2026-03-09
-**Valid until:** 2026-04-09 (30 days — Flutter/Dart ecosystem is relatively stable; patterns_canvas version unlikely to change)
+**Valid until:** 2026-04-09 (30 days — Flutter/Dart ecosystem stable; `patterns_canvas` unlikely to change)
