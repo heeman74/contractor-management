@@ -13,6 +13,8 @@ import '../sync/sync_registry.dart';
 import '../../features/jobs/data/client_profile_sync_handler.dart';
 import '../../features/jobs/data/job_request_sync_handler.dart';
 import '../../features/jobs/data/job_sync_handler.dart';
+import '../../features/schedule/data/booking_sync_handler.dart';
+import '../../features/schedule/data/job_site_sync_handler.dart';
 
 final getIt = GetIt.instance;
 
@@ -50,6 +52,9 @@ Future<void> setupServiceLocator() async {
   registry.register(JobSyncHandler(dioClient, db));
   registry.register(ClientProfileSyncHandler(dioClient, db));
   registry.register(JobRequestSyncHandler(dioClient, db));
+  // Phase 5: Calendar & dispatch sync handlers
+  registry.register(BookingSyncHandler(dioClient, db));
+  registry.register(JobSiteSyncHandler(db));
 
   getIt.registerSingleton<SyncRegistry>(registry);
 
@@ -69,4 +74,7 @@ Future<void> setupServiceLocator() async {
 
   // JobDao — accessed via AppDatabase.jobDao accessor; registered for direct injection
   getIt.registerSingleton<JobDao>(db.jobDao);
+
+  // BookingDao — accessed via AppDatabase.bookingDao accessor; registered for direct injection
+  getIt.registerSingleton<BookingDao>(db.bookingDao);
 }
