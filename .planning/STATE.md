@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 04-job-lifecycle-07-PLAN.md
-last_updated: "2026-03-09T02:38:40.443Z"
+stopped_at: Completed 04-job-lifecycle-06-PLAN.md
+last_updated: "2026-03-09T02:54:35.744Z"
 last_activity: 2026-03-05 — WorkManager dispatcher, sync status provider, app bar subtitle, pull-to-refresh on 3 screens
 progress:
   total_phases: 8
   completed_phases: 3
   total_plans: 24
-  completed_plans: 21
+  completed_plans: 22
   percent: 90
 ---
 
@@ -70,6 +70,7 @@ Progress: [█████████░] 90%
 | Phase 04-job-lifecycle P03 | 4min | 2 tasks | 4 files |
 | Phase 04-job-lifecycle P02 | 5min | 2 tasks | 2 files |
 | Phase 04-job-lifecycle P07 | 15min | 2 tasks | 15 files |
+| Phase 04-job-lifecycle P06 | 90 | 2 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -140,6 +141,10 @@ Recent decisions affecting current work:
 - [Phase 04-job-lifecycle]: soft_delete_job sets deleted_at (admin removal) distinct from transition_status(cancelled) which sets status only keeping job visible
 - [Phase 04-job-lifecycle]: Admin screen re-export pattern: features/admin/presentation/screens/ files re-export from features/jobs/ — router import paths remain stable while implementation follows feature-first structure
 - [Phase 04-job-lifecycle]: Accept backend-only job creation: POST /api/v1/jobs/requests/{id}/review with action=accepted; no client-side job creation — backend does atomic job + request status update
+- [Phase 04-job-lifecycle]: StreamProvider.autoDispose.family used for job detail — FamilyAsyncNotifier does not exist in Riverpod 3
+- [Phase 04-job-lifecycle]: StateProvider imported from package:riverpod/legacy.dart — moved out of flutter_riverpod main export in Riverpod 3
+- [Phase 04-job-lifecycle]: InternetConnection().hasInternetAccess used directly in wizard — ConnectivityService not designed for one-shot queries
+- [Phase 04-job-lifecycle]: CRM screens (ClientCrmScreen, ClientDetailScreen, RequestReviewScreen) implemented in Plan 06 ahead of Plan 07 — required by router
 
 ### Pending Todos
 
@@ -156,6 +161,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-09T02:38:40.438Z
-Stopped at: Completed 04-job-lifecycle-07-PLAN.md
+Last session: 2026-03-09T02:54:35.740Z
+Stopped at: Completed 04-job-lifecycle-06-PLAN.md
 Resume file: None
