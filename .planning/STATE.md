@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 04-job-lifecycle-08-PLAN.md
-last_updated: "2026-03-09T03:41:07.000Z"
+stopped_at: Completed 04-job-lifecycle-09-PLAN.md
+last_updated: "2026-03-09T04:44:18.775Z"
 last_activity: 2026-03-05 — WorkManager dispatcher, sync status provider, app bar subtitle, pull-to-refresh on 3 screens
 progress:
   total_phases: 8
-  completed_phases: 3
-  total_plans: 24
-  completed_plans: 24
-  percent: 95
+  completed_phases: 4
+  total_plans: 25
+  completed_plans: 25
+  percent: 90
 ---
 
 # Project State
@@ -73,6 +73,7 @@ Progress: [█████████░] 90%
 | Phase 04-job-lifecycle P06 | 90 | 2 tasks | 14 files |
 | Phase 04-job-lifecycle P04 | 11min | 2 tasks | 7 files |
 | Phase 04-job-lifecycle P08 | 120min | 2 tasks | 8 files |
+| Phase 04-job-lifecycle P09 | 2min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -155,6 +156,7 @@ Recent decisions affecting current work:
 - [Phase 04-job-lifecycle P08]: CrmRepository.soft_delete_property method required because inherited soft_delete targets ClientProfile (repository model type), not ClientProperty
 - [Phase 04-job-lifecycle P08]: Seed idempotency: SET LOCAL RLS context before SELECT COUNT existence checks — RLS hides rows from appuser without app.current_company_id set
 - [Phase 04-job-lifecycle P08]: asyncpg SET LOCAL incompatibility: parameterized SET commands fail with PostgresSyntaxError; use f-string formatting with UUID values (safe — UUIDs from PostgreSQL not user input)
+- [Phase 04-job-lifecycle]: image_picker ^1.1.2 added as production dependency; no try/catch around pickImage per CLAUDE.md; jobRequestForm as sibling route in Branch 6; context.go() for portal-to-form navigation
 
 ### Pending Todos
 
@@ -171,6 +173,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-09T03:41:07.000Z
-Stopped at: Completed 04-job-lifecycle-08-PLAN.md
+Last session: 2026-03-09T04:44:18.766Z
+Stopped at: Completed 04-job-lifecycle-09-PLAN.md
 Resume file: None

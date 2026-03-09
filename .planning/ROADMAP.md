@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Foundation** - Flutter + FastAPI project skeletons with multi-tenant data isolation and role models
 - [x] **Phase 2: Offline Sync Engine** - Local SQLite with transactional outbox, background sync, and conflict resolution (UAT gap closure in progress) (completed 2026-03-06)
 - [ ] **Phase 3: Scheduling Engine** - Conflict detection, travel time awareness, multi-day jobs, and availability tracking
-- [ ] **Phase 4: Job Lifecycle** - Job CRUD, lifecycle state machine, client CRM, and dual job creation flows
+- [x] **Phase 4: Job Lifecycle** - Job CRUD, lifecycle state machine, client CRM, and dual job creation flows (completed 2026-03-09)
 - [ ] **Phase 5: Calendar and Dispatch UI** - Drag-and-drop calendar, overdue warnings, and delay justification flow
 - [ ] **Phase 6: Field Workflow** - Job notes, photo capture, GPS address, drawing pad, and time tracking
 - [ ] **Phase 7: Client Portal and Notifications** - Client-facing job status, progress photos, delay visibility, and push notifications
@@ -91,7 +91,7 @@ Plans:
   3. Client CRM shows a client profile with full job history — every job associated with that client across all lifecycle stages
   4. A client can submit a job request with preferred dates; it appears in the admin review queue; admin can convert it to a scheduled job
   5. Both job creation flows (client-initiated and company-assigned) produce jobs in the same unified pipeline visible to admins
-**Plans:** 9 plans (8 executed, 1 gap closure pending)
+**Plans:** 9/9 plans complete
 
 Plans:
 - [x] 04-01-PLAN.md — Backend data foundation: Alembic migration 0008 with 5 tables (jobs, client_profiles, client_properties, job_requests, ratings), ORM models, Pydantic schemas
@@ -194,7 +194,7 @@ Note: Phase 3 (Scheduling Engine) depends only on Phase 1 and can begin in paral
 | 1. Foundation | 5/5 | Complete | 2026-03-05 |
 | 2. Offline Sync Engine | 7/7 | Complete   | 2026-03-06 |
 | 3. Scheduling Engine | 2/4 | In Progress|  |
-| 4. Job Lifecycle | 8/9 | Gap Closure | - |
+| 4. Job Lifecycle | 9/9 | Complete   | 2026-03-09 |
 | 5. Calendar and Dispatch UI | 0/6 | Not started | - |
 | 6. Field Workflow | 0/6 | Not started | - |
 | 7. Client Portal and Notifications | 0/5 | Not started | - |
