@@ -10,6 +10,9 @@ import '../sync/handlers/user_role_sync_handler.dart';
 import '../sync/handlers/user_sync_handler.dart';
 import '../sync/sync_engine.dart';
 import '../sync/sync_registry.dart';
+import '../../features/jobs/data/client_profile_sync_handler.dart';
+import '../../features/jobs/data/job_request_sync_handler.dart';
+import '../../features/jobs/data/job_sync_handler.dart';
 
 final getIt = GetIt.instance;
 
@@ -43,6 +46,10 @@ Future<void> setupServiceLocator() async {
   registry.register(CompanySyncHandler(dioClient, db));
   registry.register(UserSyncHandler(dioClient, db));
   registry.register(UserRoleSyncHandler(dioClient, db));
+  // Phase 4: Job lifecycle sync handlers
+  registry.register(JobSyncHandler(dioClient, db));
+  registry.register(ClientProfileSyncHandler(dioClient, db));
+  registry.register(JobRequestSyncHandler(dioClient, db));
 
   getIt.registerSingleton<SyncRegistry>(registry);
 
@@ -59,4 +66,7 @@ Future<void> setupServiceLocator() async {
   // Start the connectivity listener after all singletons are registered.
   // This wires ConnectivityService -> SyncEngine._onConnectivityRestored.
   syncEngine.initialize();
+
+  // JobDao — accessed via AppDatabase.jobDao accessor; registered for direct injection
+  getIt.registerSingleton<JobDao>(db.jobDao);
 }

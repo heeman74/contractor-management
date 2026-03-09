@@ -81,20 +81,26 @@ class DioClient {
 
   Dio get instance => _dio;
 
-  /// POST [data] to [path] with an [Idempotency-Key] header.
+  /// Send [data] to [path] with an [Idempotency-Key] header.
+  ///
+  /// [method] defaults to 'POST'. Pass 'PATCH' or 'DELETE' for update/delete
+  /// sync operations. All methods include the idempotency key for safe retries.
   Future<Response<dynamic>> pushWithIdempotency(
     String path,
     Map<String, dynamic> data,
-    String idempotencyKey,
-  ) {
-    return _dio.post<dynamic>(
+    String idempotencyKey, {
+    String method = 'POST',
+  }) {
+    final options = Options(
+      method: method,
+      headers: {
+        'Idempotency-Key': idempotencyKey,
+      },
+    );
+    return _dio.request<dynamic>(
       path,
       data: data,
-      options: Options(
-        headers: {
-          'Idempotency-Key': idempotencyKey,
-        },
-      ),
+      options: options,
     );
   }
 }
