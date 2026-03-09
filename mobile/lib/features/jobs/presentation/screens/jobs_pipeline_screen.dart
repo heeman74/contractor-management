@@ -102,7 +102,9 @@ class JobsPipelineScreen extends ConsumerWidget {
       if (tradeFilter != null && j.tradeType != tradeFilter) return false;
       if (priorityFilter != null && j.priority != priorityFilter) return false;
       if (contractorFilter != null &&
-          j.contractorId != contractorFilter) return false;
+          j.contractorId != contractorFilter) {
+        return false;
+      }
       if (clientFilter != null && j.clientId != clientFilter) return false;
       return true;
     }).toList();

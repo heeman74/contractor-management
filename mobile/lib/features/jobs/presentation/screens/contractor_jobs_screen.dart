@@ -320,12 +320,12 @@ class _ContractorJobCard extends ConsumerWidget {
       final dao = ref.read(jobDaoProvider);
       final now = DateTime.now();
 
-      final history = List<Map<String, dynamic>>.from(j.statusHistory);
-      history.add({
-        'status': newStatus,
-        'timestamp': now.toIso8601String(),
-        'user_id': userId,
-      });
+      final history = List<Map<String, dynamic>>.from(j.statusHistory)
+        ..add({
+          'status': newStatus,
+          'timestamp': now.toIso8601String(),
+          'user_id': userId,
+        });
 
       await dao.updateJobStatus(
         j.id,

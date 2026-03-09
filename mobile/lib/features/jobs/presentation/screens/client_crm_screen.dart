@@ -36,7 +36,7 @@ class ClientCrmScreen extends ConsumerWidget {
         ref.watch(pendingRequestsNotifierProvider(companyId));
     final searchQuery = ref.watch(clientSearchQueryProvider);
 
-    final pendingCount = pendingAsync.valueOrNull?.length ?? 0;
+    final pendingCount = pendingAsync.value?.length ?? 0;
 
     return Scaffold(
       appBar: AppBar(
@@ -178,7 +178,7 @@ class _ClientCardWrapper extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final historyAsync =
         ref.watch(clientJobHistoryNotifierProvider(profile.userId));
-    final jobs = historyAsync.valueOrNull ?? [];
+    final jobs = historyAsync.value ?? [];
 
     return ClientCard(
       profile: profile,

@@ -4,11 +4,10 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:internet_connection_checker_plus/internet_connection_checker_plus.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_database.dart';
-import '../../../../core/di/service_locator.dart';
-import '../../../../core/sync/connectivity_service.dart';
 import '../../../../features/auth/domain/auth_state.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
 import '../providers/job_providers.dart';
@@ -77,8 +76,10 @@ class _JobWizardScreenState extends ConsumerState<JobWizardScreen> {
   }
 
   Future<void> _checkConnectivity() async {
-    final connectivity = getIt<ConnectivityService>();
-    final connected = await connectivity.isConnected;
+    // InternetConnection is a stateless utility — instantiate directly for
+    // one-shot check. ConnectivityService is designed for background streaming
+    // and is not registered in GetIt for direct injection.
+    final connected = await InternetConnection().hasInternetAccess;
     if (mounted) {
       setState(() => _isOffline = !connected);
     }
