@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/di/service_locator.dart';
+import '../../../../features/auth/domain/auth_state.dart';
+import '../../../../features/auth/presentation/providers/auth_provider.dart';
+import '../../../../features/schedule/presentation/widgets/delay_justification_dialog.dart';
+import '../../data/job_dao.dart';
 import '../../domain/job_entity.dart';
 import '../../domain/job_status.dart';
 import '../providers/job_providers.dart';
@@ -12,10 +17,13 @@ import '../providers/job_providers.dart';
 /// Details tab: description, client, contractor, priority, trade, notes.
 /// Schedule tab: all booking dates/times, contractor, job site addresses.
 /// History tab: lifecycle transition audit trail from status_history JSONB.
+///
+/// For Scheduled and In Progress jobs, a "Report Delay" action button allows
+/// contractors and admins to log a delay reason with a new ETA date.
 class JobDetailScreen extends ConsumerStatefulWidget {
   final String jobId;
 
-  const JobDetailScreen({super.key, required this.jobId});
+  const JobDetailScreen({required this.jobId, super.key});
 
   @override
   ConsumerState<JobDetailScreen> createState() => _JobDetailScreenState();
@@ -40,6 +48,9 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen>
   @override
   Widget build(BuildContext context) {
     final jobAsync = ref.watch(jobDetailNotifierProvider(widget.jobId));
+    final authState = ref.watch(authNotifierProvider);
+    final currentUserId =
+        authState is AuthAuthenticated ? authState.userId : '';
 
     return jobAsync.when(
       data: (job) {
@@ -49,7 +60,11 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen>
             body: const Center(child: Text('Job not found')),
           );
         }
-        return _JobDetailView(job: job, tabController: _tabController);
+        return _JobDetailView(
+          job: job,
+          tabController: _tabController,
+          currentUserId: currentUserId,
+        );
       },
       loading: () => Scaffold(
         appBar: AppBar(title: const Text('Job Detail')),
@@ -66,12 +81,20 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen>
 class _JobDetailView extends StatelessWidget {
   final JobEntity job;
   final TabController tabController;
+  final String currentUserId;
 
-  const _JobDetailView({required this.job, required this.tabController});
+  const _JobDetailView({
+    required this.job,
+    required this.tabController,
+    required this.currentUserId,
+  });
 
   @override
   Widget build(BuildContext context) {
     final statusColor = _statusColor(job.jobStatus);
+    // Show "Report Delay" button only for Scheduled and In Progress jobs.
+    final canReportDelay = job.jobStatus == JobStatus.scheduled ||
+        job.jobStatus == JobStatus.inProgress;
 
     return Scaffold(
       appBar: AppBar(
@@ -111,6 +134,11 @@ class _JobDetailView extends StatelessWidget {
           _HistoryTab(job: job),
         ],
       ),
+      // "Report Delay" floating action button for active jobs only.
+      // Rendered as a FAB so it's accessible from any of the three tabs.
+      bottomNavigationBar: canReportDelay
+          ? _ReportDelayBar(job: job, currentUserId: currentUserId)
+          : null,
     );
   }
 
@@ -123,6 +151,62 @@ class _JobDetailView extends StatelessWidget {
       JobStatus.invoiced => Colors.purple,
       JobStatus.cancelled => Colors.red,
     };
+  }
+}
+
+// ─── Report Delay bottom bar ───────────────────────────────────────────────────
+
+/// Bottom action bar shown for Scheduled and In Progress jobs.
+///
+/// Shows "Report Delay" button with subtitle "Update your ETA" per the
+/// contractor-facing UX spec in CONTEXT.md.
+class _ReportDelayBar extends StatelessWidget {
+  final JobEntity job;
+  final String currentUserId;
+
+  const _ReportDelayBar({required this.job, required this.currentUserId});
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: OutlinedButton.icon(
+          icon: const Icon(Icons.schedule_send_outlined),
+          label: const Text('Report Delay'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.error,
+            side: BorderSide(color: Theme.of(context).colorScheme.error),
+            minimumSize: const Size.fromHeight(48),
+          ),
+          onPressed: () => _reportDelay(context),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _reportDelay(BuildContext context) async {
+    final jobDao = getIt<JobDao>();
+
+    final confirmed = await DelayJustificationDialog.show(
+      context: context,
+      jobDao: jobDao,
+      job: job,
+      currentUserId: currentUserId,
+    );
+
+    if (confirmed && context.mounted) {
+      final etaFormatted = job.scheduledCompletionDate != null
+          ? '${job.scheduledCompletionDate!.day}/${job.scheduledCompletionDate!.month}/${job.scheduledCompletionDate!.year}'
+          : 'updated';
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Delay reported — new ETA: $etaFormatted'),
+          backgroundColor: Theme.of(context).colorScheme.primary,
+        ),
+      );
+    }
   }
 }
 
@@ -282,22 +366,40 @@ class _HistoryTab extends StatelessWidget {
       separatorBuilder: (_, __) => const Divider(),
       itemBuilder: (context, index) {
         final entry = history[index];
-        final status = entry['status'] as String? ?? '';
+        // Support both status transitions (type: 'status') and delay entries.
+        final entryType = entry['type'] as String?;
+        final isDelay = entryType == 'delay';
+        final status = entry['status'] as String? ?? (isDelay ? 'delay' : '');
         final timestamp = entry['timestamp'] as String? ?? '';
         final reason = entry['reason'] as String?;
+        final newEta = entry['new_eta'] as String?;
 
         return ListTile(
-          leading: const Icon(Icons.circle, size: 12),
+          leading: Icon(
+            isDelay ? Icons.schedule_send_outlined : Icons.circle,
+            size: isDelay ? 18 : 12,
+            color: isDelay
+                ? Theme.of(context).colorScheme.error
+                : Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
           title: Text(
-            status.replaceAll('_', ' ').toUpperCase(),
-            style: const TextStyle(fontWeight: FontWeight.w600),
+            isDelay ? 'DELAY REPORTED' : status.replaceAll('_', ' ').toUpperCase(),
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: isDelay ? Theme.of(context).colorScheme.error : null,
+            ),
           ),
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(timestamp),
               if (reason != null && reason.isNotEmpty)
-                Text('Reason: $reason', style: const TextStyle(fontStyle: FontStyle.italic)),
+                Text(
+                  'Reason: $reason',
+                  style: const TextStyle(fontStyle: FontStyle.italic),
+                ),
+              if (newEta != null && newEta.isNotEmpty)
+                Text('New ETA: $newEta'),
             ],
           ),
         );

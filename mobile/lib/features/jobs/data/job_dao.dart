@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/database/app_database.dart';
@@ -147,6 +148,87 @@ class JobDao extends DatabaseAccessor<AppDatabase> with _$JobDaoMixin {
           entityId: jobId,
           operation: 'UPDATE',
           payload: _jobCompanionPayload(jobId, companion),
+        ),
+      );
+    });
+  }
+
+  /// Report a delay on a job — updates scheduled_completion_date and appends
+  /// a delay entry to status_history in a single atomic transaction.
+  ///
+  /// Steps:
+  ///   1. Reads current job from Drift to get existing statusHistory.
+  ///   2. Decodes statusHistory JSON, appends the new delay entry, re-encodes.
+  ///   3. In a single transaction: updates the job row (scheduledCompletionDate,
+  ///      statusHistory, version+1, updatedAt) AND inserts a sync queue entry.
+  ///
+  /// The delay does NOT change job.status — the job stays scheduled/in_progress.
+  /// Multiple delays are allowed; each creates a new status_history entry.
+  /// The latest new_eta overwrites scheduledCompletionDate.
+  ///
+  /// Uses the transactional outbox dual-write pattern (same as all mutations).
+  Future<void> reportDelay({
+    required String jobId,
+    required String reason,
+    required DateTime newEta,
+    required String currentUserId,
+    required int currentVersion,
+  }) async {
+    final now = DateTime.now();
+
+    // Decode existing statusHistory and append the new delay entry.
+    final existingRow = await (select(jobs)
+          ..where((tbl) => tbl.id.equals(jobId)))
+        .getSingleOrNull();
+
+    final existingHistory = <Map<String, dynamic>>[];
+    if (existingRow != null) {
+      try {
+        final decoded =
+            jsonDecode(existingRow.statusHistory) as List<dynamic>;
+        existingHistory.addAll(decoded.whereType<Map<String, dynamic>>());
+      } catch (e) {
+        // Malformed JSON — start fresh (defensive; preserves new delay entry).
+        debugPrint('[JobDao.reportDelay] Failed to decode statusHistory: $e');
+      }
+    }
+
+    // Append the delay entry.
+    existingHistory.add({
+      'type': 'delay',
+      'reason': reason,
+      'new_eta': newEta.toIso8601String().substring(0, 10),
+      'timestamp': now.toUtc().toIso8601String(),
+      'user_id': currentUserId,
+    });
+
+    final newStatusHistoryJson = jsonEncode(existingHistory);
+    final newVersion = currentVersion + 1;
+    // Normalize ETA to midnight UTC for Drift DATE storage.
+    final newEtaNormalized =
+        DateTime.utc(newEta.year, newEta.month, newEta.day);
+
+    await db.transaction(() async {
+      await (update(jobs)..where((tbl) => tbl.id.equals(jobId))).write(
+        JobsCompanion(
+          scheduledCompletionDate: Value(newEtaNormalized),
+          statusHistory: Value(newStatusHistoryJson),
+          version: Value(newVersion),
+          updatedAt: Value(now),
+        ),
+      );
+      await into(syncQueue).insert(
+        _buildQueueEntry(
+          entityType: 'job',
+          entityId: jobId,
+          operation: 'UPDATE',
+          payload: {
+            'id': jobId,
+            'scheduled_completion_date': newEtaNormalized.toIso8601String(),
+            'status_history': newStatusHistoryJson,
+            'version': newVersion,
+            'updated_at': now.toIso8601String(),
+          },
         ),
       );
     });
