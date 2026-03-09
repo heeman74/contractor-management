@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/routing/route_names.dart';
 import '../../features/auth/domain/auth_state.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
+import '../../features/schedule/presentation/providers/overdue_providers.dart';
 import '../../shared/models/user_role.dart';
-import '../../core/routing/route_names.dart';
 import 'sync_status_subtitle.dart';
 
 /// Shared app shell — wraps all authenticated routes with a bottom navigation bar
@@ -30,7 +31,7 @@ import 'sync_status_subtitle.dart';
 /// - Profile:  all roles
 /// - Team:     admin only (5th tab, shown only when user has UserRole.admin)
 class AppShell extends ConsumerWidget {
-  const AppShell({super.key, required this.navigationShell});
+  const AppShell({required this.navigationShell, super.key});
 
   /// The navigation shell provided by go_router's StatefulShellRoute.
   /// Used to get the current branch index and navigate between branches.
@@ -41,6 +42,10 @@ class AppShell extends ConsumerWidget {
     final authState = ref.watch(authNotifierProvider);
     final isAdmin = authState is AuthAuthenticated &&
         authState.roles.contains(UserRole.admin);
+
+    // Watch overdue count for the bottom nav Schedule tab badge.
+    // Badge remains visible on ALL tabs (it's on the bottom nav, not the calendar).
+    final overdueCount = ref.watch(overdueJobCountProvider);
 
     final tabs = _buildTabs(isAdmin);
     final currentIndex = _getCurrentIndex(tabs);
@@ -74,14 +79,47 @@ class AppShell extends ConsumerWidget {
         destinations: tabs
             .map(
               (tab) => NavigationDestination(
-                icon: Icon(tab.icon),
-                selectedIcon: Icon(tab.selectedIcon),
+                icon: _buildTabIcon(
+                  tab: tab,
+                  isSelected: false,
+                  overdueCount: overdueCount,
+                ),
+                selectedIcon: _buildTabIcon(
+                  tab: tab,
+                  isSelected: true,
+                  overdueCount: overdueCount,
+                ),
                 label: tab.label,
               ),
             )
             .toList(),
       ),
     );
+  }
+
+  /// Wraps a tab icon in a Material 3 [Badge] if the tab is the Schedule tab
+  /// and there are overdue jobs.
+  ///
+  /// The Badge is always visible on the bottom nav (regardless of active tab)
+  /// so admins see the overdue count without switching to the Schedule screen.
+  Widget _buildTabIcon({
+    required _TabItem tab,
+    required bool isSelected,
+    required int overdueCount,
+  }) {
+    final icon = Icon(isSelected ? tab.selectedIcon : tab.icon);
+
+    if (tab.route == RouteNames.schedule) {
+      // Material 3 Badge — built into package:flutter/material.dart (Flutter 3.22+).
+      // Red background by default in M3 theme. Label hidden when count == 0.
+      return Badge(
+        isLabelVisible: overdueCount > 0,
+        label: Text('$overdueCount'),
+        child: icon,
+      );
+    }
+
+    return icon;
   }
 
   List<_TabItem> _buildTabs(bool isAdmin) {
