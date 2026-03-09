@@ -18,8 +18,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Scheduling
 
-- [ ] **SCHED-01**: Job creation with details (description, address, client, assigned contractor)
-- [ ] **SCHED-02**: Job lifecycle stages (Quote → Scheduled → In Progress → Complete → Invoiced)
+- [x] **SCHED-01**: Job creation with details (description, address, client, assigned contractor)
+- [x] **SCHED-02**: Job lifecycle stages (Quote → Scheduled → In Progress → Complete → Invoiced)
 - [ ] **SCHED-03**: Drag-and-drop calendar scheduling with color coding
 - [x] **SCHED-04**: Contractor availability tracking (who's free when)
 - [x] **SCHED-05**: Conflict detection preventing double-bookings
@@ -30,10 +30,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Client Experience
 
-- [ ] **CLNT-01**: Customer/client CRM with profiles and job history
+- [x] **CLNT-01**: Customer/client CRM with profiles and job history
 - [ ] **CLNT-02**: Client notifications (job scheduled, started, completed, delayed)
 - [ ] **CLNT-03**: Client portal with live job status and progress photos
-- [ ] **CLNT-04**: Client-initiated job requests with preferred dates
+- [x] **CLNT-04**: Client-initiated job requests with preferred dates
 - [ ] **CLNT-05**: Delay reasons and updated ETAs visible to clients in portal
 
 ### Field Workflow
@@ -101,10 +101,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SCHED-05 | Phase 3 — Scheduling Engine | Complete |
 | SCHED-06 | Phase 3 — Scheduling Engine | Complete |
 | SCHED-07 | Phase 3 — Scheduling Engine | Complete |
-| SCHED-01 | Phase 4 — Job Lifecycle | Pending |
-| SCHED-02 | Phase 4 — Job Lifecycle | Pending |
-| CLNT-01 | Phase 4 — Job Lifecycle | Pending |
-| CLNT-04 | Phase 4 — Job Lifecycle | Pending |
+| SCHED-01 | Phase 4 — Job Lifecycle | Complete |
+| SCHED-02 | Phase 4 — Job Lifecycle | Complete |
+| CLNT-01 | Phase 4 — Job Lifecycle | Complete |
+| CLNT-04 | Phase 4 — Job Lifecycle | Complete |
 | SCHED-03 | Phase 5 — Calendar and Dispatch UI | Pending |
 | SCHED-08 | Phase 5 — Calendar and Dispatch UI | Pending |
 | SCHED-09 | Phase 5 — Calendar and Dispatch UI | Pending |

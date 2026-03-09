@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 4 context gathered
-last_updated: "2026-03-08T22:30:39.229Z"
+stopped_at: Completed 04-05-PLAN.md — mobile data layer for job lifecycle
+last_updated: "2026-03-09T02:06:22.821Z"
 last_activity: 2026-03-05 — WorkManager dispatcher, sync status provider, app bar subtitle, pull-to-refresh on 3 screens
 progress:
   total_phases: 8
   completed_phases: 3
-  total_plans: 16
-  completed_plans: 16
+  total_plans: 24
+  completed_plans: 17
   percent: 90
 ---
 
@@ -65,6 +65,7 @@ Progress: [█████████░] 90%
 | Phase 03-scheduling-engine P02 | 7min | 2 tasks | 7 files |
 | Phase 03-scheduling-engine P03 | 8min | 2 tasks | 2 files |
 | Phase 03-scheduling-engine P04 | 45 | 2 tasks | 9 files |
+| Phase 04-job-lifecycle P05 | 5min | 2 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -122,6 +123,8 @@ Recent decisions affecting current work:
 - [Phase 03-scheduling-engine]: Plain APIRouter for scheduling (not CRUDRouter) — custom domain operations, not CRUD
 - [Phase 03-scheduling-engine]: asyncio.gather with separate AsyncClient instances for concurrent race tests — each client gets separate DB session via ASGI transport
 - [Phase 03-scheduling-engine]: pytest.mark.slow on 50-client load test — CI can filter with -m not slow for fast runs
+- [Phase 04-job-lifecycle]: JSON TEXT columns for statusHistory/tags in Drift (SQLite has no JSONB); decoded at domain layer
+- [Phase 04-job-lifecycle]: DioClient.pushWithIdempotency extended with method param (default POST) enabling PATCH/DELETE sync ops
 
 ### Pending Todos
 
@@ -138,6 +141,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-08T22:30:39.214Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-job-lifecycle/04-CONTEXT.md
+Last session: 2026-03-09T02:06:22.817Z
+Stopped at: Completed 04-05-PLAN.md — mobile data layer for job lifecycle
+Resume file: None
