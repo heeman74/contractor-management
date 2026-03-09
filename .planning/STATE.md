@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 04-job-lifecycle-04-PLAN.md
-last_updated: "2026-03-09T03:10:19.806Z"
+stopped_at: Completed 04-job-lifecycle-08-PLAN.md
+last_updated: "2026-03-09T03:41:07.000Z"
 last_activity: 2026-03-05 — WorkManager dispatcher, sync status provider, app bar subtitle, pull-to-refresh on 3 screens
 progress:
   total_phases: 8
   completed_phases: 3
   total_plans: 24
-  completed_plans: 23
-  percent: 90
+  completed_plans: 24
+  percent: 95
 ---
 
 # Project State
@@ -72,6 +72,7 @@ Progress: [█████████░] 90%
 | Phase 04-job-lifecycle P07 | 15min | 2 tasks | 15 files |
 | Phase 04-job-lifecycle P06 | 90 | 2 tasks | 14 files |
 | Phase 04-job-lifecycle P04 | 11min | 2 tasks | 7 files |
+| Phase 04-job-lifecycle P08 | 120min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -149,6 +150,11 @@ Recent decisions affecting current work:
 - [Phase 04-job-lifecycle]: scheduling.models side-effect import must precede CrmService import in router — crm_repository.py triggers configure_mappers() via joinedload at class definition time before Booking is in the mapper registry
 - [Phase 04-job-lifecycle]: response_model=None required on all status_code=204 DELETE routes in FastAPI 0.115 to avoid AssertionError
 - [Phase 04-job-lifecycle]: isort: split comment preserves mandatory import ordering when side-effect imports must precede configure_mappers() trigger
+- [Phase 04-job-lifecycle P08]: Route ordering in FastAPI: /jobs/requests* and /jobs/request/{company_id} must be declared BEFORE /jobs/{job_id} or FastAPI matches "requests" as UUID path param (422)
+- [Phase 04-job-lifecycle P08]: Web form RLS: set_current_tenant_id(company_id) must be called in submit_job_request_form before service call to enable anonymous User creation under RLS without JWT
+- [Phase 04-job-lifecycle P08]: CrmRepository.soft_delete_property method required because inherited soft_delete targets ClientProfile (repository model type), not ClientProperty
+- [Phase 04-job-lifecycle P08]: Seed idempotency: SET LOCAL RLS context before SELECT COUNT existence checks — RLS hides rows from appuser without app.current_company_id set
+- [Phase 04-job-lifecycle P08]: asyncpg SET LOCAL incompatibility: parameterized SET commands fail with PostgresSyntaxError; use f-string formatting with UUID values (safe — UUIDs from PostgreSQL not user input)
 
 ### Pending Todos
 
@@ -165,6 +171,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-09T03:10:19.801Z
-Stopped at: Completed 04-job-lifecycle-04-PLAN.md
+Last session: 2026-03-09T03:41:07.000Z
+Stopped at: Completed 04-job-lifecycle-08-PLAN.md
 Resume file: None
