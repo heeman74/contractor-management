@@ -1,6 +1,7 @@
 # Phase 4: Job Lifecycle - Research
 
 **Researched:** 2026-03-08
+**Updated:** 2026-03-08 (re-run for gap closure planning + Validation Architecture)
 **Domain:** Job state machine, CRM data model, offline-first sync, kanban UI, web form ingestion
 **Confidence:** HIGH
 
@@ -150,6 +151,8 @@ The biggest technical challenges in this phase are: (1) the state machine transi
 
 **Primary recommendation:** Build the backend Job CRUD + state machine first (plan 04-02), then Drift + sync (plan 04-01), then layer the UI features (plans 04-03 through 04-05), finishing with tests (plan 04-06). The FK addition to `bookings.job_id` must be migration 0008.
 
+**Gap closure note (2026-03-08):** Phase 4 was executed and verified. Two gaps remain in the client-facing mobile path: (1) `image_picker` not added to pubspec.yaml and `_pickPhoto()` is a stub, and (2) `JobRequestFormScreen` has no GoRoute registration. All backend functionality, admin UI, and tests are complete. Gap closure is confined to mobile Flutter changes only.
+
 ---
 
 ## Standard Stack
@@ -178,10 +181,9 @@ The biggest technical challenges in this phase are: (1) the state machine transi
 
 ### Supporting — New for Phase 4 (mobile)
 
-| Library | Purpose | Notes |
-|---------|---------|-------|
-| `image_picker` | Select 1-5 photos for job request form | Add to pubspec.yaml |
-| `cached_network_image` | Display uploaded photos from backend | Add to pubspec.yaml — standard pattern |
+| Library | Version | Purpose | Notes |
+|---------|---------|---------|-------|
+| `image_picker` | ^1.2.1 | Select 1-5 photos for job request form | Add to pubspec.yaml; published by flutter.dev; no Android config required beyond `retrieveLostData` |
 
 **No kanban library needed.** Implement kanban board with standard Flutter `PageView` + `ListView` + `DragTarget`/`LongPressDraggable` or a simple horizontal `ScrollView` of column widgets. The simplest correct approach uses a `Row` of `ListView` columns in a `SingleChildScrollView`.
 
@@ -1002,6 +1004,305 @@ async def search_jobs(self, query: str) -> list[Job]:
 
 ---
 
+## Gap Closure Research
+
+**Context:** Phase 4 executed successfully (8/8 plans complete). Verification found 2 gaps in the client mobile path. All backend, admin UI, and tests are fully verified. The gaps are confined to Flutter-only changes. This section provides what the planner needs to create gap closure plans.
+
+---
+
+### Gap 1: image_picker — Photo Picker Implementation
+
+**Gap description:** `_pickPhoto()` in `job_request_form_screen.dart` (line 394-411) shows a developer-facing SnackBar stub instead of launching a photo picker. `image_picker` is not in `pubspec.yaml`.
+
+**Current state (confirmed by code inspection):**
+- File: `mobile/lib/features/client/presentation/screens/job_request_form_screen.dart`
+- `_photoPaths` list exists and is wired to the thumbnail grid and submit logic correctly
+- The submit path (`_submit()`) encodes `_photoPaths` as a JSON array and writes to Drift — this is correct and requires no changes
+- The thumbnail grid renders photo paths as placeholder containers (acceptable for Phase 4 — actual image rendering is Phase 6 scope)
+- Only `_pickPhoto()` is broken; everything else in the form is functional
+
+**Package to add:**
+- Package: `image_picker`
+- Version: `^1.2.1` (latest stable, published by flutter.dev, HIGH confidence)
+- Verified at: https://pub.dev/packages/image_picker (2026-03-08)
+
+**Android setup required:** None. The image_picker README states "No configuration required — the plugin should work out of the box" on Android. No AndroidManifest.xml changes needed. The existing `network_security_config.xml` and manifest are unaffected.
+
+**iOS setup required:** Not applicable for Android-first project. CLAUDE.md states "Android first, iOS second." iOS Info.plist entries (`NSPhotoLibraryUsageDescription`, `NSCameraUsageDescription`) are required only when building for iOS — not blocking for Phase 4 gap closure on Android.
+
+**Key API (verified from official docs):**
+
+Single image pick from gallery (what `_pickPhoto()` needs):
+```dart
+import 'package:image_picker/image_picker.dart';
+
+final ImagePicker _picker = ImagePicker();
+
+Future<void> _pickPhoto() async {
+  final XFile? file = await _picker.pickImage(source: ImageSource.gallery);
+  if (file != null) {
+    setState(() => _photoPaths.add(file.path));
+  }
+}
+```
+
+**`retrieveLostData` pattern for Android high-memory-pressure case:**
+Android can kill the MainActivity during image picking under memory pressure. The existing `JobRequestFormScreen` form state would be lost in this case, but photo paths can be recovered. This is a known Android limitation; handle gracefully in `initState`:
+```dart
+@override
+void initState() {
+  super.initState();
+  _recoverLostData();
+}
+
+Future<void> _recoverLostData() async {
+  final LostDataResponse response = await _picker.retrieveLostData();
+  if (response.isEmpty) return;
+  if (response.file != null) {
+    setState(() => _photoPaths.add(response.file!.path));
+  }
+}
+```
+
+**What does NOT need changing:**
+- The `_photoPaths` list and its use in `_submit()` — already correct
+- The thumbnail grid widget — already renders paths as placeholders (acceptable)
+- The `_maxPhotos = 5` guard — already enforces the 1-5 photo limit
+- The `JobRequestsCompanion` construction — already serializes `_photoPaths` to JSON
+- Any backend code — photo path storage is backend-complete
+
+**pubspec.yaml change:**
+```yaml
+# Under dependencies:
+image_picker: ^1.2.1
+```
+
+**Confidence:** HIGH — pub.dev official package page verified version and Android setup requirements directly.
+
+---
+
+### Gap 2: Route Registration for JobRequestFormScreen
+
+**Gap description:** `JobRequestFormScreen` has no `GoRoute` in `app_router.dart` and no constant in `route_names.dart`. Clients navigating the app have no path to the in-app request form.
+
+**Current state (confirmed by code inspection):**
+- `app_router.dart` Branch 6 (client portal) contains only one route: `/client/portal` → `ClientPortalScreen`
+- `route_names.dart` has `clientPortal = '/client/portal'` but nothing for the request form
+- `ClientPortalScreen` is a Phase 7 placeholder ("Coming in Phase 5") — it should remain as-is; the request form is a separate screen
+- `_checkRoleAccess()` already handles `/client/` prefix → requires `UserRole.client` — no role guard changes needed
+- The `AppShell` client tab (Branch 6, index 6) already exists in `StatefulShellRoute.indexedStack` — no shell changes needed
+
+**Correct route path:** `/client/request`
+
+Rationale: Follows the established `/client/` prefix convention (role-gated to clients). Keeps it distinct from `/client/portal` (the Phase 7 portal). Short and self-documenting.
+
+**Exact changes required:**
+
+`route_names.dart` — add one constant:
+```dart
+/// In-app job request submission form — client only.
+static const jobRequestForm = '/client/request';
+```
+
+`app_router.dart` — add import and GoRoute under Branch 6:
+```dart
+// Add import at top of file (near other client imports):
+import '../../features/client/presentation/screens/job_request_form_screen.dart';
+
+// In Branch 6 (client portal branch), add route alongside existing /client/portal:
+StatefulShellBranch(
+  routes: [
+    GoRoute(
+      path: RouteNames.clientPortal,
+      builder: (context, state) => const ClientPortalScreen(),
+    ),
+    GoRoute(
+      path: RouteNames.jobRequestForm,  // '/client/request'
+      builder: (context, state) => const JobRequestFormScreen(),
+    ),
+  ],
+),
+```
+
+**Entry point from ClientPortalScreen:** The `ClientPortalScreen` is currently a placeholder. The most minimal gap closure is to update `ClientPortalScreen` to include a "Submit Job Request" button that navigates to `/client/request`. This connects the client's existing bottom-nav tab to the request form.
+
+```dart
+// In ClientPortalScreen body, add a button:
+FilledButton.icon(
+  onPressed: () => context.go(RouteNames.jobRequestForm),
+  icon: const Icon(Icons.add_task),
+  label: const Text('Submit Job Request'),
+),
+```
+
+Alternatively, the `HomeScreen` already has a "Client Portal" quick link for client users — updating it to go directly to `/client/request` instead of `/client/portal` is also valid. Both approaches work; the planner should choose the one that makes the client flow most discoverable.
+
+**`app_router.dart` route ordering note:** GoRouter matches routes in declaration order within a branch. The two client routes (`/client/portal` and `/client/request`) have different static paths — no ordering conflict exists. Both can be declared in either order.
+
+**`app_router.g.dart` impact:** The `app_router.dart` uses `@riverpod` code generation (`part 'app_router.g.dart'`). Adding routes to `StatefulShellBranch` does NOT require `build_runner` regeneration — only the `@riverpod` annotation on the `router` function itself triggers generation, and that annotation is not changing. The `.g.dart` file handles only the `routerProvider` provider code, not route declarations.
+
+**What does NOT need changing:**
+- The `_checkRoleAccess()` function — already handles `/client/` prefix correctly
+- `AppShell._buildTabs()` — no new tab needed; request form is accessed within the existing Client branch
+- Any backend code — already complete
+- Any Drift/sync code — `JobRequestFormScreen._submit()` already writes to `jobDao.insertJobRequest()`
+
+**Confidence:** HIGH — based on direct inspection of `app_router.dart`, `route_names.dart`, `client_portal_screen.dart`, and `job_request_form_screen.dart`.
+
+---
+
+### Gap Closure: Dependency Ordering
+
+Both gaps are independent of each other. They can be implemented in a single plan or two separate plans:
+
+| Gap | Files Changed | Scope |
+|-----|--------------|-------|
+| Gap 1: image_picker | `pubspec.yaml`, `job_request_form_screen.dart` | 2 files |
+| Gap 2: Route registration | `route_names.dart`, `app_router.dart`, `client_portal_screen.dart` | 3 files |
+
+**Recommended approach:** One combined plan (single `flutter pub get` + `dart analyze` pass covers both changes together). No backend changes. No Drift schema changes. No code generation needed.
+
+---
+
+### Gap Closure: Test Requirements
+
+Per CLAUDE.md: "Every new service function or endpoint MUST have corresponding tests before merging."
+
+**Gap 1 (image_picker) tests:**
+- Widget test for `JobRequestFormScreen` that mocks `ImagePicker` and verifies a picked photo path is added to `_photoPaths` and the thumbnail grid renders the expected count
+- Widget test verifying the submit path includes photos in the `JobRequestsCompanion`
+- Use `mocktail` — mock `ImagePicker` as a collaborator injected via constructor or via a test helper
+
+**Known challenge:** `image_picker` uses a platform channel. In widget tests, platform channels are not available unless you register a mock handler. The standard approach is to use `TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler` or wrap `ImagePicker` behind a thin interface that can be overridden in tests.
+
+**Simpler test approach:** Extract a `PhotoPickerService` abstraction:
+```dart
+// lib/shared/services/photo_picker_service.dart
+abstract class PhotoPickerService {
+  Future<String?> pickPhoto();
+}
+
+class ImagePickerService implements PhotoPickerService {
+  final ImagePicker _picker = ImagePicker();
+
+  @override
+  Future<String?> pickPhoto() async {
+    final file = await _picker.pickImage(source: ImageSource.gallery);
+    return file?.path;
+  }
+}
+```
+Inject `PhotoPickerService` into `JobRequestFormScreen`. In tests, inject a `MockPhotoPickerService` via GetIt or constructor param. This avoids platform channel issues entirely and is consistent with CLAUDE.md's "unit tests with mocktail for services" rule.
+
+**Gap 2 (route registration) tests:**
+- Widget test that navigates to `/client/request` and verifies `JobRequestFormScreen` is rendered
+- Widget test that taps the "Submit Job Request" button in `ClientPortalScreen` and verifies navigation to `/client/request`
+- Use `ProviderScope` overrides and a `GoRouter` configured with `initialLocation: '/client/request'` for direct route testing
+
+---
+
+## Validation Architecture
+
+**Purpose:** This section documents how to verify Phase 4 gap closure is complete. The verifier uses these checks to confirm CLNT-04 is fully satisfied after gap closure plans execute.
+
+---
+
+### What "Complete" Looks Like for CLNT-04
+
+CLNT-04 states: "Client-initiated job requests with preferred dates."
+
+Current state: PARTIAL. Backend fully implemented. Mobile gaps prevent the in-app client path from functioning.
+
+After gap closure, CLNT-04 is SATISFIED when ALL of the following are true:
+
+| Check | How to Verify |
+|-------|--------------|
+| Photo picker launches | Tap "Add photos" in `JobRequestFormScreen` → OS gallery picker opens (or mock resolves correctly in test) |
+| Photo path stored | After picking, `_photoPaths` has one more entry and thumbnail count increments |
+| Form submits with photos | Submit a request with 1+ photos — `JobRequestsCompanion.photos` contains JSON array with path strings |
+| Route exists in router | `app_router.dart` has a `GoRoute` with `path: '/client/request'` |
+| Route constant exists | `route_names.dart` has `jobRequestForm = '/client/request'` |
+| Client can navigate there | From `ClientPortalScreen` (or HomeScreen), tapping the entry point navigates to `JobRequestFormScreen` |
+| Role guard works | A non-client user navigating to `/client/request` is redirected to `/unauthorized` |
+
+---
+
+### Verification Checks by File
+
+**`mobile/pubspec.yaml`**
+- `image_picker: ^1.2.x` appears under `dependencies`
+- `flutter pub get` has been run (check `pubspec.lock` for `image_picker` entry)
+
+**`mobile/lib/features/client/presentation/screens/job_request_form_screen.dart`**
+- `import 'package:image_picker/image_picker.dart'` present
+- `_pickPhoto()` calls `_picker.pickImage(source: ImageSource.gallery)` or delegates to a `PhotoPickerService`
+- `_pickPhoto()` calls `setState(() => _photoPaths.add(file.path))` (or equivalent)
+- No `ScaffoldMessenger.showSnackBar` stub remains in `_pickPhoto()`
+- `retrieveLostData()` called in `initState` (Android safety)
+
+**`mobile/lib/core/routing/route_names.dart`**
+- `static const jobRequestForm = '/client/request'` present
+
+**`mobile/lib/core/routing/app_router.dart`**
+- `import '../../features/client/presentation/screens/job_request_form_screen.dart'` present
+- `GoRoute(path: RouteNames.jobRequestForm, builder: ...)` present inside Branch 6
+
+**`mobile/lib/features/client/presentation/screens/client_portal_screen.dart`** (or `home_screen.dart`)
+- A navigable entry point to `RouteNames.jobRequestForm` exists (button, tile, or nav action)
+
+---
+
+### Automated Test Checklist
+
+These tests MUST pass before marking gap closure complete:
+
+**Widget tests (new):**
+- [ ] `job_request_form_screen_test.dart`: mock photo picker resolves a path → thumbnail count increments
+- [ ] `job_request_form_screen_test.dart`: submit with 2 photos → `JobRequestsCompanion.photos` contains 2-item JSON array
+- [ ] `client_portal_screen_test.dart`: "Submit Job Request" button tap → router navigates to `/client/request`
+- [ ] `app_router_test.dart`: GoRouter with client auth state → `/client/request` resolves to `JobRequestFormScreen`
+- [ ] `app_router_test.dart`: GoRouter with admin auth state → `/client/request` redirects to `/unauthorized`
+
+**Existing tests must continue to pass:**
+- [ ] All 8 existing Flutter widget tests (no regressions from pubspec or router changes)
+- [ ] `dart analyze` with zero errors
+
+**Backend tests (no changes expected — all should still pass):**
+- [ ] `pytest backend/tests/` — all 162 tests pass (no backend changes in gap closure)
+
+---
+
+### Non-Automated Verification (Human Required)
+
+These checks cannot be fully automated and require on-device or on-emulator verification:
+
+**1. Photo picker launches on Android**
+- Log in as a client user
+- Navigate to `/client/request`
+- Tap "Add photos"
+- Expected: OS gallery/photo picker opens
+- Why human: Platform channel behavior cannot be verified in widget tests
+
+**2. Full dual-flow E2E on device**
+- Log in as client → navigate to request form → fill form with 1 photo → submit
+- Log in as admin → see request in review queue → accept request
+- Confirm: new job appears in admin pipeline at Quote stage
+- Why human: Multi-session, multi-role flow with real OS photo picker requires device
+
+---
+
+### What Is Out of Scope for Gap Closure
+
+These items were identified in the verification report but are NOT part of gap closure — they are either acceptable for Phase 4 or deferred:
+
+| Item | Disposition |
+|------|------------|
+| Client dropdown in job wizard has only null item | Acceptable — admin can still create jobs; CRM integration with wizard is Phase 5 scope. Not a CLNT-04 requirement. |
+| Photo thumbnails in request review screen are grey placeholders | Acceptable — photo paths stored correctly; visual thumbnails are Phase 6 (FIELD-01) scope |
+| `ClientPortalScreen` says "Coming in Phase 5" | Expected — full client portal is Phase 7. The request form is a separate screen. |
+
+---
+
 ## Open Questions
 
 1. **Photo file path on the server in the web form**
@@ -1024,38 +1325,44 @@ async def search_jobs(self, query: str) -> list[Job]:
 ## Sources
 
 ### Primary (HIGH confidence)
+- Direct codebase inspection: `mobile/lib/features/client/presentation/screens/job_request_form_screen.dart` — gap 1 root cause, stub location, existing data wiring confirmed
+- Direct codebase inspection: `mobile/lib/core/routing/app_router.dart` — gap 2 root cause, Branch 6 structure confirmed, `_checkRoleAccess()` behavior confirmed
+- Direct codebase inspection: `mobile/lib/core/routing/route_names.dart` — missing constant confirmed
+- Direct codebase inspection: `mobile/pubspec.yaml` — `image_picker` absent confirmed, current package versions noted
+- Direct codebase inspection: `mobile/lib/features/client/presentation/screens/client_portal_screen.dart` — placeholder screen structure confirmed
+- Direct codebase inspection: `.planning/phases/04-job-lifecycle/04-VERIFICATION.md` — gap descriptions, artifact status, requirements coverage
+- pub.dev/packages/image_picker — version 1.2.1 confirmed, Android setup requirements confirmed, API signatures confirmed (2026-03-08)
+- pub.dev/packages/image_picker/changelog — no breaking changes in 1.1.x → 1.2.1 confirmed (2026-03-08)
 - Direct codebase inspection: `backend/app/features/scheduling/models.py` — Booking model, job_id field, GIST constraint
 - Direct codebase inspection: `backend/migrations/versions/0007_scheduling_tables.py` — migration pattern, FK gap in bookings
 - Direct codebase inspection: `backend/app/core/base_models.py`, `base_service.py`, `base_repository.py`, `base_schemas.py` — OOP architecture confirmed
 - Direct codebase inspection: `mobile/lib/core/sync/sync_handler.dart`, `sync_registry.dart`, `handlers/user_sync_handler.dart` — sync extension pattern
 - Direct codebase inspection: `mobile/lib/core/database/app_database.dart` — schema version, migration strategy
-- Direct codebase inspection: `mobile/lib/core/database/tables/users.dart`, `features/users/data/user_dao.dart` — Drift table + DAO pattern
-- Direct codebase inspection: `mobile/lib/core/routing/app_router.dart` — GoRouter + StatefulShellRoute branch pattern
-- Direct codebase inspection: `mobile/pubspec.yaml`, `backend/requirements.txt` — exact package versions
-- Direct codebase inspection: `backend/tests/conftest.py` — test fixture pattern, TRUNCATE list
-- FastAPI official docs — Jinja2Templates, StaticFiles, UploadFile patterns (HIGH confidence, well-established)
-- PostgreSQL 13 docs — JSONB operators, tsvector/tsquery, GIN indexes (HIGH confidence)
 
 ### Secondary (MEDIUM confidence)
 - SQLAlchemy 2.0 docs — MutableList.as_mutable(JSONB) for JSONB mutation tracking
 - Flutter docs — LongPressDraggable + DragTarget for kanban drag interaction
+- image_picker README — Android `retrieveLostData()` pattern for MainActivity kill recovery
 
 ### Tertiary (LOW confidence — needs validation during implementation)
 - `aiofiles` 24.x compatibility with Python 3.12 / FastAPI 0.115 — standard library, but version not pinned yet
-- `image_picker` latest version compatible with Flutter 3.32 / Android first
+- `PhotoPickerService` abstraction approach for testability — standard pattern but not yet validated in this specific codebase's test setup
 
 ---
 
 ## Metadata
 
 **Confidence breakdown:**
-- Standard stack: HIGH — all packages already in use; only 2 new additions (aiofiles, image_picker)
-- Architecture patterns: HIGH — directly derived from existing Phase 1-3 code
+- Standard stack: HIGH — all packages already in use; gap closure adds only `image_picker: ^1.2.1`
+- Architecture patterns: HIGH — directly derived from existing Phase 1-4 code
 - Migration design: HIGH — directly modeled after migration 0007; critical FK gap confirmed from source
 - State machine: HIGH — transition table approach is idiomatic Python; rules directly from CONTEXT.md
 - Kanban UI: MEDIUM — straightforward Flutter approach, but exact widget nesting may require iteration
 - Photo upload/storage: MEDIUM — aiofiles pattern is standard but not yet in this codebase
 - Pitfalls: HIGH — all derived from direct code inspection of existing patterns
+- Gap 1 (image_picker): HIGH — API verified against official pub.dev, Android setup confirmed no-config
+- Gap 2 (route registration): HIGH — based on direct code inspection of all 3 affected files
 
 **Research date:** 2026-03-08
-**Valid until:** 2026-06-08 (stable libraries; re-verify if Flutter or Drift major version changes)
+**Updated:** 2026-03-08 (gap closure research and Validation Architecture added)
+**Valid until:** 2026-06-08 (stable libraries; re-verify if Flutter or GoRouter major version changes)
