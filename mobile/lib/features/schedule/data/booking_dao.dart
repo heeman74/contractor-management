@@ -128,6 +128,41 @@ class BookingDao extends DatabaseAccessor<AppDatabase> with _$BookingDaoMixin {
   // Booking mutations (transactional outbox pattern)
   // ────────────────────────────────────────────────────────────────────────
 
+  /// Create a new booking from primitive values and atomically enqueue a CREATE sync item.
+  ///
+  /// Convenience method for UI-layer booking creation that avoids the need
+  /// to construct a BookingsCompanion (generated type) outside the DAO layer.
+  /// Returns the bookingId.
+  Future<String> createBooking({
+    required String id,
+    required String companyId,
+    required String contractorId,
+    required String jobId,
+    required DateTime timeRangeStart,
+    required DateTime timeRangeEnd,
+    int? dayIndex,
+    String? parentBookingId,
+    String? notes,
+  }) async {
+    final now = DateTime.now();
+    await insertBooking(
+      BookingsCompanion.insert(
+        id: Value(id),
+        companyId: companyId,
+        contractorId: contractorId,
+        jobId: jobId,
+        timeRangeStart: timeRangeStart,
+        timeRangeEnd: timeRangeEnd,
+        dayIndex: Value(dayIndex),
+        parentBookingId: Value(parentBookingId),
+        notes: Value(notes),
+        createdAt: now,
+        updatedAt: now,
+      ),
+    );
+    return id;
+  }
+
   /// Insert a new booking and atomically enqueue a CREATE sync item.
   ///
   /// Both the entity write and sync_queue insert happen in a single
@@ -141,6 +176,47 @@ class BookingDao extends DatabaseAccessor<AppDatabase> with _$BookingDaoMixin {
           entityId: entry.id.value,
           operation: 'CREATE',
           payload: _bookingPayload(entry),
+        ),
+      );
+    });
+  }
+
+  /// Update booking contractor assignment and time range atomically.
+  ///
+  /// Used for cross-lane drag-and-drop reassignment. Updates both
+  /// contractorId and time range in a single transaction with outbox entry.
+  Future<void> updateBookingContractorAndTime(
+    String id,
+    String newContractorId,
+    DateTime newStart,
+    DateTime newEnd,
+    int currentVersion,
+  ) async {
+    final now = DateTime.now();
+    final newVersion = currentVersion + 1;
+    await db.transaction(() async {
+      await (update(bookings)..where((tbl) => tbl.id.equals(id))).write(
+        BookingsCompanion(
+          contractorId: Value(newContractorId),
+          timeRangeStart: Value(newStart),
+          timeRangeEnd: Value(newEnd),
+          version: Value(newVersion),
+          updatedAt: Value(now),
+        ),
+      );
+      await into(syncQueue).insert(
+        _buildQueueEntry(
+          entityType: 'booking',
+          entityId: id,
+          operation: 'UPDATE',
+          payload: {
+            'id': id,
+            'contractor_id': newContractorId,
+            'time_range_start': newStart.toIso8601String(),
+            'time_range_end': newEnd.toIso8601String(),
+            'version': newVersion,
+            'updated_at': now.toIso8601String(),
+          },
         ),
       );
     });

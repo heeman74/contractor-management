@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/di/service_locator.dart';
 import '../../../../core/sync/sync_engine.dart';
+import '../../../../features/auth/domain/auth_state.dart';
+import '../../../../features/auth/presentation/providers/auth_provider.dart';
 import '../../../../features/jobs/domain/job_entity.dart';
 import '../../../../features/jobs/presentation/providers/job_providers.dart';
 import '../../../../features/users/domain/user_entity.dart';
@@ -10,6 +12,7 @@ import '../../domain/booking_entity.dart';
 import '../providers/calendar_providers.dart';
 import '../providers/overdue_providers.dart';
 import '../widgets/calendar_day_view.dart';
+import '../widgets/unscheduled_jobs_drawer.dart';
 
 /// Admin dispatch calendar screen — replaces the Phase 5 placeholder.
 ///
@@ -18,10 +21,15 @@ import '../widgets/calendar_day_view.dart';
 ///   - Header navigation: prev/next day arrows, date display, "Today" button
 ///   - Date picker: tap date label to jump to any date
 ///   - View mode toggle: Day / Week / Month (week/month show "Coming soon")
-///   - Overdue badge: count of overdue jobs, tap to open panel (Plan 04)
+///   - Overdue badge: count of overdue jobs, tap to toggle overdue panel
 ///   - Trade type filter: dropdown to narrow visible contractors
 ///   - Contractor pagination: 5 per page, controlled by CalendarDayView
 ///   - Pull-to-refresh: triggers SyncEngine.syncNow()
+///   - Unscheduled jobs drawer: slide-in sidebar with draggable job cards
+///   - Drag-and-drop scheduling: drag from drawer onto contractor lanes
+///   - Undo snackbar: 5-second dismissable snackbar after every booking op
+///   - Conflict snackbar: shows conflicting job name + time range on rejected drag
+///   - Overdue panel toggle: badge tap toggles showOverduePanelProvider
 ///
 /// ConsumerWidget watching:
 ///   - calendarDateProvider — selected date
@@ -32,13 +40,22 @@ import '../widgets/calendar_day_view.dart';
 ///   - overdueJobCountProvider — overdue badge count
 ///   - showCompletedJobsProvider — toggle for terminal-status bookings
 ///   - calendarTradeTypeFilterProvider — trade type filter
+///   - conflictInfoProvider — conflict info from DragTarget, shown on dragEnd
+///   - showOverduePanelProvider — overdue panel visibility toggle
 ///
 /// The AppBar is provided by AppShell — this widget does NOT add a Scaffold/AppBar.
-class ScheduleScreen extends ConsumerWidget {
+class ScheduleScreen extends ConsumerStatefulWidget {
   const ScheduleScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ScheduleScreen> createState() => _ScheduleScreenState();
+}
+
+class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
+  bool _drawerOpen = false;
+
+  @override
+  Widget build(BuildContext context) {
     final selectedDate = ref.watch(calendarDateProvider);
     final viewMode = ref.watch(calendarViewModeProvider);
     final bookingsAsync = ref.watch(bookingsForDateProvider);
@@ -46,6 +63,9 @@ class ScheduleScreen extends ConsumerWidget {
     final jobsAsync = ref.watch(jobListNotifierProvider);
     final overdueCount = ref.watch(overdueJobCountProvider);
     final tradeFilter = ref.watch(calendarTradeTypeFilterProvider);
+    final showOverduePanel = ref.watch(showOverduePanelProvider);
+    final authState = ref.watch(authNotifierProvider);
+    final companyId = authState is AuthAuthenticated ? authState.companyId : '';
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -60,6 +80,7 @@ class ScheduleScreen extends ConsumerWidget {
             viewMode: viewMode,
             overdueCount: overdueCount,
             tradeFilter: tradeFilter,
+            drawerOpen: _drawerOpen,
             onDateChanged: (date) {
               ref.read(calendarDateProvider.notifier).state = date;
             },
@@ -72,35 +93,102 @@ class ScheduleScreen extends ConsumerWidget {
               ref.read(contractorPageIndexProvider.notifier).state = 0;
             },
             onTapOverdueBadge: () {
-              // Plan 04: opens overdue jobs panel
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Overdue panel coming in Plan 04'),
-                  duration: Duration(seconds: 2),
-                ),
-              );
+              // Toggle overdue panel — wired per plan 03 requirement.
+              // Plan 04 will replace the placeholder with the real OverduePanel.
+              ref.read(showOverduePanelProvider.notifier).state =
+                  !showOverduePanel;
+            },
+            onToggleDrawer: () {
+              setState(() => _drawerOpen = !_drawerOpen);
             },
           ),
 
-          // ── Calendar content area ────────────────────────────────────────
+          // ── Overdue panel placeholder (Plan 04 replaces with real widget) ──
+          if (showOverduePanel)
+            Container(
+              color: Colors.orange.withValues(alpha: 0.08),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded,
+                      size: 16, color: Colors.orange),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Overdue panel loading...',
+                      style: TextStyle(fontSize: 12, color: Colors.orange),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => ref
+                        .read(showOverduePanelProvider.notifier)
+                        .state = false,
+                    child: const Icon(Icons.close, size: 16),
+                  ),
+                ],
+              ),
+            ),
+
+          // ── Calendar content area + unscheduled drawer ───────────────────
           Expanded(
-            child: switch (viewMode) {
-              CalendarViewMode.day => _buildDayView(
+            child: Stack(
+              children: [
+                // Main calendar content
+                _buildCalendarContent(
                   context,
                   ref,
                   selectedDate,
+                  viewMode,
                   bookingsAsync,
                   contractorsAsync,
                   jobsAsync,
+                  companyId,
                 ),
-              CalendarViewMode.week || CalendarViewMode.month => const Center(
-                  child: _ComingSoonPlaceholder(),
-                ),
-            },
+
+                // Unscheduled jobs drawer overlay (slides in from right)
+                if (_drawerOpen)
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: UnscheduledJobsDrawer(
+                      laneWidth: _calcDrawerFeedbackWidth(context),
+                      pixelsPerMinute: pixelsPerMinute,
+                      onClose: () => setState(() => _drawerOpen = false),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildCalendarContent(
+    BuildContext context,
+    WidgetRef ref,
+    DateTime selectedDate,
+    CalendarViewMode viewMode,
+    AsyncValue<List<BookingEntity>> bookingsAsync,
+    AsyncValue<List<UserEntity>> contractorsAsync,
+    AsyncValue<List<JobEntity>> jobsAsync,
+    String companyId,
+  ) {
+    return switch (viewMode) {
+      CalendarViewMode.day => _buildDayView(
+          context,
+          ref,
+          selectedDate,
+          bookingsAsync,
+          contractorsAsync,
+          jobsAsync,
+          companyId,
+        ),
+      CalendarViewMode.week || CalendarViewMode.month => const Center(
+          child: _ComingSoonPlaceholder(),
+        ),
+    };
   }
 
   Widget _buildDayView(
@@ -110,6 +198,7 @@ class ScheduleScreen extends ConsumerWidget {
     AsyncValue<List<BookingEntity>> bookingsAsync,
     AsyncValue<List<UserEntity>> contractorsAsync,
     AsyncValue<List<JobEntity>> jobsAsync,
+    String companyId,
   ) {
     // Show loading while any of the three streams are loading
     if (bookingsAsync is AsyncLoading ||
@@ -148,12 +237,70 @@ class ScheduleScreen extends ConsumerWidget {
       for (final job in allJobs) job.id: job,
     };
 
-    return CalendarDayView(
-      selectedDate: selectedDate,
-      bookings: bookings,
-      contractors: contractors,
-      jobs: jobMap,
+    // Wrap in a LongPressDraggable listener for conflict snackbar detection.
+    // When drag ends with wasAccepted=false and conflictInfoProvider is set,
+    // show the conflict snackbar then reset conflictInfoProvider.
+    return Listener(
+      onPointerUp: (_) => _checkAndShowConflictSnackbar(ref),
+      child: CalendarDayView(
+        selectedDate: selectedDate,
+        bookings: bookings,
+        contractors: contractors,
+        jobs: jobMap,
+        companyId: companyId,
+        onBookingMutated: () => _showUndoSnackbar(ref),
+      ),
     );
+  }
+
+  /// Show undo snackbar after every booking operation.
+  ///
+  /// explicit duration: 5 seconds — required in Flutter 3.29+ where SnackBar
+  /// with an action does NOT auto-dismiss.
+  void _showUndoSnackbar(WidgetRef ref) {
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Booking updated'),
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          label: 'Undo',
+          onPressed: () async {
+            await ref.read(bookingOperationsProvider.notifier).undoLastBooking();
+          },
+        ),
+      ),
+    );
+  }
+
+  /// Check if a conflict was detected during the last drag and show snackbar.
+  ///
+  /// Called from a Listener.onPointerUp so it fires when the user releases
+  /// the drag. If conflictInfoProvider has data and drag was rejected, show
+  /// the conflict message.
+  void _checkAndShowConflictSnackbar(WidgetRef ref) {
+    final conflictInfo = ref.read(conflictInfoProvider);
+    if (conflictInfo != null) {
+      // Reset immediately before showing snackbar (prevent double-show)
+      ref.read(conflictInfoProvider.notifier).state = null;
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Conflict: ${conflictInfo.conflictingJobDescription} '
+            'at ${conflictInfo.conflictingTimeRange}',
+          ),
+          duration: const Duration(seconds: 5),
+          backgroundColor: Colors.red[700],
+        ),
+      );
+    }
+  }
+
+  double _calcDrawerFeedbackWidth(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    // Use roughly 1/3 of screen width for drag feedback sizing
+    return (screenWidth / 3).clamp(80.0, 180.0);
   }
 }
 
@@ -165,28 +312,33 @@ class ScheduleScreen extends ConsumerWidget {
 ///   - View mode toggle (Day / Week / Month SegmentedButton)
 ///   - Date navigation: left arrow, date label (tappable for picker), right arrow
 ///   - "Today" button
-///   - Overdue count badge
+///   - Overdue count badge (tap toggles overdue panel)
 ///   - Trade type filter dropdown
+///   - Unscheduled drawer toggle button
 class _CalendarHeader extends StatelessWidget {
   const _CalendarHeader({
     required this.selectedDate,
     required this.viewMode,
     required this.overdueCount,
     required this.tradeFilter,
+    required this.drawerOpen,
     required this.onDateChanged,
     required this.onViewModeChanged,
     required this.onTradeFilterChanged,
     required this.onTapOverdueBadge,
+    required this.onToggleDrawer,
   });
 
   final DateTime selectedDate;
   final CalendarViewMode viewMode;
   final int overdueCount;
   final String? tradeFilter;
+  final bool drawerOpen;
   final ValueChanged<DateTime> onDateChanged;
   final ValueChanged<CalendarViewMode> onViewModeChanged;
   final ValueChanged<String?> onTradeFilterChanged;
   final VoidCallback onTapOverdueBadge;
+  final VoidCallback onToggleDrawer;
 
   @override
   Widget build(BuildContext context) {
@@ -198,7 +350,7 @@ class _CalendarHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Row 1: View mode toggle + overdue badge
+          // Row 1: View mode toggle + overdue badge + drawer toggle
           Row(
             children: [
               // View mode segmented button
@@ -223,7 +375,7 @@ class _CalendarHeader extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              // Overdue badge
+              // Overdue badge — tap toggles overdue panel
               GestureDetector(
                 onTap: onTapOverdueBadge,
                 child: Container(
@@ -258,6 +410,18 @@ class _CalendarHeader extends StatelessWidget {
                     ],
                   ),
                 ),
+              ),
+              const SizedBox(width: 4),
+              // Unscheduled jobs drawer toggle
+              IconButton(
+                icon: Icon(
+                  drawerOpen ? Icons.close : Icons.format_list_bulleted,
+                  size: 18,
+                ),
+                onPressed: onToggleDrawer,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                tooltip: drawerOpen ? 'Close job queue' : 'Open job queue',
               ),
             ],
           ),

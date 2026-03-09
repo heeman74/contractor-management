@@ -31,6 +31,7 @@ const double _totalDayMinutes = 24 * 60;
 ///   - Auto-scroll to working hours start (06:00) on initial load
 ///   - "Now" line painted by CalendarGridPainter
 ///   - Pagination: prev/next buttons + page indicator
+///   - DragTarget grid on each ContractorLane for scheduling operations
 ///
 /// Consumes providers: bookingsForDateProvider, filteredContractorsProvider,
 /// contractorPageIndexProvider, contractorPageCountProvider, showCompletedJobsProvider.
@@ -40,7 +41,9 @@ class CalendarDayView extends ConsumerStatefulWidget {
     required this.bookings,
     required this.contractors,
     required this.jobs,
+    required this.companyId,
     super.key,
+    this.onBookingMutated,
   });
 
   /// The date being displayed.
@@ -54,6 +57,13 @@ class CalendarDayView extends ConsumerStatefulWidget {
 
   /// Map of jobId → JobEntity for resolving booking details.
   final Map<String, JobEntity> jobs;
+
+  /// Company ID for booking creation tenant scope.
+  final String companyId;
+
+  /// Called after any booking mutation (create/reassign/resize) to trigger
+  /// the undo snackbar in the parent screen.
+  final VoidCallback? onBookingMutated;
 
   @override
   ConsumerState<CalendarDayView> createState() => _CalendarDayViewState();
@@ -162,6 +172,8 @@ class _CalendarDayViewState extends ConsumerState<CalendarDayView> {
                           totalHeight: totalHeight,
                           scrollController: _scrollController,
                           showCompleted: showCompleted,
+                          companyId: widget.companyId,
+                          onBookingMutated: widget.onBookingMutated,
                         ),
                       ),
               ),
@@ -263,6 +275,8 @@ class _LanePage extends StatelessWidget {
     required this.totalHeight,
     required this.scrollController,
     required this.showCompleted,
+    required this.companyId,
+    this.onBookingMutated,
   });
 
   final List<UserEntity> contractors;
@@ -274,6 +288,8 @@ class _LanePage extends StatelessWidget {
   final double totalHeight;
   final ScrollController scrollController;
   final bool showCompleted;
+  final String companyId;
+  final VoidCallback? onBookingMutated;
 
   @override
   Widget build(BuildContext context) {
@@ -301,6 +317,9 @@ class _LanePage extends StatelessWidget {
           totalDayHeightMinutes: _totalDayMinutes,
           scrollController: scrollController,
           showCompleted: showCompleted,
+          companyId: companyId,
+          onBookingCreated: (_) => onBookingMutated?.call(),
+          onBookingReassigned: (_) => onBookingMutated?.call(),
         );
       }).toList(),
     );
