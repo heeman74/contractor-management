@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 05-01-PLAN.md
-last_updated: "2026-03-09T18:42:06.296Z"
+stopped_at: Completed 05-02-PLAN.md
+last_updated: "2026-03-09T18:59:34.554Z"
 last_activity: 2026-03-05 — WorkManager dispatcher, sync status provider, app bar subtitle, pull-to-refresh on 3 screens
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 31
-  completed_plans: 26
+  completed_plans: 27
   percent: 90
 ---
 
@@ -75,6 +75,7 @@ Progress: [█████████░] 90%
 | Phase 04-job-lifecycle P08 | 120min | 2 tasks | 8 files |
 | Phase 04-job-lifecycle P09 | 2min | 2 tasks | 5 files |
 | Phase 05-calendar-and-dispatch-ui P01 | 13min | 2 tasks | 14 files |
+| Phase 05-calendar-and-dispatch-ui P02 | 13min | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -162,6 +163,10 @@ Recent decisions affecting current work:
 - [Phase 05-calendar-and-dispatch-ui]: JobSiteSyncHandler is pull-only — push() throws StateError (job sites are read-only on mobile)
 - [Phase 05-calendar-and-dispatch-ui]: delay endpoint declared BEFORE GET /jobs/{job_id} to prevent FastAPI route shadowing
 - [Phase 05-calendar-and-dispatch-ui]: bookings/job_sites fields in SyncResponse default to empty list for Phase 4 client backwards compatibility
+- [Phase 05-calendar-and-dispatch-ui]: PageView replaced with contractorPageIndexProvider StateProvider pagination — avoids ScrollController lifecycle complexity across pages
+- [Phase 05-calendar-and-dispatch-ui]: UserDao accessed via AppDatabase.userDao (not registered in GetIt) — matches user_providers.dart pattern
+- [Phase 05-calendar-and-dispatch-ui]: Default 06:00–18:00 blocked intervals are placeholders in ContractorLane — Plan 03 wires real ContractorWeeklySchedule data
+- [Phase 05-calendar-and-dispatch-ui]: ScheduleScreen re-export pattern: shared/screens/schedule_screen.dart re-exports from feature-first path to keep router imports stable
 
 ### Pending Todos
 
@@ -178,6 +183,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-09T18:42:06.289Z
-Stopped at: Completed 05-01-PLAN.md
+Last session: 2026-03-09T18:59:34.546Z
+Stopped at: Completed 05-02-PLAN.md
 Resume file: None

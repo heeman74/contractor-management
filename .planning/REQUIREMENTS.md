@@ -25,7 +25,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **SCHED-05**: Conflict detection preventing double-bookings
 - [x] **SCHED-06**: Travel time awareness in scheduling (buffer between jobs)
 - [x] **SCHED-07**: Multi-day job support (jobs spanning days/weeks with partial-day assignments)
-- [ ] **SCHED-08**: Overdue task warnings when jobs miss scheduled completion
+- [x] **SCHED-08**: Overdue task warnings when jobs miss scheduled completion
 - [x] **SCHED-09**: Forced delay justification — contractor must provide reason + new ETA for overdue jobs
 
 ### Client Experience
@@ -106,7 +106,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLNT-01 | Phase 4 — Job Lifecycle | Complete |
 | CLNT-04 | Phase 4 — Job Lifecycle | Complete |
 | SCHED-03 | Phase 5 — Calendar and Dispatch UI | Complete |
-| SCHED-08 | Phase 5 — Calendar and Dispatch UI | Pending |
+| SCHED-08 | Phase 5 — Calendar and Dispatch UI | Complete |
 | SCHED-09 | Phase 5 — Calendar and Dispatch UI | Complete |
 | FIELD-01 | Phase 6 — Field Workflow | Pending |
 | FIELD-02 | Phase 6 — Field Workflow | Pending |
