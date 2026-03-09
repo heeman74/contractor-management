@@ -94,3 +94,12 @@
 - Test edge cases: invalid input, missing auth, wrong token types, empty results, soft-deleted records.
 - Never mock what you can test with an in-memory database (Drift DAOs, SQLAlchemy with test DB).
 - Run `pytest` (backend) and `flutter test` (mobile) before committing.
+
+### E2E Tests (Required for Every New Feature)
+- Every new feature MUST include intensive end-to-end tests covering the full user flow before merging.
+- E2E tests must exercise the complete path: UI interaction → service/provider → data layer (Drift/API) → response handling → UI update.
+- For screens with dialog flows (confirm/cancel, form submission), test both the happy path (correct POST data, success UI) and error path (server errors, snackbar messages).
+- Mock network calls at the Dio level (`MockDio` via `MockDioClient.instance`) and verify captured request paths and payloads.
+- For data-driven UI, seed realistic Drift data and assert rendering: badges, chips, sort order, empty states.
+- E2E tests must cover multi-role flows when applicable (e.g., client submits → admin reviews → job created).
+- Minimum coverage per feature: happy path, validation/error handling, edge cases (empty data, max limits), and cross-role visibility.
