@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../../core/routing/route_names.dart';
 
 /// Client portal screen — Client only. Placeholder for Phase 5.
 ///
@@ -41,6 +44,12 @@ class ClientPortalScreen extends StatelessWidget {
               'Track job status, view invoices,\nand stay in the loop on your projects.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              icon: const Icon(Icons.add_task),
+              label: const Text('Submit a Job Request'),
+              onPressed: () => context.go(RouteNames.jobRequestForm),
             ),
           ],
         ),

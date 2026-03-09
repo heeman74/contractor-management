@@ -72,6 +72,9 @@ abstract final class RouteNames {
   /// Client self-service portal — view job status, invoices.
   static const clientPortal = '/client/portal';
 
+  /// In-app job request form -- client submits a request for admin review.
+  static const jobRequestForm = '/client/request';
+
   // ─── Helpers ─────────────────────────────────────────────────────────────
 
   /// Build the job detail path for a specific job ID.

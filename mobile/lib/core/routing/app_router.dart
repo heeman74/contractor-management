@@ -15,6 +15,7 @@ import '../../features/auth/presentation/screens/register_screen.dart';
 import '../../features/auth/presentation/screens/splash_screen.dart';
 import '../../features/auth/presentation/screens/unauthorized_screen.dart';
 import '../../features/client/presentation/screens/client_portal_screen.dart';
+import '../../features/client/presentation/screens/job_request_form_screen.dart';
 import '../../features/contractor/presentation/screens/availability_screen.dart';
 import '../../features/jobs/presentation/screens/contractor_jobs_screen.dart';
 import '../../features/jobs/presentation/screens/job_detail_screen.dart';
@@ -218,6 +219,10 @@ GoRouter router(Ref ref) {
               GoRoute(
                 path: RouteNames.clientPortal,
                 builder: (context, state) => const ClientPortalScreen(),
+              ),
+              GoRoute(
+                path: RouteNames.jobRequestForm,
+                builder: (context, state) => const JobRequestFormScreen(),
               ),
             ],
           ),
