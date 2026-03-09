@@ -16,7 +16,6 @@ Tests verify:
 from __future__ import annotations
 
 import asyncio
-import uuid
 from datetime import UTC, datetime
 
 import pytest
@@ -51,11 +50,12 @@ async def test_booking_creates_successfully(
 ):
     """Simple booking within working hours: returns 201."""
     contractor_id = seed_contractor_weekly_schedule["contractor_id"]
+    job_id = seed_contractor_weekly_schedule["job_id"]
     resp = await scheduling_client.post(
         "/api/v1/scheduling/bookings",
         json={
             "contractor_id": str(contractor_id),
-            "job_id": str(uuid.uuid4()),
+            "job_id": str(job_id),
             "start": BOOKING_START,
             "end": BOOKING_END,
         },
@@ -73,13 +73,14 @@ async def test_booking_conflict_returns_409(
 ):
     """Book a slot, then book overlapping slot: second returns 409 with ConflictDetail."""
     contractor_id = seed_contractor_weekly_schedule["contractor_id"]
+    job_id = seed_contractor_weekly_schedule["job_id"]
 
     # First booking: 9am-11am PST
     resp1 = await scheduling_client.post(
         "/api/v1/scheduling/bookings",
         json={
             "contractor_id": str(contractor_id),
-            "job_id": str(uuid.uuid4()),
+            "job_id": str(job_id),
             "start": BOOKING_START,
             "end": BOOKING_END,
         },
@@ -91,7 +92,7 @@ async def test_booking_conflict_returns_409(
         "/api/v1/scheduling/bookings",
         json={
             "contractor_id": str(contractor_id),
-            "job_id": str(uuid.uuid4()),
+            "job_id": str(job_id),
             "start": make_utc(2026, 3, 9, 18, 0),  # 10:00 PST
             "end": make_utc(2026, 3, 9, 20, 0),    # 12:00 PST
         },
@@ -113,6 +114,7 @@ async def test_booking_adjacent_no_conflict(
     but 14:00-19:00 UTC with PST = UTC-8). Using morning block to avoid lunch break.
     """
     contractor_id = seed_contractor_weekly_schedule["contractor_id"]
+    job_id = seed_contractor_weekly_schedule["job_id"]
 
     # Working hours: Mon 7am-12pm PST = 15:00-20:00 UTC (PST=UTC-8, so 7+8=15)
     # First: 9am-10am PST = 17:00-18:00 UTC
@@ -120,7 +122,7 @@ async def test_booking_adjacent_no_conflict(
         "/api/v1/scheduling/bookings",
         json={
             "contractor_id": str(contractor_id),
-            "job_id": str(uuid.uuid4()),
+            "job_id": str(job_id),
             "start": make_utc(2026, 3, 9, 17, 0),  # 09:00 PST
             "end": make_utc(2026, 3, 9, 18, 0),    # 10:00 PST
         },
@@ -132,7 +134,7 @@ async def test_booking_adjacent_no_conflict(
         "/api/v1/scheduling/bookings",
         json={
             "contractor_id": str(contractor_id),
-            "job_id": str(uuid.uuid4()),
+            "job_id": str(job_id),
             "start": make_utc(2026, 3, 9, 18, 0),  # 10:00 PST
             "end": make_utc(2026, 3, 9, 19, 0),    # 11:00 PST
         },
@@ -146,13 +148,14 @@ async def test_soft_deleted_booking_no_conflict(
 ):
     """Soft-delete a booking, then book same slot: succeeds (GIST WHERE deleted_at IS NULL)."""
     contractor_id = seed_contractor_weekly_schedule["contractor_id"]
+    job_id = seed_contractor_weekly_schedule["job_id"]
 
     # Create booking
     resp1 = await scheduling_client.post(
         "/api/v1/scheduling/bookings",
         json={
             "contractor_id": str(contractor_id),
-            "job_id": str(uuid.uuid4()),
+            "job_id": str(job_id),
             "start": BOOKING_START,
             "end": BOOKING_END,
         },
@@ -169,7 +172,7 @@ async def test_soft_deleted_booking_no_conflict(
         "/api/v1/scheduling/bookings",
         json={
             "contractor_id": str(contractor_id),
-            "job_id": str(uuid.uuid4()),
+            "job_id": str(job_id),
             "start": BOOKING_START,
             "end": BOOKING_END,
         },
@@ -185,13 +188,14 @@ async def test_booking_outside_working_hours_rejected(
 ):
     """Book at 11pm PST (outside working hours): returns 422."""
     contractor_id = seed_contractor_weekly_schedule["contractor_id"]
+    job_id = seed_contractor_weekly_schedule["job_id"]
 
     # 11pm-midnight PST = 07:00-08:00 UTC next day (outside working hours 7am-4pm PST)
     resp = await scheduling_client.post(
         "/api/v1/scheduling/bookings",
         json={
             "contractor_id": str(contractor_id),
-            "job_id": str(uuid.uuid4()),
+            "job_id": str(job_id),
             "start": make_utc(2026, 3, 10, 7, 0),  # 11pm PST Monday -> 7am UTC Tuesday
             "end": make_utc(2026, 3, 10, 8, 0),    # midnight PST Monday -> 8am UTC Tuesday
         },
@@ -205,12 +209,13 @@ async def test_booking_below_minimum_duration_rejected(
 ):
     """Book a 15-minute slot (below 30-min minimum): returns 422."""
     contractor_id = seed_contractor_weekly_schedule["contractor_id"]
+    job_id = seed_contractor_weekly_schedule["job_id"]
 
     resp = await scheduling_client.post(
         "/api/v1/scheduling/bookings",
         json={
             "contractor_id": str(contractor_id),
-            "job_id": str(uuid.uuid4()),
+            "job_id": str(job_id),
             "start": make_utc(2026, 3, 9, 17, 0),   # 09:00 PST
             "end": make_utc(2026, 3, 9, 17, 15),    # 09:15 PST — 15 minutes
         },
@@ -236,10 +241,11 @@ async def test_concurrent_booking_exactly_one_succeeds(
     """
     contractor_id = seed_contractor_weekly_schedule["contractor_id"]
     token = seed_contractor_weekly_schedule["admin_token"]
+    job_id = seed_contractor_weekly_schedule["job_id"]
 
     booking_payload = {
         "contractor_id": str(contractor_id),
-        "job_id": str(uuid.uuid4()),
+        "job_id": str(job_id),
         "start": BOOKING_START,
         "end": BOOKING_END,
     }
@@ -283,12 +289,13 @@ async def test_concurrent_booking_load(seed_contractor_weekly_schedule):
     """
     contractor_id = seed_contractor_weekly_schedule["contractor_id"]
     token = seed_contractor_weekly_schedule["admin_token"]
+    job_id = seed_contractor_weekly_schedule["job_id"]
     num_clients = 50
 
     # Shared booking payload — all clients try to book the same slot
     booking_payload = {
         "contractor_id": str(contractor_id),
-        "job_id": str(uuid.uuid4()),
+        "job_id": str(job_id),
         "start": make_utc(2026, 3, 9, 17, 0),   # 09:00 PST
         "end": make_utc(2026, 3, 9, 19, 0),     # 11:00 PST
     }
@@ -336,13 +343,14 @@ async def test_conflict_check_endpoint_read_only(
 ):
     """POST /conflicts returns conflicts without creating any booking."""
     contractor_id = seed_contractor_weekly_schedule["contractor_id"]
+    job_id = seed_contractor_weekly_schedule["job_id"]
 
     # First create a booking
     resp1 = await scheduling_client.post(
         "/api/v1/scheduling/bookings",
         json={
             "contractor_id": str(contractor_id),
-            "job_id": str(uuid.uuid4()),
+            "job_id": str(job_id),
             "start": BOOKING_START,
             "end": BOOKING_END,
         },
@@ -377,7 +385,7 @@ async def test_conflict_detail_includes_job_info(
 ):
     """ConflictDetail response includes booking_id, time_range, job_id."""
     contractor_id = seed_contractor_weekly_schedule["contractor_id"]
-    job_id = uuid.uuid4()
+    job_id = seed_contractor_weekly_schedule["job_id"]
 
     # Create a booking
     resp1 = await scheduling_client.post(
@@ -397,7 +405,7 @@ async def test_conflict_detail_includes_job_info(
         "/api/v1/scheduling/bookings",
         json={
             "contractor_id": str(contractor_id),
-            "job_id": str(uuid.uuid4()),
+            "job_id": str(job_id),
             "start": BOOKING_START,
             "end": BOOKING_END,
         },

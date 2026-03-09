@@ -37,7 +37,7 @@ async def test_multiday_booking_all_days_created(
 ):
     """Book 3 consecutive days: returns 3 bookings with day_index 0, 1, 2."""
     contractor_id = seed_contractor_weekly_schedule["contractor_id"]
-    job_id = str(uuid.uuid4())
+    job_id = str(seed_contractor_weekly_schedule["job_id"])
 
     resp = await scheduling_client.post(
         "/api/v1/scheduling/bookings/multi-day",
@@ -88,12 +88,14 @@ async def test_multiday_all_or_nothing(
     """Book 3 days, middle day has conflict: entire booking fails (no day is created)."""
     contractor_id = seed_contractor_weekly_schedule["contractor_id"]
 
+    job_id = str(seed_contractor_weekly_schedule["job_id"])
+
     # Pre-book Tuesday (middle day)
     preblock_resp = await scheduling_client.post(
         "/api/v1/scheduling/bookings",
         json={
             "contractor_id": str(contractor_id),
-            "job_id": str(uuid.uuid4()),
+            "job_id": job_id,
             "start": make_utc(2026, 3, 10, 17, 0),  # Tue 09:00 PST
             "end": make_utc(2026, 3, 10, 19, 0),    # Tue 11:00 PST
         },
@@ -105,7 +107,7 @@ async def test_multiday_all_or_nothing(
         "/api/v1/scheduling/bookings/multi-day",
         json={
             "contractor_id": str(contractor_id),
-            "job_id": str(uuid.uuid4()),
+            "job_id": job_id,
             "day_blocks": [
                 {"date": "2026-03-09", "start_time": "09:00:00", "end_time": "11:00:00"},
                 {"date": "2026-03-10", "start_time": "09:00:00", "end_time": "11:00:00"},
@@ -134,7 +136,7 @@ async def test_multiday_non_consecutive_days(
 ):
     """Book Mon and Wed (skip Tue): both bookings created, Tue remains free."""
     contractor_id = seed_contractor_weekly_schedule["contractor_id"]
-    job_id = str(uuid.uuid4())
+    job_id = str(seed_contractor_weekly_schedule["job_id"])
 
     resp = await scheduling_client.post(
         "/api/v1/scheduling/bookings/multi-day",
@@ -184,11 +186,12 @@ async def test_multiday_per_day_different_times(
     """
     contractor_id = seed_contractor_weekly_schedule["contractor_id"]
 
+    job_id = str(seed_contractor_weekly_schedule["job_id"])
     resp = await scheduling_client.post(
         "/api/v1/scheduling/bookings/multi-day",
         json={
             "contractor_id": str(contractor_id),
-            "job_id": str(uuid.uuid4()),
+            "job_id": job_id,
             "day_blocks": [
                 {"date": "2026-03-09", "start_time": "08:00:00", "end_time": "11:00:00"},  # Mon: 3h (morning block)
                 {"date": "2026-03-10", "start_time": "13:00:00", "end_time": "15:30:00"},  # Tue: 2.5h (afternoon block)
@@ -219,13 +222,14 @@ async def test_multiday_reschedule_single_day(
 ):
     """Cancel one day of multi-day booking, rebook that day at new time."""
     contractor_id = seed_contractor_weekly_schedule["contractor_id"]
+    job_id = str(seed_contractor_weekly_schedule["job_id"])
 
     # Create a 2-day booking
     resp = await scheduling_client.post(
         "/api/v1/scheduling/bookings/multi-day",
         json={
             "contractor_id": str(contractor_id),
-            "job_id": str(uuid.uuid4()),
+            "job_id": job_id,
             "day_blocks": [
                 {"date": "2026-03-09", "start_time": "09:00:00", "end_time": "11:00:00"},  # Mon
                 {"date": "2026-03-10", "start_time": "09:00:00", "end_time": "11:00:00"},  # Tue
@@ -248,7 +252,7 @@ async def test_multiday_reschedule_single_day(
         "/api/v1/scheduling/bookings",
         json={
             "contractor_id": str(contractor_id),
-            "job_id": str(uuid.uuid4()),
+            "job_id": job_id,
             "start": make_utc(2026, 3, 9, 20, 0),  # 13:00 PDT (UTC-7): afternoon block start
             "end": make_utc(2026, 3, 9, 22, 0),    # 15:00 PDT: within afternoon block (ends 16:00 PDT = 23:00 UTC)
         },

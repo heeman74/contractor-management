@@ -430,11 +430,12 @@ async def test_booking_dst_boundary(
     )
 
     # Create the booking via API (using UTC times)
+    job_id = seed_contractor_weekly_schedule["job_id"]
     resp = await scheduling_client.post(
         "/api/v1/scheduling/bookings",
         json={
             "contractor_id": str(contractor_id),
-            "job_id": str(uuid.uuid4()),
+            "job_id": str(job_id),
             "start": utc_start.isoformat(),
             "end": utc_end.isoformat(),
         },

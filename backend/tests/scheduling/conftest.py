@@ -164,6 +164,9 @@ async def seed_contractor(test_engine, scheduling_company_with_config):
             """),
             {"contractor_id": str(contractor_id), "company_id": str(company_id)},
         )
+        # Create a stub job so scheduling tests can use job_id in booking API calls.
+        # Migration 0008 added bookings_job_id_fkey — booking inserts require a real jobs row.
+        test_job_id = await _create_job_row(conn, company_id)
         await conn.commit()
 
     # Create JWT for contractor (long-lived for tests)
@@ -180,6 +183,7 @@ async def seed_contractor(test_engine, scheduling_company_with_config):
         "contractor_token": contractor_token,
         "company_id": company_id,
         "admin_token": scheduling_company_with_config["admin_token"],
+        "job_id": test_job_id,
     }
 
 
@@ -264,22 +268,50 @@ async def seed_job_site(test_engine, seed_contractor):
     }
 
 
+async def _create_job_row(conn, company_id: uuid.UUID) -> uuid.UUID:
+    """Insert a minimal jobs row and return its id.
+
+    The jobs table now requires a valid jobs.id FK on bookings (migration 0008).
+    This helper creates a stub job for test fixtures so booking inserts satisfy
+    the FK constraint. Uses TRUNCATE-safe defaults (status=quote, priority=medium).
+    """
+    job_id = uuid.uuid4()
+    await conn.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+    await conn.execute(
+        text("""
+            INSERT INTO jobs (id, company_id, description, trade_type, version, created_at, updated_at)
+            VALUES (:id, :company_id, :description, :trade_type, 1, now(), now())
+        """),
+        {
+            "id": str(job_id),
+            "company_id": str(company_id),
+            "description": "Test job for scheduling fixtures",
+            "trade_type": "general",
+        },
+    )
+    return job_id
+
+
 @pytest_asyncio.fixture
 def booking_factory(test_engine, seed_contractor):
     """Factory fixture for creating bookings at specified UTC times.
 
     Usage:
         booking_id = await booking_factory(start=datetime(..., tzinfo=UTC), end=datetime(..., tzinfo=UTC))
+
+    Note: Creates a real jobs row per booking to satisfy the bookings_job_id_fkey
+    FK constraint added in migration 0008.
     """
     contractor_id = seed_contractor["contractor_id"]
     company_id = seed_contractor["company_id"]
 
     async def make_booking(start: datetime, end: datetime, job_site_id=None, notes=None):
         booking_id = uuid.uuid4()
-        job_id = uuid.uuid4()
         async with test_engine.connect() as conn:
             # SET LOCAL requires direct string interpolation — no bind params
             await conn.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+            # Create a stub job to satisfy bookings_job_id_fkey (migration 0008)
+            job_id = await _create_job_row(conn, company_id)
             await conn.execute(
                 text("""
                     INSERT INTO bookings

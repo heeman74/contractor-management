@@ -113,11 +113,19 @@ async def clean_tables(test_engine):
         await conn.execute(
             text(
                 "TRUNCATE TABLE "
+                # Phase 4 job lifecycle tables (reference jobs/users): children before parents.
+                # ratings and job_requests reference jobs; client_properties references job_sites.
+                "ratings, "
+                "job_requests, "
+                "client_properties, "
+                "client_profiles, "
                 # Scheduling tables (reference users/companies): children before parents.
-                # bookings listed first due to self-referential parent_booking_id FK.
+                # bookings listed before job_sites (bookings references job_sites).
+                # bookings now also references jobs (via bookings_job_id_fkey from migration 0008).
                 "bookings, "
                 "travel_time_cache, "
                 "job_sites, "
+                "jobs, "
                 "contractor_date_overrides, "
                 "contractor_weekly_schedule, "
                 "contractor_schedule_locks, "

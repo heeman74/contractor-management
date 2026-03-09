@@ -437,12 +437,14 @@ async def test_availability_with_travel_buffer(
     # Working hours: morning 07:00-12:00 PDT = 14:00-19:00 UTC
     #                afternoon 13:00-16:00 PDT = 20:00-23:00 UTC
 
+    job_id = str(seed_contractor_weekly_schedule["job_id"])
+
     # Book Job 1 at site1: 9am-10am PDT = 16:00-17:00 UTC (morning block)
     resp1 = await scheduling_client.post(
         "/api/v1/scheduling/bookings",
         json={
             "contractor_id": str(contractor_id),
-            "job_id": str(uuid.uuid4()),
+            "job_id": job_id,
             "job_site_id": str(site1_id),
             "start": datetime(2026, 3, 9, 16, 0, tzinfo=UTC).isoformat(),  # 9am PDT
             "end": datetime(2026, 3, 9, 17, 0, tzinfo=UTC).isoformat(),    # 10am PDT
@@ -455,7 +457,7 @@ async def test_availability_with_travel_buffer(
         "/api/v1/scheduling/bookings",
         json={
             "contractor_id": str(contractor_id),
-            "job_id": str(uuid.uuid4()),
+            "job_id": job_id,
             "job_site_id": str(site2_id),
             "start": datetime(2026, 3, 9, 20, 0, tzinfo=UTC).isoformat(),  # 1pm PDT
             "end": datetime(2026, 3, 9, 21, 0, tzinfo=UTC).isoformat(),    # 2pm PDT
