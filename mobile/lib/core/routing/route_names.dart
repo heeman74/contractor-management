@@ -34,6 +34,14 @@ abstract final class RouteNames {
   /// User profile — shows current user info and roles.
   static const profile = '/profile';
 
+  // --- Job routes ---
+
+  /// Job detail — view a single job's details, schedule, and history.
+  static const jobDetail = '/jobs/:id';
+
+  /// Job creation wizard — 4-step form to create a new job.
+  static const jobNew = '/jobs/new';
+
   // --- Admin-only routes ---
 
   /// Team management — list/invite contractors and clients.
@@ -42,13 +50,34 @@ abstract final class RouteNames {
   /// Client management — view and manage client accounts.
   static const adminClients = '/admin/clients';
 
+  /// Client CRM — detailed client profile and job history (Plan 07).
+  static const clientCrm = '/admin/clients';
+
+  /// Client detail — individual client profile view (Plan 07).
+  static const clientDetail = '/admin/clients/:id';
+
+  /// Request review queue — admin triage incoming job requests (Plan 07).
+  static const requestReview = '/admin/requests';
+
   // --- Contractor-only routes ---
 
   /// Contractor availability settings — coming in Phase 3.
   static const contractorAvailability = '/contractor/availability';
 
+  /// Contractor job list — assigned jobs with quick-action transitions.
+  static const contractorJobs = '/contractor/jobs';
+
   // --- Client-only routes ---
 
   /// Client self-service portal — view job status, invoices.
   static const clientPortal = '/client/portal';
+
+  // ─── Helpers ─────────────────────────────────────────────────────────────
+
+  /// Build the job detail path for a specific job ID.
+  static String jobDetailPath(String jobId) => '/jobs/$jobId';
+
+  /// Build the client detail path for a specific client ID.
+  static String clientDetailPath(String clientId) =>
+      '/admin/clients/$clientId';
 }

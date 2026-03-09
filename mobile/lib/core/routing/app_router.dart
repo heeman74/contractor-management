@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-import '../../features/admin/presentation/screens/client_management_screen.dart';
+import '../../features/admin/presentation/screens/client_crm_screen.dart';
+import '../../features/admin/presentation/screens/request_review_screen.dart';
 import '../../features/admin/presentation/screens/team_management_screen.dart';
+import '../../features/jobs/presentation/screens/client_detail_screen.dart';
 import '../../features/auth/domain/auth_state.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
@@ -14,9 +16,12 @@ import '../../features/auth/presentation/screens/splash_screen.dart';
 import '../../features/auth/presentation/screens/unauthorized_screen.dart';
 import '../../features/client/presentation/screens/client_portal_screen.dart';
 import '../../features/contractor/presentation/screens/availability_screen.dart';
+import '../../features/jobs/presentation/screens/contractor_jobs_screen.dart';
+import '../../features/jobs/presentation/screens/job_detail_screen.dart';
+import '../../features/jobs/presentation/screens/job_wizard_screen.dart';
+import '../../features/jobs/presentation/screens/jobs_pipeline_screen.dart';
 import '../../shared/models/user_role.dart';
 import '../../shared/screens/home_screen.dart';
-import '../../shared/screens/jobs_screen.dart';
 import '../../shared/screens/profile_screen.dart';
 import '../../shared/screens/schedule_screen.dart';
 import '../../shared/widgets/app_shell.dart';
@@ -124,12 +129,27 @@ GoRouter router(Ref ref) {
               ),
             ],
           ),
-          // Branch 1: Jobs
+          // Branch 1: Jobs (admin/all-role pipeline)
           StatefulShellBranch(
             routes: [
               GoRoute(
                 path: RouteNames.jobs,
-                builder: (context, state) => const JobsScreen(),
+                builder: (context, state) => const JobsPipelineScreen(),
+                routes: [
+                  // /jobs/new — must be declared BEFORE /jobs/:id to avoid
+                  // "new" being matched as a jobId parameter.
+                  GoRoute(
+                    path: 'new',
+                    builder: (context, state) => const JobWizardScreen(),
+                  ),
+                  GoRoute(
+                    path: ':id',
+                    builder: (context, state) {
+                      final jobId = state.pathParameters['id']!;
+                      return JobDetailScreen(jobId: jobId);
+                    },
+                  ),
+                ],
               ),
             ],
           ),
@@ -151,25 +171,44 @@ GoRouter router(Ref ref) {
               ),
             ],
           ),
-          // Branch 4: Admin - Team (includes client management as a sub-route)
+          // Branch 4: Admin - Team + CRM + Requests
           StatefulShellBranch(
             routes: [
               GoRoute(
                 path: RouteNames.adminTeam,
                 builder: (context, state) => const TeamManagementScreen(),
               ),
+              // /admin/clients — full CRM (Plan 07 will replace ClientCrmScreen)
               GoRoute(
-                path: RouteNames.adminClients,
-                builder: (context, state) => const ClientManagementScreen(),
+                path: '/admin/clients',
+                builder: (context, state) => const ClientCrmScreen(),
+                routes: [
+                  GoRoute(
+                    path: ':id',
+                    builder: (context, state) {
+                      final clientId = state.pathParameters['id']!;
+                      return ClientDetailScreen(clientId: clientId);
+                    },
+                  ),
+                ],
+              ),
+              // /admin/requests — incoming job request triage queue (Plan 07)
+              GoRoute(
+                path: RouteNames.requestReview,
+                builder: (context, state) => const RequestReviewScreen(),
               ),
             ],
           ),
-          // Branch 5: Contractor - Availability
+          // Branch 5: Contractor - Availability + Contractor Jobs
           StatefulShellBranch(
             routes: [
               GoRoute(
                 path: RouteNames.contractorAvailability,
                 builder: (context, state) => const AvailabilityScreen(),
+              ),
+              GoRoute(
+                path: RouteNames.contractorJobs,
+                builder: (context, state) => const ContractorJobsScreen(),
               ),
             ],
           ),
