@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/client_profile_entity.dart';
 import '../../domain/job_entity.dart';
@@ -190,7 +189,7 @@ class _ClientCardState extends State<ClientCard> {
                     children: [
                       // Tags row
                       if (widget.profile.tags.isNotEmpty) ...[
-                        _SectionLabel(label: 'Tags'),
+                        const _SectionLabel(label: 'Tags'),
                         const SizedBox(height: 4),
                         Wrap(
                           spacing: 6,
@@ -213,7 +212,7 @@ class _ClientCardState extends State<ClientCard> {
                       // Admin notes preview
                       if (widget.profile.adminNotes != null &&
                           widget.profile.adminNotes!.isNotEmpty) ...[
-                        _SectionLabel(label: 'Admin Notes'),
+                        const _SectionLabel(label: 'Admin Notes'),
                         const SizedBox(height: 4),
                         Text(
                           widget.profile.adminNotes!,
@@ -226,7 +225,7 @@ class _ClientCardState extends State<ClientCard> {
 
                       // Referral source
                       if (widget.profile.referralSource != null) ...[
-                        _SectionLabel(label: 'Referral Source'),
+                        const _SectionLabel(label: 'Referral Source'),
                         const SizedBox(height: 4),
                         Text(
                           widget.profile.referralSource!,
@@ -237,7 +236,7 @@ class _ClientCardState extends State<ClientCard> {
 
                       // Saved properties count
                       if (widget.savedPropertyCount > 0) ...[
-                        _SectionLabel(label: 'Saved Properties'),
+                        const _SectionLabel(label: 'Saved Properties'),
                         const SizedBox(height: 4),
                         Text(
                           '${widget.savedPropertyCount} saved address${widget.savedPropertyCount == 1 ? '' : 'es'}',
@@ -248,7 +247,7 @@ class _ClientCardState extends State<ClientCard> {
 
                       // Recent jobs (last 3)
                       if (widget.recentJobs.isNotEmpty) ...[
-                        _SectionLabel(label: 'Recent Jobs'),
+                        const _SectionLabel(label: 'Recent Jobs'),
                         const SizedBox(height: 4),
                         ...widget.recentJobs.take(3).map(
                               (job) => Padding(

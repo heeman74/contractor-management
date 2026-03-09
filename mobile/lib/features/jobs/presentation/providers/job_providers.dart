@@ -1,4 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// StateProvider moved to legacy in Riverpod 3 — explicitly imported.
+// ignore: depend_on_referenced_packages
+import 'package:riverpod/legacy.dart';
 
 import '../../../../core/di/service_locator.dart';
 import '../../../../features/auth/domain/auth_state.dart';
@@ -129,38 +132,23 @@ final contractorJobsNotifierProvider =
 
 /// Streams a single [JobEntity] by ID from Drift.
 ///
-/// Family provider — one instance per jobId. Automatically disposed when the
-/// job detail screen is popped off the navigation stack.
-class JobDetailNotifier extends FamilyAsyncNotifier<JobEntity?, String> {
-  @override
-  Future<JobEntity?> build(String arg) async {
-    final dao = ref.watch(jobDaoProvider);
-    final jobId = arg;
-
-    // Watch the company's jobs and filter to the specific ID.
-    // When upstream changes, this provider re-emits automatically.
-    final authState = ref.read(authNotifierProvider);
-    if (authState is! AuthAuthenticated) return null;
-
-    final stream = dao
-        .watchJobsByCompany(authState.companyId)
-        .map((jobs) => jobs.where((j) => j.id == jobId).firstOrNull);
-
-    final sub = stream.listen(
-      (job) => state = AsyncData(job),
-      onError: (Object e, StackTrace st) => state = AsyncError(e, st),
-    );
-    ref.onDispose(sub.cancel);
-
-    return await stream.first;
+/// StreamProvider.family — one instance per jobId. Automatically disposed
+/// when the job detail screen is popped off the navigation stack.
+///
+/// Riverpod 3 note: class-based FamilyAsyncNotifier is replaced by
+/// StreamProvider.autoDispose.family — simpler and achieves the same result.
+final jobDetailNotifierProvider = StreamProvider.autoDispose
+    .family<JobEntity?, String>((ref, jobId) {
+  final authState = ref.watch(authNotifierProvider);
+  if (authState is! AuthAuthenticated) {
+    return Stream.value(null);
   }
-}
 
-/// Provider for [JobDetailNotifier] — parameterized by jobId.
-final jobDetailNotifierProvider =
-    AsyncNotifierProvider.family<JobDetailNotifier, JobEntity?, String>(
-  JobDetailNotifier.new,
-);
+  final dao = ref.watch(jobDaoProvider);
+  return dao
+      .watchJobsByCompany(authState.companyId)
+      .map((jobs) => jobs.where((j) => j.id == jobId).firstOrNull);
+});
 
 // ────────────────────────────────────────────────────────────────────────────
 // Multi-select state for batch operations in pipeline list view

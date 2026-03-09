@@ -1,8 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// StateProvider moved to legacy in Riverpod 3 — explicitly imported.
+// ignore: depend_on_referenced_packages
+import 'package:riverpod/legacy.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-import '../../../../core/di/service_locator.dart';
 import '../../../../core/database/app_database.dart';
+import '../../../../core/di/service_locator.dart';
 import '../../domain/client_profile_entity.dart';
 import '../../domain/job_entity.dart';
 import '../../domain/job_request_entity.dart';
