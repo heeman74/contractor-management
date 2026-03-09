@@ -25,6 +25,7 @@ dependencies:
   dio_smart_retry: ^7.0.1
   workmanager: ^0.9.0
   flutter_secure_storage: ^9.2.4
+  image_picker: ^1.1.2
 
 dev_dependencies:
   flutter_test:

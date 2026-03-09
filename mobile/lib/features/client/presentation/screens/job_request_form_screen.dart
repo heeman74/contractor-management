@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_database.dart';
@@ -287,15 +290,14 @@ class _JobRequestFormScreenState
                       const SizedBox(width: 8),
                   itemBuilder: (context, index) => Stack(
                     children: [
-                      Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color:
-                              Theme.of(context).colorScheme.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.file(
+                          File(_photoPaths[index]),
+                          width: 80,
+                          height: 80,
+                          fit: BoxFit.cover,
                         ),
-                        child: const Icon(Icons.image_outlined, size: 32),
                       ),
                       Positioned(
                         top: 0,
@@ -392,22 +394,17 @@ class _JobRequestFormScreenState
   }
 
   Future<void> _pickPhoto() async {
-    // image_picker is not in pubspec.yaml — using platform file picker approach.
-    // In production: add image_picker to pubspec.yaml and implement:
-    //   final picker = ImagePicker();
-    //   final file = await picker.pickImage(source: ImageSource.gallery);
-    //   if (file != null) setState(() => _photoPaths.add(file.path));
-    //
-    // For now, show a placeholder that informs the user.
-    // [Rule 3 auto-fix deferred]: image_picker requires native plugin configuration.
-    // Add to pubspec.yaml: image_picker: ^1.1.2
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Photo picker: add image_picker to pubspec.yaml to enable photo uploads.',
-        ),
-      ),
+    final picker = ImagePicker();
+    final file = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1200,
+      maxHeight: 1200,
+      imageQuality: 80,
     );
+    if (file != null) {
+      setState(() => _photoPaths.add(file.path));
+    }
+    // If file == null the user cancelled — do nothing.
   }
 
   Future<void> _submit() async {
