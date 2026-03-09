@@ -1,6 +1,9 @@
+from pathlib import Path
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from slowapi.errors import RateLimitExceeded
 from starlette.types import Scope, Send
 
@@ -10,9 +13,14 @@ from app.core.rate_limit import limiter
 from app.core.tenant import TenantMiddleware
 from app.features.auth.router import router as auth_router
 from app.features.companies.router import router as companies_router
+from app.features.jobs.router import router as jobs_router
 from app.features.scheduling.router import router as scheduling_router
 from app.features.sync.router import router as sync_router
 from app.features.users.router import router as users_router
+
+# Ensure the uploads directory exists on startup
+_UPLOADS_DIR = Path("uploads")
+_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 # ---------------------------------------------------------------------------
 # App factory
@@ -92,6 +100,10 @@ app.include_router(companies_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
 app.include_router(sync_router, prefix="/api/v1")
 app.include_router(scheduling_router, prefix="/api/v1")
+app.include_router(jobs_router, prefix="/api/v1")
+
+# Serve uploaded files (job request photos etc.) — only on non-production builds
+app.mount("/uploads", StaticFiles(directory=str(_UPLOADS_DIR)), name="uploads")
 
 
 @app.get("/health")

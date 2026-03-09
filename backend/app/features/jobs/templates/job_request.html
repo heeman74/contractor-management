@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Submit a Job Request</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #f5f7fa;
+      color: #1a1a2e;
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 640px;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 0.4rem;
+    }
+
+    .subtitle {
+      font-size: 0.95rem;
+      color: #6b7280;
+      margin-bottom: 2rem;
+    }
+
+    .success-banner {
+      background: #ecfdf5;
+      border: 1px solid #6ee7b7;
+      border-radius: 8px;
+      padding: 1.2rem 1.5rem;
+      color: #065f46;
+      font-size: 1rem;
+      font-weight: 500;
+      text-align: center;
+    }
+
+    .form-group {
+      margin-bottom: 1.25rem;
+    }
+
+    label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 0.4rem;
+    }
+
+    label .required {
+      color: #ef4444;
+      margin-left: 2px;
+    }
+
+    input[type="text"],
+    input[type="email"],
+    input[type="tel"],
+    input[type="date"],
+    input[type="number"],
+    select,
+    textarea {
+      width: 100%;
+      padding: 0.6rem 0.85rem;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      color: #1a1a2e;
+      background: #fff;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      outline: none;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: #6366f1;
+      box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+    }
+
+    textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    .row {
+      display: flex;
+      gap: 1rem;
+    }
+
+    .row .form-group {
+      flex: 1;
+    }
+
+    .radio-group {
+      display: flex;
+      gap: 1.5rem;
+      padding: 0.5rem 0;
+    }
+
+    .radio-label {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-size: 0.95rem;
+      font-weight: 400;
+      cursor: pointer;
+      color: #374151;
+    }
+
+    input[type="radio"] {
+      accent-color: #6366f1;
+      width: 1rem;
+      height: 1rem;
+    }
+
+    .file-hint {
+      font-size: 0.8rem;
+      color: #6b7280;
+      margin-top: 0.3rem;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid #e5e7eb;
+      margin: 1.75rem 0;
+    }
+
+    .section-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #6b7280;
+      margin-bottom: 1rem;
+    }
+
+    .submit-btn {
+      width: 100%;
+      padding: 0.8rem;
+      background: #6366f1;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      margin-top: 0.5rem;
+    }
+
+    .submit-btn:hover { background: #4f46e5; }
+    .submit-btn:active { background: #4338ca; }
+
+    @media (max-width: 520px) {
+      .card { padding: 1.5rem 1rem; }
+      .row { flex-direction: column; gap: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Request a Service</h1>
+    <p class="subtitle">Fill in the details below and we'll get back to you shortly.</p>
+
+    {% if success %}
+      <div class="success-banner">
+        Thank you! Your request has been submitted successfully. We'll be in touch soon.
+      </div>
+    {% else %}
+      <form method="POST" enctype="multipart/form-data"
+            action="/jobs/request/{{ company_id }}">
+        <input type="hidden" name="company_id" value="{{ company_id }}" />
+
+        <div class="section-title">Your Contact Details</div>
+
+        <div class="form-group">
+          <label for="submitted_name">Full Name <span class="required">*</span></label>
+          <input type="text" id="submitted_name" name="submitted_name"
+                 placeholder="Jane Smith" required />
+        </div>
+
+        <div class="row">
+          <div class="form-group">
+            <label for="submitted_email">Email <span class="required">*</span></label>
+            <input type="email" id="submitted_email" name="submitted_email"
+                   placeholder="jane@example.com" required />
+          </div>
+          <div class="form-group">
+            <label for="submitted_phone">Phone</label>
+            <input type="tel" id="submitted_phone" name="submitted_phone"
+                   placeholder="+1 555 000 0000" />
+          </div>
+        </div>
+
+        <hr class="divider" />
+        <div class="section-title">Job Details</div>
+
+        <div class="form-group">
+          <label for="description">What do you need done? <span class="required">*</span></label>
+          <textarea id="description" name="description"
+                    placeholder="Describe the work required in as much detail as possible..."
+                    required></textarea>
+        </div>
+
+        <div class="row">
+          <div class="form-group">
+            <label for="trade_type">Trade Type</label>
+            <select id="trade_type" name="trade_type">
+              <option value="">-- Select trade --</option>
+              <option value="plumbing">Plumbing</option>
+              <option value="electrical">Electrical</option>
+              <option value="hvac">HVAC</option>
+              <option value="carpentry">Carpentry</option>
+              <option value="painting">Painting</option>
+              <option value="roofing">Roofing</option>
+              <option value="landscaping">Landscaping</option>
+              <option value="cleaning">Cleaning</option>
+              <option value="general">General</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Urgency</label>
+            <div class="radio-group">
+              <label class="radio-label">
+                <input type="radio" name="urgency" value="normal" checked />
+                Normal
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="urgency" value="urgent" />
+                Urgent
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="property_address">Property Address</label>
+          <input type="text" id="property_address" name="property_address"
+                 placeholder="123 Main St, City, State 00000" />
+        </div>
+
+        <hr class="divider" />
+        <div class="section-title">Scheduling & Budget</div>
+
+        <div class="row">
+          <div class="form-group">
+            <label for="preferred_date_start">Preferred Start Date</label>
+            <input type="date" id="preferred_date_start" name="preferred_date_start" />
+          </div>
+          <div class="form-group">
+            <label for="preferred_date_end">Preferred End Date</label>
+            <input type="date" id="preferred_date_end" name="preferred_date_end" />
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="form-group">
+            <label for="budget_min">Budget Min ($)</label>
+            <input type="number" id="budget_min" name="budget_min"
+                   min="0" step="0.01" placeholder="0.00" />
+          </div>
+          <div class="form-group">
+            <label for="budget_max">Budget Max ($)</label>
+            <input type="number" id="budget_max" name="budget_max"
+                   min="0" step="0.01" placeholder="0.00" />
+          </div>
+        </div>
+
+        <hr class="divider" />
+        <div class="section-title">Photos (optional)</div>
+
+        <div class="form-group">
+          <label for="photos">Upload Photos</label>
+          <input type="file" id="photos" name="photos" multiple accept="image/*"
+                 max="5" />
+          <p class="file-hint">Up to 5 photos. JPEG, PNG, or HEIC formats accepted.</p>
+        </div>
+
+        <button type="submit" class="submit-btn">Submit Request</button>
+      </form>
+    {% endif %}
+  </div>
+</body>
+</html>
