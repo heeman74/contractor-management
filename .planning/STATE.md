@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 05-03-PLAN.md
-last_updated: "2026-03-09T20:13:10.296Z"
+stopped_at: Completed 05-04-PLAN.md
+last_updated: "2026-03-09T21:52:38.911Z"
 last_activity: "2026-03-09 — Drag-and-drop dispatch calendar: sidebar drawer, DragTarget grid, conflict detection, undo stack, tap-to-schedule, edge resize, multi-day wizard"
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 31
-  completed_plans: 28
+  completed_plans: 29
   percent: 90
 ---
 
@@ -78,6 +78,7 @@ Progress: [█████████░] 90%
 | Phase 05-calendar-and-dispatch-ui P02 | 13min | 3 tasks | 11 files |
 | Phase 05-calendar-and-dispatch-ui P03 | 18min | 2 tasks | 8 files |
 | Phase 05-calendar-and-dispatch-ui P03 | 18 | 2 tasks | 8 files |
+| Phase 05-calendar-and-dispatch-ui P04 | 26min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -177,6 +178,9 @@ Recent decisions affecting current work:
 - [Phase 05-calendar-and-dispatch-ui P03]: UndoStack capped at 10 items — prevents unbounded memory growth; oldest dropped on overflow
 - [Phase 05-calendar-and-dispatch-ui P03]: MultiDayWizardDialog: internet check before suggest-dates call; offline degrades gracefully (manual entry)
 - [Phase 05-calendar-and-dispatch-ui P03]: LongPressDraggable + resize GestureDetector coexist: LPD requires long press, resize uses immediate vertical drag
+- [Phase 05-calendar-and-dispatch-ui]: OverdueJobInfo returned as enriched model from overdueJobsProvider replacing raw JobEntity list
+- [Phase 05-calendar-and-dispatch-ui]: Report Delay placed in bottomNavigationBar not FAB — visible on all three tabs
+- [Phase 05-calendar-and-dispatch-ui]: DelayJustificationDialog.show() static factory reads JobDao from GetIt directly — clean API, avoids provider coupling inside dialog
 
 ### Pending Todos
 
@@ -193,6 +197,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-09T19:30:00.000Z
-Stopped at: Completed 05-03-PLAN.md
+Last session: 2026-03-09T21:52:38.906Z
+Stopped at: Completed 05-04-PLAN.md
 Resume file: None
