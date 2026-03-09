@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../core/routing/route_names.dart';
+import '../../../../features/auth/domain/auth_state.dart';
+import '../../../../features/auth/presentation/providers/auth_provider.dart';
 import '../../../../features/jobs/domain/job_entity.dart';
 import '../../../../features/users/domain/user_entity.dart';
+import '../../../../shared/models/user_role.dart';
 import '../../domain/booking_entity.dart';
 import '../providers/calendar_providers.dart';
 import 'booking_card.dart';
@@ -279,8 +284,8 @@ class _DragTargetGrid extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final slotHeight = _slotMinutes * pixelsPerMinute;
-    final totalSlotsStart = _workingHoursStart * 60 ~/ _slotMinutes;
-    final totalSlotsEnd = _workingHoursEnd * 60 ~/ _slotMinutes;
+    const totalSlotsStart = _workingHoursStart * 60 ~/ _slotMinutes;
+    const totalSlotsEnd = _workingHoursEnd * 60 ~/ _slotMinutes;
     final slotCount = totalSlotsEnd - totalSlotsStart;
 
     return Stack(
@@ -825,7 +830,12 @@ class _TapToScheduleSheetState
 /// Fixed header showing contractor avatar and name at the top of a lane.
 ///
 /// Does not scroll — remains visible while the time body scrolls vertically.
-class _ContractorHeader extends StatelessWidget {
+///
+/// Admin long-press: wrap the header in a [GestureDetector] that opens
+/// schedule settings for the contractor. Per CONTEXT.md locked decision:
+/// "Contractor schedule management: both inline quick actions from calendar
+/// (long-press for day off, adjust hours) AND a separate settings screen".
+class _ContractorHeader extends ConsumerWidget {
   const _ContractorHeader({
     required this.contractor,
     required this.laneWidth,
@@ -835,12 +845,15 @@ class _ContractorHeader extends StatelessWidget {
   final double laneWidth;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final displayName = _contractorName(contractor);
     final initials = _initials(displayName);
     final theme = Theme.of(context);
+    final authState = ref.watch(authNotifierProvider);
+    final isAdmin = authState is AuthAuthenticated &&
+        authState.roles.contains(UserRole.admin);
 
-    return Container(
+    final headerContent = Container(
       width: laneWidth,
       height: 52,
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
@@ -877,9 +890,31 @@ class _ContractorHeader extends StatelessWidget {
               fontWeight: FontWeight.w500,
             ),
           ),
+          // Admin-only hint: shows tooltip on long-press
+          if (isAdmin)
+            const Icon(Icons.more_horiz, size: 10, color: Colors.grey),
         ],
       ),
     );
+
+    // Admin users: long-press opens schedule settings for this contractor.
+    // Contractors: no long-press action (they use the gear icon in their own screen).
+    if (isAdmin) {
+      return GestureDetector(
+        onLongPress: () {
+          context.push(
+            RouteNames.scheduleSettings,
+            extra: contractor.id,
+          );
+        },
+        child: Tooltip(
+          message: 'Long press to manage schedule',
+          child: headerContent,
+        ),
+      );
+    }
+
+    return headerContent;
   }
 
   String _contractorName(UserEntity user) {

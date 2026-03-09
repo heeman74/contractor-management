@@ -75,6 +75,19 @@ abstract final class RouteNames {
   /// In-app job request form -- client submits a request for admin review.
   static const jobRequestForm = '/client/request';
 
+  // --- Schedule routes ---
+
+  /// Contractor personal schedule — shown on the Schedule tab for contractor role.
+  static const contractorSchedule = '/contractor/schedule';
+
+  /// Schedule settings — weekly working-hour template management.
+  ///
+  /// Accessible from:
+  ///   - Contractor's schedule screen (gear icon)
+  ///   - Admin calendar via long-press on contractor lane header
+  ///     (with optional contractorId query param)
+  static const scheduleSettings = '/schedule/settings';
+
   // ─── Helpers ─────────────────────────────────────────────────────────────
 
   /// Build the job detail path for a specific job ID.
@@ -83,4 +96,8 @@ abstract final class RouteNames {
   /// Build the client detail path for a specific client ID.
   static String clientDetailPath(String clientId) =>
       '/admin/clients/$clientId';
+
+  /// Build the schedule settings path for a specific contractor (admin access).
+  static String scheduleSettingsPath(String contractorId) =>
+      '/schedule/settings?contractorId=$contractorId';
 }

@@ -21,6 +21,8 @@ import '../../features/jobs/presentation/screens/contractor_jobs_screen.dart';
 import '../../features/jobs/presentation/screens/job_detail_screen.dart';
 import '../../features/jobs/presentation/screens/job_wizard_screen.dart';
 import '../../features/jobs/presentation/screens/jobs_pipeline_screen.dart';
+import '../../features/schedule/presentation/screens/contractor_schedule_screen.dart';
+import '../../features/schedule/presentation/screens/schedule_settings_screen.dart';
 import '../../shared/models/user_role.dart';
 import '../../shared/screens/home_screen.dart';
 import '../../shared/screens/profile_screen.dart';
@@ -113,6 +115,23 @@ GoRouter router(Ref ref) {
         path: RouteNames.unauthorized,
         builder: (context, state) => const UnauthorizedScreen(),
       ),
+      // Schedule settings — accessible via push() from both contractor and admin
+      // flows (long-press on contractor lane header in admin calendar, or gear
+      // icon in contractor schedule screen).
+      //
+      // Accepts optional `contractorId` extra param (String) from GoRouter push:
+      //   context.push(RouteNames.scheduleSettings, extra: contractorId)
+      // When extra is null, defaults to the current user's own schedule.
+      GoRoute(
+        path: RouteNames.scheduleSettings,
+        builder: (context, state) {
+          // Admin accessing another contractor's settings: extra contains contractorId
+          final contractorId = state.extra is String
+              ? state.extra as String
+              : null;
+          return ScheduleSettingsScreen(contractorId: contractorId);
+        },
+      ),
 
       // --- Shell routes (with bottom nav) ---
       // StatefulShellRoute preserves each tab's navigation stack independently.
@@ -155,11 +174,32 @@ GoRouter router(Ref ref) {
             ],
           ),
           // Branch 2: Schedule
+          // Admin → ScheduleScreen (dispatch calendar)
+          // Contractor → ContractorScheduleScreen (personal schedule)
+          // Role selection is done via router redirect in _checkRoleAccess.
+          // The Schedule tab always navigates to RouteNames.schedule;
+          // the actual screen is determined by the builder reading the auth state.
           StatefulShellBranch(
             routes: [
               GoRoute(
                 path: RouteNames.schedule,
-                builder: (context, state) => const ScheduleScreen(),
+                builder: (context, state) {
+                  // Role-based screen selection.
+                  // Cannot use Consumer here (GoRouter builder is not a Widget).
+                  // Instead, read auth state from the container via ProviderScope.
+                  // This pattern reads the provider synchronously — auth state is
+                  // always available at this point (redirect ran first).
+                  final container = ProviderScope.containerOf(context);
+                  final authState =
+                      container.read(authNotifierProvider);
+                  final isContractor = authState is AuthAuthenticated &&
+                      authState.roles.contains(UserRole.contractor) &&
+                      !authState.roles.contains(UserRole.admin);
+
+                  return isContractor
+                      ? const ContractorScheduleScreen()
+                      : const ScheduleScreen();
+                },
               ),
             ],
           ),
@@ -200,7 +240,7 @@ GoRouter router(Ref ref) {
               ),
             ],
           ),
-          // Branch 5: Contractor - Availability + Contractor Jobs
+          // Branch 5: Contractor - Availability + Contractor Jobs + Schedule
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -210,6 +250,12 @@ GoRouter router(Ref ref) {
               GoRoute(
                 path: RouteNames.contractorJobs,
                 builder: (context, state) => const ContractorJobsScreen(),
+              ),
+              // Contractor personal schedule (also accessible as the Schedule
+              // tab for contractor role — see Branch 2 role-based selection)
+              GoRoute(
+                path: RouteNames.contractorSchedule,
+                builder: (context, state) => const ContractorScheduleScreen(),
               ),
             ],
           ),
