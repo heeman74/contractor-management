@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Completed 06-field-workflow-01-PLAN.md
-last_updated: "2026-03-11T23:44:00.000Z"
-last_activity: "2026-03-11 — Phase 6 Plan 01: migration 0009, ORM models, REST endpoints, file upload, sync extension"
+status: executing
+stopped_at: Completed 06-field-workflow-04-PLAN.md
+last_updated: "2026-03-11T23:35:12.833Z"
+last_activity: "2026-03-11 — Phase 6 Plan 01: migration 0009, ORM models (JobNote, Attachment, TimeEntry), REST endpoints (notes + time entries), file upload, sync extension"
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 38
-  completed_plans: 34
+  completed_plans: 35
   percent: 90
 ---
 
@@ -84,6 +84,7 @@ Progress: [█████████░] 90%
 | Phase 06-field-workflow P01 | 30min | 2 tasks | 13 files |
 | Phase 06-field-workflow P00 | 2min | 2 tasks | 13 files |
 | Phase 06-field-workflow P02 | 25min | 2 tasks | 17 files |
+| Phase 06-field-workflow P04 | 35min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -202,6 +203,8 @@ Recent decisions affecting current work:
 - [Phase 06-field-workflow P01]: GPS geocode non-fatal: broad Exception caught, gps_address=None stored, retry on next sync via update_job_gps
 - [Phase 06-field-workflow P01]: create_time_entry auto-transitions job from scheduled->in_progress on first contractor clock-in
 - [Phase 06-field-workflow P01]: adjust_time_entry appends to adjustment_log via list replacement (Pitfall 3: never in-place JSONB append)
+- [Phase 06-field-workflow P04]: Grid overlay is a separate CustomPaint layer on the Stack — excluded from DrawingController canvas and therefore from PNG export
+- [Phase 06-field-workflow P04]: GPS fields (gpsLatitude, gpsLongitude, gpsAddress) added to JobEntity manually in generated files since build_runner unavailable — fields were missing from Plan 02
 
 ### Pending Todos
 
@@ -218,6 +221,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-11T23:21:02.802Z
-Stopped at: Completed 06-field-workflow-02-PLAN.md
+Last session: 2026-03-11T23:35:12.826Z
+Stopped at: Completed 06-field-workflow-04-PLAN.md
 Resume file: None
