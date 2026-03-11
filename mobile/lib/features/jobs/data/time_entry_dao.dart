@@ -219,6 +219,65 @@ class TimeEntryDao extends DatabaseAccessor<AppDatabase>
   }
 
   // ────────────────────────────────────────────────────────────────────────
+  // Admin adjustment
+  // ────────────────────────────────────────────────────────────────────────
+
+  /// Admin-adjusts a time entry's timestamps and appends to the audit log.
+  ///
+  /// Writes the updated entry row and enqueues an UPDATE to sync_queue.
+  /// Uses [adjustmentLog] list-replacement pattern (never in-place JSONB append).
+  ///
+  /// [newClockOut] and [newDuration] are null when the session is still active.
+  Future<void> adjustEntry({
+    required String entryId,
+    required DateTime newClockIn,
+    DateTime? newClockOut,
+    int? newDuration,
+    required String newAdjustmentLog,
+    required int newVersion,
+  }) async {
+    final now = DateTime.now();
+
+    await db.transaction(() async {
+      await (update(timeEntries)..where((tbl) => tbl.id.equals(entryId)))
+          .write(
+        TimeEntriesCompanion(
+          clockedInAt: Value(newClockIn),
+          clockedOutAt: newClockOut != null
+              ? Value(newClockOut)
+              : const Value.absent(),
+          durationSeconds: newDuration != null
+              ? Value(newDuration)
+              : const Value.absent(),
+          sessionStatus: const Value('adjusted'),
+          adjustmentLog: Value(newAdjustmentLog),
+          version: Value(newVersion),
+          updatedAt: Value(now),
+        ),
+      );
+
+      await into(syncQueue).insert(
+        _buildQueueEntry(
+          entityType: 'time_entry',
+          entityId: entryId,
+          operation: 'UPDATE',
+          payload: {
+            'id': entryId,
+            'clocked_in_at': newClockIn.toIso8601String(),
+            if (newClockOut != null)
+              'clocked_out_at': newClockOut.toIso8601String(),
+            if (newDuration != null) 'duration_seconds': newDuration,
+            'session_status': 'adjusted',
+            'adjustment_log': newAdjustmentLog,
+            'version': newVersion,
+            'updated_at': now.toIso8601String(),
+          },
+        ),
+      );
+    });
+  }
+
+  // ────────────────────────────────────────────────────────────────────────
   // Sync pull upsert
   // ────────────────────────────────────────────────────────────────────────
 

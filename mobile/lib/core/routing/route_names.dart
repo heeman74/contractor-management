@@ -94,6 +94,12 @@ abstract final class RouteNames {
   /// Returns: String? file path of saved PNG, or null if dismissed.
   static const drawingPad = '/drawing-pad';
 
+  /// Timer screen — dedicated clock-in/out view for a contractor on a job.
+  ///
+  /// Push via: context.push(RouteNames.timerPath(jobId))
+  /// Shows large HH:MM:SS display, session history, and Clock In/Out button.
+  static const timer = '/timer/:jobId';
+
   // ─── Helpers ─────────────────────────────────────────────────────────────
 
   /// Build the job detail path for a specific job ID.
@@ -106,4 +112,7 @@ abstract final class RouteNames {
   /// Build the schedule settings path for a specific contractor (admin access).
   static String scheduleSettingsPath(String contractorId) =>
       '/schedule/settings?contractorId=$contractorId';
+
+  /// Build the timer screen path for a specific job.
+  static String timerPath(String jobId) => '/timer/$jobId';
 }

@@ -19,6 +19,7 @@ import '../../features/contractor/presentation/screens/availability_screen.dart'
 import '../../features/jobs/presentation/screens/contractor_jobs_screen.dart';
 import '../../features/jobs/presentation/screens/job_detail_screen.dart';
 import '../../features/jobs/presentation/screens/drawing_pad_screen.dart';
+import '../../features/jobs/presentation/screens/timer_screen.dart';
 import '../../features/jobs/presentation/screens/job_wizard_screen.dart';
 import '../../features/jobs/presentation/screens/jobs_pipeline_screen.dart';
 import '../../features/schedule/presentation/screens/contractor_schedule_screen.dart';
@@ -134,6 +135,15 @@ final routerProvider = Provider.autoDispose<GoRouter>((ref) {
       GoRoute(
         path: RouteNames.drawingPad,
         builder: (context, state) => const DrawingPadScreen(),
+      ),
+      // Timer screen — dedicated clock-in/out screen for a contractor job.
+      // Push via: context.push(RouteNames.timerPath(jobId))
+      GoRoute(
+        path: RouteNames.timer,
+        builder: (context, state) {
+          final jobId = state.pathParameters['jobId']!;
+          return TimerScreen(jobId: jobId);
+        },
       ),
       // --- Shell routes (with bottom nav) ---
       // StatefulShellRoute preserves each tab's navigation stack independently.
