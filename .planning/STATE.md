@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 06-field-workflow-04-PLAN.md
-last_updated: "2026-03-11T23:35:12.833Z"
-last_activity: "2026-03-11 — Phase 6 Plan 01: migration 0009, ORM models (JobNote, Attachment, TimeEntry), REST endpoints (notes + time entries), file upload, sync extension"
+stopped_at: Completed 06-field-workflow-05-PLAN.md
+last_updated: "2026-03-11T23:46:39.002Z"
+last_activity: "2026-03-11 — Phase 6 Plan 05: timer providers, timer screen, time tracked section, contractor job card redesign (FIELD-04)"
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 38
-  completed_plans: 35
+  completed_plans: 36
   percent: 90
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 ## Current Position
 
 Phase: 6 of 8 (Field Workflow)
-Plan: 1 of 6 in current phase (06) — COMPLETE
-Status: Phase 6 In Progress — Plans 00, 01, 02 completed; 03-06 remain
-Last activity: 2026-03-11 — Phase 6 Plan 01: migration 0009, ORM models (JobNote, Attachment, TimeEntry), REST endpoints (notes + time entries), file upload, sync extension
+Plan: 5 of 6 in current phase (06) — COMPLETE
+Status: Phase 6 In Progress — Plans 00, 01, 02, 03, 04, 05 completed; 06 remains
+Last activity: 2026-03-11 — Phase 6 Plan 05: timer providers, timer screen, time tracked section, contractor job card redesign (FIELD-04)
 
 Progress: [█████████░] 90%
 
@@ -84,6 +84,7 @@ Progress: [█████████░] 90%
 | Phase 06-field-workflow P01 | 30min | 2 tasks | 13 files |
 | Phase 06-field-workflow P00 | 2min | 2 tasks | 13 files |
 | Phase 06-field-workflow P02 | 25min | 2 tasks | 17 files |
+| Phase 06-field-workflow P05 | 35min | 2 tasks | 8 files |
 | Phase 06-field-workflow P04 | 35min | 2 tasks | 8 files |
 
 ## Accumulated Context
@@ -203,6 +204,11 @@ Recent decisions affecting current work:
 - [Phase 06-field-workflow P01]: GPS geocode non-fatal: broad Exception caught, gps_address=None stored, retry on next sync via update_job_gps
 - [Phase 06-field-workflow P01]: create_time_entry auto-transitions job from scheduled->in_progress on first contractor clock-in
 - [Phase 06-field-workflow P01]: adjust_time_entry appends to adjustment_log via list replacement (Pitfall 3: never in-place JSONB append)
+
+- [Phase 06-field-workflow P05]: timerNotifierProvider is NOT autoDispose — ticker must survive navigation away from contractor jobs screen
+- [Phase 06-field-workflow P05]: Riverpod 3.2.1 uses .value (not .valueOrNull) on AsyncValue<T> — valueOrNull does not exist in this version
+- [Phase 06-field-workflow P05]: Clock In/Clock Out in ContractorJobCard navigates to TimerScreen rather than performing inline — session history always visible
+- [Phase 06-field-workflow P05]: Status transitions (scheduled→in_progress etc.) via long-press on status badge in ContractorJobCard, not action bar
 - [Phase 06-field-workflow P04]: Grid overlay is a separate CustomPaint layer on the Stack — excluded from DrawingController canvas and therefore from PNG export
 - [Phase 06-field-workflow P04]: GPS fields (gpsLatitude, gpsLongitude, gpsAddress) added to JobEntity manually in generated files since build_runner unavailable — fields were missing from Plan 02
 
@@ -221,6 +227,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-11T23:35:12.826Z
-Stopped at: Completed 06-field-workflow-04-PLAN.md
+Last session: 2026-03-11T23:46:38.987Z
+Stopped at: Completed 06-field-workflow-05-PLAN.md
 Resume file: None
