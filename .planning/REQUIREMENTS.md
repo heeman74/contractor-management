@@ -38,10 +38,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Field Workflow
 
-- [ ] **FIELD-01**: Job notes and photo capture (timestamped, offline-capable)
-- [ ] **FIELD-02**: GPS-based address capture for property locations
-- [ ] **FIELD-03**: Drawing/handwriting pad for sketches and handwritten notes on jobs
-- [ ] **FIELD-04**: Time tracking (clock in/out per job)
+- [x] **FIELD-01**: Job notes and photo capture (timestamped, offline-capable)
+- [x] **FIELD-02**: GPS-based address capture for property locations
+- [x] **FIELD-03**: Drawing/handwriting pad for sketches and handwritten notes on jobs
+- [x] **FIELD-04**: Time tracking (clock in/out per job)
 
 ### Business Operations
 
@@ -108,10 +108,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SCHED-03 | Phase 5 — Calendar and Dispatch UI | Complete |
 | SCHED-08 | Phase 5 — Calendar and Dispatch UI | Complete |
 | SCHED-09 | Phase 5 — Calendar and Dispatch UI | Complete |
-| FIELD-01 | Phase 6 — Field Workflow | Pending |
-| FIELD-02 | Phase 6 — Field Workflow | Pending |
-| FIELD-03 | Phase 6 — Field Workflow | Pending |
-| FIELD-04 | Phase 6 — Field Workflow | Pending |
+| FIELD-01 | Phase 6 — Field Workflow | Complete |
+| FIELD-02 | Phase 6 — Field Workflow | Complete |
+| FIELD-03 | Phase 6 — Field Workflow | Complete |
+| FIELD-04 | Phase 6 — Field Workflow | Complete |
 | CLNT-02 | Phase 7 — Client Portal and Notifications | Pending |
 | CLNT-03 | Phase 7 — Client Portal and Notifications | Pending |
 | CLNT-05 | Phase 7 — Client Portal and Notifications | Pending |
