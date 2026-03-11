@@ -284,6 +284,41 @@ class SyncEngine {
         }
       }
 
+      final List<dynamic>? jobs = data['jobs'] as List<dynamic>?;
+      if (jobs != null) {
+        final handler = _registry.getHandler('job');
+        for (final entity in jobs) {
+          await handler.applyPulled(entity as Map<String, dynamic>);
+        }
+      }
+
+      final List<dynamic>? jobNotes = data['job_notes'] as List<dynamic>?;
+      if (jobNotes != null) {
+        final handler = _registry.getHandler('job_note');
+        for (final entity in jobNotes) {
+          await handler.applyPulled(entity as Map<String, dynamic>);
+        }
+      }
+
+      final List<dynamic>? timeEntries = data['time_entries'] as List<dynamic>?;
+      if (timeEntries != null) {
+        final handler = _registry.getHandler('time_entry');
+        for (final entity in timeEntries) {
+          await handler.applyPulled(entity as Map<String, dynamic>);
+        }
+      }
+
+      final List<dynamic>? attachmentsList = data['attachments'] as List<dynamic>?;
+      if (attachmentsList != null) {
+        final handler = _registry.getHandler('attachment');
+        for (final entity in attachmentsList) {
+          await handler.applyPulled(entity as Map<String, dynamic>);
+        }
+      }
+
+      // TODO(06-03): Call AttachmentUploadService.uploadPending() here
+      // after drainQueue() completes text sync, to upload pending binary files.
+
       // Update the cursor to the server's timestamp for the next delta pull
       final serverTimestamp = data['server_timestamp'] as String?;
       if (serverTimestamp != null) {

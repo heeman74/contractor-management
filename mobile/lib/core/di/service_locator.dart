@@ -6,6 +6,8 @@ import '../database/app_database.dart';
 import '../network/dio_client.dart';
 import '../sync/connectivity_service.dart';
 import '../sync/handlers/company_sync_handler.dart';
+import '../sync/handlers/note_sync_handler.dart';
+import '../sync/handlers/time_entry_sync_handler.dart';
 import '../sync/handlers/user_role_sync_handler.dart';
 import '../sync/handlers/user_sync_handler.dart';
 import '../sync/sync_engine.dart';
@@ -55,6 +57,9 @@ Future<void> setupServiceLocator() async {
   // Phase 5: Calendar & dispatch sync handlers
   registry.register(BookingSyncHandler(dioClient, db));
   registry.register(JobSiteSyncHandler(db));
+  // Phase 6: Field workflow sync handlers
+  registry.register(NoteSyncHandler(dioClient, db));
+  registry.register(TimeEntrySyncHandler(dioClient, db));
 
   getIt.registerSingleton<SyncRegistry>(registry);
 
@@ -77,4 +82,9 @@ Future<void> setupServiceLocator() async {
 
   // BookingDao — accessed via AppDatabase.bookingDao accessor; registered for direct injection
   getIt.registerSingleton<BookingDao>(db.bookingDao);
+
+  // Phase 6 DAOs — registered for direct injection in field workflow features
+  getIt.registerSingleton<NoteDao>(db.noteDao);
+  getIt.registerSingleton<AttachmentDao>(db.attachmentDao);
+  getIt.registerSingleton<TimeEntryDao>(db.timeEntryDao);
 }

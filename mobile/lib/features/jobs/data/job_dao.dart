@@ -234,6 +234,45 @@ class JobDao extends DatabaseAccessor<AppDatabase> with _$JobDaoMixin {
     });
   }
 
+  /// Update a job's GPS coordinates and atomically enqueue an UPDATE sync item.
+  ///
+  /// Sets [gpsLatitude] and [gpsLongitude] from device location capture.
+  /// Sets [gpsAddress] to null — the backend will reverse-geocode the coordinates
+  /// and populate the address field, which flows back via sync pull.
+  ///
+  /// The sync payload includes gps_address=null to signal the backend to geocode.
+  Future<void> updateJobGps({
+    required String jobId,
+    required double latitude,
+    required double longitude,
+  }) async {
+    final now = DateTime.now();
+    await db.transaction(() async {
+      await (update(jobs)..where((tbl) => tbl.id.equals(jobId))).write(
+        JobsCompanion(
+          gpsLatitude: Value(latitude),
+          gpsLongitude: Value(longitude),
+          gpsAddress: const Value(null),
+          updatedAt: Value(now),
+        ),
+      );
+      await into(syncQueue).insert(
+        _buildQueueEntry(
+          entityType: 'job',
+          entityId: jobId,
+          operation: 'UPDATE',
+          payload: {
+            'id': jobId,
+            'gps_latitude': latitude,
+            'gps_longitude': longitude,
+            'gps_address': null,
+            'updated_at': now.toIso8601String(),
+          },
+        ),
+      );
+    });
+  }
+
   /// Soft-delete a job and atomically enqueue a DELETE sync item.
   ///
   /// The job remains in the local DB as a tombstone — sync propagates
