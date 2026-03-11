@@ -271,24 +271,34 @@ class _MonthGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cells = _buildCalendarCells();
+    final numRows = cells.length ~/ 7;
 
-    return GridView.builder(
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 7,
-      ),
-      itemCount: cells.length,
-      itemBuilder: (context, index) {
-        final cell = cells[index];
-        return _DayCell(
-          cell: cell,
-          today: today,
-          selectedDate: selectedDate,
-          bookingMap: bookingMap,
-          theme: theme,
-          onTap: cell.isCurrentMonth
-              ? () => onDayTap(cell.date)
-              : null,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cellWidth = constraints.maxWidth / 7;
+        final cellHeight = constraints.maxHeight / numRows;
+        final aspectRatio = cellWidth / cellHeight;
+
+        return GridView.builder(
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 7,
+            childAspectRatio: aspectRatio,
+          ),
+          itemCount: cells.length,
+          itemBuilder: (context, index) {
+            final cell = cells[index];
+            return _DayCell(
+              cell: cell,
+              today: today,
+              selectedDate: selectedDate,
+              bookingMap: bookingMap,
+              theme: theme,
+              onTap: cell.isCurrentMonth
+                  ? () => onDayTap(cell.date)
+                  : null,
+            );
+          },
         );
       },
     );

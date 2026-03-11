@@ -657,7 +657,6 @@ class _ContractorCalendarViewState
     const totalDayMinutes = 24 * 60;
     const totalHeight = totalDayMinutes * pixelsPerMinute;
     const timeAxisWidth = 44.0;
-    const laneHeaderHeight = 52.0;
 
     // Build a minimal UserEntity from auth state for the lane widget header.
     // The lane widget uses this for avatar/name display only.
@@ -688,72 +687,74 @@ class _ContractorCalendarViewState
       ),
     ];
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
       children: [
-        // Time axis
-        SizedBox(
-          width: timeAxisWidth,
-          child: Column(
+        // Contractor header row (self-sizing, no fixed height)
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: laneHeaderHeight),
+              const SizedBox(width: timeAxisWidth),
               Expanded(
-                child: SingleChildScrollView(
-                  controller: _scrollController,
-                  child: SizedBox(
-                    height: totalHeight,
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        for (var hour = 0; hour < 24; hour++)
-                          Positioned(
-                            top: hour * 60 * pixelsPerMinute - 7,
-                            left: 0,
-                            right: 0,
-                            child: Text(
-                              '${hour.toString().padLeft(2, '0')}:00',
-                              textAlign: TextAlign.right,
-                              style: const TextStyle(
-                                fontSize: 10,
-                                color: Color(0xFF9E9E9E),
-                                height: 1.0,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
+                child: ContractorLaneHeader(
+                  contractor: contractorUser,
+                  laneWidth: double.infinity,
                 ),
               ),
             ],
           ),
         ),
 
-        // Contractor lane (single-lane, read-only for contractor role)
+        // Scroll area: single scroll surface for time axis + lane body
         Expanded(
-          child: NotificationListener<ScrollNotification>(
-            onNotification: (notification) {
-              if (notification.metrics.axis == Axis.vertical &&
-                  _scrollController.hasClients &&
-                  notification.metrics.pixels !=
-                      _scrollController.offset) {
-                _scrollController.jumpTo(notification.metrics.pixels);
-              }
-              return false;
-            },
+          child: SingleChildScrollView(
+            controller: _scrollController,
             child: LayoutBuilder(
               builder: (context, constraints) {
-                return ContractorLane(
-                  contractor: contractorUser,
-                  dayStart: dayStart,
-                  bookings: widget.bookings,
-                  jobs: widget.jobMap,
-                  blockedIntervals: blockedIntervals,
-                  laneWidth: constraints.maxWidth,
-                  pixelsPerMinute: pixelsPerMinute,
-                  totalDayHeightMinutes: totalDayMinutes.toDouble(),
-                  scrollController: _scrollController,
-                  companyId: widget.companyId,
+                final laneWidth = constraints.maxWidth - timeAxisWidth;
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Time axis (scrolls with lane)
+                    SizedBox(
+                      width: timeAxisWidth,
+                      height: totalHeight,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          for (var hour = 0; hour < 24; hour++)
+                            Positioned(
+                              top: hour * 60 * pixelsPerMinute - 7,
+                              left: 0,
+                              right: 0,
+                              child: Text(
+                                '${hour.toString().padLeft(2, '0')}:00',
+                                textAlign: TextAlign.right,
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: Color(0xFF9E9E9E),
+                                  height: 1.0,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+
+                    // Contractor lane body (header rendered above)
+                    ContractorLane(
+                      contractor: contractorUser,
+                      dayStart: dayStart,
+                      bookings: widget.bookings,
+                      jobs: widget.jobMap,
+                      blockedIntervals: blockedIntervals,
+                      laneWidth: laneWidth > 0 ? laneWidth : 200,
+                      pixelsPerMinute: pixelsPerMinute,
+                      totalDayHeightMinutes: totalDayMinutes.toDouble(),
+                      showHeader: false,
+                      companyId: widget.companyId,
+                    ),
+                  ],
                 );
               },
             ),

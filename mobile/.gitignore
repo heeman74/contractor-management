@@ -46,3 +46,6 @@ app.*.map.json
 # Generated files — do not commit
 **/*.g.dart
 **/*.freezed.dart
+
+# Environment secrets
+.env

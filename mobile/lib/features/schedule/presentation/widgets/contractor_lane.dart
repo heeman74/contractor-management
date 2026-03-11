@@ -7,6 +7,7 @@ import '../../../../features/auth/domain/auth_state.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
 import '../../../../features/jobs/domain/job_entity.dart';
 import '../../../../features/users/domain/user_entity.dart';
+import '../../../../features/users/presentation/providers/user_providers.dart';
 import '../../../../shared/models/user_role.dart';
 import '../../domain/booking_entity.dart';
 import '../providers/calendar_providers.dart';
@@ -53,9 +54,9 @@ class ContractorLane extends ConsumerWidget {
     required this.laneWidth,
     required this.pixelsPerMinute,
     required this.totalDayHeightMinutes,
-    required this.scrollController,
     required this.companyId,
     super.key,
+    this.showHeader = true,
     this.showCompleted = false,
     this.onBookingCreated,
     this.onBookingReassigned,
@@ -85,11 +86,12 @@ class ContractorLane extends ConsumerWidget {
   /// Total scrollable height of the lane = 24 * 60 * pixelsPerMinute.
   final double totalDayHeightMinutes;
 
-  /// Shared scroll controller for synchronized vertical scrolling.
-  final ScrollController scrollController;
-
   /// Company ID for booking creation (tenant scope).
   final String companyId;
+
+  /// Whether to show the contractor name/avatar header above the lane.
+  /// Set to `false` when headers are rendered separately by the parent.
+  final bool showHeader;
 
   /// Whether completed/invoiced/cancelled jobs display at full opacity.
   final bool showCompleted;
@@ -105,60 +107,56 @@ class ContractorLane extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final totalHeight = totalDayHeightMinutes * pixelsPerMinute;
 
-    return SizedBox(
+    // The lane body — parent SingleChildScrollView handles scrolling.
+    final body = SizedBox(
       width: laneWidth,
-      child: Column(
+      height: totalHeight,
+      child: Stack(
+        clipBehavior: Clip.none,
         children: [
-          // Fixed contractor header (does not scroll with time axis)
-          _ContractorHeader(contractor: contractor, laneWidth: laneWidth),
-
-          // Scrollable time body — synchronized with time axis and other lanes
-          Expanded(
-            child: SingleChildScrollView(
-              controller: scrollController,
-              physics: const NeverScrollableScrollPhysics(), // Parent handles scroll
-              child: SizedBox(
-                width: laneWidth,
-                height: totalHeight,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    // Background: grid lines + blocked hour shading + now-line
-                    CustomPaint(
-                      size: Size(laneWidth, totalHeight),
-                      painter: CalendarGridPainter(
-                        dayStart: dayStart,
-                        pixelsPerMinute: pixelsPerMinute,
-                        blockedIntervals: blockedIntervals,
-                        laneWidth: laneWidth,
-                        currentTime: DateTime.now(),
-                      ),
-                    ),
-
-                    // DragTarget strips for working hours slots
-                    // Only 15-min slots from 06:00–20:00 = ~56 strips (not 96 for 24h)
-                    _DragTargetGrid(
-                      contractor: contractor,
-                      companyId: companyId,
-                      dayStart: dayStart,
-                      bookings: bookings,
-                      jobs: jobs,
-                      laneWidth: laneWidth,
-                      pixelsPerMinute: pixelsPerMinute,
-                      onBookingCreated: onBookingCreated,
-                      onBookingReassigned: onBookingReassigned,
-                    ),
-
-                    // Booking cards and travel time blocks (rendered on top of DragTargets)
-                    ..._buildBookingWidgets(ref),
-                  ],
-                ),
-              ),
+          // Background: grid lines + blocked hour shading + now-line
+          CustomPaint(
+            size: Size(laneWidth, totalHeight),
+            painter: CalendarGridPainter(
+              dayStart: dayStart,
+              pixelsPerMinute: pixelsPerMinute,
+              blockedIntervals: blockedIntervals,
+              laneWidth: laneWidth,
+              currentTime: DateTime.now(),
             ),
           ),
+
+          // DragTarget strips for working hours slots
+          // Only 15-min slots from 06:00–20:00 = ~56 strips (not 96 for 24h)
+          _DragTargetGrid(
+            contractor: contractor,
+            companyId: companyId,
+            dayStart: dayStart,
+            bookings: bookings,
+            jobs: jobs,
+            laneWidth: laneWidth,
+            pixelsPerMinute: pixelsPerMinute,
+            onBookingCreated: onBookingCreated,
+            onBookingReassigned: onBookingReassigned,
+          ),
+
+          // Booking cards and travel time blocks (rendered on top of DragTargets)
+          ..._buildBookingWidgets(ref),
         ],
       ),
     );
+
+    if (showHeader) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ContractorLaneHeader(contractor: contractor, laneWidth: laneWidth),
+          body,
+        ],
+      );
+    }
+
+    return body;
   }
 
   /// Builds the positioned booking cards and travel time blocks for this lane.
@@ -830,15 +828,18 @@ class _TapToScheduleSheetState
 /// Fixed header showing contractor avatar and name at the top of a lane.
 ///
 /// Does not scroll — remains visible while the time body scrolls vertically.
+/// Height is determined by content (no fixed constraint) so it adapts to
+/// font scaling and admin/non-admin states without overflow.
 ///
 /// Admin long-press: wrap the header in a [GestureDetector] that opens
 /// schedule settings for the contractor. Per CONTEXT.md locked decision:
 /// "Contractor schedule management: both inline quick actions from calendar
 /// (long-press for day off, adjust hours) AND a separate settings screen".
-class _ContractorHeader extends ConsumerWidget {
-  const _ContractorHeader({
+class ContractorLaneHeader extends ConsumerWidget {
+  const ContractorLaneHeader({
     required this.contractor,
     required this.laneWidth,
+    super.key,
   });
 
   final UserEntity contractor;
@@ -852,11 +853,12 @@ class _ContractorHeader extends ConsumerWidget {
     final authState = ref.watch(authNotifierProvider);
     final isAdmin = authState is AuthAuthenticated &&
         authState.roles.contains(UserRole.admin);
+    final rolesAsync = ref.watch(userRolesProvider(contractor.id));
+    final roles = rolesAsync.value ?? [];
 
     final headerContent = Container(
       width: laneWidth,
-      height: 52,
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         border: Border(
@@ -890,6 +892,35 @@ class _ContractorHeader extends ConsumerWidget {
               fontWeight: FontWeight.w500,
             ),
           ),
+          // Role labels — show all roles for this contractor
+          if (roles.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 2,
+                children: roles.map((r) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _roleColor(r.role).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      r.role.name,
+                      style: TextStyle(
+                        fontSize: 8,
+                        fontWeight: FontWeight.w600,
+                        color: _roleColor(r.role),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
           // Admin-only hint: shows tooltip on long-press
           if (isAdmin)
             const Icon(Icons.more_horiz, size: 10, color: Colors.grey),
@@ -915,6 +946,14 @@ class _ContractorHeader extends ConsumerWidget {
     }
 
     return headerContent;
+  }
+
+  Color _roleColor(UserRole role) {
+    return switch (role) {
+      UserRole.admin => Colors.purple,
+      UserRole.contractor => Colors.blue,
+      UserRole.client => Colors.teal,
+    };
   }
 
   String _contractorName(UserEntity user) {

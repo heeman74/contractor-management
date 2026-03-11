@@ -6,7 +6,8 @@ import '../../../../core/di/service_locator.dart';
 import '../../../../shared/models/user_role.dart';
 import '../../domain/auth_state.dart';
 
-part 'auth_provider.g.dart';
+final authNotifierProvider =
+    NotifierProvider<AuthNotifier, AuthState>(AuthNotifier.new);
 
 class AuthNotifier extends Notifier<AuthState> {
   late final AuthRepository _authRepository;

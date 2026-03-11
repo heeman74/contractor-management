@@ -94,7 +94,7 @@ class _BookingCardState extends State<BookingCard> {
         _isResizing ? _effectiveResizedDuration(baseDuration) : baseDuration;
 
     final cardHeight =
-        (effectiveDuration * widget.pixelsPerMinute).clamp(24.0, double.infinity);
+        (effectiveDuration * widget.pixelsPerMinute).clamp(36.0, double.infinity);
     final status = widget.job.status;
     final statusColor = statusColorMap[status] ?? Colors.grey;
     final severity =
@@ -113,7 +113,7 @@ class _BookingCardState extends State<BookingCard> {
     };
 
     final criticalBorderSide = severity == OverdueSeverity.critical
-        ? BorderSide(color: Colors.red.withValues(alpha: 0.6))
+        ? const BorderSide(color: Colors.red)
         : BorderSide.none;
 
     final cardContent = _BookingCardContent(

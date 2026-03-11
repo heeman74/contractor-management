@@ -163,11 +163,11 @@ final bookingsForDateProvider =
 // Contractor list providers
 // ────────────────────────────────────────────────────────────────────────────
 
-/// Streams all active users for the current company.
+/// Streams users with the 'contractor' role for the current company.
 ///
-/// The schedule screen uses this to find contractors (filtered by role in
-/// [filteredContractorsProvider]). Uses AsyncNotifier for consistent stream
-/// lifecycle management.
+/// The schedule screen displays these as contractor lanes. Previously this
+/// loaded ALL users (admin, client, contractor), making the schedule confusing
+/// and scheduling non-functional for non-contractor users.
 class ContractorsNotifier extends AsyncNotifier<List<UserEntity>> {
   @override
   Future<List<UserEntity>> build() async {
@@ -177,7 +177,7 @@ class ContractorsNotifier extends AsyncNotifier<List<UserEntity>> {
     final db = ref.watch(appDatabaseProvider);
     final companyId = authState.companyId;
 
-    final stream = db.userDao.watchUsersByCompany(companyId);
+    final stream = db.userDao.watchUsersByRole(companyId, 'contractor');
 
     final sub = stream.listen(
       (users) => state = AsyncData(users),

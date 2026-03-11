@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/di/service_locator.dart';
+import '../../core/routing/route_names.dart';
+import '../../core/sync/sync_engine.dart';
 import '../../features/auth/domain/auth_state.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../shared/models/user_role.dart';
-import '../../core/routing/route_names.dart';
-import '../../core/di/service_locator.dart';
-import '../../core/sync/sync_engine.dart';
 
 /// Home dashboard — the landing screen after authentication.
 ///
@@ -16,7 +16,7 @@ import '../../core/sync/sync_engine.dart';
 /// - Contractor: upcoming jobs and availability status
 /// - Client: recent job updates and portal link
 ///
-/// Full content implementations come in Phase 4-5.
+/// Content is fully implemented across all phases.
 ///
 /// Pull-to-refresh: swipe down to trigger [SyncEngine.syncNow] — pushes pending
 /// local mutations then pulls remote changes. Content updates automatically via
@@ -86,7 +86,7 @@ class _AuthenticatedHome extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           if (roles.contains(UserRole.admin)) ...[
-            _SectionHeader('Admin Features'),
+            const _SectionHeader('Admin Features'),
             _QuickLink(
               icon: Icons.groups_outlined,
               title: 'Team Management',
@@ -99,37 +99,52 @@ class _AuthenticatedHome extends StatelessWidget {
               subtitle: 'View and manage clients',
               onTap: () => context.go(RouteNames.adminClients),
             ),
+            _QuickLink(
+              icon: Icons.work_outline,
+              title: 'Jobs Pipeline',
+              subtitle: 'Create, assign, and track jobs',
+              onTap: () => context.go(RouteNames.jobs),
+            ),
+            _QuickLink(
+              icon: Icons.calendar_month_outlined,
+              title: 'Schedule',
+              subtitle: 'Dispatch calendar and contractor lanes',
+              onTap: () => context.go(RouteNames.schedule),
+            ),
             const SizedBox(height: 16),
           ],
           if (roles.contains(UserRole.contractor)) ...[
-            _SectionHeader('Contractor Features'),
+            const _SectionHeader('Contractor Features'),
+            _QuickLink(
+              icon: Icons.work_outline,
+              title: 'My Jobs',
+              subtitle: 'View assigned jobs and update status',
+              onTap: () => context.go(RouteNames.contractorJobs),
+            ),
+            _QuickLink(
+              icon: Icons.calendar_today_outlined,
+              title: 'My Schedule',
+              subtitle: 'View your upcoming schedule',
+              onTap: () => context.go(RouteNames.contractorSchedule),
+            ),
             _QuickLink(
               icon: Icons.event_available_outlined,
-              title: 'My Availability',
-              subtitle: 'Set your working hours — coming Phase 3',
+              title: 'Availability',
+              subtitle: 'Set your working hours',
               onTap: () => context.go(RouteNames.contractorAvailability),
             ),
             const SizedBox(height: 16),
           ],
           if (roles.contains(UserRole.client)) ...[
-            _SectionHeader('Client Features'),
+            const _SectionHeader('Client Features'),
             _QuickLink(
               icon: Icons.dashboard_outlined,
               title: 'Client Portal',
-              subtitle: 'Track jobs and invoices — coming Phase 5',
+              subtitle: 'Track your jobs and submit requests',
               onTap: () => context.go(RouteNames.clientPortal),
             ),
             const SizedBox(height: 16),
           ],
-          _SectionHeader('Coming Soon'),
-          const _PlaceholderCard(
-            'Phase 4: Jobs',
-            'Create, assign, and track jobs with your team',
-          ),
-          const _PlaceholderCard(
-            'Phase 5: Scheduling',
-            'Smart scheduling with travel time and availability',
-          ),
         ],
       ),
     );
@@ -183,22 +198,3 @@ class _QuickLink extends StatelessWidget {
   }
 }
 
-class _PlaceholderCard extends StatelessWidget {
-  const _PlaceholderCard(this.title, this.subtitle);
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      color: Colors.grey[50],
-      child: ListTile(
-        leading: const Icon(Icons.hourglass_empty, color: Colors.grey),
-        title: Text(title, style: const TextStyle(color: Colors.grey)),
-        subtitle: Text(subtitle,
-            style: const TextStyle(fontSize: 12, color: Colors.grey)),
-      ),
-    );
-  }
-}

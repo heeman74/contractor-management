@@ -308,6 +308,32 @@ class JobDao extends DatabaseAccessor<AppDatabase> with _$JobDaoMixin {
         .map((rows) => rows.map(_rowToClientProfileEntity).toList());
   }
 
+  /// Insert a new client profile and atomically enqueue a CREATE sync item.
+  ///
+  /// Called when a user is assigned the 'client' role via Team Management.
+  Future<void> insertClientProfile(ClientProfilesCompanion entry) async {
+    await db.transaction(() async {
+      await into(clientProfiles).insert(entry);
+      await into(syncQueue).insert(
+        _buildQueueEntry(
+          entityType: 'client_profile',
+          entityId: entry.id.value,
+          operation: 'CREATE',
+          payload: {
+            'id': entry.id.value,
+            'companyId': entry.companyId.value,
+            'userId': entry.userId.value,
+            if (entry.version.present) 'version': entry.version.value,
+            if (entry.createdAt.present)
+              'createdAt': entry.createdAt.value.toIso8601String(),
+            if (entry.updatedAt.present)
+              'updatedAt': entry.updatedAt.value.toIso8601String(),
+          },
+        ),
+      );
+    });
+  }
+
   // ────────────────────────────────────────────────────────────────────────
   // Sync pull upsert
   // ────────────────────────────────────────────────────────────────────────

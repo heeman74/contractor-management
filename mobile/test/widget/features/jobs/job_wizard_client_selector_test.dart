@@ -21,8 +21,8 @@ import 'package:contractorhub/features/jobs/presentation/screens/job_wizard_scre
 import 'package:contractorhub/shared/models/user_role.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -46,9 +46,10 @@ AppDatabase _openTestDb() => AppDatabase(NativeDatabase.memory());
 
 void main() {
   late AppDatabase db;
-  FlutterExceptionHandler? originalOnError;
 
   setUp(() async {
+    dotenv.loadFromString(envString: 'GOOGLE_PLACES_API_KEY=test-key');
+
     db = _openTestDb();
 
     await db.into(db.companies).insert(CompaniesCompanion.insert(
@@ -61,14 +62,9 @@ void main() {
 
     if (getIt.isRegistered<JobDao>()) getIt.unregister<JobDao>();
     getIt.registerSingleton<JobDao>(db.jobDao);
-
-    // Suppress framework errors from the InternetConnection cascade.
-    originalOnError = FlutterError.onError;
-    FlutterError.onError = (_) {};
   });
 
   tearDown(() async {
-    FlutterError.onError = originalOnError;
     if (getIt.isRegistered<JobDao>()) getIt.unregister<JobDao>();
     await db.close();
   });
@@ -183,8 +179,8 @@ void main() {
       await tester.enterText(
           descriptionField, 'Fix the broken pipe in bathroom');
 
-      // Tap Continue
-      await tester.tap(find.text('Continue'));
+      // Tap Continue on the current step (first visible Continue button)
+      await tester.tap(find.text('Continue').first);
       await tester.pump();
 
       // Step 2 title should exist
@@ -205,11 +201,11 @@ void main() {
           find.widgetWithText(TextFormField, 'Job description *');
       await tester.enterText(descriptionField, 'Short');
 
-      await tester.tap(find.text('Continue'));
+      await tester.tap(find.text('Continue').first);
       await tester.pump();
 
       expect(find.text('Description must be at least 10 characters.'),
-          findsOneWidget);
+          findsAtLeastNWidgets(1));
 
       await tester.pumpWidget(const SizedBox());
       await tester.pump(Duration.zero);

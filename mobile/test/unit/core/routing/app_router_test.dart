@@ -1,4 +1,4 @@
-/// Unit tests for go_router role guard behavior.
+/// Unit tests for go_router role guard redirect behavior.
 ///
 /// Tests verify:
 /// - Unauthenticated user is redirected to /onboarding
@@ -10,16 +10,12 @@
 ///   and /contractor/availability
 ///
 /// Pattern:
-///   Each test creates a ProviderContainer with an override for authNotifierProvider
+///   Each test creates a ProviderScope with an override for authNotifierProvider
 ///   to control the auth state. The GoRouter is created from routerProvider,
 ///   and navigation is tested by reading the current route location.
 ///
-/// NOTE: Requires Flutter SDK + build_runner to generate:
-/// - auth_state.freezed.dart
-/// - auth_provider.g.dart
-/// - app_router.g.dart
-///
-/// Also requires: go_router, flutter_riverpod, riverpod_annotation packages.
+/// NOTE: Uses pump() instead of pumpAndSettle() because screens with
+/// animations (SplashScreen spinner, etc.) never settle.
 library;
 
 import 'package:flutter/material.dart';
@@ -39,10 +35,12 @@ import 'package:contractorhub/shared/models/user_role.dart';
 
 /// Build a minimal test app that uses the real routerProvider from the container.
 ///
-/// The [overrides] control the auth state seen by the router.
-Widget _buildTestApp(List<Override> overrides) {
+/// The [authState] controls the auth state seen by the router.
+Widget _buildTestApp(AuthState authState) {
   return ProviderScope(
-    overrides: overrides,
+    overrides: [
+      authNotifierProvider.overrideWith(() => _StubAuthNotifier(authState)),
+    ],
     child: const _TestApp(),
   );
 }
@@ -57,13 +55,6 @@ class _TestApp extends ConsumerWidget {
   }
 }
 
-/// Override authNotifierProvider to return a fixed AuthState.
-///
-/// Replaces the real AuthNotifier with a stub that immediately returns [state].
-Override _authOverride(AuthState state) {
-  return authNotifierProvider.overrideWith(() => _StubAuthNotifier(state));
-}
-
 /// Stub AuthNotifier — returns fixed state, no external dependencies.
 class _StubAuthNotifier extends AuthNotifier {
   _StubAuthNotifier(this._fixedState);
@@ -74,12 +65,31 @@ class _StubAuthNotifier extends AuthNotifier {
   AuthState build() => _fixedState;
 }
 
-/// Extract the current location from GoRouter after widget pump.
+/// Get the GoRouter instance from the provider container.
+///
+/// Uses ProviderScope.containerOf to read the router directly, avoiding
+/// the "No GoRouter found in context" error that occurs when using
+/// GoRouter.of() with a MaterialApp-level context.
+GoRouter _getRouter(WidgetTester tester) {
+  final element = tester.element(find.byType(MaterialApp));
+  final container = ProviderScope.containerOf(element);
+  return container.read(routerProvider);
+}
+
+/// Read the current route location from the GoRouter instance.
 String _routerLocation(WidgetTester tester) {
-  final element = tester.element(find.byType(Router<Object>).first);
-  final router = Router.of(element);
-  final routeInformationProvider = router.routeInformationProvider;
-  return routeInformationProvider?.value.uri.path ?? '';
+  final router = _getRouter(tester);
+  return router.routeInformationProvider.value.uri.path;
+}
+
+/// Pump enough frames for GoRouter redirect to complete.
+///
+/// GoRouter redirects happen asynchronously — a single pump() processes
+/// the redirect, a second pump() lets the new route's widget build.
+Future<void> _pumpRoute(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump();
+  await tester.pump();
 }
 
 // ---------------------------------------------------------------------------
@@ -90,38 +100,35 @@ void main() {
   group('AppRouter role guard redirect behavior', () {
     testWidgets('loading state redirects to /splash', (tester) async {
       await tester.pumpWidget(
-        _buildTestApp([_authOverride(const AuthState.loading())]),
+        _buildTestApp(const AuthState.loading()),
       );
-      await tester.pumpAndSettle();
+      await _pumpRoute(tester);
 
       expect(_routerLocation(tester), equals(RouteNames.splash));
     });
 
     testWidgets('unauthenticated user is redirected to /onboarding', (tester) async {
       await tester.pumpWidget(
-        _buildTestApp([_authOverride(const AuthState.unauthenticated())]),
+        _buildTestApp(const AuthState.unauthenticated()),
       );
-      await tester.pumpAndSettle();
+      await _pumpRoute(tester);
 
       expect(_routerLocation(tester), equals(RouteNames.onboarding));
     });
 
     testWidgets('admin role can access /admin/team (no redirect)', (tester) async {
       await tester.pumpWidget(
-        _buildTestApp([
-          _authOverride(const AuthState.authenticated(
-            userId: 'admin-user',
-            companyId: 'company-1',
-            roles: {UserRole.admin},
-          )),
-        ]),
+        _buildTestApp(const AuthState.authenticated(
+          userId: 'admin-user',
+          companyId: 'company-1',
+          roles: {UserRole.admin},
+        )),
       );
-      await tester.pumpAndSettle();
+      await _pumpRoute(tester);
 
       // Navigate to admin/team
-      final context = tester.element(find.byType(MaterialApp));
-      GoRouter.of(context).go(RouteNames.adminTeam);
-      await tester.pumpAndSettle();
+      _getRouter(tester).go(RouteNames.adminTeam);
+      await _pumpRoute(tester);
 
       expect(_routerLocation(tester), equals(RouteNames.adminTeam));
     });
@@ -129,20 +136,17 @@ void main() {
     testWidgets('contractor role accessing /admin/team is redirected to /unauthorized',
         (tester) async {
       await tester.pumpWidget(
-        _buildTestApp([
-          _authOverride(const AuthState.authenticated(
-            userId: 'contractor-user',
-            companyId: 'company-1',
-            roles: {UserRole.contractor},
-          )),
-        ]),
+        _buildTestApp(const AuthState.authenticated(
+          userId: 'contractor-user',
+          companyId: 'company-1',
+          roles: {UserRole.contractor},
+        )),
       );
-      await tester.pumpAndSettle();
+      await _pumpRoute(tester);
 
       // Navigate to admin/team as contractor
-      final context = tester.element(find.byType(MaterialApp));
-      GoRouter.of(context).go(RouteNames.adminTeam);
-      await tester.pumpAndSettle();
+      _getRouter(tester).go(RouteNames.adminTeam);
+      await _pumpRoute(tester);
 
       expect(_routerLocation(tester), equals(RouteNames.unauthorized));
     });
@@ -151,20 +155,17 @@ void main() {
         'client role accessing /contractor/availability is redirected to /unauthorized',
         (tester) async {
       await tester.pumpWidget(
-        _buildTestApp([
-          _authOverride(const AuthState.authenticated(
-            userId: 'client-user',
-            companyId: 'company-1',
-            roles: {UserRole.client},
-          )),
-        ]),
+        _buildTestApp(const AuthState.authenticated(
+          userId: 'client-user',
+          companyId: 'company-1',
+          roles: {UserRole.client},
+        )),
       );
-      await tester.pumpAndSettle();
+      await _pumpRoute(tester);
 
       // Navigate to contractor/availability as client
-      final context = tester.element(find.byType(MaterialApp));
-      GoRouter.of(context).go(RouteNames.contractorAvailability);
-      await tester.pumpAndSettle();
+      _getRouter(tester).go(RouteNames.contractorAvailability);
+      await _pumpRoute(tester);
 
       expect(_routerLocation(tester), equals(RouteNames.unauthorized));
     });
@@ -172,20 +173,17 @@ void main() {
     testWidgets(
         'user with admin and contractor roles can access /admin/team', (tester) async {
       await tester.pumpWidget(
-        _buildTestApp([
-          _authOverride(const AuthState.authenticated(
-            userId: 'multi-role-user',
-            companyId: 'company-1',
-            roles: {UserRole.admin, UserRole.contractor},
-          )),
-        ]),
+        _buildTestApp(const AuthState.authenticated(
+          userId: 'multi-role-user',
+          companyId: 'company-1',
+          roles: {UserRole.admin, UserRole.contractor},
+        )),
       );
-      await tester.pumpAndSettle();
+      await _pumpRoute(tester);
 
       // Navigate to admin/team — should succeed
-      final context = tester.element(find.byType(MaterialApp));
-      GoRouter.of(context).go(RouteNames.adminTeam);
-      await tester.pumpAndSettle();
+      _getRouter(tester).go(RouteNames.adminTeam);
+      await _pumpRoute(tester);
 
       expect(_routerLocation(tester), equals(RouteNames.adminTeam));
     });
@@ -194,39 +192,33 @@ void main() {
         'user with admin and contractor roles can access /contractor/availability',
         (tester) async {
       await tester.pumpWidget(
-        _buildTestApp([
-          _authOverride(const AuthState.authenticated(
-            userId: 'multi-role-user',
-            companyId: 'company-1',
-            roles: {UserRole.admin, UserRole.contractor},
-          )),
-        ]),
+        _buildTestApp(const AuthState.authenticated(
+          userId: 'multi-role-user',
+          companyId: 'company-1',
+          roles: {UserRole.admin, UserRole.contractor},
+        )),
       );
-      await tester.pumpAndSettle();
+      await _pumpRoute(tester);
 
       // Navigate to contractor/availability — should succeed
-      final context = tester.element(find.byType(MaterialApp));
-      GoRouter.of(context).go(RouteNames.contractorAvailability);
-      await tester.pumpAndSettle();
+      _getRouter(tester).go(RouteNames.contractorAvailability);
+      await _pumpRoute(tester);
 
       expect(_routerLocation(tester), equals(RouteNames.contractorAvailability));
     });
 
     testWidgets('admin can navigate to home (shared route)', (tester) async {
       await tester.pumpWidget(
-        _buildTestApp([
-          _authOverride(const AuthState.authenticated(
-            userId: 'admin-user',
-            companyId: 'company-1',
-            roles: {UserRole.admin},
-          )),
-        ]),
+        _buildTestApp(const AuthState.authenticated(
+          userId: 'admin-user',
+          companyId: 'company-1',
+          roles: {UserRole.admin},
+        )),
       );
-      await tester.pumpAndSettle();
+      await _pumpRoute(tester);
 
-      final context = tester.element(find.byType(MaterialApp));
-      GoRouter.of(context).go(RouteNames.home);
-      await tester.pumpAndSettle();
+      _getRouter(tester).go(RouteNames.home);
+      await _pumpRoute(tester);
 
       expect(_routerLocation(tester), equals(RouteNames.home));
     });

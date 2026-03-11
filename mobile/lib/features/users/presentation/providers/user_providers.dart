@@ -1,12 +1,18 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:riverpod_annotation/riverpod_annotation.dart';
+// StateProvider moved to legacy in Riverpod 3 — explicitly imported.
+// ignore: depend_on_referenced_packages
+import 'package:riverpod/legacy.dart';
 
-import '../../../../core/di/service_locator.dart';
 import '../../../../core/database/app_database.dart';
+import '../../../../core/di/service_locator.dart';
 import '../../domain/user_entity.dart';
 import '../../domain/user_role_entity.dart';
 
-part 'user_providers.g.dart';
+/// StateProvider for the team member search query.
+///
+/// Updated by the search bar in [TeamManagementScreen]. The screen
+/// filters [companyUsersProvider] results against this query string.
+final teamSearchQueryProvider = StateProvider<String>((ref) => '');
 
 /// Reactive stream of all users for a specific company from local Drift DB.
 ///
@@ -15,20 +21,33 @@ part 'user_providers.g.dart';
 ///
 /// The [companyId] parameter provides local tenant scoping, mirroring
 /// the backend RLS policy.
-///
-/// Usage:
-/// ```dart
-/// final usersAsync = ref.watch(companyUsersProvider('company-id'));
-/// ```
-@riverpod
-Stream<List<UserEntity>> companyUsers(Ref ref, String companyId) {
+final companyUsersProvider = StreamProvider.autoDispose
+    .family<List<UserEntity>, String>((ref, companyId) {
   final db = getIt<AppDatabase>();
   return db.userDao.watchUsersByCompany(companyId);
-}
+});
 
 /// Reactive stream of all roles for a specific user.
-@riverpod
-Stream<List<UserRoleEntity>> userRoles(Ref ref, String userId) {
+final userRolesProvider = StreamProvider.autoDispose
+    .family<List<UserRoleEntity>, String>((ref, userId) {
   final db = getIt<AppDatabase>();
   return db.userDao.watchRolesForUser(userId);
-}
+});
+
+/// Reactive stream of users with the 'client' role for a specific company.
+///
+/// Used by the job wizard client selector dropdown.
+final companyClientsProvider = StreamProvider.autoDispose
+    .family<List<UserEntity>, String>((ref, companyId) {
+  final db = getIt<AppDatabase>();
+  return db.userDao.watchUsersByRole(companyId, 'client');
+});
+
+/// Reactive stream of users with the 'contractor' role for a specific company.
+///
+/// Used by the job wizard contractor selector dropdown.
+final companyContractorsProvider = StreamProvider.autoDispose
+    .family<List<UserEntity>, String>((ref, companyId) {
+  final db = getIt<AppDatabase>();
+  return db.userDao.watchUsersByRole(companyId, 'contractor');
+});

@@ -63,6 +63,7 @@ class _DelayJustificationDialogState extends State<DelayJustificationDialog> {
   final _reasonController = TextEditingController();
   DateTime? _selectedEta;
   bool _isSubmitting = false;
+  bool _hasAttemptedSubmit = false;
 
   @override
   void dispose() {
@@ -117,7 +118,7 @@ class _DelayJustificationDialogState extends State<DelayJustificationDialog> {
               selectedEta: _selectedEta,
               initialDate: _defaultInitialDate(),
               onDateSelected: (date) => setState(() => _selectedEta = date),
-              hasError: _isSubmitting && _selectedEta == null,
+              hasError: _hasAttemptedSubmit && _selectedEta == null,
             ),
           ],
         ),
@@ -156,8 +157,10 @@ class _DelayJustificationDialogState extends State<DelayJustificationDialog> {
   }
 
   Future<void> _handleSubmit() async {
-    // Trigger form key rebuild so ETA field error is shown
-    setState(() => _isSubmitting = true);
+    setState(() {
+      _isSubmitting = true;
+      _hasAttemptedSubmit = true;
+    });
 
     final isFormValid = _formKey.currentState?.validate() ?? false;
     final isEtaSelected = _selectedEta != null;

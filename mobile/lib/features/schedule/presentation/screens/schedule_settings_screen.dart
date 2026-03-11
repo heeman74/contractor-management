@@ -113,13 +113,15 @@ class _ScheduleSettingsScreenState
       }
 
       setState(() => _isLoading = false);
-    } on Exception catch (e) {
-      // If offline or API unavailable, show cached defaults with a notice
+    } catch (e) {
+      // If offline, API unavailable, or DioClient not registered (test/offline),
+      // show cached defaults with a notice.
       final errorStr = e.toString().toLowerCase();
       final isNetworkError = errorStr.contains('socket') ||
           errorStr.contains('connection') ||
           errorStr.contains('timeout') ||
-          errorStr.contains('unreachable');
+          errorStr.contains('unreachable') ||
+          errorStr.contains('not registered');
 
       setState(() {
         _isLoading = false;

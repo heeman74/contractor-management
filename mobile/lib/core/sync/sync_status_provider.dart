@@ -1,13 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../di/service_locator.dart';
 import 'connectivity_service.dart';
 import 'sync_engine.dart';
-
-part 'sync_status_provider.g.dart';
 
 /// Reactive provider combining SyncEngine status + connectivity state.
 ///
@@ -25,8 +22,8 @@ part 'sync_status_provider.g.dart';
 /// The initial value emitted is [SyncStatus(SyncState.allSynced, 0)] until
 /// the first real status update arrives — this avoids showing a loading spinner
 /// on app open (user decision: show cached data immediately, no loading spinner).
-@riverpod
-Stream<SyncStatus> syncStatus(Ref ref) async* {
+final syncStatusProvider =
+    StreamProvider.autoDispose<SyncStatus>((ref) async* {
   final syncEngine = getIt<SyncEngine>();
   final connectivityService = getIt<ConnectivityService>();
 
@@ -71,7 +68,7 @@ Stream<SyncStatus> syncStatus(Ref ref) async* {
       // we always show the offline status while connectivity is down.
     }
   }
-}
+});
 
 /// Merge two streams into a single stream of a common supertype [_StreamEvent].
 Stream<_StreamEvent> _mergeStreams(

@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../features/admin/presentation/screens/client_crm_screen.dart';
 import '../../features/admin/presentation/screens/request_review_screen.dart';
@@ -30,8 +29,6 @@ import '../../shared/screens/schedule_screen.dart';
 import '../../shared/widgets/app_shell.dart';
 import 'route_names.dart';
 
-part 'app_router.g.dart';
-
 /// GoRouter provider using the ValueNotifier bridge pattern.
 ///
 /// CRITICAL PATTERN — prevents Router Rebuild Bug (RESEARCH.md Pitfall 4):
@@ -46,8 +43,7 @@ part 'app_router.g.dart';
 /// WITHOUT rebuilding the router instance. This is the correct pattern.
 ///
 /// Reference: go_router docs — "Listening to changes outside the router"
-@riverpod
-GoRouter router(Ref ref) {
+final routerProvider = Provider.autoDispose<GoRouter>((ref) {
   // Create the bridge ValueNotifier with the current auth state as initial value.
   // This notifier lives for the lifetime of the routerProvider.
   final authNotifier = ValueNotifier<AuthState>(
@@ -132,7 +128,6 @@ GoRouter router(Ref ref) {
           return ScheduleSettingsScreen(contractorId: contractorId);
         },
       ),
-
       // --- Shell routes (with bottom nav) ---
       // StatefulShellRoute preserves each tab's navigation stack independently.
       StatefulShellRoute.indexedStack(
@@ -156,8 +151,6 @@ GoRouter router(Ref ref) {
                 path: RouteNames.jobs,
                 builder: (context, state) => const JobsPipelineScreen(),
                 routes: [
-                  // /jobs/new — must be declared BEFORE /jobs/:id to avoid
-                  // "new" being matched as a jobId parameter.
                   GoRoute(
                     path: 'new',
                     builder: (context, state) => const JobWizardScreen(),
@@ -281,7 +274,7 @@ GoRouter router(Ref ref) {
   ref.onDispose(router.dispose);
 
   return router;
-}
+});
 
 /// Role-based access control for authenticated users.
 ///

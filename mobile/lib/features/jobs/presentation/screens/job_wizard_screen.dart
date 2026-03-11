@@ -10,7 +10,10 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../features/auth/domain/auth_state.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
+import '../../../../features/users/domain/user_entity.dart';
+import '../../../../features/users/presentation/providers/user_providers.dart';
 import '../providers/job_providers.dart';
+import '../widgets/address_autocomplete_field.dart';
 
 /// 4-step job creation wizard.
 ///
@@ -52,6 +55,8 @@ class _JobWizardScreenState extends ConsumerState<JobWizardScreen> {
   String _priority = 'medium';
   final _notesController = TextEditingController();
 
+  final _scrollController = ScrollController();
+
   bool _isSubmitting = false;
   String? _errorMessage;
   bool _isOffline = false;
@@ -87,10 +92,28 @@ class _JobWizardScreenState extends ConsumerState<JobWizardScreen> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _descriptionController.dispose();
     _addressController.dispose();
     _notesController.dispose();
     super.dispose();
+  }
+
+  bool get _isStep1Valid => _descriptionController.text.trim().length >= 10;
+
+  bool get _isStep2Valid =>
+      _selectedTradeType.isNotEmpty && _addressController.text.trim().isNotEmpty;
+
+  // Step 3 is all optional — valid means user filled something.
+  bool get _isStep3Valid =>
+      _selectedContractorId != null || _preferredDate != null;
+
+  StepState _stepState(int stepIndex, bool isValid) {
+    if (_currentStep == stepIndex) return StepState.editing;
+    if (_currentStep > stepIndex) {
+      return isValid ? StepState.complete : StepState.error;
+    }
+    return StepState.indexed;
   }
 
   List<Step> _buildSteps() {
@@ -99,27 +122,12 @@ class _JobWizardScreenState extends ConsumerState<JobWizardScreen> {
       Step(
         title: const Text('Client & Job'),
         isActive: _currentStep >= 0,
-        state: _currentStep > 0 ? StepState.complete : StepState.indexed,
+        state: _stepState(0, _isStep1Valid),
         content: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Client selector (placeholder — CRM lookup wired in Plan 07)
-            DropdownButtonFormField<String>(
-              value: _selectedClientId,
-              decoration: const InputDecoration(
-                labelText: 'Client (optional)',
-                prefixIcon: Icon(Icons.person_outline),
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(
-                  value: null,
-                  child: Text('No client selected'),
-                ),
-                // Plan 07 will populate with searchable CRM client list
-              ],
-              onChanged: (v) => setState(() => _selectedClientId = v),
-            ),
+            // Client selector — populated from users with 'client' role
+            _buildClientSelector(),
             const SizedBox(height: 16),
             TextFormField(
               controller: _descriptionController,
@@ -140,18 +148,17 @@ class _JobWizardScreenState extends ConsumerState<JobWizardScreen> {
       Step(
         title: const Text('Location & Trade'),
         isActive: _currentStep >= 1,
-        state: _currentStep > 1 ? StepState.complete : StepState.indexed,
+        state: _stepState(1, _isStep2Valid),
         content: Column(
           children: [
-            TextFormField(
+            AddressAutocompleteField(
               controller: _addressController,
               decoration: const InputDecoration(
                 labelText: 'Service address',
-                hintText: 'Enter the job site address',
+                hintText: 'Start typing an address...',
                 prefixIcon: Icon(Icons.location_on_outlined),
                 border: OutlineInputBorder(),
               ),
-              textInputAction: TextInputAction.next,
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
@@ -172,38 +179,45 @@ class _JobWizardScreenState extends ConsumerState<JobWizardScreen> {
         ),
       ),
 
-      // ── Step 3: Contractor + Scheduling (online only) ─────────────────────
-      if (!_isOffline)
-        Step(
-          title: const Text('Contractor & Schedule'),
-          isActive: _currentStep >= 2,
-          state: _currentStep > 2 ? StepState.complete : StepState.indexed,
-          content: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Assign a contractor and set scheduling details. '
-                'Leave blank to create at Quote stage.',
-                style: TextStyle(color: Colors.grey, fontSize: 13),
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: _selectedContractorId,
-                decoration: const InputDecoration(
-                  labelText: 'Assign contractor (optional)',
-                  prefixIcon: Icon(Icons.engineering_outlined),
-                  border: OutlineInputBorder(),
+      // ── Step 3: Contractor + Scheduling ──────────────────────────────────
+      Step(
+        title: const Text('Contractor & Schedule'),
+        isActive: _currentStep >= 2,
+        state: _stepState(2, _isStep3Valid),
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_isOffline)
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.amber[50],
+                  border: Border.all(color: Colors.amber),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                items: const [
-                  DropdownMenuItem(
-                    value: null,
-                    child: Text('No contractor assigned yet'),
-                  ),
-                  // Phase 3 scheduling engine provides availability-sorted list
-                ],
-                onChanged: (v) =>
-                    setState(() => _selectedContractorId = v),
+                child: const Row(
+                  children: [
+                    Icon(Icons.wifi_off, color: Colors.amber),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'You are offline. Contractor assignment will be '
+                        'available when connectivity is restored.',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
               ),
+            const Text(
+              'Assign a contractor and set scheduling details. '
+              'Leave blank to create at Quote stage.',
+              style: TextStyle(color: Colors.grey, fontSize: 13),
+            ),
+              const SizedBox(height: 16),
+              // Contractor selector — populated from users with 'contractor' role
+              _buildContractorSelector(),
               const SizedBox(height: 16),
               ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -244,11 +258,11 @@ class _JobWizardScreenState extends ConsumerState<JobWizardScreen> {
           ),
         ),
 
-      // ── Step 4 (or 3 offline): Review + Priority + Submit ─────────────────
+      // ── Step 4: Review + Priority + Submit ──────────────────────────────
       Step(
         title: const Text('Review & Submit'),
-        isActive: _currentStep >= (_isOffline ? 2 : 3),
-        state: StepState.indexed,
+        isActive: _currentStep >= 3,
+        state: _stepState(3, _isStep1Valid && _isStep2Valid),
         content: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -349,19 +363,78 @@ class _JobWizardScreenState extends ConsumerState<JobWizardScreen> {
               maxLines: 2,
             ),
 
-            if (_errorMessage != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                _errorMessage!,
-                style: const TextStyle(color: Colors.red),
-              ),
-            ],
           ],
         ),
       ),
     ];
 
     return steps;
+  }
+
+  String _displayName(UserEntity u) {
+    final first = u.firstName ?? '';
+    final last = u.lastName ?? '';
+    final full = '$first $last'.trim();
+    return full.isNotEmpty ? full : u.email;
+  }
+
+  Widget _buildClientSelector() {
+    final authState = ref.watch(authNotifierProvider);
+    final companyId =
+        authState is AuthAuthenticated ? authState.companyId : '';
+    final clientsAsync = ref.watch(companyClientsProvider(companyId));
+    final clients = clientsAsync.value ?? [];
+
+    return DropdownButtonFormField<String>(
+      initialValue: _selectedClientId,
+      decoration: const InputDecoration(
+        labelText: 'Client (optional)',
+        prefixIcon: Icon(Icons.person_outline),
+        border: OutlineInputBorder(),
+      ),
+      items: [
+        const DropdownMenuItem<String>(
+          child: Text('No client selected'),
+        ),
+        ...clients.map(
+          (c) => DropdownMenuItem<String>(
+            value: c.id,
+            child: Text(_displayName(c)),
+          ),
+        ),
+      ],
+      onChanged: (v) => setState(() => _selectedClientId = v),
+    );
+  }
+
+  Widget _buildContractorSelector() {
+    final authState = ref.watch(authNotifierProvider);
+    final companyId =
+        authState is AuthAuthenticated ? authState.companyId : '';
+    final contractorsAsync =
+        ref.watch(companyContractorsProvider(companyId));
+    final contractors = contractorsAsync.value ?? [];
+
+    return DropdownButtonFormField<String>(
+      initialValue: _selectedContractorId,
+      decoration: const InputDecoration(
+        labelText: 'Assign contractor (optional)',
+        prefixIcon: Icon(Icons.engineering_outlined),
+        border: OutlineInputBorder(),
+      ),
+      items: [
+        const DropdownMenuItem<String>(
+          child: Text('No contractor assigned yet'),
+        ),
+        ...contractors.map(
+          (c) => DropdownMenuItem<String>(
+            value: c.id,
+            child: Text(_displayName(c)),
+          ),
+        ),
+      ],
+      onChanged: (v) => setState(() => _selectedContractorId = v),
+    );
   }
 
   bool _validateCurrentStep() {
@@ -462,7 +535,12 @@ class _JobWizardScreenState extends ConsumerState<JobWizardScreen> {
           onPressed: () => context.pop(),
         ),
       ),
-      body: Stepper(
+      body: Scrollbar(
+        controller: _scrollController,
+        thumbVisibility: true,
+        child: Stepper(
+        key: ValueKey(_isOffline),
+        controller: _scrollController,
         currentStep: _currentStep,
         type: StepperType.vertical,
         // All steps tappable — experienced admin fast-path
@@ -493,33 +571,49 @@ class _JobWizardScreenState extends ConsumerState<JobWizardScreen> {
         },
         controlsBuilder: (context, details) {
           return Padding(
-            padding: const EdgeInsets.only(top: 16),
-            child: Row(
+            padding: EdgeInsets.only(
+              top: 16,
+              bottom: isLastStep ? 80 : 0,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                FilledButton(
-                  onPressed:
-                      _isSubmitting ? null : details.onStepContinue,
-                  child: _isSubmitting && isLastStep
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : Text(isLastStep ? 'Create Job' : 'Continue'),
-                ),
-                const SizedBox(width: 12),
-                TextButton(
-                  onPressed: details.onStepCancel,
-                  child: Text(_currentStep == 0 ? 'Cancel' : 'Back'),
+                if (_errorMessage != null) ...[
+                  Text(
+                    _errorMessage!,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                Row(
+                  children: [
+                    FilledButton(
+                      onPressed:
+                          _isSubmitting ? null : details.onStepContinue,
+                      child: _isSubmitting && isLastStep
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(isLastStep ? 'Create Job' : 'Continue'),
+                    ),
+                    const SizedBox(width: 12),
+                    TextButton(
+                      onPressed: details.onStepCancel,
+                      child: Text(_currentStep == 0 ? 'Cancel' : 'Back'),
+                    ),
+                  ],
                 ),
               ],
             ),
           );
         },
         steps: steps,
+      ),
       ),
     );
   }

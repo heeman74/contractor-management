@@ -36,23 +36,28 @@ class KanbanBoard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: _columns.map((status) {
-          final columnJobs = jobs
-              .where((j) => j.jobStatus == status)
-              .toList();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: _columns.map((status) {
+              final columnJobs = jobs
+                  .where((j) => j.jobStatus == status)
+                  .toList();
 
-          return _KanbanColumn(
-            status: status,
-            jobs: columnJobs,
-            onJobTap: onJobTap,
-          );
-        }).toList(),
-      ),
+              return _KanbanColumn(
+                status: status,
+                jobs: columnJobs,
+                onJobTap: onJobTap,
+                availableHeight: constraints.maxHeight - 16, // minus vertical padding
+              );
+            }).toList(),
+          ),
+        );
+      },
     );
   }
 }
@@ -64,17 +69,21 @@ class _KanbanColumn extends StatelessWidget {
     required this.status,
     required this.jobs,
     required this.onJobTap,
+    required this.availableHeight,
   });
 
   final JobStatus status;
   final List<JobEntity> jobs;
   final void Function(String jobId) onJobTap;
+  final double availableHeight;
 
   static const _columnWidth = 280.0;
+  static const _headerHeight = 48.0; // header + spacing
 
   @override
   Widget build(BuildContext context) {
     final color = _columnColor(status);
+    final cardListMaxHeight = availableHeight - _headerHeight;
 
     return SizedBox(
       width: _columnWidth,
@@ -85,13 +94,11 @@ class _KanbanColumn extends StatelessWidget {
           _ColumnHeader(status: status, count: jobs.length, color: color),
           const SizedBox(height: 4),
 
-          // Job cards — intrinsic scroll within the horizontal scroll parent.
-          // We use a non-shrinkWrap ListView inside a constrained box so the
-          // column height adjusts to content without causing layout ambiguity.
+          // Job cards — constrained to the actual available height
+          // (not a percentage of full screen which ignores app bar, toolbar, nav bar).
           ConstrainedBox(
             constraints: BoxConstraints(
-              // Allow columns to grow up to 75% of screen height
-              maxHeight: MediaQuery.of(context).size.height * 0.75,
+              maxHeight: cardListMaxHeight.clamp(100, double.infinity),
             ),
             child: jobs.isEmpty
                 ? _EmptyColumn(color: color)

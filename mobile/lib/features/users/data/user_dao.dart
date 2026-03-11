@@ -41,6 +41,31 @@ class UserDao extends DatabaseAccessor<AppDatabase> with _$UserDaoMixin {
         .map((rows) => rows.map(_rowToUserEntity).toList());
   }
 
+  /// Reactive stream of active users who hold a specific role within a company.
+  ///
+  /// Joins [users] with [userRoles] to filter by role name. Used by the job
+  /// wizard to populate client and contractor selector dropdowns.
+  Stream<List<UserEntity>> watchUsersByRole(String companyId, String role) {
+    final query = select(users).join([
+      innerJoin(
+        userRoles,
+        userRoles.userId.equalsExp(users.id) &
+            userRoles.companyId.equalsExp(users.companyId),
+      ),
+    ])
+      ..where(
+        users.companyId.equals(companyId) &
+            users.deletedAt.isNull() &
+            userRoles.role.equals(role),
+      );
+
+    return query.watch().map(
+          (rows) => rows
+              .map((row) => _rowToUserEntity(row.readTable(users)))
+              .toList(),
+        );
+  }
+
   /// Fetch a single user by ID. Returns null if not found.
   Future<UserEntity?> getUserById(String id) async {
     final row = await (select(users)

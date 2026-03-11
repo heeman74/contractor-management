@@ -241,6 +241,13 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     final contractors = contractorsAsync.value ?? [];
     final allJobs = jobsAsync.value ?? [];
 
+    // Total unfiltered contractor count — used by the empty state to
+    // distinguish "no contractors at all" from "trade filter hid them all".
+    final totalContractorCount = ref.watch(contractorsProvider).maybeWhen(
+          data: (users) => users.length,
+          orElse: () => 0,
+        );
+
     // Build job lookup map for O(1) access in booking cards
     final jobMap = <String, JobEntity>{
       for (final job in allJobs) job.id: job,
@@ -257,6 +264,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
         contractors: contractors,
         jobs: jobMap,
         companyId: companyId,
+        totalContractorCount: totalContractorCount,
         onBookingMutated: () => _showUndoSnackbar(ref),
       ),
     );

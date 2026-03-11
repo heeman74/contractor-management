@@ -95,7 +95,10 @@
 - Never mock what you can test with an in-memory database (Drift DAOs, SQLAlchemy with test DB).
 - Run `pytest` (backend) and `flutter test` (mobile) before committing.
 
-### E2E Tests (Required for Every New Feature)
+### E2E Tests (Required for Every New Feature — MUST Ship Together)
+- Every new feature MUST include intensive end-to-end tests **in the same change** — never ship features without tests.
+- E2E test files MUST be created alongside the feature code, not as a follow-up task.
+- A feature is NOT considered complete until its E2E tests pass. Do not move on to the next feature until tests are written and green.
 - Every new feature MUST include intensive end-to-end tests covering the full user flow before merging.
 - E2E tests must exercise the complete path: UI interaction → service/provider → data layer (Drift/API) → response handling → UI update.
 - For screens with dialog flows (confirm/cancel, form submission), test both the happy path (correct POST data, success UI) and error path (server errors, snackbar messages).
@@ -103,3 +106,12 @@
 - For data-driven UI, seed realistic Drift data and assert rendering: badges, chips, sort order, empty states.
 - E2E tests must cover multi-role flows when applicable (e.g., client submits → admin reviews → job created).
 - Minimum coverage per feature: happy path, validation/error handling, edge cases (empty data, max limits), and cross-role visibility.
+
+### UAT Automation (Minimize Manual Testing)
+- Every UAT test case MUST have a corresponding automated test (E2E or unit) covering the happy path.
+- Manual UAT is reserved ONLY for: visual/aesthetic checks, haptic feedback, real device gestures that can't be simulated, and cross-device compatibility.
+- UAT file should mark each test as `automated: true/false` — only `false` tests require manual verification.
+- Backend UAT items: cover with integration tests (pytest + ASGI client).
+- Flutter UI UAT items: cover with widget tests using ProviderScope overrides, gesture simulation (tester.tap, tester.drag, tester.longPress), and mock data seeding.
+- Flutter interaction UAT items (drag-drop, resize, swipe): cover with E2E widget tests using tester.timedDrag, tester.fling, and GestureDetector simulation.
+- When creating UAT tests, auto-generate the test file stubs alongside the UAT.md file.

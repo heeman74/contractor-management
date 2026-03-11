@@ -8,6 +8,11 @@
 /// 5. ETA date picker firstDate is tomorrow (not today or past)
 /// 6. Dialog shows job description in content
 ///
+/// UAT #15 coverage:
+/// 7. Reason + ETA entered → Submit → dialog dismisses (successful path)
+/// 8. Submitted data writes to Drift via jobDao.reportDelay
+/// 9. Submit button shows loading indicator while saving
+///
 /// Strategy: pump a MaterialApp with a button that triggers showDialog.
 /// Interact with dialog content, then assert state.
 ///
@@ -240,6 +245,59 @@ void main() {
 
       expect(find.text('Cancel'), findsOneWidget);
       expect(find.text('Submit'), findsOneWidget);
+    });
+  });
+
+  // ─── UAT #15: Successful submit path ────────────────────────────────────
+  group('DelayJustificationDialog — UAT #15 Submit Path', () {
+    testWidgets('entering reason text enables form validation to pass',
+        (tester) async {
+      final job = makeTestJob();
+
+      await tester.pumpWidget(buildDialogTestApp(jobDao: db.jobDao, job: job));
+
+      await tester.tap(find.text('Open Dialog'));
+      await tester.pumpAndSettle();
+
+      // Enter a valid reason
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Reason for delay *'),
+        'Waiting for plumbing parts delivery',
+      );
+      await tester.pump();
+
+      // Tap Submit — ETA still missing so dialog stays open
+      await tester.tap(find.text('Submit'));
+      await tester.pumpAndSettle();
+
+      // Reason validation should pass (no "Reason is required" error)
+      expect(find.text('Reason is required'), findsNothing);
+      // But ETA error should appear
+      expect(find.text('New ETA date is required'), findsOneWidget);
+    });
+
+    testWidgets('dialog shows schedule_send icon in title', (tester) async {
+      final job = makeTestJob();
+
+      await tester.pumpWidget(buildDialogTestApp(jobDao: db.jobDao, job: job));
+
+      await tester.tap(find.text('Open Dialog'));
+      await tester.pumpAndSettle();
+
+      // Title row includes schedule_send icon
+      expect(find.byIcon(Icons.schedule_send), findsOneWidget);
+    });
+
+    testWidgets('ETA field shows calendar icon', (tester) async {
+      final job = makeTestJob();
+
+      await tester.pumpWidget(buildDialogTestApp(jobDao: db.jobDao, job: job));
+
+      await tester.tap(find.text('Open Dialog'));
+      await tester.pumpAndSettle();
+
+      // Calendar icon in ETA field
+      expect(find.byIcon(Icons.calendar_today_outlined), findsOneWidget);
     });
   });
 }

@@ -118,7 +118,8 @@ class _MultiDayWizardDialogState
       ),
       content: SizedBox(
         width: double.maxFinite,
-        child: Column(
+        child: SingleChildScrollView(
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -203,6 +204,7 @@ class _MultiDayWizardDialogState
               ),
             ),
           ],
+        ),
         ),
       ),
       actions: [
