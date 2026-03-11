@@ -18,6 +18,7 @@ import '../../features/client/presentation/screens/job_request_form_screen.dart'
 import '../../features/contractor/presentation/screens/availability_screen.dart';
 import '../../features/jobs/presentation/screens/contractor_jobs_screen.dart';
 import '../../features/jobs/presentation/screens/job_detail_screen.dart';
+import '../../features/jobs/presentation/screens/drawing_pad_screen.dart';
 import '../../features/jobs/presentation/screens/job_wizard_screen.dart';
 import '../../features/jobs/presentation/screens/jobs_pipeline_screen.dart';
 import '../../features/schedule/presentation/screens/contractor_schedule_screen.dart';
@@ -127,6 +128,12 @@ final routerProvider = Provider.autoDispose<GoRouter>((ref) {
               : null;
           return ScheduleSettingsScreen(contractorId: contractorId);
         },
+      ),
+      // Drawing pad — push route accessible from Add Note bottom sheet.
+      // Returns the saved PNG file path via Navigator.pop(context, filePath).
+      GoRoute(
+        path: RouteNames.drawingPad,
+        builder: (context, state) => const DrawingPadScreen(),
       ),
       // --- Shell routes (with bottom nav) ---
       // StatefulShellRoute preserves each tab's navigation stack independently.

@@ -88,6 +88,12 @@ abstract final class RouteNames {
   ///     (with optional contractorId query param)
   static const scheduleSettings = '/schedule/settings';
 
+  /// Drawing pad — full-screen landscape canvas accessible from Add Note sheet.
+  ///
+  /// Push via: context.pushNamed(RouteNames.drawingPad)
+  /// Returns: String? file path of saved PNG, or null if dismissed.
+  static const drawingPad = '/drawing-pad';
+
   // ─── Helpers ─────────────────────────────────────────────────────────────
 
   /// Build the job detail path for a specific job ID.
