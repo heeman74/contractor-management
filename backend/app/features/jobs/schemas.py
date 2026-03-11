@@ -120,6 +120,10 @@ class JobUpdate(BaseModel):
     notes: str | None = None
     estimated_duration_minutes: int | None = None
     scheduled_completion_date: date | None = None
+    # GPS fields — set via sync from mobile field workflow
+    gps_latitude: Decimal | None = None
+    gps_longitude: Decimal | None = None
+    gps_address: str | None = None
 
 
 class JobResponse(BaseResponseSchema):
@@ -139,6 +143,10 @@ class JobResponse(BaseResponseSchema):
     notes: str | None = None
     estimated_duration_minutes: int | None = None
     scheduled_completion_date: date | None = None
+    # GPS fields added in Phase 6 (migration 0009)
+    gps_latitude: Decimal | None = None
+    gps_longitude: Decimal | None = None
+    gps_address: str | None = None
 
 
 class JobTransitionRequest(BaseModel):
@@ -330,3 +338,72 @@ class RatingResponse(BaseResponseSchema):
     direction: RatingDirection
     stars: int
     review_text: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 — Field workflow schemas (migration 0009)
+# ---------------------------------------------------------------------------
+
+
+class AttachmentResponse(BaseResponseSchema):
+    """Response schema for a file attachment linked to a job note."""
+
+    company_id: uuid.UUID
+    note_id: uuid.UUID
+    attachment_type: str
+    remote_url: str | None = None
+    caption: str | None = None
+    sort_order: int
+
+
+class JobNoteCreate(BaseModel):
+    """Schema for creating a new job note."""
+
+    body: str = Field(max_length=2000, description="Note content (max 2000 characters)")
+
+
+class JobNoteResponse(BaseResponseSchema):
+    """Full job note response including any attachments."""
+
+    company_id: uuid.UUID
+    job_id: uuid.UUID
+    author_id: uuid.UUID
+    body: str
+    attachments: list[AttachmentResponse] = Field(default_factory=list)
+
+
+class TimeEntryCreate(BaseModel):
+    """Schema for clocking in (creating an active time entry)."""
+
+    clocked_in_at: datetime
+
+
+class TimeEntryUpdate(BaseModel):
+    """Schema for clocking out (completing an active time entry)."""
+
+    clocked_out_at: datetime
+    duration_seconds: int | None = None
+
+
+class TimeEntryAdjust(BaseModel):
+    """Schema for an admin adjustment to a time entry.
+
+    Appends an entry to adjustment_log and recalculates duration.
+    """
+
+    clocked_in_at: datetime | None = None
+    clocked_out_at: datetime | None = None
+    reason: str = Field(min_length=1, description="Reason for the adjustment")
+
+
+class TimeEntryResponse(BaseResponseSchema):
+    """Full time entry response."""
+
+    company_id: uuid.UUID
+    job_id: uuid.UUID
+    contractor_id: uuid.UUID
+    clocked_in_at: datetime
+    clocked_out_at: datetime | None = None
+    duration_seconds: int | None = None
+    session_status: str
+    adjustment_log: list[Any] = Field(default_factory=list)

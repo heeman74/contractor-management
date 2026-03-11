@@ -7,7 +7,14 @@ from decimal import Decimal
 from pydantic import BaseModel
 
 from app.features.companies.schemas import CompanyResponse
-from app.features.jobs.schemas import ClientProfileResponse, JobRequestResponse, JobResponse
+from app.features.jobs.schemas import (
+    AttachmentResponse,
+    ClientProfileResponse,
+    JobNoteResponse,
+    JobRequestResponse,
+    JobResponse,
+    TimeEntryResponse,
+)
 from app.features.users.schemas import UserResponse, UserRoleResponse
 
 
@@ -65,4 +72,8 @@ class SyncResponse(BaseModel):
     # Phase 5 — calendar & dispatch entities (default empty for backwards compatibility)
     bookings: list[BookingResponse] = []
     job_sites: list[JobSiteResponse] = []
+    # Phase 6 — field workflow entities (default empty for backwards compatibility)
+    job_notes: list[JobNoteResponse] = []
+    time_entries: list[TimeEntryResponse] = []
+    attachments: list[AttachmentResponse] = []
     server_timestamp: str  # ISO8601 — use as cursor for next sync

@@ -1,11 +1,14 @@
 """SQLAlchemy ORM models for the job lifecycle domain.
 
-Five models correspond to the five tables created in migration 0008:
+Eight models correspond to the tables across migrations 0008 and 0009:
   - Job             — core job record with status machine and full-text search
   - ClientProfile   — CRM record linking a user to a tenant's client roster
   - ClientProperty  — property/job-site association per client
   - JobRequest      — inbound client request, convertible to a Job
   - Rating          — star rating for a completed job (direction-aware)
+  - JobNote         — contractor/admin notes attached to a job (migration 0009)
+  - Attachment      — file attachments linked to a job note (migration 0009)
+  - TimeEntry       — contractor clock-in/clock-out session for a job (migration 0009)
 
 All CLAUDE.md rules apply:
 - Models with FK relationships MUST define relationship() with lazy="raise"
@@ -22,7 +25,7 @@ about this FK since Booking.job_id has no ORM-level ForeignKey() declaration
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -30,6 +33,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     Date,
+    DateTime,
     ForeignKey,
     Integer,
     Numeric,
@@ -96,6 +100,11 @@ class Job(TenantScopedModel):
     # Using Text as a stand-in; the actual TSVECTOR type is not needed for ORM reads
     # since full-text search is executed via raw SQL in the repository layer.
 
+    # GPS columns added in migration 0009 for field workflow location tracking
+    gps_latitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6), nullable=True)
+    gps_longitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6), nullable=True)
+    gps_address: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     __table_args__ = (
         CheckConstraint(
             "status IN ('quote','scheduled','in_progress','complete','invoiced','cancelled')",
@@ -131,6 +140,16 @@ class Job(TenantScopedModel):
     )
     ratings: Mapped[list[Rating]] = relationship(
         "Rating",
+        back_populates="job",
+        lazy="raise",
+    )
+    job_notes: Mapped[list[JobNote]] = relationship(
+        "JobNote",
+        back_populates="job",
+        lazy="raise",
+    )
+    time_entries: Mapped[list[TimeEntry]] = relationship(
+        "TimeEntry",
         back_populates="job",
         lazy="raise",
     )
@@ -345,5 +364,152 @@ class Rating(TenantScopedModel):
     ratee: Mapped[User] = relationship(  # type: ignore[name-defined]
         "User",
         foreign_keys=[ratee_id],
+        lazy="raise",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 — Field workflow models (migration 0009)
+# ---------------------------------------------------------------------------
+
+
+class JobNote(TenantScopedModel):
+    """A note written by a contractor or admin on a job.
+
+    Each note belongs to a job and has an author (user). Optional file
+    attachments are stored in the attachments table (linked via note_id).
+    body: plain-text content (max 2000 chars enforced at API/Pydantic layer).
+    version: used for sync delta tracking and optimistic locking.
+    deleted_at: soft-delete — notes are never hard-deleted.
+    """
+
+    __tablename__ = "job_notes"
+
+    job_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("jobs.id"),
+        nullable=False,
+    )
+    author_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        nullable=False,
+    )
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Relationships — lazy="raise" to surface accidental lazy loads loudly
+    job: Mapped[Job] = relationship(
+        "Job",
+        foreign_keys=[job_id],
+        back_populates="job_notes",
+        lazy="raise",
+    )
+    author: Mapped[User] = relationship(  # type: ignore[name-defined]
+        "User",
+        foreign_keys=[author_id],
+        lazy="raise",
+    )
+    attachments: Mapped[list[Attachment]] = relationship(
+        "Attachment",
+        back_populates="note",
+        lazy="raise",
+    )
+
+
+class Attachment(TenantScopedModel):
+    """A file attachment linked to a job note.
+
+    attachment_type: photo / pdf / drawing (enforced via DB CHECK constraint).
+    remote_url: path to the file served by the static files endpoint
+      (e.g. /files/attachments/{note_id}/{filename}).
+    sort_order: display ordering within a note (default 0).
+    caption: optional human-readable label.
+    """
+
+    __tablename__ = "attachments"
+
+    note_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("job_notes.id"),
+        nullable=False,
+    )
+    attachment_type: Mapped[str] = mapped_column(Text, nullable=False)
+    remote_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    caption: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+
+    __table_args__ = (
+        CheckConstraint(
+            "attachment_type IN ('photo','pdf','drawing')",
+            name="attachments_type_check",
+        ),
+    )
+
+    # Relationships
+    note: Mapped[JobNote] = relationship(
+        "JobNote",
+        foreign_keys=[note_id],
+        back_populates="attachments",
+        lazy="raise",
+    )
+
+
+class TimeEntry(TenantScopedModel):
+    """A contractor clock-in/clock-out work session for a job.
+
+    clocked_in_at: when the contractor started work (required).
+    clocked_out_at: when the contractor stopped (null = still active).
+    duration_seconds: computed on clock-out (may differ from simple diff due to
+      break time or admin adjustments).
+    session_status: active (still clocked in) / completed (clocked out normally) /
+      adjusted (admin-edited the times after the fact).
+    adjustment_log: JSONB array of admin edits, each entry records:
+      {adjusted_by, reason, old_clocked_in_at, old_clocked_out_at,
+       new_clocked_in_at, new_clocked_out_at, timestamp}
+    """
+
+    __tablename__ = "time_entries"
+
+    job_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("jobs.id"),
+        nullable=False,
+    )
+    contractor_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        nullable=False,
+    )
+    clocked_in_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    clocked_out_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    session_status: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default="active"
+    )
+    adjustment_log: Mapped[list] = mapped_column(
+        JSONB, nullable=False, server_default="'[]'::jsonb"
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "session_status IN ('active','completed','adjusted')",
+            name="time_entries_session_status_check",
+        ),
+    )
+
+    # Relationships
+    job: Mapped[Job] = relationship(
+        "Job",
+        foreign_keys=[job_id],
+        back_populates="time_entries",
+        lazy="raise",
+    )
+    contractor: Mapped[User] = relationship(  # type: ignore[name-defined]
+        "User",
+        foreign_keys=[contractor_id],
         lazy="raise",
     )
