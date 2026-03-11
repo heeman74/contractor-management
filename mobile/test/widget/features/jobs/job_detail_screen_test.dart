@@ -17,7 +17,9 @@ import 'package:contractorhub/core/database/app_database.dart' hide UserRole;
 import 'package:contractorhub/core/di/service_locator.dart';
 import 'package:contractorhub/features/auth/domain/auth_state.dart';
 import 'package:contractorhub/features/auth/presentation/providers/auth_provider.dart';
+import 'package:contractorhub/features/jobs/data/attachment_dao.dart';
 import 'package:contractorhub/features/jobs/data/job_dao.dart';
+import 'package:contractorhub/features/jobs/data/note_dao.dart';
 import 'package:contractorhub/features/jobs/presentation/screens/job_detail_screen.dart';
 import 'package:contractorhub/shared/models/user_role.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
@@ -108,9 +110,18 @@ void main() {
 
     if (getIt.isRegistered<JobDao>()) getIt.unregister<JobDao>();
     getIt.registerSingleton<JobDao>(db.jobDao);
+
+    // Phase 6: NotesTab requires NoteDao and AttachmentDao in GetIt
+    if (getIt.isRegistered<NoteDao>()) getIt.unregister<NoteDao>();
+    getIt.registerSingleton<NoteDao>(db.noteDao);
+
+    if (getIt.isRegistered<AttachmentDao>()) getIt.unregister<AttachmentDao>();
+    getIt.registerSingleton<AttachmentDao>(db.attachmentDao);
   });
 
   tearDown(() async {
+    if (getIt.isRegistered<AttachmentDao>()) getIt.unregister<AttachmentDao>();
+    if (getIt.isRegistered<NoteDao>()) getIt.unregister<NoteDao>();
     if (getIt.isRegistered<JobDao>()) getIt.unregister<JobDao>();
     if (getIt.isRegistered<AppDatabase>()) getIt.unregister<AppDatabase>();
     await db.close();
@@ -127,7 +138,7 @@ void main() {
   }
 
   group('JobDetailScreen — tabs', () {
-    testWidgets('renders all three tabs', (tester) async {
+    testWidgets('renders all four tabs including Notes', (tester) async {
       await _seedJob(db, id: 'j-1', description: 'Fix pipe');
 
       await tester.pumpWidget(buildWidget('j-1'));
@@ -135,6 +146,7 @@ void main() {
 
       expect(find.text('Details'), findsOneWidget);
       expect(find.text('Schedule'), findsOneWidget);
+      expect(find.text('Notes'), findsOneWidget);
       expect(find.text('History'), findsOneWidget);
 
       await _cleanup(tester);
