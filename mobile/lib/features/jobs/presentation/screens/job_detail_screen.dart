@@ -9,13 +9,18 @@ import '../../data/job_dao.dart';
 import '../../domain/job_entity.dart';
 import '../../domain/job_status.dart';
 import '../providers/job_providers.dart';
+import '../providers/note_providers.dart';
+import '../widgets/gps_capture_button.dart';
+import '../widgets/notes_tab.dart';
+import '../widgets/time_tracked_section.dart';
 
-/// Tabbed job detail screen — Details, Schedule, and History tabs.
+/// Tabbed job detail screen — Details, Schedule, Notes, and History tabs.
 ///
 /// Streamed from local Drift DB via [jobDetailNotifierProvider] — offline-first.
 ///
 /// Details tab: description, client, contractor, priority, trade, notes.
 /// Schedule tab: all booking dates/times, contractor, job site addresses.
+/// Notes tab: timestamped field notes with inline attachment thumbnails.
 /// History tab: lifecycle transition audit trail from status_history JSONB.
 ///
 /// For Scheduled and In Progress jobs, a "Report Delay" action button allows
@@ -36,7 +41,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -52,6 +57,9 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen>
     final currentUserId =
         authState is AuthAuthenticated ? authState.userId : '';
 
+    final companyId =
+        authState is AuthAuthenticated ? authState.companyId : '';
+
     return jobAsync.when(
       data: (job) {
         if (job == null) {
@@ -64,6 +72,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen>
           job: job,
           tabController: _tabController,
           currentUserId: currentUserId,
+          companyId: companyId,
         );
       },
       loading: () => Scaffold(
@@ -78,23 +87,29 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen>
   }
 }
 
-class _JobDetailView extends StatelessWidget {
+class _JobDetailView extends ConsumerWidget {
   final JobEntity job;
   final TabController tabController;
   final String currentUserId;
+  final String companyId;
 
   const _JobDetailView({
     required this.job,
     required this.tabController,
     required this.currentUserId,
+    required this.companyId,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final statusColor = _statusColor(job.jobStatus);
     // Show "Report Delay" button only for Scheduled and In Progress jobs.
     final canReportDelay = job.jobStatus == JobStatus.scheduled ||
         job.jobStatus == JobStatus.inProgress;
+
+    // Watch note count for badge display on the Notes tab.
+    final noteCountAsync = ref.watch(noteCountProvider(job.id));
+    final noteCount = noteCountAsync.valueOrNull ?? 0;
 
     return Scaffold(
       appBar: AppBar(
@@ -119,10 +134,18 @@ class _JobDetailView extends StatelessWidget {
         ],
         bottom: TabBar(
           controller: tabController,
-          tabs: const [
-            Tab(icon: Icon(Icons.info_outline), text: 'Details'),
-            Tab(icon: Icon(Icons.schedule_outlined), text: 'Schedule'),
-            Tab(icon: Icon(Icons.history_outlined), text: 'History'),
+          tabs: [
+            const Tab(icon: Icon(Icons.info_outline), text: 'Details'),
+            const Tab(icon: Icon(Icons.schedule_outlined), text: 'Schedule'),
+            Tab(
+              icon: Badge(
+                isLabelVisible: noteCount > 0,
+                label: Text('$noteCount'),
+                child: const Icon(Icons.comment_outlined),
+              ),
+              text: 'Notes',
+            ),
+            const Tab(icon: Icon(Icons.history_outlined), text: 'History'),
           ],
         ),
       ),
@@ -131,6 +154,11 @@ class _JobDetailView extends StatelessWidget {
         children: [
           _DetailsTab(job: job),
           _ScheduleTab(job: job),
+          NotesTab(
+            jobId: job.id,
+            companyId: companyId,
+            authorId: currentUserId,
+          ),
           _HistoryTab(job: job),
         ],
       ),
@@ -258,6 +286,25 @@ class _DetailsTab extends StatelessWidget {
             ),
           ),
         ),
+        // ── GPS Location Section ──────────────────────────────────────────
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Job Site Location',
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                const SizedBox(height: 12),
+                GpsCaptureButton(job: job),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -304,33 +351,36 @@ class _ScheduleTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.calendar_month_outlined,
-              size: 64,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        // Booking details placeholder — filled when scheduling data is synced.
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.calendar_month_outlined,
+                  size: 48,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Booking details will appear here once the job is scheduled.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            const Text(
-              'Schedule view',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Booking details will appear here once the job is scheduled.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
+          ),
         ),
-      ),
+        const Divider(),
+        // Time tracking section — shows all clock-in/out sessions for this job.
+        TimeTrackedSection(jobId: job.id),
+      ],
     );
   }
 }
