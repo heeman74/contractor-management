@@ -56,6 +56,15 @@ class Jobs extends Table {
   IntColumn get estimatedDurationMinutes => integer().nullable()();
   DateTimeColumn get scheduledCompletionDate => dateTime().nullable()();
 
+  /// GPS latitude captured at job site (nullable — set when contractor arrives).
+  RealColumn get gpsLatitude => real().nullable()();
+
+  /// GPS longitude captured at job site (nullable — set when contractor arrives).
+  RealColumn get gpsLongitude => real().nullable()();
+
+  /// Reverse-geocoded address from GPS coordinates (nullable — geocoded by backend).
+  TextColumn get gpsAddress => text().nullable()();
+
   IntColumn get version => integer().withDefault(const Constant(1))();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
