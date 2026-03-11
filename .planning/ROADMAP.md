@@ -137,9 +137,9 @@ Plans:
 **Plans:** 2/7 plans executed
 
 Plans:
-- [ ] 06-00-PLAN.md — Wave 0 test stubs: 12 Flutter + 1 backend test stub files for all FIELD requirements, ensuring test infrastructure exists before implementation
-- [ ] 06-01-PLAN.md — Backend data foundation: Alembic migration 0009 (job_notes, attachments, time_entries tables + GPS columns), ORM models, Pydantic schemas, REST endpoints, file upload, sync extension
-- [ ] 06-02-PLAN.md — Mobile data layer: Drift tables (job_notes, attachments, time_entries), migration v4->v5, DAOs with sync queue dual-write, Freezed entities, sync handlers, new dependencies
+- [x] 06-00-PLAN.md — Wave 0 test stubs: 12 Flutter + 1 backend test stub files for all FIELD requirements, ensuring test infrastructure exists before implementation
+- [x] 06-01-PLAN.md — Backend data foundation: Alembic migration 0009 (job_notes, attachments, time_entries tables + GPS columns), ORM models, Pydantic schemas, REST endpoints, file upload, sync extension
+- [x] 06-02-PLAN.md — Mobile data layer: Drift tables (job_notes, attachments, time_entries), migration v4->v5, DAOs with sync queue dual-write, Freezed entities, sync handlers, new dependencies
 - [ ] 06-03-PLAN.md — Job notes UI: Notes tab (4th tab on job detail), Add Note bottom sheet, attachment thumbnails, attachment upload service, sync status upload progress
 - [ ] 06-04-PLAN.md — Drawing pad + GPS capture: Full-screen landscape canvas with pen/shapes/text/colors, PNG export; GPS capture button with permission handling, reverse geocode on sync
 - [ ] 06-05-PLAN.md — Time tracking + contractor card redesign: Timer screen, clock in/out providers, time tracked section on Schedule tab, contractor job cards with action bar, active job pinning
@@ -197,6 +197,6 @@ Note: Phase 3 (Scheduling Engine) depends only on Phase 1 and can begin in paral
 | 3. Scheduling Engine | 2/4 | In Progress|  |
 | 4. Job Lifecycle | 9/9 | Complete   | 2026-03-09 |
 | 5. Calendar and Dispatch UI | 6/6 | Complete   | 2026-03-09 |
-| 6. Field Workflow | 2/7 | In Progress|  |
+| 6. Field Workflow | 3/7 | In Progress|  |
 | 7. Client Portal and Notifications | 0/5 | Not started | - |
 | 8. Business Operations | 0/5 | Not started | - |

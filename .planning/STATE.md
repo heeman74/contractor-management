@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 06-field-workflow-02-PLAN.md
-last_updated: "2026-03-11T23:21:02.809Z"
-last_activity: "2026-03-09 — Phase 5 test suite: 7 backend delay endpoint tests, 10 overdue service unit tests, 7 BookingDao Drift tests, 29 Flutter widget tests"
+stopped_at: Completed 06-field-workflow-01-PLAN.md
+last_updated: "2026-03-11T23:44:00.000Z"
+last_activity: "2026-03-11 — Phase 6 Plan 01: migration 0009, ORM models, REST endpoints, file upload, sync extension"
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 38
-  completed_plans: 33
+  completed_plans: 34
   percent: 90
 ---
 
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 
 ## Current Position
 
-Phase: 5 of 8 (Calendar and Dispatch UI)
-Plan: 6 of 6 in current phase (05) — COMPLETE
-Status: Phase 5 COMPLETE — All 6 plans (05-01 through 05-06) completed
-Last activity: 2026-03-09 — Phase 5 test suite: 7 backend delay endpoint tests, 10 overdue service unit tests, 7 BookingDao Drift tests, 29 Flutter widget tests
+Phase: 6 of 8 (Field Workflow)
+Plan: 1 of 6 in current phase (06) — COMPLETE
+Status: Phase 6 In Progress — Plans 00, 01, 02 completed; 03-06 remain
+Last activity: 2026-03-11 — Phase 6 Plan 01: migration 0009, ORM models (JobNote, Attachment, TimeEntry), REST endpoints (notes + time entries), file upload, sync extension
 
 Progress: [█████████░] 90%
 
@@ -81,6 +81,7 @@ Progress: [█████████░] 90%
 | Phase 05-calendar-and-dispatch-ui P04 | 26min | 2 tasks | 6 files |
 | Phase 05-calendar-and-dispatch-ui PP05 | 16min | 2 tasks | 8 files |
 | Phase 05-calendar-and-dispatch-ui P06 | 45min | 2 tasks | 6 files |
+| Phase 06-field-workflow P01 | 30min | 2 tasks | 13 files |
 | Phase 06-field-workflow P00 | 2min | 2 tasks | 13 files |
 | Phase 06-field-workflow P02 | 25min | 2 tasks | 17 files |
 
@@ -196,6 +197,11 @@ Recent decisions affecting current work:
 - [Phase 06-field-workflow]: Attachments use dedicated binary upload service (no sync_queue text outbox) — AttachmentUploadService handles multipart upload in Plan 06-03
 - [Phase 06-field-workflow]: TimeEntryDao.clockIn auto-closes any existing active session before creating new one — one-active-session-per-contractor invariant enforced in DAO layer
 - [Phase 06-field-workflow]: GPS columns use addColumn migration (not new table) — GPS is a property of the job, not a separate entity
+
+- [Phase 06-field-workflow P01]: Attachment remote_url stored as /files/{path} matching StaticFiles mount in main.py; uploads/ dir re-exposed at both /uploads and /files
+- [Phase 06-field-workflow P01]: GPS geocode non-fatal: broad Exception caught, gps_address=None stored, retry on next sync via update_job_gps
+- [Phase 06-field-workflow P01]: create_time_entry auto-transitions job from scheduled->in_progress on first contractor clock-in
+- [Phase 06-field-workflow P01]: adjust_time_entry appends to adjustment_log via list replacement (Pitfall 3: never in-place JSONB append)
 
 ### Pending Todos
 
