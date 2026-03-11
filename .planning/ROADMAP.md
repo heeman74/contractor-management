@@ -134,15 +134,15 @@ Plans:
   3. Contractor can capture the job site address using GPS — the device location populates the address field without manual typing
   4. Contractor can open a drawing/handwriting pad, sketch a site layout or handwritten note, and save it to the job record
   5. Contractor can clock in and out per job; the time tracking record is stored locally and syncs with a precise duration
-**Plans**: TBD
+**Plans:** 6 plans
 
 Plans:
-- [ ] 06-01: Job notes — offline-capable note capture, Drift storage, sync integration, timestamping
-- [ ] 06-02: Photo capture — Flutter camera integration, presigned S3 URL upload, photo gallery in job record
-- [ ] 06-03: GPS address capture — device location to address field, permission handling, offline graceful degradation
-- [ ] 06-04: Drawing and handwriting pad — canvas widget, save as image, attach to job record
-- [ ] 06-05: Time tracking — clock in/out per job, duration calculation, Drift storage, sync
-- [ ] 06-06: Field workflow tests — offline photo + note capture E2E, GPS permission handling, time tracking unit tests
+- [ ] 06-01-PLAN.md — Backend data foundation: Alembic migration 0009 (job_notes, attachments, time_entries tables + GPS columns), ORM models, Pydantic schemas, REST endpoints, file upload, sync extension
+- [ ] 06-02-PLAN.md — Mobile data layer: Drift tables (job_notes, attachments, time_entries), migration v4->v5, DAOs with sync queue dual-write, Freezed entities, sync handlers, new dependencies
+- [ ] 06-03-PLAN.md — Job notes UI: Notes tab (4th tab on job detail), Add Note bottom sheet (text + camera + gallery + PDF + drawing launcher), attachment thumbnails, attachment upload service
+- [ ] 06-04-PLAN.md — Drawing pad + GPS capture: Full-screen landscape canvas with pen/shapes/text/colors, PNG export; GPS capture button with permission handling, reverse geocode on sync
+- [ ] 06-05-PLAN.md — Time tracking + contractor card redesign: Timer screen, clock in/out providers, time tracked section on Schedule tab, contractor job cards with action bar, active job pinning
+- [ ] 06-06-PLAN.md — Tests: NoteDao/TimeEntryDao Drift unit tests, AttachmentUploadService tests, widget tests for all screens, backend integration tests for notes/time/files/RLS
 
 ### Phase 7: Client Portal and Notifications
 **Goal**: Clients can view live job status, progress photos, and delay reasons through the client-facing portal, and receive push notifications at every significant job milestone
