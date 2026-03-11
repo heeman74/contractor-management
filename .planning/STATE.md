@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 06-field-workflow-00-PLAN.md
-last_updated: "2026-03-11T23:17:07.232Z"
+stopped_at: Completed 06-field-workflow-02-PLAN.md
+last_updated: "2026-03-11T23:21:02.809Z"
 last_activity: "2026-03-09 — Phase 5 test suite: 7 backend delay endpoint tests, 10 overdue service unit tests, 7 BookingDao Drift tests, 29 Flutter widget tests"
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 38
-  completed_plans: 32
+  completed_plans: 33
   percent: 90
 ---
 
@@ -82,6 +82,7 @@ Progress: [█████████░] 90%
 | Phase 05-calendar-and-dispatch-ui PP05 | 16min | 2 tasks | 8 files |
 | Phase 05-calendar-and-dispatch-ui P06 | 45min | 2 tasks | 6 files |
 | Phase 06-field-workflow P00 | 2min | 2 tasks | 13 files |
+| Phase 06-field-workflow P02 | 25min | 2 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -192,6 +193,9 @@ Recent decisions affecting current work:
 - [Phase 05-calendar-and-dispatch-ui P06]: Ambiguous imports resolved with 'as' prefix alias — jobDaoProvider defined in both job_providers.dart and calendar_providers.dart
 - [Phase 05-calendar-and-dispatch-ui P06]: BookingDao Drift tests written correctly against source API but fail dart analyze (pre-existing: build_runner not run, Bookings table missing from .g.dart)
 - [Phase 06-field-workflow]: Wave 0 stub naming includes target plan number for traceability (e.g., 'plan 06-02')
+- [Phase 06-field-workflow]: Attachments use dedicated binary upload service (no sync_queue text outbox) — AttachmentUploadService handles multipart upload in Plan 06-03
+- [Phase 06-field-workflow]: TimeEntryDao.clockIn auto-closes any existing active session before creating new one — one-active-session-per-contractor invariant enforced in DAO layer
+- [Phase 06-field-workflow]: GPS columns use addColumn migration (not new table) — GPS is a property of the job, not a separate entity
 
 ### Pending Todos
 
@@ -208,6 +212,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-11T23:17:07.225Z
-Stopped at: Completed 06-field-workflow-00-PLAN.md
+Last session: 2026-03-11T23:21:02.802Z
+Stopped at: Completed 06-field-workflow-02-PLAN.md
 Resume file: None

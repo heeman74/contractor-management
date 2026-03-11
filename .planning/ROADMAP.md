@@ -134,7 +134,7 @@ Plans:
   3. Contractor can capture the job site address using GPS — the device location populates the address field without manual typing
   4. Contractor can open a drawing/handwriting pad, sketch a site layout or handwritten note, and save it to the job record
   5. Contractor can clock in and out per job; the time tracking record is stored locally and syncs with a precise duration
-**Plans:** 1/7 plans executed
+**Plans:** 2/7 plans executed
 
 Plans:
 - [ ] 06-00-PLAN.md — Wave 0 test stubs: 12 Flutter + 1 backend test stub files for all FIELD requirements, ensuring test infrastructure exists before implementation
@@ -197,6 +197,6 @@ Note: Phase 3 (Scheduling Engine) depends only on Phase 1 and can begin in paral
 | 3. Scheduling Engine | 2/4 | In Progress|  |
 | 4. Job Lifecycle | 9/9 | Complete   | 2026-03-09 |
 | 5. Calendar and Dispatch UI | 6/6 | Complete   | 2026-03-09 |
-| 6. Field Workflow | 1/7 | In Progress|  |
+| 6. Field Workflow | 2/7 | In Progress|  |
 | 7. Client Portal and Notifications | 0/5 | Not started | - |
 | 8. Business Operations | 0/5 | Not started | - |
