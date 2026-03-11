@@ -15,6 +15,7 @@ import '../sync/sync_registry.dart';
 import '../../features/jobs/data/client_profile_sync_handler.dart';
 import '../../features/jobs/data/job_request_sync_handler.dart';
 import '../../features/jobs/data/job_sync_handler.dart';
+import '../../features/jobs/presentation/services/attachment_upload_service.dart';
 import '../../features/schedule/data/booking_sync_handler.dart';
 import '../../features/schedule/data/job_site_sync_handler.dart';
 
@@ -87,4 +88,16 @@ Future<void> setupServiceLocator() async {
   getIt.registerSingleton<NoteDao>(db.noteDao);
   getIt.registerSingleton<AttachmentDao>(db.attachmentDao);
   getIt.registerSingleton<TimeEntryDao>(db.timeEntryDao);
+
+  // AttachmentUploadService — binary file uploader for field workflow attachments.
+  // Registered AFTER SyncEngine to allow post-construction wiring via
+  // setAttachmentUploadService(). Text-first sync: uploads only after queue drain.
+  final attachmentUploadService = AttachmentUploadService(
+    dioClient: dioClient,
+    attachmentDao: db.attachmentDao,
+  );
+  getIt.registerSingleton<AttachmentUploadService>(attachmentUploadService);
+
+  // Wire AttachmentUploadService into SyncEngine for post-drain upload.
+  syncEngine.setAttachmentUploadService(attachmentUploadService);
 }
