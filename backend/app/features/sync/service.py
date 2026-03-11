@@ -157,3 +157,51 @@ class SyncService:
             select(JobSite).where(or_(JobSite.updated_at > since, JobSite.deleted_at > since))
         )
         return list(result.scalars().all())
+
+    # -------------------------------------------------------------------------
+    # Phase 6 — field workflow entity sync methods
+    # -------------------------------------------------------------------------
+
+    async def get_job_notes_since(self, since: datetime) -> list:
+        """Return all job notes changed since the given cursor timestamp.
+
+        Includes both active records and tombstones (deleted_at > since).
+        Eager-loads attachments (one-to-many) so JobNoteResponse.attachments is populated.
+        RLS automatically restricts to the current tenant.
+        """
+        from app.features.jobs.models import JobNote
+
+        result = await self.db.execute(
+            select(JobNote)
+            .where(or_(JobNote.updated_at > since, JobNote.deleted_at > since))
+            .options(selectinload(JobNote.attachments))
+        )
+        return list(result.scalars().all())
+
+    async def get_time_entries_since(self, since: datetime) -> list:
+        """Return all time entries changed since the given cursor timestamp.
+
+        Includes both active records and tombstones (deleted_at > since).
+        RLS automatically restricts to the current tenant.
+        """
+        from app.features.jobs.models import TimeEntry
+
+        result = await self.db.execute(
+            select(TimeEntry).where(or_(TimeEntry.updated_at > since, TimeEntry.deleted_at > since))
+        )
+        return list(result.scalars().all())
+
+    async def get_attachments_since(self, since: datetime) -> list:
+        """Return all attachments changed since the given cursor timestamp.
+
+        Includes both active records and tombstones (deleted_at > since).
+        RLS automatically restricts to the current tenant.
+        """
+        from app.features.jobs.models import Attachment
+
+        result = await self.db.execute(
+            select(Attachment).where(
+                or_(Attachment.updated_at > since, Attachment.deleted_at > since)
+            )
+        )
+        return list(result.scalars().all())

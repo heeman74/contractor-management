@@ -5,6 +5,7 @@ Provides JobRepository(TenantScopedRepository[Job]) with:
 - Filtered list with optional filters
 - Full-text search via PostgreSQL tsvector/plainto_tsquery
 - Bulk booking soft-delete on job cancellation (no N+1 loops)
+- Phase 6 field workflow: job notes, time entries
 
 All CLAUDE.md rules apply:
 - No db.commit() — get_db handles transaction lifecycle
@@ -23,7 +24,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import selectinload
 
 from app.core.base_repository import TenantScopedRepository
-from app.features.jobs.models import Job
+from app.features.jobs.models import Job, JobNote, TimeEntry
 
 
 class JobRepository(TenantScopedRepository[Job]):
@@ -201,5 +202,67 @@ class JobRepository(TenantScopedRepository[Job]):
             .where(Job.deleted_at.is_(None))
             .options(selectinload(Job.client))
             .order_by(Job.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    # -------------------------------------------------------------------------
+    # Phase 6 — Field workflow: notes, time entries
+    # -------------------------------------------------------------------------
+
+    async def get_note_by_id(self, note_id: uuid.UUID) -> JobNote | None:
+        """Retrieve a single note by ID with attachments eager-loaded.
+
+        Attachments are needed for JobNoteResponse — lazy="raise" on model.
+        """
+        result = await self.db.execute(
+            select(JobNote)
+            .where(JobNote.id == note_id)
+            .where(JobNote.deleted_at.is_(None))
+            .options(selectinload(JobNote.attachments))
+        )
+        return result.scalars().first()
+
+    async def list_notes(self, job_id: uuid.UUID) -> list[JobNote]:
+        """All non-deleted notes for a job, newest first, with attachments eager-loaded.
+
+        Uses selectinload to batch-load attachments for all notes in one query
+        (not N+1). Per CLAUDE.md: selectinload for one-to-many.
+        """
+        result = await self.db.execute(
+            select(JobNote)
+            .where(JobNote.job_id == job_id)
+            .where(JobNote.deleted_at.is_(None))
+            .options(selectinload(JobNote.attachments))
+            .order_by(JobNote.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    async def get_time_entry_by_id(self, entry_id: uuid.UUID) -> TimeEntry | None:
+        """Retrieve a single time entry by ID."""
+        result = await self.db.execute(
+            select(TimeEntry).where(TimeEntry.id == entry_id).where(TimeEntry.deleted_at.is_(None))
+        )
+        return result.scalars().first()
+
+    async def get_active_time_entry(self, contractor_id: uuid.UUID) -> TimeEntry | None:
+        """Return the contractor's current active time entry (across any job), or None.
+
+        Used to enforce one-active-session-per-contractor before creating a new entry.
+        """
+        result = await self.db.execute(
+            select(TimeEntry)
+            .where(TimeEntry.contractor_id == contractor_id)
+            .where(TimeEntry.session_status == "active")
+            .where(TimeEntry.deleted_at.is_(None))
+        )
+        return result.scalars().first()
+
+    async def list_time_entries(self, job_id: uuid.UUID) -> list[TimeEntry]:
+        """All non-deleted time entries for a job, ordered by clocked_in_at desc."""
+        result = await self.db.execute(
+            select(TimeEntry)
+            .where(TimeEntry.job_id == job_id)
+            .where(TimeEntry.deleted_at.is_(None))
+            .order_by(TimeEntry.clocked_in_at.desc())
         )
         return list(result.scalars().all())

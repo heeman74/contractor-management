@@ -13,6 +13,7 @@ from app.core.rate_limit import limiter
 from app.core.tenant import TenantMiddleware
 from app.features.auth.router import router as auth_router
 from app.features.companies.router import router as companies_router
+from app.features.files.router import router as files_router
 from app.features.jobs.router import router as jobs_router
 from app.features.scheduling.router import router as scheduling_router
 from app.features.sync.router import router as sync_router
@@ -101,9 +102,15 @@ app.include_router(users_router, prefix="/api/v1")
 app.include_router(sync_router, prefix="/api/v1")
 app.include_router(scheduling_router, prefix="/api/v1")
 app.include_router(jobs_router, prefix="/api/v1")
+# Phase 6: file upload endpoint for job note attachments
+app.include_router(files_router, prefix="/api/v1")
 
-# Serve uploaded files (job request photos etc.) — only on non-production builds
+# Serve uploaded files (job request photos, note attachments etc.)
+# IMPORTANT: StaticFiles mounts MUST be added AFTER all router includes.
+# main.py mounts uploads/ at /files so attachment remote_urls (/files/attachments/...) resolve.
 app.mount("/uploads", StaticFiles(directory=str(_UPLOADS_DIR)), name="uploads")
+# Phase 6: serve attachments at /files/ (uploads/ dir re-mapped to match remote_url prefix)
+app.mount("/files", StaticFiles(directory=str(_UPLOADS_DIR)), name="files")
 
 
 @app.get("/health")

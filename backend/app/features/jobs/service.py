@@ -8,6 +8,7 @@ Implements:
 - soft_delete_job: admin-only hard-removal via deleted_at (distinct from cancellation)
 - CRUD delegation to JobRepository
 - Full-text search delegation to JobRepository
+- Phase 6 field workflow: job notes, time entries, GPS geocoding
 
 State machine design (from CONTEXT.md locked decisions):
   Admin:       all forward + backward transitions
@@ -31,9 +32,17 @@ from typing import Any
 from fastapi import HTTPException, status
 
 from app.core.base_service import TenantScopedService
-from app.features.jobs.models import Job
+from app.features.jobs.models import Job, JobNote, TimeEntry
 from app.features.jobs.repository import JobRepository
-from app.features.jobs.schemas import DelayReportRequest, JobCreate, JobStatus, JobUpdate
+from app.features.jobs.schemas import (
+    DelayReportRequest,
+    JobCreate,
+    JobNoteCreate,
+    JobStatus,
+    JobUpdate,
+    TimeEntryAdjust,
+    TimeEntryUpdate,
+)
 
 # ---------------------------------------------------------------------------
 # State machine constants
@@ -415,6 +424,250 @@ class JobService(TenantScopedService[Job]):
 
         # Update scheduled completion date and bump version
         job.scheduled_completion_date = data.new_eta
+        job.version = job.version + 1  # type: ignore[assignment]
+
+        await self.db.flush()
+        await self.db.refresh(job)
+        return job
+
+    # -------------------------------------------------------------------------
+    # Phase 6 — Field workflow: notes, time entries, GPS geocoding
+    # -------------------------------------------------------------------------
+
+    async def create_note(
+        self,
+        job_id: uuid.UUID,
+        author_id: uuid.UUID,
+        company_id: uuid.UUID,
+        data: JobNoteCreate,
+    ) -> JobNote:
+        """Create a note on a job and eager-load attachments for response.
+
+        Raises 404 if job not found.
+        """
+        job = await self.repository.get_by_id(job_id)
+        if job is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Job {job_id} not found",
+            )
+
+        note = JobNote(
+            company_id=company_id,
+            job_id=job_id,
+            author_id=author_id,
+            body=data.body,
+        )
+        self.db.add(note)
+        await self.db.flush()
+        # Reload with eager-loaded attachments (empty list for new note)
+        return await self.repository.get_note_by_id(note.id)  # type: ignore[return-value]
+
+    async def list_notes(self, job_id: uuid.UUID) -> list[JobNote]:
+        """Return all non-deleted notes for a job, newest first, with attachments eager-loaded."""
+        return await self.repository.list_notes(job_id)
+
+    async def create_time_entry(
+        self,
+        job_id: uuid.UUID,
+        contractor_id: uuid.UUID,
+        company_id: uuid.UUID,
+        clocked_in_at: datetime,
+    ) -> TimeEntry:
+        """Clock in: create an active time entry for a contractor on a job.
+
+        Enforces one-active-session-per-contractor: if the contractor has any
+        active session (across any job), it is closed first with duration computed
+        from clocked_in_at of the new session minus the old session's clocked_in_at.
+
+        If the job status is 'scheduled', transitions it to 'in_progress' and
+        records the transition in status_history.
+
+        Raises 404 if job not found.
+        """
+        job = await self.repository.get_by_id(job_id)
+        if job is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Job {job_id} not found",
+            )
+
+        # Close any existing active session for this contractor (across any job)
+        active = await self.repository.get_active_time_entry(contractor_id)
+        if active is not None:
+            duration = int((clocked_in_at - active.clocked_in_at).total_seconds())
+            active.clocked_out_at = clocked_in_at  # type: ignore[assignment]
+            active.duration_seconds = max(0, duration)
+            active.session_status = "completed"
+            await self.db.flush()
+
+        # Auto-transition job from scheduled -> in_progress on first clock-in
+        if job.status == JobStatus.scheduled:
+            entry: dict[str, Any] = {
+                "status": JobStatus.in_progress,
+                "timestamp": datetime.now(UTC).isoformat(),
+                "user_id": str(contractor_id),
+                "reason": "Auto-transitioned to in_progress on contractor clock-in",
+            }
+            job.status_history = [*job.status_history, entry]
+            job.status = JobStatus.in_progress
+            job.version = job.version + 1  # type: ignore[assignment]
+            await self.db.flush()
+
+        entry_obj = TimeEntry(
+            company_id=company_id,
+            job_id=job_id,
+            contractor_id=contractor_id,
+            clocked_in_at=clocked_in_at,
+            session_status="active",
+        )
+        self.db.add(entry_obj)
+        await self.db.flush()
+        await self.db.refresh(entry_obj)
+        return entry_obj
+
+    async def update_time_entry(
+        self,
+        entry_id: uuid.UUID,
+        data: TimeEntryUpdate,
+    ) -> TimeEntry:
+        """Clock out: complete an active time entry.
+
+        Sets clocked_out_at, computes duration, and sets session_status='completed'.
+        Raises 404 if entry not found, 422 if entry is not active.
+        """
+        entry = await self.repository.get_time_entry_by_id(entry_id)
+        if entry is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Time entry {entry_id} not found",
+            )
+
+        if entry.session_status != "active":
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    f"Cannot clock out: time entry session_status is "
+                    f"'{entry.session_status}' (must be 'active')."
+                ),
+            )
+
+        entry.clocked_out_at = data.clocked_out_at  # type: ignore[assignment]
+        if data.duration_seconds is not None:
+            entry.duration_seconds = data.duration_seconds
+        else:
+            entry.duration_seconds = max(
+                0,
+                int((data.clocked_out_at - entry.clocked_in_at).total_seconds()),
+            )
+        entry.session_status = "completed"
+
+        await self.db.flush()
+        await self.db.refresh(entry)
+        return entry
+
+    async def adjust_time_entry(
+        self,
+        entry_id: uuid.UUID,
+        adjuster_id: uuid.UUID,
+        data: TimeEntryAdjust,
+    ) -> TimeEntry:
+        """Admin adjustment to a time entry.
+
+        Appends an audit entry to adjustment_log JSONB, updates the times,
+        sets session_status='adjusted', and recalculates duration_seconds.
+        Raises 404 if entry not found.
+        """
+        entry = await self.repository.get_time_entry_by_id(entry_id)
+        if entry is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Time entry {entry_id} not found",
+            )
+
+        # Build audit log entry before mutation
+        log_entry: dict[str, Any] = {
+            "adjusted_by": str(adjuster_id),
+            "reason": data.reason,
+            "old_clocked_in_at": entry.clocked_in_at.isoformat(),
+            "old_clocked_out_at": (
+                entry.clocked_out_at.isoformat() if entry.clocked_out_at else None
+            ),
+            "new_clocked_in_at": (data.clocked_in_at.isoformat() if data.clocked_in_at else None),
+            "new_clocked_out_at": (
+                data.clocked_out_at.isoformat() if data.clocked_out_at else None
+            ),
+            "timestamp": datetime.now(UTC).isoformat(),
+        }
+        # List replacement (Pitfall 3: never in-place JSONB append)
+        entry.adjustment_log = [*entry.adjustment_log, log_entry]
+
+        if data.clocked_in_at is not None:
+            entry.clocked_in_at = data.clocked_in_at  # type: ignore[assignment]
+        if data.clocked_out_at is not None:
+            entry.clocked_out_at = data.clocked_out_at  # type: ignore[assignment]
+
+        entry.session_status = "adjusted"
+        entry.version = entry.version + 1  # type: ignore[assignment]
+
+        # Recompute duration if both bounds are known
+        if entry.clocked_out_at is not None:
+            entry.duration_seconds = max(
+                0,
+                int((entry.clocked_out_at - entry.clocked_in_at).total_seconds()),
+            )
+
+        await self.db.flush()
+        await self.db.refresh(entry)
+        return entry
+
+    async def list_time_entries(self, job_id: uuid.UUID) -> list[TimeEntry]:
+        """Return all non-deleted time entries for a job, ordered by clocked_in_at desc."""
+        return await self.repository.list_time_entries(job_id)
+
+    async def update_job_gps(
+        self,
+        job_id: uuid.UUID,
+        latitude: float,
+        longitude: float,
+    ) -> Job:
+        """Store GPS coordinates on a job and attempt reverse geocoding.
+
+        Calls ORSGeocodingProvider.reverse_geocode(latitude, longitude) to resolve
+        an address. If geocoding fails or returns None, gps_address is set to None
+        (client will retry on next sync).
+
+        Raises 404 if job not found.
+        """
+        from app.core.config import settings
+
+        job = await self.repository.get_by_id(job_id)
+        if job is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Job {job_id} not found",
+            )
+
+        job.gps_latitude = latitude  # type: ignore[assignment]
+        job.gps_longitude = longitude  # type: ignore[assignment]
+
+        # Attempt reverse geocoding — fail gracefully (store coords, no address)
+        address: str | None = None
+        ors_api_key = getattr(settings, "ors_api_key", None)
+        if ors_api_key:
+            try:
+                import httpx
+
+                from app.features.scheduling.geocoding.ors_geocoder import ORSGeocodingProvider
+
+                async with httpx.AsyncClient() as http_client:
+                    provider = ORSGeocodingProvider(api_key=ors_api_key, client=http_client)
+                    address = await provider.reverse_geocode(latitude, longitude)
+            except Exception:  # noqa: BLE001
+                # Geocode failure is non-fatal — store coords and retry on next sync
+                address = None
+
+        job.gps_address = address
         job.version = job.version + 1  # type: ignore[assignment]
 
         await self.db.flush()

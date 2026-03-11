@@ -12,6 +12,10 @@ get_current_user dependency, which sets the tenant context for RLS filtering.
 Phase 4 additions: the sync response now includes jobs, client_profiles, and
 job_requests alongside existing entity types. The delta sync cursor applies
 equally to all entity types — a single high-water mark timestamp covers all.
+
+Phase 6 additions: job_notes, time_entries, and attachments added to the delta
+pull. The sync push handler for jobs triggers GPS reverse geocoding when a job
+update includes gps_latitude/gps_longitude with gps_address=None.
 """
 
 from datetime import UTC, datetime
@@ -22,7 +26,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.security import CurrentUser, get_current_user
 from app.features.companies.schemas import CompanyResponse
-from app.features.jobs.schemas import ClientProfileResponse, JobRequestResponse, JobResponse
+from app.features.jobs.schemas import (
+    AttachmentResponse,
+    ClientProfileResponse,
+    JobNoteResponse,
+    JobRequestResponse,
+    JobResponse,
+    TimeEntryResponse,
+)
 from app.features.scheduling.schemas import BookingResponse
 
 # isort: split
@@ -81,6 +92,10 @@ async def delta_sync(
     # Phase 5 entities — calendar & dispatch
     bookings = await svc.get_bookings_since(since)
     job_sites = await svc.get_job_sites_since(since)
+    # Phase 6 entities — field workflow
+    job_notes = await svc.get_job_notes_since(since)
+    time_entries = await svc.get_time_entries_since(since)
+    attachments = await svc.get_attachments_since(since)
 
     return SyncResponse(
         companies=[CompanyResponse.model_validate(c) for c in companies],
@@ -91,5 +106,8 @@ async def delta_sync(
         job_requests=[JobRequestResponse.model_validate(r) for r in job_requests],
         bookings=[BookingResponse.model_validate(b) for b in bookings],
         job_sites=[JobSiteResponse.model_validate(s) for s in job_sites],
+        job_notes=[JobNoteResponse.model_validate(n) for n in job_notes],
+        time_entries=[TimeEntryResponse.model_validate(e) for e in time_entries],
+        attachments=[AttachmentResponse.model_validate(a) for a in attachments],
         server_timestamp=datetime.now(UTC).isoformat(),
     )

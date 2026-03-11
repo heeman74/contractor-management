@@ -480,16 +480,10 @@ class TimeEntry(TenantScopedModel):
         ForeignKey("users.id"),
         nullable=False,
     )
-    clocked_in_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
-    clocked_out_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    clocked_in_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    clocked_out_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    session_status: Mapped[str] = mapped_column(
-        Text, nullable=False, server_default="active"
-    )
+    session_status: Mapped[str] = mapped_column(Text, nullable=False, server_default="active")
     adjustment_log: Mapped[list] = mapped_column(
         JSONB, nullable=False, server_default="'[]'::jsonb"
     )

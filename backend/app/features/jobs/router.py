@@ -93,6 +93,8 @@ from app.features.jobs.schemas import (
     ClientPropertyResponse,
     DelayReportRequest,
     JobCreate,
+    JobNoteCreate,
+    JobNoteResponse,
     JobRequestCreate,
     JobRequestResponse,
     JobRequestReviewAction,
@@ -102,6 +104,10 @@ from app.features.jobs.schemas import (
     JobUpdate,
     RatingCreate,
     RatingResponse,
+    TimeEntryAdjust,
+    TimeEntryCreate,
+    TimeEntryResponse,
+    TimeEntryUpdate,
 )
 from app.features.jobs.service import InvalidTransitionError, JobService
 from app.features.scheduling.schemas import BookingCreate, DayBlock, MultiDayBookingCreate
@@ -514,6 +520,142 @@ async def report_job_delay(
     svc = JobService(db)
     job = await svc.report_delay(job_id, data, user_id=current_user.user_id)
     return JobResponse.model_validate(job)
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 — Field workflow endpoints (notes, time entries)
+#
+# CRITICAL: All these endpoints are declared BEFORE the /jobs/{job_id} catch-all
+# to prevent FastAPI from matching sub-path segments as UUID path params.
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/jobs/{job_id}/notes",
+    status_code=status.HTTP_201_CREATED,
+    response_model=JobNoteResponse,
+)
+async def create_note(
+    job_id: uuid.UUID,
+    data: JobNoteCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> JobNoteResponse:
+    """Create a note on a job.
+
+    Returns 201 + JobNoteResponse with empty attachments list.
+    Raises 404 if job not found.
+    """
+    svc = JobService(db)
+    note = await svc.create_note(
+        job_id=job_id,
+        author_id=current_user.user_id,
+        company_id=current_user.company_id,
+        data=data,
+    )
+    return JobNoteResponse.model_validate(note)
+
+
+@router.get("/jobs/{job_id}/notes", response_model=list[JobNoteResponse])
+async def list_notes(
+    job_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> list[JobNoteResponse]:
+    """List all notes for a job, newest first, with attachments."""
+    svc = JobService(db)
+    notes = await svc.list_notes(job_id)
+    return [JobNoteResponse.model_validate(n) for n in notes]
+
+
+@router.post(
+    "/jobs/{job_id}/time-entries",
+    status_code=status.HTTP_201_CREATED,
+    response_model=TimeEntryResponse,
+)
+async def create_time_entry(
+    job_id: uuid.UUID,
+    data: TimeEntryCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> TimeEntryResponse:
+    """Clock in: create an active time entry for the current contractor on a job.
+
+    Enforces one-active-session-per-contractor — auto-closes any previous active
+    session before opening a new one.
+
+    If the job is 'scheduled', auto-transitions it to 'in_progress'.
+    Raises 404 if job not found.
+    """
+    svc = JobService(db)
+    entry = await svc.create_time_entry(
+        job_id=job_id,
+        contractor_id=current_user.user_id,
+        company_id=current_user.company_id,
+        clocked_in_at=data.clocked_in_at,
+    )
+    return TimeEntryResponse.model_validate(entry)
+
+
+@router.patch(
+    "/jobs/{job_id}/time-entries/{entry_id}",
+    response_model=TimeEntryResponse,
+)
+async def clock_out_time_entry(
+    job_id: uuid.UUID,
+    entry_id: uuid.UUID,
+    data: TimeEntryUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> TimeEntryResponse:
+    """Clock out: complete an active time entry.
+
+    Raises 404 if not found, 422 if entry is not 'active'.
+    """
+    svc = JobService(db)
+    entry = await svc.update_time_entry(entry_id=entry_id, data=data)
+    return TimeEntryResponse.model_validate(entry)
+
+
+@router.patch(
+    "/jobs/{job_id}/time-entries/{entry_id}/adjust",
+    response_model=TimeEntryResponse,
+)
+async def adjust_time_entry(
+    job_id: uuid.UUID,
+    entry_id: uuid.UUID,
+    data: TimeEntryAdjust,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> TimeEntryResponse:
+    """Admin adjustment: edit a time entry's times with audit trail.
+
+    Appends to adjustment_log JSONB, updates times, sets status='adjusted',
+    and recalculates duration_seconds.
+    Raises 404 if not found.
+    """
+    svc = JobService(db)
+    entry = await svc.adjust_time_entry(
+        entry_id=entry_id,
+        adjuster_id=current_user.user_id,
+        data=data,
+    )
+    return TimeEntryResponse.model_validate(entry)
+
+
+@router.get(
+    "/jobs/{job_id}/time-entries",
+    response_model=list[TimeEntryResponse],
+)
+async def list_time_entries(
+    job_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> list[TimeEntryResponse]:
+    """List all time entries for a job, ordered by clocked_in_at descending."""
+    svc = JobService(db)
+    entries = await svc.list_time_entries(job_id)
+    return [TimeEntryResponse.model_validate(e) for e in entries]
 
 
 @router.get("/jobs/{job_id}", response_model=JobResponse)
