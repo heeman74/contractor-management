@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 
 import '../database/app_database.dart';
 import '../network/dio_client.dart';
+import '../../features/jobs/presentation/services/attachment_upload_service.dart';
 import 'connectivity_service.dart';
 import 'sync_cursor_dao.dart';
 import 'sync_queue_dao.dart';
@@ -28,26 +29,64 @@ enum SyncState {
 ///
 /// Used by the app bar sync status indicator to show users the current
 /// state of the offline sync system.
+///
+/// [uploadTotal] and [uploadCompleted] are set by [SyncStatusProvider] when
+/// [AttachmentUploadService.progressStream] emits progress events.
+/// Per user decision: "3 items synced, 5 photos uploading (2/5)".
 class SyncStatus {
   final SyncState state;
   final int pendingCount;
   final int? syncingOf;
 
-  const SyncStatus(this.state, this.pendingCount, {this.syncingOf});
+  /// Total number of attachments being uploaded in the current upload cycle.
+  final int uploadTotal;
+
+  /// Number of attachments that have completed upload (success or failure).
+  final int uploadCompleted;
+
+  const SyncStatus(
+    this.state,
+    this.pendingCount, {
+    this.syncingOf,
+    this.uploadTotal = 0,
+    this.uploadCompleted = 0,
+  });
 
   /// Human-readable subtitle for the sync status indicator.
   ///
   /// Format matches user decision:
   /// - offline → 'Offline'
+  /// - allSynced with uploads pending → 'N item(s) synced, M photos uploading (X/M)'
   /// - allSynced → 'All synced'
   /// - pending → 'N item(s) pending'
   /// - syncing → 'Syncing M of N...'
-  String get subtitle => switch (state) {
-        SyncState.offline => 'Offline',
-        SyncState.allSynced => 'All synced',
-        SyncState.pending => '$pendingCount item(s) pending',
-        SyncState.syncing => 'Syncing $syncingOf of $pendingCount...',
-      };
+  String get subtitle {
+    if (state == SyncState.offline) return 'Offline';
+    if (uploadTotal > 0) {
+      return '$pendingCount item(s) synced, '
+          '$uploadTotal photos uploading ($uploadCompleted/$uploadTotal)';
+    }
+    return switch (state) {
+      SyncState.offline => 'Offline',
+      SyncState.allSynced => 'All synced',
+      SyncState.pending => '$pendingCount item(s) pending',
+      SyncState.syncing => 'Syncing $syncingOf of $pendingCount...',
+    };
+  }
+
+  /// Returns a copy with updated upload progress fields.
+  SyncStatus withUploadProgress({
+    required int uploadTotal,
+    required int uploadCompleted,
+  }) {
+    return SyncStatus(
+      state,
+      pendingCount,
+      syncingOf: syncingOf,
+      uploadTotal: uploadTotal,
+      uploadCompleted: uploadCompleted,
+    );
+  }
 
   @override
   String toString() => 'SyncStatus(state: $state, subtitle: $subtitle)';
@@ -93,6 +132,11 @@ class SyncEngine {
   final SyncRegistry _registry;
   final ConnectivityService _connectivityService;
 
+  /// Optional attachment upload service — set after construction via
+  /// [setAttachmentUploadService]. Injected post-construction to break the
+  /// circular dependency: SyncEngine is registered before AttachmentUploadService.
+  AttachmentUploadService? _attachmentUploadService;
+
   late final SyncQueueDao _syncQueueDao;
   late final SyncCursorDao _syncCursorDao;
 
@@ -113,6 +157,14 @@ class SyncEngine {
   ) {
     _syncQueueDao = _db.syncQueueDao;
     _syncCursorDao = _db.syncCursorDao;
+  }
+
+  /// Wire the [AttachmentUploadService] after it has been constructed.
+  ///
+  /// Called from [setupServiceLocator] after both services are registered.
+  /// Text-first sync strategy: attachments upload AFTER queue drain completes.
+  void setAttachmentUploadService(AttachmentUploadService service) {
+    _attachmentUploadService = service;
   }
 
   /// Stream of [SyncStatus] updates for the sync status UI indicator.
@@ -316,8 +368,12 @@ class SyncEngine {
         }
       }
 
-      // TODO(06-03): Call AttachmentUploadService.uploadPending() here
-      // after drainQueue() completes text sync, to upload pending binary files.
+      // Text-first sync strategy (user decision): attachments upload AFTER the
+      // text delta pull completes so the note record exists on the server
+      // before its attachments are posted.
+      if (_attachmentUploadService != null) {
+        await _attachmentUploadService!.uploadPending();
+      }
 
       // Update the cursor to the server's timestamp for the next delta pull
       final serverTimestamp = data['server_timestamp'] as String?;
