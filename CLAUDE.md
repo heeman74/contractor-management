@@ -107,6 +107,19 @@
 - E2E tests must cover multi-role flows when applicable (e.g., client submits → admin reviews → job created).
 - Minimum coverage per feature: happy path, validation/error handling, edge cases (empty data, max limits), and cross-role visibility.
 
+### Phase Completion E2E Tests (Required)
+- Every phase MUST have E2E tests covering all verification items BEFORE the phase is considered complete.
+- Instead of manual verify-work, create automated E2E tests that cover the human_verification items from VERIFICATION.md.
+- E2E tests must be created, run, and passing — fix any failures before moving to the next phase.
+- Phase E2E test files go in `mobile/test/e2e/` with naming `phase_{N}_{feature}_e2e_test.dart`.
+- Backend E2E tests go in `backend/tests/` with naming `test_phase_{N}_e2e.py`.
+- Each E2E test must exercise the full user flow: UI interaction → provider → DAO/service → data persistence → UI update.
+- Mock external dependencies (Dio, Geolocator, camera, file picker) at the plugin level, but use real Drift in-memory DB.
+- For offline sync flows: seed Drift data, simulate sync queue drain, verify state transitions.
+- For permission flows: mock permission responses (granted, denied, deniedForever) and verify UI reactions.
+- For timer/clock flows: use fake async or manual timer control to test elapsed time display.
+- A phase is NOT done until: all E2E tests pass, all unit/widget tests pass, and verification status is "passed".
+
 ### UAT Automation (Minimize Manual Testing)
 - Every UAT test case MUST have a corresponding automated test (E2E or unit) covering the happy path.
 - Manual UAT is reserved ONLY for: visual/aesthetic checks, haptic feedback, real device gestures that can't be simulated, and cross-device compatibility.
