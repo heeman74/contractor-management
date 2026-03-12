@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 3: Scheduling Engine** - Conflict detection, travel time awareness, multi-day jobs, and availability tracking
 - [x] **Phase 4: Job Lifecycle** - Job CRUD, lifecycle state machine, client CRM, and dual job creation flows (completed 2026-03-09)
 - [x] **Phase 5: Calendar and Dispatch UI** - Drag-and-drop calendar, overdue warnings, and delay justification flow (completed 2026-03-09)
-- [ ] **Phase 6: Field Workflow** - Job notes, photo capture, GPS address, drawing pad, and time tracking
+- [x] **Phase 6: Field Workflow** - Job notes, photo capture, GPS address, drawing pad, and time tracking (completed 2026-03-12)
 - [ ] **Phase 7: Client Portal and Notifications** - Client-facing job status, progress photos, delay visibility, and push notifications
 - [ ] **Phase 8: Business Operations** - Digital quoting, quote approval, invoicing, and reporting dashboard
 
@@ -134,7 +134,7 @@ Plans:
   3. Contractor can capture the job site address using GPS — the device location populates the address field without manual typing
   4. Contractor can open a drawing/handwriting pad, sketch a site layout or handwritten note, and save it to the job record
   5. Contractor can clock in and out per job; the time tracking record is stored locally and syncs with a precise duration
-**Plans:** 5/7 plans executed
+**Plans:** 7/7 plans complete
 
 Plans:
 - [x] 06-00-PLAN.md — Wave 0 test stubs: 12 Flutter + 1 backend test stub files for all FIELD requirements, ensuring test infrastructure exists before implementation
@@ -197,6 +197,6 @@ Note: Phase 3 (Scheduling Engine) depends only on Phase 1 and can begin in paral
 | 3. Scheduling Engine | 2/4 | In Progress|  |
 | 4. Job Lifecycle | 9/9 | Complete   | 2026-03-09 |
 | 5. Calendar and Dispatch UI | 6/6 | Complete   | 2026-03-09 |
-| 6. Field Workflow | 5/7 | In Progress|  |
+| 6. Field Workflow | 7/7 | Complete   | 2026-03-12 |
 | 7. Client Portal and Notifications | 0/5 | Not started | - |
 | 8. Business Operations | 0/5 | Not started | - |
