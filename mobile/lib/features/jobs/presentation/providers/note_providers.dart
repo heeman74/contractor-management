@@ -94,9 +94,11 @@ final notesForJobProvider = StreamProvider.autoDispose
 /// Derives the count of notes for a job for badge display.
 ///
 /// Derives from [notesForJobProvider] — no separate DB query needed.
-final noteCountProvider = StreamProvider.autoDispose
+final noteCountProvider = Provider.autoDispose
     .family<int, String>((ref, jobId) {
-  return ref
-      .watch(notesForJobProvider(jobId).stream)
-      .map((notes) => notes.length);
+  final notesAsync = ref.watch(notesForJobProvider(jobId));
+  return notesAsync.maybeWhen(
+    data: (notes) => notes.length,
+    orElse: () => 0,
+  );
 });

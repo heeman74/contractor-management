@@ -1,8 +1,10 @@
 import 'dart:io';
+import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_drawing_board/flutter_drawing_board.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
@@ -26,7 +28,13 @@ class DrawingPadScreen extends StatefulWidget {
 }
 
 class _DrawingPadScreenState extends State<DrawingPadScreen> {
-  late final DrawingController _controller;
+  // ── Drawing state ──────────────────────────────────────────────────────────
+  final List<_Stroke> _strokes = [];
+  final List<List<_Stroke>> _undoStack = [];
+  _Stroke? _currentStroke;
+
+  // RepaintBoundary key for PNG export (canvas only, no grid)
+  final GlobalKey _canvasKey = GlobalKey();
 
   // ── Toolbar state ──────────────────────────────────────────────────────────
   Color _selectedColor = Colors.black;
@@ -49,14 +57,11 @@ class _DrawingPadScreenState extends State<DrawingPadScreen> {
   static const _thicknessOptions = [1.0, 3.0, 6.0];
   static const _thicknessLabels = ['Thin', 'Med', 'Thick'];
 
-  // Tool type tracking (DrawingBoard manages the active tool internally —
-  // we track it for UI highlighting and text-tool fontSize slider visibility).
   _Tool _activeTool = _Tool.pen;
 
   @override
   void initState() {
     super.initState();
-    _controller = DrawingController();
     // Lock to landscape on open.
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.landscapeLeft,
@@ -70,7 +75,6 @@ class _DrawingPadScreenState extends State<DrawingPadScreen> {
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
     ]);
-    _controller.dispose();
     super.dispose();
   }
 
@@ -78,8 +82,9 @@ class _DrawingPadScreenState extends State<DrawingPadScreen> {
 
   Future<void> _saveDrawing() async {
     try {
-      final imageData = await _controller.getImageData();
-      if (imageData == null) {
+      final boundary =
+          _canvasKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null || _strokes.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Nothing to save.')),
@@ -88,6 +93,18 @@ class _DrawingPadScreenState extends State<DrawingPadScreen> {
         return;
       }
 
+      final image = await boundary.toImage(pixelRatio: 2.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to capture image.')),
+          );
+        }
+        return;
+      }
+
+      final bytes = byteData.buffer.asUint8List();
       final dir = await getApplicationSupportDirectory();
       final drawingsDir = Directory('${dir.path}/drawings');
       if (!await drawingsDir.exists()) {
@@ -96,7 +113,6 @@ class _DrawingPadScreenState extends State<DrawingPadScreen> {
 
       final fileName = '${const Uuid().v4()}.png';
       final file = File('${drawingsDir.path}/$fileName');
-      final bytes = imageData.buffer.asUint8List();
       await file.writeAsBytes(bytes);
 
       if (mounted) {
@@ -115,8 +131,7 @@ class _DrawingPadScreenState extends State<DrawingPadScreen> {
   // ── Close / discard guard ──────────────────────────────────────────────────
 
   Future<void> _handleClose() async {
-    final hasContent = _controller.getHistory.isNotEmpty;
-    if (!hasContent) {
+    if (_strokes.isEmpty) {
       if (mounted) Navigator.of(context).pop();
       return;
     }
@@ -146,45 +161,71 @@ class _DrawingPadScreenState extends State<DrawingPadScreen> {
     }
   }
 
-  // ── Tool switching ─────────────────────────────────────────────────────────
+  // ── Undo / Redo ────────────────────────────────────────────────────────────
+
+  void _undo() {
+    if (_strokes.isEmpty) return;
+    setState(() {
+      _undoStack.add(List.from(_strokes));
+      _strokes.removeLast();
+    });
+  }
+
+  void _redo() {
+    if (_undoStack.isEmpty) return;
+    setState(() {
+      final previous = _undoStack.removeLast();
+      _strokes.clear();
+      _strokes.addAll(previous);
+    });
+  }
+
+  // ── Drawing gestures ────────────────────────────────────────────────────────
+
+  void _onPanStart(DragStartDetails details) {
+    setState(() {
+      _currentStroke = _Stroke(
+        tool: _activeTool,
+        color: _activeTool == _Tool.eraser ? Colors.white : _selectedColor,
+        thickness: _selectedThickness,
+        points: [details.localPosition],
+      );
+    });
+  }
+
+  void _onPanUpdate(DragUpdateDetails details) {
+    if (_currentStroke == null) return;
+    setState(() {
+      _currentStroke = _Stroke(
+        tool: _currentStroke!.tool,
+        color: _currentStroke!.color,
+        thickness: _currentStroke!.thickness,
+        points: [..._currentStroke!.points, details.localPosition],
+      );
+    });
+  }
+
+  void _onPanEnd(DragEndDetails details) {
+    if (_currentStroke == null) return;
+    setState(() {
+      _undoStack.clear();
+      _strokes.add(_currentStroke!);
+      _currentStroke = null;
+    });
+  }
+
+  // ── Tool / color / thickness selection ─────────────────────────────────────
 
   void _selectTool(_Tool tool) {
     setState(() => _activeTool = tool);
-    switch (tool) {
-      case _Tool.pen:
-        _controller.setPaintContent(SimpleLine());
-      case _Tool.eraser:
-        _controller.setPaintContent(Eraser(
-          color: Colors.white,
-          strokeWidth: _selectedThickness,
-        ));
-      case _Tool.text:
-        _controller.setPaintContent(StraightLine());
-      case _Tool.line:
-        _controller.setPaintContent(StraightLine());
-      case _Tool.rectangle:
-        _controller.setPaintContent(Rectangle());
-      case _Tool.circle:
-        _controller.setPaintContent(Circle());
-      case _Tool.arrow:
-        _controller.setPaintContent(StraightLine());
-    }
-    if (tool != _Tool.eraser) {
-      _controller.setStyle(
-        color: _selectedColor,
-        strokeWidth: _selectedThickness,
-      );
-    }
   }
 
   void _selectColor(Color color) {
     setState(() => _selectedColor = color);
-    _controller.setStyle(color: color);
   }
 
   void _selectThickness(double thickness) {
     setState(() => _selectedThickness = thickness);
-    _controller.setStyle(strokeWidth: thickness);
   }
 
   // ── Build ──────────────────────────────────────────────────────────────────
@@ -202,7 +243,7 @@ class _DrawingPadScreenState extends State<DrawingPadScreen> {
         title: const Text('Drawing Pad'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.check),
+            icon: const Icon(Icons.save_outlined),
             tooltip: 'Save',
             onPressed: _saveDrawing,
           ),
@@ -217,18 +258,34 @@ class _DrawingPadScreenState extends State<DrawingPadScreen> {
                 // Layer a: optional grid overlay (excluded from PNG export)
                 if (_showGrid)
                   Positioned.fill(
-                    child: CustomPaint(
-                      painter: _GridPainter(),
+                    child: IgnorePointer(
+                      child: CustomPaint(
+                        painter: _GridPainter(),
+                      ),
                     ),
                   ),
-                // Layer b: DrawingBoard canvas
-                DrawingBoard(
-                  controller: _controller,
-                  background: Container(
-                    color: Colors.white,
+                // Layer b: Drawing canvas (RepaintBoundary for PNG capture)
+                Positioned.fill(
+                  child: RepaintBoundary(
+                    key: _canvasKey,
+                    child: Container(
+                      color: Colors.white,
+                      child: CustomPaint(
+                        painter: _DrawingPainter(
+                          strokes: _strokes,
+                          currentStroke: _currentStroke,
+                        ),
+                      ),
+                    ),
                   ),
-                  showDefaultActions: false,
-                  showDefaultTools: false,
+                ),
+                // Layer c: Gesture detector (on top)
+                Positioned.fill(
+                  child: GestureDetector(
+                    onPanStart: _onPanStart,
+                    onPanUpdate: _onPanUpdate,
+                    onPanEnd: _onPanEnd,
+                  ),
                 ),
               ],
             ),
@@ -248,8 +305,8 @@ class _DrawingPadScreenState extends State<DrawingPadScreen> {
             onThicknessSelected: _selectThickness,
             onGridToggled: (value) => setState(() => _showGrid = value),
             onFontSizeChanged: (value) => setState(() => _textFontSize = value),
-            onUndo: () => _controller.undo(),
-            onRedo: () => _controller.redo(),
+            onUndo: _undo,
+            onRedo: _redo,
           ),
         ],
       ),
@@ -260,6 +317,113 @@ class _DrawingPadScreenState extends State<DrawingPadScreen> {
 // ─── Tool enum ─────────────────────────────────────────────────────────────────
 
 enum _Tool { pen, eraser, text, line, rectangle, circle, arrow }
+
+// ─── Stroke model ──────────────────────────────────────────────────────────────
+
+class _Stroke {
+  final _Tool tool;
+  final Color color;
+  final double thickness;
+  final List<Offset> points;
+
+  const _Stroke({
+    required this.tool,
+    required this.color,
+    required this.thickness,
+    required this.points,
+  });
+}
+
+// ─── Drawing painter ────────────────────────────────────────────────────────────
+
+class _DrawingPainter extends CustomPainter {
+  final List<_Stroke> strokes;
+  final _Stroke? currentStroke;
+
+  const _DrawingPainter({
+    required this.strokes,
+    this.currentStroke,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (final stroke in strokes) {
+      _paintStroke(canvas, stroke);
+    }
+    if (currentStroke != null) {
+      _paintStroke(canvas, currentStroke!);
+    }
+  }
+
+  void _paintStroke(Canvas canvas, _Stroke stroke) {
+    if (stroke.points.isEmpty) return;
+
+    final paint = Paint()
+      ..color = stroke.color
+      ..strokeWidth = stroke.thickness
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
+
+    if (stroke.tool == _Tool.eraser) {
+      paint.blendMode = BlendMode.src;
+    }
+
+    if (stroke.points.length == 1) {
+      // Single dot
+      canvas.drawCircle(stroke.points.first, stroke.thickness / 2, paint..style = PaintingStyle.fill);
+      return;
+    }
+
+    switch (stroke.tool) {
+      case _Tool.rectangle:
+        if (stroke.points.length >= 2) {
+          final rect = Rect.fromPoints(stroke.points.first, stroke.points.last);
+          canvas.drawRect(rect, paint);
+        }
+      case _Tool.circle:
+        if (stroke.points.length >= 2) {
+          final rect = Rect.fromPoints(stroke.points.first, stroke.points.last);
+          canvas.drawOval(rect, paint);
+        }
+      case _Tool.line:
+      case _Tool.arrow:
+        if (stroke.points.length >= 2) {
+          canvas.drawLine(stroke.points.first, stroke.points.last, paint);
+          if (stroke.tool == _Tool.arrow) {
+            _drawArrowHead(canvas, stroke.points.first, stroke.points.last, paint);
+          }
+        }
+      default:
+        // Freehand / pen / eraser / text
+        final path = Path()..moveTo(stroke.points.first.dx, stroke.points.first.dy);
+        for (int i = 1; i < stroke.points.length; i++) {
+          path.lineTo(stroke.points[i].dx, stroke.points[i].dy);
+        }
+        canvas.drawPath(path, paint);
+    }
+  }
+
+  void _drawArrowHead(Canvas canvas, Offset from, Offset to, Paint paint) {
+    const arrowSize = 12.0;
+    final angle = (to - from).direction;
+    final path = Path()
+      ..moveTo(to.dx, to.dy)
+      ..lineTo(
+        to.dx - arrowSize * math.cos(angle - 0.5),
+        to.dy - arrowSize * math.sin(angle - 0.5),
+      )
+      ..moveTo(to.dx, to.dy)
+      ..lineTo(
+        to.dx - arrowSize * math.cos(angle + 0.5),
+        to.dy - arrowSize * math.sin(angle + 0.5),
+      );
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_DrawingPainter oldDelegate) => true;
+}
 
 // ─── Grid painter ──────────────────────────────────────────────────────────────
 
@@ -343,14 +507,14 @@ class _DrawingToolbar extends StatelessWidget {
               runSpacing: 4,
               children: [
                 _ToolButton(
-                  icon: Icons.edit,
+                  icon: Icons.edit_outlined,
                   label: 'Pen',
                   tool: _Tool.pen,
                   activeTool: activeTool,
                   onTap: onToolSelected,
                 ),
                 _ToolButton(
-                  icon: Icons.auto_fix_high,
+                  icon: Icons.auto_fix_normal_outlined,
                   label: 'Eraser',
                   tool: _Tool.eraser,
                   activeTool: activeTool,
@@ -433,18 +597,17 @@ class _DrawingToolbar extends StatelessWidget {
               style: Theme.of(context).textTheme.labelMedium,
             ),
             const SizedBox(height: 4),
-            Row(
+            Wrap(
+              spacing: 4,
+              runSpacing: 4,
               children: List.generate(thicknessOptions.length, (i) {
                 final thickness = thicknessOptions[i];
                 final isSelected = thickness == selectedThickness;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 4),
-                  child: ChoiceChip(
-                    label: Text(thicknessLabels[i]),
-                    selected: isSelected,
-                    onSelected: (_) => onThicknessSelected(thickness),
-                    visualDensity: VisualDensity.compact,
-                  ),
+                return ChoiceChip(
+                  label: Text(thicknessLabels[i]),
+                  selected: isSelected,
+                  onSelected: (_) => onThicknessSelected(thickness),
+                  visualDensity: VisualDensity.compact,
                 );
               }),
             ),
@@ -473,9 +636,10 @@ class _DrawingToolbar extends StatelessWidget {
                   'Grid',
                   style: Theme.of(context).textTheme.labelMedium,
                 ),
-                Switch(
-                  value: showGrid,
-                  onChanged: onGridToggled,
+                IconButton(
+                  icon: Icon(showGrid ? Icons.grid_on : Icons.grid_off),
+                  tooltip: showGrid ? 'Hide Grid' : 'Show Grid',
+                  onPressed: () => onGridToggled(!showGrid),
                 ),
               ],
             ),
@@ -567,3 +731,4 @@ class _ToolButton extends StatelessWidget {
     );
   }
 }
+

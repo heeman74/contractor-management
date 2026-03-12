@@ -113,6 +113,10 @@ async def clean_tables(test_engine):
         await conn.execute(
             text(
                 "TRUNCATE TABLE "
+                # Phase 6 field workflow tables (reference job_notes/jobs): children first.
+                "attachments, "
+                "time_entries, "
+                "job_notes, "
                 # Phase 4 job lifecycle tables (reference jobs/users): children before parents.
                 # ratings and job_requests reference jobs; client_properties references job_sites.
                 "ratings, "
