@@ -173,9 +173,10 @@ Plans:
   3. Admin can generate a digital invoice from a completed job with one action; the invoice includes all job details and line items from the quote
   4. The reporting dashboard shows jobs by status, total revenue from invoiced jobs, and contractor utilization — all filterable by date range
   5. All quote, approval, and invoice actions are captured in the job history and visible in the client portal
-**Plans:** 6 plans
+**Plans:** 7 plans
 
 Plans:
+- [ ] 08-00-PLAN.md — Wave 0 test stubs: backend integration/unit test stubs, Flutter E2E test stub, conftest.py update, WeasyPrint and fl_chart dependencies
 - [ ] 08-01-PLAN.md — Backend data foundation: Alembic migration 0011, ORM models (Quote, Invoice, QuoteTemplate), Pydantic schemas, PDF generation service with WeasyPrint
 - [ ] 08-02-PLAN.md — Backend services and API: QuoteService (lifecycle, templates, revisions), InvoiceService (generation, sequential numbering), ReportingService, REST routers, sync extension
 - [ ] 08-03-PLAN.md — Mobile data layer: Drift tables v6 (quotes, invoices, line items, templates), DAOs with sync queue, sync handlers, Freezed entities, fl_chart dependency
