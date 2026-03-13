@@ -155,14 +155,13 @@ Plans:
   3. When a contractor delays a job, the delay reason and updated ETA are visible to the client in the portal within one sync cycle
   4. Client receives a push notification when their job is scheduled, when work starts, and when the job is marked complete
   5. The client portal is gated by role — no contractor or admin data is accessible from the client view
-**Plans**: TBD
+**Plans:** 4 plans
 
 Plans:
-- [ ] 07-01: Client portal screens — job status view, progress percentage, ETA display, role gating
-- [ ] 07-02: Photo timeline — chronological photo display, link to Field Workflow photo data
-- [ ] 07-03: Delay visibility — delay reason and updated ETA surfaced in client portal from Phase 5 delay flow
-- [ ] 07-04: Push notifications — FCM integration, notification dispatch on job milestones (scheduled, started, complete)
-- [ ] 07-05: Client portal tests — role gating E2E, notification delivery test, delay reason display test
+- [ ] 07-01-PLAN.md — Backend notification infrastructure: Alembic migration 0010 (device_tokens), NotificationService, FCM dispatch, token endpoint, sync role filtering
+- [ ] 07-02-PLAN.md — Client portal UI: ClientJobDetailScreen (progress stepper, photos/notes/details tabs, delay banner), enhanced portal list, route wiring
+- [ ] 07-03-PLAN.md — FCM mobile integration: Firebase Android setup, FcmService (token registration, deep-link routing), auth flow wiring
+- [ ] 07-04-PLAN.md — Phase 7 tests: backend notification/sync integration tests, NotificationService unit tests, Flutter E2E widget tests for portal and role gating
 
 ### Phase 8: Business Operations
 **Goal**: Admins can create and send digital quotes to clients, receive approval, generate invoices from completed jobs, and view a reporting dashboard showing business performance
@@ -198,5 +197,5 @@ Note: Phase 3 (Scheduling Engine) depends only on Phase 1 and can begin in paral
 | 4. Job Lifecycle | 9/9 | Complete   | 2026-03-09 |
 | 5. Calendar and Dispatch UI | 6/6 | Complete   | 2026-03-09 |
 | 6. Field Workflow | 7/7 | Complete   | 2026-03-12 |
-| 7. Client Portal and Notifications | 0/5 | Not started | - |
+| 7. Client Portal and Notifications | 0/4 | Not started | - |
 | 8. Business Operations | 0/5 | Not started | - |
