@@ -73,7 +73,12 @@ class SyncService:
     # Phase 4 — job lifecycle entity sync methods
     # -------------------------------------------------------------------------
 
-    async def get_jobs_since(self, since: datetime) -> list:
+    async def get_jobs_since(
+        self,
+        since: datetime,
+        *,
+        client_user_id: str | None = None,
+    ) -> list:
         """Return all jobs changed since the given cursor timestamp.
 
         Includes both active records and tombstones (deleted_at > since).
@@ -81,10 +86,18 @@ class SyncService:
         joinedload to prevent N+1 queries per CLAUDE.md rules.
 
         RLS automatically restricts to the current tenant's company_id.
+
+        Args:
+            since:          High-water mark cursor timestamp.
+            client_user_id: When provided (client role), restricts results to jobs
+                            where Job.client_id == client_user_id. Ensures clients
+                            only receive their own jobs in the delta sync (CLNT-05).
         """
+        import uuid
+
         from app.features.jobs.models import Job
 
-        result = await self.db.execute(
+        stmt = (
             select(Job)
             .where(or_(Job.updated_at > since, Job.deleted_at > since))
             .options(
@@ -92,6 +105,10 @@ class SyncService:
                 joinedload(Job.contractor),
             )
         )
+        if client_user_id is not None:
+            stmt = stmt.where(Job.client_id == uuid.UUID(client_user_id))
+
+        result = await self.db.execute(stmt)
         return list(result.scalars().unique().all())
 
     async def get_client_profiles_since(self, since: datetime) -> list:
@@ -128,21 +145,40 @@ class SyncService:
     # Phase 5 — calendar & dispatch entity sync methods
     # -------------------------------------------------------------------------
 
-    async def get_bookings_since(self, since: datetime) -> list:
+    async def get_bookings_since(
+        self,
+        since: datetime,
+        *,
+        client_user_id: str | None = None,
+    ) -> list:
         """Return all bookings changed since the given cursor timestamp.
 
         Includes both active records and tombstones (deleted_at > since).
         RLS automatically restricts to the current tenant.
 
+        Args:
+            since:          High-water mark cursor timestamp.
+            client_user_id: When provided, restricts bookings to those whose
+                            job_id belongs to the client's jobs (via subquery).
+
         Note: scheduling.models must be imported before calling this method
         to ensure Booking is registered in the SQLAlchemy mapper registry.
         This is handled by the side-effect import in sync/router.py.
         """
+        import uuid
+
         from app.features.scheduling.models import Booking
 
-        result = await self.db.execute(
-            select(Booking).where(or_(Booking.updated_at > since, Booking.deleted_at > since))
-        )
+        stmt = select(Booking).where(or_(Booking.updated_at > since, Booking.deleted_at > since))
+
+        if client_user_id is not None:
+            from app.features.jobs.models import Job
+
+            client_uuid = uuid.UUID(client_user_id)
+            client_job_ids = select(Job.id).where(Job.client_id == client_uuid)
+            stmt = stmt.where(Booking.job_id.in_(client_job_ids))
+
+        result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
     async def get_job_sites_since(self, since: datetime) -> list:
@@ -162,20 +198,41 @@ class SyncService:
     # Phase 6 — field workflow entity sync methods
     # -------------------------------------------------------------------------
 
-    async def get_job_notes_since(self, since: datetime) -> list:
+    async def get_job_notes_since(
+        self,
+        since: datetime,
+        *,
+        client_user_id: str | None = None,
+    ) -> list:
         """Return all job notes changed since the given cursor timestamp.
 
         Includes both active records and tombstones (deleted_at > since).
         Eager-loads attachments (one-to-many) so JobNoteResponse.attachments is populated.
         RLS automatically restricts to the current tenant.
+
+        Args:
+            since:          High-water mark cursor timestamp.
+            client_user_id: When provided, restricts notes to those whose
+                            job_id belongs to the client's jobs (via subquery).
         """
+        import uuid
+
         from app.features.jobs.models import JobNote
 
-        result = await self.db.execute(
+        stmt = (
             select(JobNote)
             .where(or_(JobNote.updated_at > since, JobNote.deleted_at > since))
             .options(selectinload(JobNote.attachments))
         )
+
+        if client_user_id is not None:
+            from app.features.jobs.models import Job
+
+            client_uuid = uuid.UUID(client_user_id)
+            client_job_ids = select(Job.id).where(Job.client_id == client_uuid)
+            stmt = stmt.where(JobNote.job_id.in_(client_job_ids))
+
+        result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
     async def get_time_entries_since(self, since: datetime) -> list:
@@ -191,17 +248,38 @@ class SyncService:
         )
         return list(result.scalars().all())
 
-    async def get_attachments_since(self, since: datetime) -> list:
+    async def get_attachments_since(
+        self,
+        since: datetime,
+        *,
+        client_user_id: str | None = None,
+    ) -> list:
         """Return all attachments changed since the given cursor timestamp.
 
         Includes both active records and tombstones (deleted_at > since).
         RLS automatically restricts to the current tenant.
+
+        Args:
+            since:          High-water mark cursor timestamp.
+            client_user_id: When provided, restricts attachments to those whose
+                            note's job_id belongs to the client's jobs (via subquery
+                            through JobNote).
         """
+        import uuid
+
         from app.features.jobs.models import Attachment
 
-        result = await self.db.execute(
-            select(Attachment).where(
-                or_(Attachment.updated_at > since, Attachment.deleted_at > since)
-            )
+        stmt = select(Attachment).where(
+            or_(Attachment.updated_at > since, Attachment.deleted_at > since)
         )
+
+        if client_user_id is not None:
+            from app.features.jobs.models import Job, JobNote
+
+            client_uuid = uuid.UUID(client_user_id)
+            client_job_ids = select(Job.id).where(Job.client_id == client_uuid)
+            client_note_ids = select(JobNote.id).where(JobNote.job_id.in_(client_job_ids))
+            stmt = stmt.where(Attachment.note_id.in_(client_note_ids))
+
+        result = await self.db.execute(stmt)
         return list(result.scalars().all())

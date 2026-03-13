@@ -283,6 +283,37 @@ class JobService(TenantScopedService[Job]):
 
         await self.db.flush()
         await self.db.refresh(job)
+
+        # Send push notification to client on key milestone transitions.
+        # Fire-and-forget: errors are logged inside NotificationService — never raised.
+        if job.client_id and new_status in (
+            JobStatus.scheduled,
+            JobStatus.in_progress,
+            JobStatus.complete,
+        ):
+            _status_to_event = {
+                JobStatus.scheduled: "scheduled",
+                JobStatus.in_progress: "started",
+                JobStatus.complete: "completed",
+            }
+            event = _status_to_event[new_status]
+            try:
+                from app.features.notifications.service import NotificationService
+
+                notif_svc = NotificationService(self.db)
+                await notif_svc.send_job_notification(
+                    user_id=job.client_id,
+                    job_description=job.description,
+                    event=event,
+                    job_id=job.id,
+                )
+            except Exception:  # noqa: BLE001
+                import logging
+
+                logging.getLogger(__name__).exception(
+                    "Failed to send job notification for job %s event %s", job.id, event
+                )
+
         return job
 
     async def update_job(
@@ -428,6 +459,26 @@ class JobService(TenantScopedService[Job]):
 
         await self.db.flush()
         await self.db.refresh(job)
+
+        # Send delay notification to client — fire-and-forget.
+        if job.client_id:
+            try:
+                from app.features.notifications.service import NotificationService
+
+                notif_svc = NotificationService(self.db)
+                await notif_svc.send_job_notification(
+                    user_id=job.client_id,
+                    job_description=job.description,
+                    event="delayed",
+                    job_id=job.id,
+                )
+            except Exception:  # noqa: BLE001
+                import logging
+
+                logging.getLogger(__name__).exception(
+                    "Failed to send delay notification for job %s", job.id
+                )
+
         return job
 
     # -------------------------------------------------------------------------

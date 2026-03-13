@@ -59,7 +59,7 @@ async def delta_sync(
         "Omit or pass empty string for full download (first launch).",
     ),
     db: AsyncSession = Depends(get_db),
-    _current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> SyncResponse:
     """Return all entities changed since the cursor timestamp.
 
@@ -68,6 +68,10 @@ async def delta_sync(
 
     Phase 4: also returns jobs, client_profiles, and job_requests changed
     since the cursor — same single high-water mark applies to all entity types.
+
+    Phase 7 (CLNT-05): client-role users receive only their own jobs, bookings,
+    notes, and attachments — i.e., records where Job.client_id == user.user_id.
+    Admin and contractor roles receive the full tenant-scoped dataset.
     """
     if cursor is None or cursor.strip() == "":
         since = _EPOCH_START
@@ -81,21 +85,27 @@ async def delta_sync(
                 detail=f"Invalid cursor format: '{cursor}'. Expected ISO8601 datetime.",
             ) from exc
 
+    # Determine client filter: client-role users see only their own jobs/notes/attachments.
+    # Admin and contractor roles get the full tenant-scoped dataset (no additional filter).
+    client_user_id: str | None = None
+    if "client" in current_user.roles:
+        client_user_id = str(current_user.user_id)
+
     svc = SyncService(db)
     companies = await svc.get_companies_since(since)
     users = await svc.get_users_since(since)
     user_roles = await svc.get_user_roles_since(since)
     # Phase 4 entities
-    jobs = await svc.get_jobs_since(since)
+    jobs = await svc.get_jobs_since(since, client_user_id=client_user_id)
     client_profiles = await svc.get_client_profiles_since(since)
     job_requests = await svc.get_job_requests_since(since)
     # Phase 5 entities — calendar & dispatch
-    bookings = await svc.get_bookings_since(since)
+    bookings = await svc.get_bookings_since(since, client_user_id=client_user_id)
     job_sites = await svc.get_job_sites_since(since)
     # Phase 6 entities — field workflow
-    job_notes = await svc.get_job_notes_since(since)
+    job_notes = await svc.get_job_notes_since(since, client_user_id=client_user_id)
     time_entries = await svc.get_time_entries_since(since)
-    attachments = await svc.get_attachments_since(since)
+    attachments = await svc.get_attachments_since(since, client_user_id=client_user_id)
 
     return SyncResponse(
         companies=[CompanyResponse.model_validate(c) for c in companies],
