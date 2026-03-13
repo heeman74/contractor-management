@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: "Checkpoint: 07-03 Task 2 human-verify (Firebase project setup + google-services.json)"
-last_updated: "2026-03-13T04:36:54.468Z"
-last_activity: "2026-03-11 — Phase 6 Plan 06: comprehensive test suite for all field workflow features (FIELD-01 through FIELD-04)"
+stopped_at: "Completed 07-04-PLAN.md — Phase 7 all plans complete"
+last_updated: "2026-03-13T05:03:26Z"
+last_activity: "2026-03-13 — Phase 7 Plan 04: backend and Flutter E2E tests for notifications and client portal"
 progress:
   total_phases: 8
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 42
-  completed_plans: 41
-  percent: 97
+  completed_plans: 42
+  percent: 100
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 
 ## Current Position
 
-Phase: 6 of 8 (Field Workflow) — COMPLETE
-Plan: 6 of 6 in phase (06) — ALL COMPLETE
-Status: Phase 6 Complete — All plans 00-06 completed
-Last activity: 2026-03-11 — Phase 6 Plan 06: comprehensive test suite for all field workflow features (FIELD-01 through FIELD-04)
+Phase: 7 of 8 (Client Portal and Notifications) — COMPLETE
+Plan: 4 of 4 in phase (07) — ALL COMPLETE
+Status: Phase 7 Complete — All plans 01-04 completed
+Last activity: 2026-03-13 — Phase 7 Plan 04: backend and Flutter E2E tests for notifications and client portal
 
-Progress: [█████████▉] 97%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -90,6 +90,7 @@ Progress: [█████████▉] 97%
 | Phase 07-client-portal-and-notifications P01 | 5min | 2 tasks | 14 files |
 | Phase 07-client-portal-and-notifications P02 | 8min | 2 tasks | 11 files |
 | Phase 07-client-portal-and-notifications P03 | 5min | 1 tasks | 8 files |
+| Phase 07-client-portal-and-notifications P04 | 22h | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -227,6 +228,10 @@ Recent decisions affecting current work:
 - [Phase 07-client-portal-and-notifications]: clientJobDetailPath navigates to /client/jobs/:id not /jobs/:id — client sees read-only detail, not admin detail screen
 - [Phase 07-client-portal-and-notifications]: Kotlin DSL google-services plugin declared in settings.gradle.kts (not root build.gradle.kts) — correct Kotlin DSL plugin resolution pattern
 - [Phase 07-client-portal-and-notifications]: FcmService registered as GetIt singleton — accessed from auth and router layers without widget tree coupling; setupMessageHandlers called from routerProvider
+- [Phase 07-client-portal-and-notifications P04]: device_tokens RLS auto-fix: _current_user_id ContextVar added to tenant.py + SET LOCAL app.current_user_id in receive_after_begin — was never set since migration created policy
+- [Phase 07-client-portal-and-notifications P04]: FCM E2E tests verify graceful degradation not FCM delivery — no GOOGLE_APPLICATION_CREDENTIALS in CI; integration tests check endpoint HTTP responses
+- [Phase 07-client-portal-and-notifications P04]: ASGITransport(app=app) module-level constant for multi-client backend integration tests — avoids async_client._transport cross-client failures
+- [Phase 07-client-portal-and-notifications P04]: StreamProvider.family.overrideWith() for Flutter E2E — real Drift async* generators with nested DB calls cannot resolve in FakeAsync; stream override pattern approved
 
 ### Pending Todos
 
@@ -243,6 +248,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-13T04:36:54.451Z
-Stopped at: Checkpoint: 07-03 Task 2 human-verify (Firebase project setup + google-services.json)
+Last session: 2026-03-13T05:03:26Z
+Stopped at: Completed 07-04-PLAN.md — Phase 7 all plans complete
 Resume file: None

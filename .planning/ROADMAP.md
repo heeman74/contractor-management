@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Job Lifecycle** - Job CRUD, lifecycle state machine, client CRM, and dual job creation flows (completed 2026-03-09)
 - [x] **Phase 5: Calendar and Dispatch UI** - Drag-and-drop calendar, overdue warnings, and delay justification flow (completed 2026-03-09)
 - [x] **Phase 6: Field Workflow** - Job notes, photo capture, GPS address, drawing pad, and time tracking (completed 2026-03-12)
-- [ ] **Phase 7: Client Portal and Notifications** - Client-facing job status, progress photos, delay visibility, and push notifications
+- [x] **Phase 7: Client Portal and Notifications** - Client-facing job status, progress photos, delay visibility, and push notifications (completed 2026-03-13)
 - [ ] **Phase 8: Business Operations** - Digital quoting, quote approval, invoicing, and reporting dashboard
 
 ## Phase Details
@@ -155,7 +155,7 @@ Plans:
   3. When a contractor delays a job, the delay reason and updated ETA are visible to the client in the portal within one sync cycle
   4. Client receives a push notification when their job is scheduled, when work starts, and when the job is marked complete
   5. The client portal is gated by role — no contractor or admin data is accessible from the client view
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
 - [ ] 07-01-PLAN.md — Backend notification infrastructure: Alembic migration 0010 (device_tokens), NotificationService, FCM dispatch, token endpoint, sync role filtering
@@ -197,5 +197,5 @@ Note: Phase 3 (Scheduling Engine) depends only on Phase 1 and can begin in paral
 | 4. Job Lifecycle | 9/9 | Complete   | 2026-03-09 |
 | 5. Calendar and Dispatch UI | 6/6 | Complete   | 2026-03-09 |
 | 6. Field Workflow | 7/7 | Complete   | 2026-03-12 |
-| 7. Client Portal and Notifications | 3/4 | In Progress|  |
+| 7. Client Portal and Notifications | 4/4 | Complete   | 2026-03-13 |
 | 8. Business Operations | 0/5 | Not started | - |
