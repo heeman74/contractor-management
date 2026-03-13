@@ -20,7 +20,9 @@ import subprocess
 import sys
 
 # Set required env vars BEFORE importing app (Settings crashes without these)
-os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://appuser:apppassword@localhost:5432/contractorhub_test")
+os.environ.setdefault(
+    "DATABASE_URL", "postgresql+asyncpg://appuser:apppassword@localhost:5432/contractorhub_test"
+)
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key-for-integration-tests-min-32")
 
 import pytest
@@ -82,9 +84,7 @@ async def test_engine():
         env=env,
     )
     if result.returncode != 0:
-        pytest.fail(
-            f"Alembic upgrade failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
-        )
+        pytest.fail(f"Alembic upgrade failed:\nstdout: {result.stdout}\nstderr: {result.stderr}")
 
     engine = create_async_engine(TEST_DATABASE_URL, echo=False, poolclass=NullPool)
     yield engine
@@ -133,6 +133,12 @@ async def clean_tables(test_engine):
                 "contractor_date_overrides, "
                 "contractor_weekly_schedule, "
                 "contractor_schedule_locks, "
+                # Phase 8 business operations tables (reference jobs/users): children first.
+                "invoice_line_items, "
+                "invoices, "
+                "quote_line_items, "
+                "quote_templates, "
+                "quotes, "
                 # Phase 7 notification tables
                 "device_tokens, "
                 # Auth + core tables
@@ -159,9 +165,7 @@ async def async_client():
     Uses in-process ASGI transport. No dependency overrides — the real get_db
     dependency is used so the full JWT -> RLS path runs.
     """
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as ac:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
 
 
@@ -195,12 +199,8 @@ async def seed_two_tenants(async_client):
 
     Returns dict with tenant IDs, user IDs, and access tokens.
     """
-    data_a = await register_user(
-        async_client, "admin@tenant-a.com", "Tenant A Corp"
-    )
-    data_b = await register_user(
-        async_client, "admin@tenant-b.com", "Tenant B Corp"
-    )
+    data_a = await register_user(async_client, "admin@tenant-a.com", "Tenant A Corp")
+    data_b = await register_user(async_client, "admin@tenant-b.com", "Tenant B Corp")
 
     return {
         "tenant_a_id": data_a["company_id"],
