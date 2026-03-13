@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Phase 7 context gathered
-last_updated: "2026-03-13T03:47:02.550Z"
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-03-13T04:25:34.021Z"
 last_activity: "2026-03-11 — Phase 6 Plan 06: comprehensive test suite for all field workflow features (FIELD-01 through FIELD-04)"
 progress:
   total_phases: 8
   completed_phases: 6
-  total_plans: 38
-  completed_plans: 38
+  total_plans: 42
+  completed_plans: 39
   percent: 97
 ---
 
@@ -87,6 +87,7 @@ Progress: [█████████▉] 97%
 | Phase 06-field-workflow P05 | 35min | 2 tasks | 8 files |
 | Phase 06-field-workflow P04 | 35min | 2 tasks | 8 files |
 | Phase 06-field-workflow P06 | 60min | 2 tasks | 13 files |
+| Phase 07-client-portal-and-notifications P01 | 5min | 2 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -216,6 +217,10 @@ Recent decisions affecting current work:
 - [Phase 06-field-workflow P06]: noteCountProvider changed from StreamProvider to Provider.autoDispose.family — Riverpod 3 StreamProvider has no .stream getter
 - [Phase 06-field-workflow P06]: conftest.py clean_tables updated to include attachments, time_entries, job_notes — Phase 6 tables must be truncated to prevent cross-test data pollution
 - [Phase 06-field-workflow P06]: Riverpod 3 StreamProvider.family override pattern: provider(id).overrideWith((ref) => Stream.value(data)) — not class-based notifier override
+- [Phase 07-client-portal-and-notifications]: DeviceToken inherits Base directly (not TenantScopedModel) — device tokens are user-scoped across all tenants
+- [Phase 07-client-portal-and-notifications]: FCM graceful degradation when GOOGLE_APPLICATION_CREDENTIALS unset — skip with warning, never error
+- [Phase 07-client-portal-and-notifications]: Notification failures are fire-and-forget — logged, never raised, cannot block job operations
+- [Phase 07-client-portal-and-notifications]: Sync client_user_id filtering uses subquery JOIN through Job.client_id — no N+1
 
 ### Pending Todos
 
@@ -232,6 +237,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-13T03:47:02.530Z
-Stopped at: Phase 7 context gathered
-Resume file: .planning/phases/07-client-portal-and-notifications/07-CONTEXT.md
+Last session: 2026-03-13T04:25:34.016Z
+Stopped at: Completed 07-01-PLAN.md
+Resume file: None
