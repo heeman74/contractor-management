@@ -14,8 +14,11 @@ import '../../features/auth/presentation/screens/onboarding_screen.dart';
 import '../../features/auth/presentation/screens/register_screen.dart';
 import '../../features/auth/presentation/screens/splash_screen.dart';
 import '../../features/auth/presentation/screens/unauthorized_screen.dart';
+import '../../features/client/presentation/screens/client_job_detail_screen.dart';
 import '../../features/client/presentation/screens/client_portal_screen.dart';
 import '../../features/client/presentation/screens/job_request_form_screen.dart';
+import '../../features/client/presentation/screens/photo_viewer_screen.dart';
+import '../../features/jobs/domain/attachment_entity.dart';
 import '../../features/contractor/presentation/screens/availability_screen.dart';
 import '../../features/jobs/presentation/screens/contractor_jobs_screen.dart';
 import '../../features/jobs/presentation/screens/job_detail_screen.dart';
@@ -144,6 +147,19 @@ final routerProvider = Provider.autoDispose<GoRouter>((ref) {
         builder: (context, state) {
           final jobId = state.pathParameters['jobId']!;
           return TimerScreen(jobId: jobId);
+        },
+      ),
+      // Photo viewer — full-screen push route for viewing job progress photos.
+      // Navigated to from PhotoTimeline in client job detail.
+      // Accepts extra: Map<String, dynamic> with keys 'photos' and 'initialIndex'.
+      GoRoute(
+        path: RouteNames.photoViewer,
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>;
+          return PhotoViewerScreen(
+            photos: extra['photos'] as List<AttachmentEntity>,
+            initialIndex: extra['initialIndex'] as int,
+          );
         },
       ),
       // Job wizard — full-screen dialog (no bottom nav, own AppBar)
@@ -275,7 +291,7 @@ final routerProvider = Provider.autoDispose<GoRouter>((ref) {
               ),
             ],
           ),
-          // Branch 6: Client - Portal
+          // Branch 6: Client - Portal + Job Detail
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -285,6 +301,15 @@ final routerProvider = Provider.autoDispose<GoRouter>((ref) {
               GoRoute(
                 path: RouteNames.jobRequestForm,
                 builder: (context, state) => const JobRequestFormScreen(),
+              ),
+              // Client-specific job detail — separate from admin /jobs/:id.
+              // Navigated to from the client portal list when client taps a job card.
+              GoRoute(
+                path: '/client/jobs/:id',
+                builder: (context, state) {
+                  final jobId = state.pathParameters['id']!;
+                  return ClientJobDetailScreen(jobId: jobId);
+                },
               ),
             ],
           ),
