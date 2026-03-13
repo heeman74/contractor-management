@@ -15,6 +15,7 @@ from app.features.auth.router import router as auth_router
 from app.features.companies.router import router as companies_router
 from app.features.files.router import router as files_router
 from app.features.jobs.router import router as jobs_router
+from app.features.notifications.router import router as notifications_router
 from app.features.scheduling.router import router as scheduling_router
 from app.features.sync.router import router as sync_router
 from app.features.users.router import router as users_router
@@ -104,6 +105,8 @@ app.include_router(scheduling_router, prefix="/api/v1")
 app.include_router(jobs_router, prefix="/api/v1")
 # Phase 6: file upload endpoint for job note attachments
 app.include_router(files_router, prefix="/api/v1")
+# Phase 7: FCM push notification token registration
+app.include_router(notifications_router, prefix="/api/v1")
 
 # Serve uploaded files (job request photos, note attachments etc.)
 # IMPORTANT: StaticFiles mounts MUST be added AFTER all router includes.
