@@ -1,3 +1,5 @@
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -5,13 +7,40 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:workmanager/workmanager.dart';
 
 import 'core/di/service_locator.dart';
+import 'core/notifications/fcm_service.dart';
 import 'core/routing/app_router.dart';
 import 'core/sync/workmanager_dispatcher.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load();
+
+  // Initialize Firebase before any Firebase service is used.
+  // This reads google-services.json (Android) to configure the Firebase app.
+  // If google-services.json is missing (dev without Firebase project),
+  // the app will fail to build — place a placeholder file or configure
+  // Firebase per the user_setup instructions in 07-03-PLAN.md.
+  await Firebase.initializeApp();
+
+  // Register the top-level background message handler BEFORE runApp.
+  // Must be a top-level function (not a class method) — FCM requirement.
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
   await setupServiceLocator();
+
+  // Register FcmService in GetIt so it can be accessed from auth flow
+  // and router setup without passing it through the widget tree.
+  final fcmService = FcmService();
+  getIt.registerSingleton<FcmService>(fcmService);
+
+  // Check for a cold-start deep link (app launched by tapping a notification
+  // while terminated). Returns null if app was opened normally.
+  // Stored as initialLocation for GoRouter — passed via GetIt to avoid
+  // passing state through runApp arguments.
+  final initialRoute = await fcmService.getInitialRoute();
+  if (initialRoute != null) {
+    getIt.registerSingleton<String>(initialRoute, instanceName: 'fcmInitialRoute');
+  }
 
   // Initialize WorkManager for periodic background sync (INFRA-04).
   //

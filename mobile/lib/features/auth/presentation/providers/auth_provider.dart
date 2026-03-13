@@ -1,8 +1,11 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/auth/auth_repository.dart';
 import '../../../../core/di/service_locator.dart';
+import '../../../../core/network/dio_client.dart';
+import '../../../../core/notifications/fcm_service.dart';
 import '../../../../shared/models/user_role.dart';
 import '../../domain/auth_state.dart';
 
@@ -31,11 +34,36 @@ class AuthNotifier extends Notifier<AuthState> {
           companyId: result.companyId,
           roles: result.roles.map(UserRole.fromString).toSet(),
         );
+        // Register FCM token after session restore — fire-and-forget.
+        // Failure must NOT block the restored auth state.
+        _registerFcmToken();
       } else {
         state = const AuthState.unauthenticated();
       }
     } catch (_) {
       state = const AuthState.unauthenticated();
+    }
+  }
+
+  /// Registers the FCM token with the backend.
+  ///
+  /// Called after every successful authentication (login, register, session
+  /// restore). Wrapped in try/catch — FCM registration failure must NOT affect
+  /// the auth flow. The user remains authenticated regardless of FCM success.
+  ///
+  /// Fire-and-forget: not awaited by callers (auth completes immediately).
+  void _registerFcmToken() {
+    try {
+      final fcmService = getIt<FcmService>();
+      final dioClient = getIt<DioClient>();
+      // Not awaited — fire-and-forget to avoid blocking state transitions.
+      // If registration fails, the error is caught inside FcmService.registerToken.
+      fcmService.registerToken(dioClient).catchError((Object e) {
+        debugPrint('[AuthNotifier] FCM token registration error (non-fatal): $e');
+      });
+    } catch (e) {
+      // FcmService or DioClient not registered (e.g., test environment).
+      debugPrint('[AuthNotifier] FCM service unavailable (non-fatal): $e');
     }
   }
 
@@ -55,6 +83,8 @@ class AuthNotifier extends Notifier<AuthState> {
         companyId: result.companyId,
         roles: result.roles.map(UserRole.fromString).toSet(),
       );
+      // Register FCM token after successful login — fire-and-forget.
+      _registerFcmToken();
       return null;
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {
@@ -88,6 +118,8 @@ class AuthNotifier extends Notifier<AuthState> {
         companyId: result.companyId,
         roles: result.roles.map(UserRole.fromString).toSet(),
       );
+      // Register FCM token after successful registration — fire-and-forget.
+      _registerFcmToken();
       return null;
     } on DioException catch (e) {
       if (e.response?.statusCode == 409) {

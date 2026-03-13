@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../di/service_locator.dart';
+import '../notifications/fcm_service.dart';
+
 import '../../features/admin/presentation/screens/client_crm_screen.dart';
 import '../../features/admin/presentation/screens/request_review_screen.dart';
 import '../../features/admin/presentation/screens/team_management_screen.dart';
@@ -317,6 +320,16 @@ final routerProvider = Provider.autoDispose<GoRouter>((ref) {
       ),
     ],
   );
+
+  // Wire FCM message handlers — enables deep-link navigation on notification tap.
+  // Wrapped in try/catch: FcmService may not be registered in test environments.
+  try {
+    getIt<FcmService>().setupMessageHandlers(router);
+  } catch (e) {
+    // FcmService not registered (e.g., test environment without Firebase).
+    // Intentional: FCM setup is non-critical for routing to function.
+    debugPrint('[routerProvider] FcmService not available (non-fatal): $e');
+  }
 
   // Dispose the GoRouter when the provider is disposed.
   ref.onDispose(router.dispose);
