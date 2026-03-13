@@ -45,10 +45,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Business Operations
 
-- [ ] **BIZ-01**: Digital quoting/estimates with line items
-- [ ] **BIZ-02**: Quote approval flow (send to client, client approves/declines)
-- [ ] **BIZ-03**: Digital invoicing generated from completed jobs
-- [ ] **BIZ-04**: Basic reporting dashboard (jobs by status, revenue, contractor utilization)
+- [x] **BIZ-01**: Digital quoting/estimates with line items
+- [x] **BIZ-02**: Quote approval flow (send to client, client approves/declines)
+- [x] **BIZ-03**: Digital invoicing generated from completed jobs
+- [x] **BIZ-04**: Basic reporting dashboard (jobs by status, revenue, contractor utilization)
 
 ## v2 Requirements
 
@@ -115,10 +115,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLNT-02 | Phase 7 — Client Portal and Notifications | Complete |
 | CLNT-03 | Phase 7 — Client Portal and Notifications | Complete |
 | CLNT-05 | Phase 7 — Client Portal and Notifications | Complete |
-| BIZ-01 | Phase 8 — Business Operations | Pending |
-| BIZ-02 | Phase 8 — Business Operations | Pending |
-| BIZ-03 | Phase 8 — Business Operations | Pending |
-| BIZ-04 | Phase 8 — Business Operations | Pending |
+| BIZ-01 | Phase 8 — Business Operations | Complete |
+| BIZ-02 | Phase 8 — Business Operations | Complete |
+| BIZ-03 | Phase 8 — Business Operations | Complete |
+| BIZ-04 | Phase 8 — Business Operations | Complete |
 
 **Coverage:**
 - v1 requirements: 24 total

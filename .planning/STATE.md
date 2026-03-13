@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Phase 8 context gathered
-last_updated: "2026-03-13T22:36:31.657Z"
+stopped_at: Completed 08-business-operations-00-PLAN.md
+last_updated: "2026-03-13T23:58:14.350Z"
 last_activity: "2026-03-13 — Phase 7 Plan 04: backend and Flutter E2E tests for notifications and client portal"
 progress:
   total_phases: 8
   completed_phases: 7
-  total_plans: 42
-  completed_plans: 42
+  total_plans: 49
+  completed_plans: 43
   percent: 100
 ---
 
@@ -91,6 +91,7 @@ Progress: [██████████] 100%
 | Phase 07-client-portal-and-notifications P02 | 8min | 2 tasks | 11 files |
 | Phase 07-client-portal-and-notifications P03 | 5min | 1 tasks | 8 files |
 | Phase 07-client-portal-and-notifications P04 | 22h | 2 tasks | 6 files |
+| Phase 08-business-operations P00 | 3min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -232,6 +233,8 @@ Recent decisions affecting current work:
 - [Phase 07-client-portal-and-notifications P04]: FCM E2E tests verify graceful degradation not FCM delivery — no GOOGLE_APPLICATION_CREDENTIALS in CI; integration tests check endpoint HTTP responses
 - [Phase 07-client-portal-and-notifications P04]: ASGITransport(app=app) module-level constant for multi-client backend integration tests — avoids async_client._transport cross-client failures
 - [Phase 07-client-portal-and-notifications P04]: StreamProvider.family.overrideWith() for Flutter E2E — real Drift async* generators with nested DB calls cannot resolve in FakeAsync; stream override pattern approved
+- [Phase 08-business-operations]: Wave 0 stubs use pytest.fail() not assert False — ruff PT015+B011 rules prohibit assert False in test files
+- [Phase 08-business-operations]: WeasyPrint installed as dev dependency (uv add --dev) — project pyproject.toml has no [project] table for prod deps
 
 ### Pending Todos
 
@@ -248,6 +251,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-13T22:36:31.650Z
-Stopped at: Phase 8 context gathered
-Resume file: .planning/phases/08-business-operations/08-CONTEXT.md
+Last session: 2026-03-13T23:58:14.343Z
+Stopped at: Completed 08-business-operations-00-PLAN.md
+Resume file: None
