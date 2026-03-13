@@ -173,14 +173,15 @@ Plans:
   3. Admin can generate a digital invoice from a completed job with one action; the invoice includes all job details and line items from the quote
   4. The reporting dashboard shows jobs by status, total revenue from invoiced jobs, and contractor utilization — all filterable by date range
   5. All quote, approval, and invoice actions are captured in the job history and visible in the client portal
-**Plans**: TBD
+**Plans:** 6 plans
 
 Plans:
-- [ ] 08-01: Digital quoting — quote data model, line item builder, quote creation UI for admins
-- [ ] 08-02: Quote approval flow — send to client, client approve/decline UI in portal, status transitions
-- [ ] 08-03: Digital invoicing — auto-generate from completed job, invoice data model, admin invoice view
-- [ ] 08-04: Reporting dashboard — jobs by status chart, revenue summary, contractor utilization, date range filter
-- [ ] 08-05: Business operations tests — E2E test for full quote-to-invoice flow, reporting data accuracy tests
+- [ ] 08-01-PLAN.md — Backend data foundation: Alembic migration 0011, ORM models (Quote, Invoice, QuoteTemplate), Pydantic schemas, PDF generation service with WeasyPrint
+- [ ] 08-02-PLAN.md — Backend services and API: QuoteService (lifecycle, templates, revisions), InvoiceService (generation, sequential numbering), ReportingService, REST routers, sync extension
+- [ ] 08-03-PLAN.md — Mobile data layer: Drift tables v6 (quotes, invoices, line items, templates), DAOs with sync queue, sync handlers, Freezed entities, fl_chart dependency
+- [ ] 08-04-PLAN.md — Quote UI: Admin quote builder with line item editor, quote preview, client quote detail with approve/decline, route wiring
+- [ ] 08-05-PLAN.md — Invoice and reporting UI: Invoice detail with PDF download, payment tracking, admin reporting dashboard (4 charts), contractor limited stats, Reports bottom nav tab
+- [ ] 08-06-PLAN.md — E2E tests: Backend integration tests (quote-to-invoice lifecycle, reporting, RLS), Flutter widget tests (quote builder, approval, invoice, dashboard)
 
 ## Progress
 
@@ -198,4 +199,4 @@ Note: Phase 3 (Scheduling Engine) depends only on Phase 1 and can begin in paral
 | 5. Calendar and Dispatch UI | 6/6 | Complete   | 2026-03-09 |
 | 6. Field Workflow | 7/7 | Complete   | 2026-03-12 |
 | 7. Client Portal and Notifications | 4/4 | Complete   | 2026-03-13 |
-| 8. Business Operations | 0/5 | Not started | - |
+| 8. Business Operations | 0/6 | Not started | - |
