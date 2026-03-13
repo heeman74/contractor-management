@@ -32,7 +32,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **CLNT-01**: Customer/client CRM with profiles and job history
 - [x] **CLNT-02**: Client notifications (job scheduled, started, completed, delayed)
-- [ ] **CLNT-03**: Client portal with live job status and progress photos
+- [x] **CLNT-03**: Client portal with live job status and progress photos
 - [x] **CLNT-04**: Client-initiated job requests with preferred dates
 - [x] **CLNT-05**: Delay reasons and updated ETAs visible to clients in portal
 
@@ -113,7 +113,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FIELD-03 | Phase 6 — Field Workflow | Complete |
 | FIELD-04 | Phase 6 — Field Workflow | Complete |
 | CLNT-02 | Phase 7 — Client Portal and Notifications | Complete |
-| CLNT-03 | Phase 7 — Client Portal and Notifications | Pending |
+| CLNT-03 | Phase 7 — Client Portal and Notifications | Complete |
 | CLNT-05 | Phase 7 — Client Portal and Notifications | Complete |
 | BIZ-01 | Phase 8 — Business Operations | Pending |
 | BIZ-02 | Phase 8 — Business Operations | Pending |

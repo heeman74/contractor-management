@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 07-01-PLAN.md
-last_updated: "2026-03-13T04:25:34.021Z"
+stopped_at: Completed 07-02-PLAN.md
+last_updated: "2026-03-13T04:28:40.190Z"
 last_activity: "2026-03-11 — Phase 6 Plan 06: comprehensive test suite for all field workflow features (FIELD-01 through FIELD-04)"
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 42
-  completed_plans: 39
+  completed_plans: 40
   percent: 97
 ---
 
@@ -88,6 +88,7 @@ Progress: [█████████▉] 97%
 | Phase 06-field-workflow P04 | 35min | 2 tasks | 8 files |
 | Phase 06-field-workflow P06 | 60min | 2 tasks | 13 files |
 | Phase 07-client-portal-and-notifications P01 | 5min | 2 tasks | 14 files |
+| Phase 07-client-portal-and-notifications P02 | 8min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -221,6 +222,8 @@ Recent decisions affecting current work:
 - [Phase 07-client-portal-and-notifications]: FCM graceful degradation when GOOGLE_APPLICATION_CREDENTIALS unset — skip with warning, never error
 - [Phase 07-client-portal-and-notifications]: Notification failures are fire-and-forget — logged, never raised, cannot block job operations
 - [Phase 07-client-portal-and-notifications]: Sync client_user_id filtering uses subquery JOIN through Job.client_id — no N+1
+- [Phase 07-client-portal-and-notifications]: photo_view package replaced with InteractiveViewer+PageView — equivalent UX, no new dependency, no pub get required
+- [Phase 07-client-portal-and-notifications]: clientJobDetailPath navigates to /client/jobs/:id not /jobs/:id — client sees read-only detail, not admin detail screen
 
 ### Pending Todos
 
@@ -237,6 +240,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-13T04:25:34.016Z
-Stopped at: Completed 07-01-PLAN.md
+Last session: 2026-03-13T04:28:40.175Z
+Stopped at: Completed 07-02-PLAN.md
 Resume file: None
