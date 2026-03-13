@@ -242,11 +242,11 @@ void main() {
           ),
           timeEntryDaoProvider.overrideWithValue(timeEntryDao),
           timeEntriesForJobProvider.overrideWith(
-            (ref, jobId) => timeEntryDao.watchEntriesForJob(jobId),
+            (ref, jobId) => Stream.value(<TimeEntry>[]),
           ),
           jobDetailNotifierProvider.overrideWith(
-            () => _StubJobDetailNotifier(_makeJob(
-              id: 'job-a',
+            (ref, jobId) => Stream.value(_makeJob(
+              id: jobId,
               description: 'Fix water heater',
             )),
           ),
@@ -271,21 +271,20 @@ void main() {
 
     testWidgets('active state shows elapsed time and Clock Out',
         (tester) async {
+      final now = DateTime.now();
       final activeEntry = TimeEntry(
         id: 'entry-1',
         companyId: 'co-1',
         jobId: 'job-a',
         contractorId: 'contractor-1',
-        clockedInAt: DateTime.now().subtract(const Duration(hours: 1)),
+        clockedInAt: now.subtract(const Duration(hours: 1)),
         clockedOutAt: null,
         durationSeconds: null,
         sessionStatus: 'active',
-        adjustmentReason: null,
-        adjustmentLog: null,
-        syncStatus: 'pending',
+        adjustmentLog: '',
         version: 1,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
+        createdAt: now,
+        updatedAt: now,
         deletedAt: null,
       );
 
@@ -305,21 +304,20 @@ void main() {
     });
 
     testWidgets('active on different job shows warning', (tester) async {
+      final now = DateTime.now();
       final activeEntry = TimeEntry(
         id: 'entry-1',
         companyId: 'co-1',
         jobId: 'job-b',
         contractorId: 'contractor-1',
-        clockedInAt: DateTime.now(),
+        clockedInAt: now,
         clockedOutAt: null,
         durationSeconds: null,
         sessionStatus: 'active',
-        adjustmentReason: null,
-        adjustmentLog: null,
-        syncStatus: 'pending',
+        adjustmentLog: '',
         version: 1,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
+        createdAt: now,
+        updatedAt: now,
         deletedAt: null,
       );
 
@@ -367,7 +365,7 @@ void main() {
           ),
           timeEntryDaoProvider.overrideWithValue(timeEntryDao),
           timeEntriesForJobProvider.overrideWith(
-            (ref, jobId) => timeEntryDao.watchEntriesForJob(jobId),
+            (ref, jobId) => Stream.value(<TimeEntry>[]),
           ),
         ],
         child: MaterialApp(
@@ -400,21 +398,20 @@ void main() {
         status: 'in_progress',
       );
 
+      final now = DateTime.now();
       final activeEntry = TimeEntry(
         id: 'entry-1',
         companyId: 'co-1',
         jobId: 'job-a',
         contractorId: 'contractor-1',
-        clockedInAt: DateTime.now(),
+        clockedInAt: now,
         clockedOutAt: null,
         durationSeconds: null,
         sessionStatus: 'active',
-        adjustmentReason: null,
-        adjustmentLog: null,
-        syncStatus: 'pending',
+        adjustmentLog: '',
         version: 1,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
+        createdAt: now,
+        updatedAt: now,
         deletedAt: null,
       );
 
@@ -465,10 +462,3 @@ class _StubTimerNotifier extends TimerNotifier {
   Future<TimerState> build() async => _fixedState;
 }
 
-class _StubJobDetailNotifier extends JobDetailNotifier {
-  _StubJobDetailNotifier(this._job);
-  final JobEntity _job;
-
-  @override
-  Future<JobEntity?> build() async => _job;
-}

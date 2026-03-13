@@ -43,44 +43,48 @@ class ContractorJobsScreen extends ConsumerWidget {
         child: jobsAsync.when(
           data: (jobs) {
             if (jobs.isEmpty) {
-              return ListView(
-                // Wrap in ListView for pull-to-refresh to work when empty
-                children: [
-                  SizedBox(
-                    height: 400,
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.work_off_outlined,
-                            size: 72,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant,
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  return ListView(
+                    // Wrap in ListView for pull-to-refresh to work when empty
+                    children: [
+                      SizedBox(
+                        height: constraints.maxHeight,
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.work_off_outlined,
+                                size: 72,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                              ),
+                              const SizedBox(height: 24),
+                              const Text(
+                                'No jobs assigned to you',
+                                style: TextStyle(
+                                    fontSize: 22, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Jobs assigned by your admin will appear here.\nPull down to sync.',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 24),
-                          const Text(
-                            'No jobs assigned to you',
-                            style: TextStyle(
-                                fontSize: 22, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Jobs assigned by your admin will appear here.\nPull down to sync.',
-                            style: TextStyle(
-                              fontSize: 15,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ),
-                ],
+                    ],
+                  );
+                },
               );
             }
 

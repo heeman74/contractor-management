@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -145,6 +146,14 @@ final routerProvider = Provider.autoDispose<GoRouter>((ref) {
           return TimerScreen(jobId: jobId);
         },
       ),
+      // Job wizard — full-screen dialog (no bottom nav, own AppBar)
+      GoRoute(
+        path: '${RouteNames.jobs}/new',
+        pageBuilder: (context, state) => const MaterialPage(
+          fullscreenDialog: true,
+          child: JobWizardScreen(),
+        ),
+      ),
       // --- Shell routes (with bottom nav) ---
       // StatefulShellRoute preserves each tab's navigation stack independently.
       StatefulShellRoute.indexedStack(
@@ -168,10 +177,7 @@ final routerProvider = Provider.autoDispose<GoRouter>((ref) {
                 path: RouteNames.jobs,
                 builder: (context, state) => const JobsPipelineScreen(),
                 routes: [
-                  GoRoute(
-                    path: 'new',
-                    builder: (context, state) => const JobWizardScreen(),
-                  ),
+                  // Job wizard moved to top-level route (no bottom nav)
                   GoRoute(
                     path: ':id',
                     builder: (context, state) {

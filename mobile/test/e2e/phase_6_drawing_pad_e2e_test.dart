@@ -32,15 +32,15 @@ void main() {
       // AppBar
       expect(find.text('Drawing Pad'), findsOneWidget);
 
-      // Tool buttons
-      expect(find.text('Pen'), findsOneWidget);
-      expect(find.text('Eraser'), findsOneWidget);
-      expect(find.text('Line'), findsOneWidget);
-      expect(find.text('Rect'), findsOneWidget);
-      expect(find.text('Circle'), findsOneWidget);
-      expect(find.text('Arrow'), findsOneWidget);
+      // Tool buttons (icon-only with tooltips)
+      expect(find.byTooltip('Pen'), findsOneWidget);
+      expect(find.byTooltip('Eraser'), findsOneWidget);
+      expect(find.byTooltip('Line'), findsOneWidget);
+      expect(find.byTooltip('Rect'), findsOneWidget);
+      expect(find.byTooltip('Circle'), findsOneWidget);
+      expect(find.byTooltip('Arrow'), findsOneWidget);
 
-      // Color swatches (8 circles)
+      // Section headers
       expect(find.text('Color'), findsOneWidget);
 
       // Thickness chips

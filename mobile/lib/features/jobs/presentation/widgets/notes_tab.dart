@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 // app_database.dart re-exports NoteDao and AttachmentDao.
 import '../../../../core/database/app_database.dart';
@@ -60,8 +61,8 @@ class NotesTab extends ConsumerWidget {
     );
   }
 
-  void _openAddNote(BuildContext context) {
-    AddNoteBottomSheet.show(
+  Future<void> _openAddNote(BuildContext context) async {
+    final result = await AddNoteBottomSheet.show(
       context: context,
       jobId: jobId,
       companyId: companyId,
@@ -69,6 +70,52 @@ class NotesTab extends ConsumerWidget {
       noteDao: getIt<NoteDao>(),
       attachmentDao: getIt<AttachmentDao>(),
     );
+
+    if (result == AddNoteBottomSheet.openDrawingPadResult && context.mounted) {
+      await _openDrawingPad(context);
+    }
+  }
+
+  Future<void> _openDrawingPad(BuildContext context) async {
+    final drawingPath = await GoRouter.of(context).push<String?>('/drawing-pad');
+    if (drawingPath == null || !context.mounted) return;
+
+    // Auto-save a note with the drawing as an attachment.
+    try {
+      final noteDao = getIt<NoteDao>();
+      final attachmentDao = getIt<AttachmentDao>();
+
+      final noteId = await noteDao.insertNote(
+        companyId: companyId,
+        jobId: jobId,
+        authorId: authorId,
+        body: 'Drawing',
+      );
+
+      await attachmentDao.insertAttachment(
+        companyId: companyId,
+        noteId: noteId,
+        attachmentType: 'drawing',
+        localPath: drawingPath,
+        sortOrder: 0,
+      );
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Drawing saved as note')),
+        );
+      }
+    } catch (e) {
+      debugPrint('[NotesTab._openDrawingPad] Save failed: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save drawing: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
   }
 }
 
@@ -233,39 +280,43 @@ class _EmptyNotesState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.sticky_note_2_outlined,
-              size: 64,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'No notes yet',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Add field notes, photos, and documents to keep a record of this job.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.sticky_note_2_outlined,
+                      size: 64,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'No notes yet',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Add field notes, photos, and documents to keep a record of this job.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: onAddNote,
-              icon: const Icon(Icons.add_comment_outlined),
-              label: const Text('Add the first note'),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

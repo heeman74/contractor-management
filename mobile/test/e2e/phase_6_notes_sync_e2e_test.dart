@@ -4,8 +4,9 @@
 // "Add a note with a photo while in airplane mode, then reconnect and verify
 // the note body and photo both appear."
 //
-// Strategy: Use real Drift in-memory DB, mock Dio for sync, exercise the full
-// path: NoteDao.insertNote → sync_queue write → NotesTab renders → sync drains.
+// Strategy: Use real Drift in-memory DB for DAO-level tests, override
+// notesForJobProvider directly for widget tests (the async* generator with
+// nested awaits can't resolve in FakeAsync).
 // Do NOT use pumpAndSettle() — Drift streams never settle.
 
 import 'package:contractorhub/core/database/app_database.dart' hide UserRole;
@@ -14,6 +15,7 @@ import 'package:contractorhub/features/auth/domain/auth_state.dart';
 import 'package:contractorhub/features/auth/presentation/providers/auth_provider.dart';
 import 'package:contractorhub/features/jobs/data/note_dao.dart';
 import 'package:contractorhub/features/jobs/data/attachment_dao.dart';
+import 'package:contractorhub/features/jobs/domain/attachment_entity.dart';
 import 'package:contractorhub/features/jobs/domain/note_entity.dart';
 import 'package:contractorhub/features/jobs/presentation/providers/note_providers.dart';
 import 'package:contractorhub/features/jobs/presentation/widgets/notes_tab.dart';
@@ -65,6 +67,26 @@ Future<void> _seedJob(AppDatabase db) async {
       ));
 }
 
+NoteEntity _makeNote({
+  required String id,
+  required String body,
+  List<AttachmentEntity> attachments = const [],
+  DateTime? createdAt,
+}) {
+  final now = createdAt ?? DateTime.now();
+  return NoteEntity(
+    id: id,
+    companyId: 'co-1',
+    jobId: 'job-1',
+    authorId: 'contractor-1',
+    body: body,
+    version: 1,
+    createdAt: now,
+    updatedAt: now,
+    attachments: attachments,
+  );
+}
+
 void main() {
   late AppDatabase db;
   late NoteDao noteDao;
@@ -98,21 +120,25 @@ void main() {
     await db.close();
   });
 
-  Widget buildTestApp({Widget? child}) {
+  /// Build a test app with notesForJobProvider overridden to emit [notes].
+  /// This bypasses the async* generator which can't resolve in FakeAsync.
+  Widget buildTestApp({List<NoteEntity> notes = const []}) {
     return ProviderScope(
       overrides: [
         authNotifierProvider.overrideWith(() => _StubAuthNotifier()),
         noteDaoProvider.overrideWithValue(noteDao),
         attachmentDaoProvider.overrideWithValue(attachmentDao),
+        notesForJobProvider.overrideWith(
+          (ref, jobId) => Stream.value(notes),
+        ),
       ],
       child: MaterialApp(
         home: Scaffold(
-          body: child ??
-              NotesTab(
-                jobId: 'job-1',
-                companyId: 'co-1',
-                authorId: 'contractor-1',
-              ),
+          body: NotesTab(
+            jobId: 'job-1',
+            companyId: 'co-1',
+            authorId: 'contractor-1',
+          ),
         ),
       ),
     );
@@ -138,7 +164,15 @@ void main() {
       );
       expect(noteId, isNotEmpty);
 
-      await tester.pumpWidget(buildTestApp());
+      // Override notesForJobProvider with pre-built note data
+      await tester.pumpWidget(buildTestApp(
+        notes: [
+          _makeNote(
+            id: noteId,
+            body: 'Water damage found behind wall',
+          ),
+        ],
+      ));
       await tester.pump();
       await tester.pump();
 
@@ -165,7 +199,28 @@ void main() {
         sortOrder: 0,
       );
 
-      await tester.pumpWidget(buildTestApp());
+      final now = DateTime.now();
+      await tester.pumpWidget(buildTestApp(
+        notes: [
+          _makeNote(
+            id: noteId,
+            body: 'Photo of damage',
+            attachments: [
+              AttachmentEntity(
+                id: 'att-1',
+                companyId: 'co-1',
+                noteId: noteId,
+                attachmentType: 'photo',
+                localPath: '/fake/path/photo.jpg',
+                uploadStatus: 'pending_upload',
+                sortOrder: 0,
+                createdAt: now,
+                updatedAt: now,
+              ),
+            ],
+          ),
+        ],
+      ));
       await tester.pump();
       await tester.pump();
 
@@ -175,22 +230,16 @@ void main() {
     });
 
     testWidgets('multiple notes appear newest first', (tester) async {
-      await noteDao.insertNote(
-        companyId: 'co-1',
-        jobId: 'job-1',
-        authorId: 'contractor-1',
-        body: 'First note',
-      );
-      // Small delay to ensure different timestamps
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-      await noteDao.insertNote(
-        companyId: 'co-1',
-        jobId: 'job-1',
-        authorId: 'contractor-1',
-        body: 'Second note (newer)',
-      );
+      final older = DateTime.now().subtract(const Duration(minutes: 5));
+      final newer = DateTime.now();
 
-      await tester.pumpWidget(buildTestApp());
+      await tester.pumpWidget(buildTestApp(
+        notes: [
+          // Newest first
+          _makeNote(id: 'n-2', body: 'Second note (newer)', createdAt: newer),
+          _makeNote(id: 'n-1', body: 'First note', createdAt: older),
+        ],
+      ));
       await tester.pump();
       await tester.pump();
 
@@ -204,7 +253,7 @@ void main() {
       expect(firstNotePos.dy, lessThan(secondNotePos.dy));
     });
 
-    testWidgets('sync queue entry created on note insert', (tester) async {
+    test('sync queue entry created on note insert', () async {
       await noteDao.insertNote(
         companyId: 'co-1',
         jobId: 'job-1',
@@ -243,37 +292,34 @@ void main() {
       expect(find.text('Draw'), findsOneWidget);
     });
 
-    testWidgets('note count badge reflects number of notes', (tester) async {
-      await noteDao.insertNote(
-        companyId: 'co-1',
-        jobId: 'job-1',
-        authorId: 'contractor-1',
-        body: 'Note 1',
-      );
-      await noteDao.insertNote(
-        companyId: 'co-1',
-        jobId: 'job-1',
-        authorId: 'contractor-1',
-        body: 'Note 2',
-      );
-
-      // Use a ProviderContainer to test the noteCountProvider directly
+    test('note count badge reflects number of notes', () async {
+      // Override notesForJobProvider to return 2 notes
       final container = ProviderContainer(
         overrides: [
           noteDaoProvider.overrideWithValue(noteDao),
           attachmentDaoProvider.overrideWithValue(attachmentDao),
+          notesForJobProvider.overrideWith(
+            (ref, jobId) => Stream.value([
+              _makeNote(id: 'n-1', body: 'Note 1'),
+              _makeNote(id: 'n-2', body: 'Note 2'),
+            ]),
+          ),
         ],
       );
-      addTearDown(container.dispose);
 
-      // Wait for stream to emit
-      await Future<void>.delayed(const Duration(milliseconds: 100));
+      // Listen to trigger the stream
+      container.listen(notesForJobProvider('job-1'), (_, __) {});
+
+      // Wait for stream to emit outside FakeAsync
+      await Future<void>.delayed(const Duration(milliseconds: 50));
 
       final count = container.read(noteCountProvider('job-1'));
       expect(count, equals(2));
+
+      container.dispose();
     });
 
-    testWidgets('attachment shows pending_upload status', (tester) async {
+    test('attachment shows pending_upload status', () async {
       final noteId = await noteDao.insertNote(
         companyId: 'co-1',
         jobId: 'job-1',

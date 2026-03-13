@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation** - Flutter + FastAPI project skeletons with multi-tenant data isolation and role models
 - [x] **Phase 2: Offline Sync Engine** - Local SQLite with transactional outbox, background sync, and conflict resolution (UAT gap closure in progress) (completed 2026-03-06)
-- [ ] **Phase 3: Scheduling Engine** - Conflict detection, travel time awareness, multi-day jobs, and availability tracking
+- [x] **Phase 3: Scheduling Engine** - Conflict detection, travel time awareness, multi-day jobs, and availability tracking (completed 2026-03-07)
 - [x] **Phase 4: Job Lifecycle** - Job CRUD, lifecycle state machine, client CRM, and dual job creation flows (completed 2026-03-09)
 - [x] **Phase 5: Calendar and Dispatch UI** - Drag-and-drop calendar, overdue warnings, and delay justification flow (completed 2026-03-09)
 - [x] **Phase 6: Field Workflow** - Job notes, photo capture, GPS address, drawing pad, and time tracking (completed 2026-03-12)
@@ -73,13 +73,13 @@ Plans:
   3. A multi-day job blocks the contractor's availability across all days it spans, including partial-day segments correctly
   4. Travel time between consecutive job sites is fetched, cached with TTL, and subtracted from available slot windows before returning results
   5. The scheduling engine is exercised by unit tests independent of any HTTP routing — it is a pure business logic module
-**Plans:** 2/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
-- [ ] 03-01-PLAN.md — Data foundation: Alembic migration 0007 with 6 scheduling tables (GIST constraint on bookings), ORM models, Pydantic schemas
-- [ ] 03-02-PLAN.md — Travel time and geocoding: pluggable provider interfaces, ORS implementations, PostgreSQL cache with TTL
-- [ ] 03-03-PLAN.md — Scheduling engine core: SchedulingRepository, SchedulingService (availability, booking, multi-day, date suggestion)
-- [ ] 03-04-PLAN.md — API endpoints and tests: REST router, unit tests, concurrent booking integration tests, multi-day and travel time tests
+- [x] 03-01-PLAN.md — Data foundation: Alembic migration 0007 with 6 scheduling tables (GIST constraint on bookings), ORM models, Pydantic schemas
+- [x] 03-02-PLAN.md — Travel time and geocoding: pluggable provider interfaces, ORS implementations, PostgreSQL cache with TTL
+- [x] 03-03-PLAN.md — Scheduling engine core: SchedulingRepository, SchedulingService (availability, booking, multi-day, date suggestion)
+- [x] 03-04-PLAN.md — API endpoints and tests: REST router, unit tests, concurrent booking integration tests, multi-day and travel time tests
 
 ### Phase 4: Job Lifecycle
 **Goal**: Company admins can create, assign, and progress jobs through the full lifecycle, and clients can submit job requests that admins convert into scheduled jobs

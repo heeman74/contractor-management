@@ -57,10 +57,17 @@ class AddNoteBottomSheet extends StatefulWidget {
   final NoteDao noteDao;
   final AttachmentDao attachmentDao;
 
+  /// Result value returned when the user taps "Draw" in the bottom sheet.
+  /// The caller should navigate to the drawing pad and handle the result.
+  static const String openDrawingPadResult = '__open_drawing_pad__';
+
   /// Shows the bottom sheet for adding a note.
   ///
+  /// Returns [openDrawingPadResult] if the user tapped Draw (caller should
+  /// navigate to DrawingPadScreen and handle the result).
+  ///
   /// DAOs are passed in to avoid mixing GetIt inside provider widgets.
-  static Future<void> show({
+  static Future<String?> show({
     required BuildContext context,
     required String jobId,
     required String companyId,
@@ -68,7 +75,7 @@ class AddNoteBottomSheet extends StatefulWidget {
     required NoteDao noteDao,
     required AttachmentDao attachmentDao,
   }) {
-    return showModalBottomSheet<void>(
+    return showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -125,206 +132,186 @@ class _AddNoteBottomSheetState extends State<AddNoteBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final viewInsets = MediaQuery.of(context).viewInsets;
-
-    return Padding(
-      padding: EdgeInsets.only(bottom: viewInsets.bottom),
-      child: DraggableScrollableSheet(
-        initialChildSize: 0.6,
-        minChildSize: 0.4,
-        maxChildSize: 0.95,
-        expand: false,
-        builder: (context, scrollController) {
-          return Column(
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Drag handle
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.outlineVariant,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+        ),
+        // Header
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Row(
             children: [
-              // Drag handle
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.outlineVariant,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              // Header
-              Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                child: Row(
-                  children: [
-                    Text(
-                      'Add Field Note',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+              Text(
+                'Add Field Note',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
                     ),
-                    const Spacer(),
-                    TextButton(
-                      onPressed: _isSaving
-                          ? null
-                          : () => Navigator.of(context).pop(),
-                      child: const Text('Cancel'),
-                    ),
-                  ],
-                ),
               ),
-              const Divider(height: 1),
-              // Scrollable body
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: scrollController,
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Body text field
-                      TextField(
-                        controller: _bodyController,
-                        maxLength: 2000,
-                        maxLines: 5,
-                        autofocus: true,
-                        decoration: const InputDecoration(
-                          hintText: 'Describe what you observed or did...',
-                          border: OutlineInputBorder(),
-                          alignLabelWithHint: true,
-                        ),
-                        onChanged: (_) => setState(() {}),
-                      ),
-                      const SizedBox(height: 12),
-                      // Attachment action buttons
-                      Row(
-                        children: [
-                          _AttachButton(
-                            icon: Icons.camera_alt_outlined,
-                            label: 'Camera',
-                            onPressed: _atLimit ? null : _pickFromCamera,
-                          ),
-                          const SizedBox(width: 8),
-                          _AttachButton(
-                            icon: Icons.photo_library_outlined,
-                            label: 'Gallery',
-                            onPressed: _atLimit ? null : _pickFromGallery,
-                          ),
-                          const SizedBox(width: 8),
-                          _AttachButton(
-                            icon: Icons.picture_as_pdf,
-                            label: 'PDF',
-                            onPressed: _atLimit ? null : _pickPdf,
-                          ),
-                          const SizedBox(width: 8),
-                          _AttachButton(
-                            icon: Icons.draw_outlined,
-                            label: 'Draw',
-                            onPressed: _atLimit ? null : _openDrawingPad,
-                          ),
-                        ],
-                      ),
-                      // Attachment count warning
-                      if (_atLimit)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Text(
-                            'Maximum $_maxAttachments attachments per note',
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.error,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      // Attachment preview row
-                      if (_attachments.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: _attachments.map((pending) {
-                              // Build a transient AttachmentEntity for preview
-                              final entity = AttachmentEntity(
-                                id: pending.id,
-                                companyId: widget.companyId,
-                                noteId: '',
-                                attachmentType: pending.type,
-                                localPath: pending.localPath,
-                                thumbnailPath: pending.thumbnailPath,
-                                caption: pending.caption,
-                                uploadStatus: 'pending_upload',
-                                sortOrder: 0,
-                                createdAt: DateTime.now(),
-                                updatedAt: DateTime.now(),
-                              );
-                              return Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: Column(
-                                  children: [
-                                    AttachmentThumbnail(
-                                      attachment: entity,
-                                      onRemove: () => _removeAttachment(pending),
-                                    ),
-                                    // Caption tap
-                                    GestureDetector(
-                                      onTap: () =>
-                                          _editCaption(context, pending),
-                                      child: Container(
-                                        width: 60,
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 2,
-                                        ),
-                                        child: Text(
-                                          pending.caption?.isNotEmpty == true
-                                              ? pending.caption!
-                                              : 'Add caption',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          textAlign: TextAlign.center,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .labelSmall
-                                              ?.copyWith(
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .onSurfaceVariant,
-                                              ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              // Save button
-              SafeArea(
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: FilledButton(
-                    onPressed: _canSave && !_isSaving ? _save : null,
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
-                    ),
-                    child: _isSaving
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Save Note'),
-                  ),
-                ),
+              const Spacer(),
+              TextButton(
+                onPressed: _isSaving
+                    ? null
+                    : () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
               ),
             ],
-          );
-        },
-      ),
+          ),
+        ),
+        const Divider(height: 1),
+        // Body
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Body text field
+              TextField(
+                controller: _bodyController,
+                maxLength: 2000,
+                maxLines: 4,
+                minLines: 3,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  hintText: 'Describe what you observed or did...',
+                  border: OutlineInputBorder(),
+                  alignLabelWithHint: true,
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 12),
+              // Attachment action buttons
+              Row(
+                children: [
+                  _AttachButton(
+                    icon: Icons.camera_alt_outlined,
+                    label: 'Camera',
+                    onPressed: _atLimit ? null : _pickFromCamera,
+                  ),
+                  const SizedBox(width: 8),
+                  _AttachButton(
+                    icon: Icons.photo_library_outlined,
+                    label: 'Gallery',
+                    onPressed: _atLimit ? null : _pickFromGallery,
+                  ),
+                  const SizedBox(width: 8),
+                  _AttachButton(
+                    icon: Icons.picture_as_pdf,
+                    label: 'PDF',
+                    onPressed: _atLimit ? null : _pickPdf,
+                  ),
+                  const SizedBox(width: 8),
+                  _AttachButton(
+                    icon: Icons.draw_outlined,
+                    label: 'Draw',
+                    onPressed: _atLimit ? null : _openDrawingPad,
+                  ),
+                ],
+              ),
+              // Attachment count warning
+              if (_atLimit)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    'Maximum $_maxAttachments attachments per note',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              // Attachment preview row
+              if (_attachments.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: _attachments.map((pending) {
+                      final entity = AttachmentEntity(
+                        id: pending.id,
+                        companyId: widget.companyId,
+                        noteId: '',
+                        attachmentType: pending.type,
+                        localPath: pending.localPath,
+                        thumbnailPath: pending.thumbnailPath,
+                        caption: pending.caption,
+                        uploadStatus: 'pending_upload',
+                        sortOrder: 0,
+                        createdAt: DateTime.now(),
+                        updatedAt: DateTime.now(),
+                      );
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: Column(
+                          children: [
+                            AttachmentThumbnail(
+                              attachment: entity,
+                              onRemove: () => _removeAttachment(pending),
+                            ),
+                            GestureDetector(
+                              onTap: () => _editCaption(context, pending),
+                              child: Container(
+                                width: 60,
+                                padding: const EdgeInsets.symmetric(vertical: 2),
+                                child: Text(
+                                  pending.caption?.isNotEmpty == true
+                                      ? pending.caption!
+                                      : 'Add caption',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .labelSmall
+                                      ?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                      ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        // Save button
+        SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: FilledButton(
+              onPressed: _canSave && !_isSaving ? _save : null,
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+              ),
+              child: _isSaving
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Save Note'),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -401,18 +388,11 @@ class _AddNoteBottomSheetState extends State<AddNoteBottomSheet> {
     }
   }
 
-  Future<void> _openDrawingPad() async {
-    // Navigate to DrawingPadScreen (Plan 04). Receives PNG file path back via
-    // Navigator.pop result. If Plan 04 not yet in place, gracefully no-ops.
-    final result = await Navigator.of(context).pushNamed<String?>('/drawing-pad');
-    if (result == null) return;
-
-    final pending = _PendingAttachment(
-      id: const Uuid().v4(),
-      type: 'drawing',
-      localPath: result,
-    );
-    setState(() => _attachments.add(pending));
+  void _openDrawingPad() {
+    // Signal the parent (NotesTab) to navigate to DrawingPadScreen.
+    // We can't navigate from inside a bottom sheet — the context is
+    // disposed after pop, breaking GoRouter.push.
+    Navigator.of(context).pop(AddNoteBottomSheet.openDrawingPadResult);
   }
 
   void _removeAttachment(_PendingAttachment pending) {

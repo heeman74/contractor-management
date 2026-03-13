@@ -182,12 +182,16 @@ class _DrawingPadScreenState extends State<DrawingPadScreen> {
 
   // ── Drawing gestures ────────────────────────────────────────────────────────
 
+  // Eraser uses a larger stroke so it's practical to use.
+  double get _effectiveThickness =>
+      _activeTool == _Tool.eraser ? _selectedThickness * 4 : _selectedThickness;
+
   void _onPanStart(DragStartDetails details) {
     setState(() {
       _currentStroke = _Stroke(
         tool: _activeTool,
         color: _activeTool == _Tool.eraser ? Colors.white : _selectedColor,
-        thickness: _selectedThickness,
+        thickness: _effectiveThickness,
         points: [details.localPosition],
       );
     });
@@ -242,10 +246,13 @@ class _DrawingPadScreenState extends State<DrawingPadScreen> {
         ),
         title: const Text('Drawing Pad'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.save_outlined),
-            tooltip: 'Save',
-            onPressed: _saveDrawing,
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: FilledButton.icon(
+              icon: const Icon(Icons.save_outlined, size: 18),
+              label: const Text('Save'),
+              onPressed: _saveDrawing,
+            ),
           ),
         ],
       ),

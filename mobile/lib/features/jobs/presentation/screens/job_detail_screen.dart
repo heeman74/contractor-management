@@ -108,8 +108,7 @@ class _JobDetailView extends ConsumerWidget {
         job.jobStatus == JobStatus.inProgress;
 
     // Watch note count for badge display on the Notes tab.
-    final noteCountAsync = ref.watch(noteCountProvider(job.id));
-    final noteCount = noteCountAsync.valueOrNull ?? 0;
+    final noteCount = ref.watch(noteCountProvider(job.id));
 
     return Scaffold(
       appBar: AppBar(

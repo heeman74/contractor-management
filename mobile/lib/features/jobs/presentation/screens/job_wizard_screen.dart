@@ -134,8 +134,8 @@ class _JobWizardScreenState extends ConsumerState<JobWizardScreen> {
               decoration: const InputDecoration(
                 labelText: 'Job description *',
                 hintText: 'Describe the work required (min 10 characters)',
-                prefixIcon: Icon(Icons.description_outlined),
                 border: OutlineInputBorder(),
+                alignLabelWithHint: true,
               ),
               maxLines: 3,
               textInputAction: TextInputAction.next,
@@ -535,10 +535,7 @@ class _JobWizardScreenState extends ConsumerState<JobWizardScreen> {
           onPressed: () => context.pop(),
         ),
       ),
-      body: Scrollbar(
-        controller: _scrollController,
-        thumbVisibility: true,
-        child: Stepper(
+      body: Stepper(
         key: ValueKey(_isOffline),
         controller: _scrollController,
         currentStep: _currentStep,
@@ -613,7 +610,6 @@ class _JobWizardScreenState extends ConsumerState<JobWizardScreen> {
           );
         },
         steps: steps,
-      ),
       ),
     );
   }
