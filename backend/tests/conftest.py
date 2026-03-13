@@ -133,6 +133,8 @@ async def clean_tables(test_engine):
                 "contractor_date_overrides, "
                 "contractor_weekly_schedule, "
                 "contractor_schedule_locks, "
+                # Phase 7 notification tables
+                "device_tokens, "
                 # Auth + core tables
                 "refresh_tokens, "
                 "user_roles, "

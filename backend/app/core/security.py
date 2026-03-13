@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.tenant import set_current_tenant_id
+from app.core.tenant import set_current_tenant_id, set_current_user_id
 
 # ---------------------------------------------------------------------------
 # Password hashing
@@ -144,8 +144,10 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
 
-    # Set tenant context for RLS
+    # Set tenant context for RLS (company-scoped)
     set_current_tenant_id(company_id)
+    # Set user context for user-scoped RLS (device_tokens table)
+    set_current_user_id(user_id)
 
     return CurrentUser(
         user_id=user_id,
