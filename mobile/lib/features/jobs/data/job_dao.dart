@@ -66,6 +66,19 @@ class JobDao extends DatabaseAccessor<AppDatabase> with _$JobDaoMixin {
         .map((rows) => rows.map(_rowToJobEntity).toList());
   }
 
+  /// Reactive stream for a single job by ID.
+  ///
+  /// Emits the [JobEntity] when found, or null when the row doesn't exist
+  /// or has been soft-deleted. Used by the client job detail screen.
+  Stream<JobEntity?> watchJobById(String jobId) {
+    return (select(jobs)
+          ..where(
+            (tbl) => tbl.id.equals(jobId) & tbl.deletedAt.isNull(),
+          ))
+        .watchSingleOrNull()
+        .map((row) => row != null ? _rowToJobEntity(row) : null);
+  }
+
   /// Reactive stream of active jobs linked to a specific client.
   ///
   /// Used in the CRM client detail screen to show job history.
@@ -300,6 +313,28 @@ class JobDao extends DatabaseAccessor<AppDatabase> with _$JobDaoMixin {
   // ────────────────────────────────────────────────────────────────────────
   // JobRequest streams and mutations
   // ────────────────────────────────────────────────────────────────────────
+
+  /// Reactive stream of job requests visible to a specific client.
+  ///
+  /// Returns pending, declined, and request_more_info requests for the given
+  /// client user. This is distinct from [watchPendingRequestsByCompany] which
+  /// is scoped to a company for admin triage — this is scoped to a client user
+  /// for their client portal view.
+  ///
+  /// Accepted requests are excluded (they become Jobs shown in the main list).
+  Stream<List<JobRequestEntity>> watchRequestsForClient(String clientId) {
+    return (select(jobRequests)
+          ..where(
+            (tbl) =>
+                tbl.clientId.equals(clientId) &
+                tbl.requestStatus.isIn(
+                    ['pending', 'declined', 'request_more_info']) &
+                tbl.deletedAt.isNull(),
+          )
+          ..orderBy([(tbl) => OrderingTerm.desc(tbl.createdAt)]))
+        .watch()
+        .map((rows) => rows.map(_rowToJobRequestEntity).toList());
+  }
 
   /// Reactive stream of pending job requests for admin review queue.
   Stream<List<JobRequestEntity>> watchPendingRequestsByCompany(

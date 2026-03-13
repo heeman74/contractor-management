@@ -100,6 +100,18 @@ abstract final class RouteNames {
   /// Shows large HH:MM:SS display, session history, and Clock In/Out button.
   static const timer = '/timer/:jobId';
 
+  // --- Client-only routes (continued) ---
+
+  /// Client job detail — client-specific view with progress stepper,
+  /// photos, notes, and details tabs. Navigated to from the client portal list.
+  static const clientJobDetail = '/client/jobs/:id';
+
+  /// Full-screen photo viewer — push route for viewing uploaded job photos.
+  ///
+  /// Pass `extra`: Map with keys 'photos' (List&lt;AttachmentEntity&gt;) and
+  /// 'initialIndex' (int).
+  static const photoViewer = '/photo-viewer';
+
   // ─── Helpers ─────────────────────────────────────────────────────────────
 
   /// Build the job detail path for a specific job ID.
@@ -112,6 +124,9 @@ abstract final class RouteNames {
   /// Build the schedule settings path for a specific contractor (admin access).
   static String scheduleSettingsPath(String contractorId) =>
       '/schedule/settings?contractorId=$contractorId';
+
+  /// Build the client job detail path for a specific job ID.
+  static String clientJobDetailPath(String jobId) => '/client/jobs/$jobId';
 
   /// Build the timer screen path for a specific job.
   static String timerPath(String jobId) => '/timer/$jobId';
