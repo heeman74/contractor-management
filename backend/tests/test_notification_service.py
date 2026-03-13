@@ -24,7 +24,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from httpx import AsyncClient
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -44,9 +43,7 @@ async def register_user(client: AsyncClient, email: str, company_name: str) -> d
     return resp.json()
 
 
-async def register_device_token(
-    client: AsyncClient, token: str, platform: str = "android"
-) -> int:
+async def register_device_token(client: AsyncClient, token: str, platform: str = "android") -> int:
     """POST a device token and return the status code."""
     resp = await client.post(
         "/api/v1/notifications/token",
@@ -223,7 +220,9 @@ async def test_send_job_notification_success():
     mock_messaging.send.return_value = "projects/test/messages/ok"
 
     with (
-        patch("app.features.notifications.service._get_firebase_app", return_value=mock_firebase_app),
+        patch(
+            "app.features.notifications.service._get_firebase_app", return_value=mock_firebase_app
+        ),
         patch("firebase_admin.messaging", mock_messaging, create=True),
     ):
         send_calls = []
@@ -251,7 +250,6 @@ async def test_send_job_notification_success():
 @pytest.mark.asyncio
 async def test_no_notification_when_fcm_not_configured():
     """When _get_firebase_app returns None, send_job_notification exits silently."""
-    import os
 
     from app.features.notifications.service import NotificationService
 

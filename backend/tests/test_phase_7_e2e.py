@@ -385,7 +385,6 @@ async def test_sync_client_sees_own_jobs_via_endpoint(async_client):
     """Admin sync returns both jobs; sync with client_id filter restricts correctly."""
     data = await register_and_login(async_client, "admin@sync-ca.com", "Sync Co A")
     token = data["access_token"]
-    company_id = data["company_id"]
 
     # Register two "client" user IDs for job assignment
     c1_resp = await async_client.post(
