@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: in_progress
-stopped_at: Completed 08-business-operations-05-PLAN.md
-last_updated: "2026-03-14T01:00:00.000Z"
-last_activity: "2026-03-14 — Phase 8 Plan 05: Invoice detail screen, reporting dashboard, Reports tab navigation"
+status: completed
+stopped_at: Completed 08-business-operations-04-PLAN.md
+last_updated: "2026-03-14T00:59:14.773Z"
+last_activity: "2026-03-14 — Phase 8 Plan 05: Invoice detail screen with PDF download, reporting dashboard (fl_chart), Reports tab navigation"
 progress:
   total_phases: 8
   completed_phases: 7
   total_plans: 49
-  completed_plans: 46
-  percent: 94
+  completed_plans: 48
+  percent: 100
 ---
 
 # Project State
@@ -96,6 +96,7 @@ Progress: [██████████] 100%
 | Phase 08-business-operations P02 | 11min | 2 tasks | 13 files |
 | Phase 08-business-operations P03 | 460min | 2 tasks | 14 files |
 | Phase 08-business-operations P05 | 10min | 2 tasks | 10 files |
+| Phase 08-business-operations P04 | 30min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -253,6 +254,9 @@ Recent decisions affecting current work:
 - [Phase 08-business-operations P05]: AdminDashboardNotifier watches dateRangeProvider — auto-refetches on date change without manual invalidation
 - [Phase 08-business-operations P05]: History tab added to ClientJobDetailScreen — renders Phase 8 event types (quote_*, invoice_generated) via switch expression
 - [Phase 08-business-operations P05]: DropdownButton + InputDecorator replaces DropdownButtonFormField for payment status — avoids deprecated .value in Flutter 3.33+
+- [Phase 08-business-operations]: QuoteBuilderNotifier uses legacy StateNotifier (riverpod/legacy.dart) — sync notifier appropriate for in-memory form builder with fire-and-forget template loading
+- [Phase 08-business-operations]: Read receipt on quote view: GET /quotes/{id} called once in initState when status=sent — backend records viewed_at per backend Pattern 4 from research
+- [Phase 08-business-operations]: Draft quotes filtered from client Quote tab — only sent/viewed/approved/declined/expired statuses visible to client
 
 ### Pending Todos
 
@@ -269,6 +273,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-14T01:00:00.000Z
-Stopped at: Completed 08-business-operations-05-PLAN.md
+Last session: 2026-03-14T00:59:05.840Z
+Stopped at: Completed 08-business-operations-04-PLAN.md
 Resume file: None
