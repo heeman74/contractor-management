@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/di/service_locator.dart';
+import '../../../../core/routing/route_names.dart';
 import '../../../../features/auth/domain/auth_state.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
+import '../../../../features/invoices/presentation/providers/invoice_providers.dart';
 import '../../../../features/schedule/presentation/widgets/delay_justification_dialog.dart';
+import '../../../../shared/models/user_role.dart';
 import '../../data/job_dao.dart';
 import '../../domain/job_entity.dart';
 import '../../domain/job_status.dart';
@@ -239,13 +243,36 @@ class _ReportDelayBar extends StatelessWidget {
 
 // ─── Details tab ──────────────────────────────────────────────────────────────
 
-class _DetailsTab extends StatelessWidget {
+class _DetailsTab extends ConsumerStatefulWidget {
   final JobEntity job;
 
   const _DetailsTab({required this.job});
 
   @override
+  ConsumerState<_DetailsTab> createState() => _DetailsTabState();
+}
+
+class _DetailsTabState extends ConsumerState<_DetailsTab> {
+  bool _isGeneratingInvoice = false;
+
+  @override
   Widget build(BuildContext context) {
+    final job = widget.job;
+    final authState = ref.watch(authNotifierProvider);
+    final isAdmin = authState is AuthAuthenticated &&
+        authState.roles.contains(UserRole.admin);
+
+    // Watch invoices for this job (to show View Invoice vs Generate Invoice)
+    final invoicesAsync = ref.watch(invoicesForJobProvider(job.id));
+    final invoices = invoicesAsync.maybeWhen(data: (i) => i, orElse: () => []);
+    final hasInvoice = invoices.isNotEmpty;
+
+    // "Generate Invoice" is shown when: admin, job is complete/invoiced, and no invoice yet
+    final canGenerateInvoice = isAdmin &&
+        !hasInvoice &&
+        (job.jobStatus == JobStatus.complete ||
+            job.jobStatus == JobStatus.invoiced);
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -285,7 +312,100 @@ class _DetailsTab extends StatelessWidget {
             ),
           ),
         ),
+
+        // ── Invoice Section (admin only) ──────────────────────────────────
+        if (isAdmin) ...[
+          const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.receipt_outlined,
+                        size: 18,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Invoice',
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (hasInvoice) ...[
+                    // View existing invoice
+                    Text(
+                      invoices.first.invoiceNumber,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.open_in_new, size: 16),
+                        label: const Text('View Invoice'),
+                        onPressed: () => context.push(
+                          RouteNames.invoiceDetailPath(invoices.first.id),
+                        ),
+                      ),
+                    ),
+                  ] else if (canGenerateInvoice) ...[
+                    Text(
+                      'This job is complete. Generate an invoice from the approved quote.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
+                          ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        icon: _isGeneratingInvoice
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.receipt_long_outlined),
+                        label: const Text('Generate Invoice'),
+                        onPressed: _isGeneratingInvoice
+                            ? null
+                            : () => _generateInvoice(context, job.id),
+                      ),
+                    ),
+                  ] else ...[
+                    Text(
+                      'No invoice yet. Invoice can be generated once the job is complete.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
+                          ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+
         // ── GPS Location Section ──────────────────────────────────────────
+        const SizedBox(height: 12),
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -306,6 +426,52 @@ class _DetailsTab extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  Future<void> _generateInvoice(BuildContext context, String jobId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Generate Invoice'),
+        content:
+            const Text('Generate an invoice from the approved quote for this job?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Generate'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isGeneratingInvoice = true);
+    try {
+      // Call POST /invoices/generate/{jobId}
+      final invoiceId = await ref.read(
+        generateInvoiceProvider(jobId).future,
+      );
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invoice generated successfully')),
+        );
+        context.push(RouteNames.invoiceDetailPath(invoiceId));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to generate invoice: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isGeneratingInvoice = false);
+    }
   }
 }
 

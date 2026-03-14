@@ -21,6 +21,7 @@ import '../../features/client/presentation/screens/client_job_detail_screen.dart
 import '../../features/client/presentation/screens/client_portal_screen.dart';
 import '../../features/client/presentation/screens/job_request_form_screen.dart';
 import '../../features/client/presentation/screens/photo_viewer_screen.dart';
+import '../../features/invoices/presentation/screens/invoice_detail_screen.dart';
 import '../../features/jobs/domain/attachment_entity.dart';
 import '../../features/contractor/presentation/screens/availability_screen.dart';
 import '../../features/jobs/presentation/screens/contractor_jobs_screen.dart';
@@ -29,6 +30,8 @@ import '../../features/jobs/presentation/screens/drawing_pad_screen.dart';
 import '../../features/jobs/presentation/screens/timer_screen.dart';
 import '../../features/jobs/presentation/screens/job_wizard_screen.dart';
 import '../../features/jobs/presentation/screens/jobs_pipeline_screen.dart';
+import '../../features/reports/presentation/screens/admin_reports_screen.dart';
+import '../../features/reports/presentation/screens/contractor_reports_screen.dart';
 import '../../features/schedule/presentation/screens/contractor_schedule_screen.dart';
 import '../../features/schedule/presentation/screens/schedule_settings_screen.dart';
 import '../../shared/models/user_role.dart';
@@ -173,6 +176,15 @@ final routerProvider = Provider.autoDispose<GoRouter>((ref) {
           child: JobWizardScreen(),
         ),
       ),
+      // Invoice detail — accessible by admin (edit/finalize) and client (read-only + PDF).
+      // Top-level push route (no bottom nav) — navigated to from job detail and client portal.
+      GoRoute(
+        path: RouteNames.invoiceDetail,
+        builder: (context, state) {
+          final invoiceId = state.pathParameters['invoiceId']!;
+          return InvoiceDetailScreen(invoiceId: invoiceId);
+        },
+      ),
       // --- Shell routes (with bottom nav) ---
       // StatefulShellRoute preserves each tab's navigation stack independently.
       StatefulShellRoute.indexedStack(
@@ -312,6 +324,28 @@ final routerProvider = Provider.autoDispose<GoRouter>((ref) {
                 builder: (context, state) {
                   final jobId = state.pathParameters['id']!;
                   return ClientJobDetailScreen(jobId: jobId);
+                },
+              ),
+            ],
+          ),
+          // Branch 7: Reports — admin sees full dashboard; contractor sees own stats.
+          // Client role is excluded from this tab (per locked design decision).
+          // Role-based screen selection mirrors the Schedule branch pattern.
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: RouteNames.reports,
+                builder: (context, state) {
+                  // Role-based screen selection.
+                  // Redirect guarantees auth resolved before builder runs.
+                  final container = ProviderScope.containerOf(context);
+                  final authState = container.read(authNotifierProvider);
+                  final isAdmin = authState is AuthAuthenticated &&
+                      authState.roles.contains(UserRole.admin);
+
+                  return isAdmin
+                      ? const AdminReportsScreen()
+                      : const ContractorReportsScreen();
                 },
               ),
             ],

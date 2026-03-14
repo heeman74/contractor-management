@@ -128,6 +128,45 @@ abstract final class RouteNames {
   /// Build the client job detail path for a specific job ID.
   static String clientJobDetailPath(String jobId) => '/client/jobs/$jobId';
 
+  // --- Business operations routes (Phase 8) ---
+
+  /// Invoice detail — view invoice with line items, totals, and PDF download.
+  /// Accessible by admin (edit/finalize) and client (read-only + PDF).
+  static const invoiceDetail = '/invoices/:invoiceId';
+
+  /// Reports dashboard — admin sees all 4 metrics; contractor sees own stats.
+  static const reports = '/reports';
+
+  // --- Quote routes (Phase 8) ---
+
+  /// Admin quote builder — create or edit a quote for a job.
+  /// Navigate via: context.push(RouteNames.quoteBuilderPath(jobId))
+  static const quoteBuilder = '/jobs/:jobId/quote/build';
+
+  /// Admin quote preview — see quote as client will see it before sending.
+  /// Navigate via: context.push(RouteNames.quotePreviewPath(jobId))
+  static const quotePreview = '/jobs/:jobId/quote/preview';
+
+  /// Client-facing quote detail — view, approve, or decline.
+  /// Navigate via: context.push(RouteNames.quoteDetailPath(quoteId))
+  static const quoteDetail = '/quotes/:quoteId';
+
+  // ─── Helpers ─────────────────────────────────────────────────────────────
+
   /// Build the timer screen path for a specific job.
   static String timerPath(String jobId) => '/timer/$jobId';
+
+  /// Build the invoice detail path for a specific invoice ID.
+  static String invoiceDetailPath(String invoiceId) => '/invoices/$invoiceId';
+
+  /// Build the quote builder path for a specific job.
+  static String quoteBuilderPath(String jobId) =>
+      '/jobs/$jobId/quote/build';
+
+  /// Build the quote preview path for a specific job.
+  static String quotePreviewPath(String jobId) =>
+      '/jobs/$jobId/quote/preview';
+
+  /// Build the client-facing quote detail path for a specific quote.
+  static String quoteDetailPath(String quoteId) => '/quotes/$quoteId';
 }
