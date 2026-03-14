@@ -19,7 +19,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Calendar and Dispatch UI** - Drag-and-drop calendar, overdue warnings, and delay justification flow (completed 2026-03-09)
 - [x] **Phase 6: Field Workflow** - Job notes, photo capture, GPS address, drawing pad, and time tracking (completed 2026-03-12)
 - [x] **Phase 7: Client Portal and Notifications** - Client-facing job status, progress photos, delay visibility, and push notifications (completed 2026-03-13)
-- [ ] **Phase 8: Business Operations** - Digital quoting, quote approval, invoicing, and reporting dashboard
+- [x] **Phase 8: Business Operations** - Digital quoting, quote approval, invoicing, and reporting dashboard (completed 2026-03-14)
 
 ## Phase Details
 
@@ -173,7 +173,7 @@ Plans:
   3. Admin can generate a digital invoice from a completed job with one action; the invoice includes all job details and line items from the quote
   4. The reporting dashboard shows jobs by status, total revenue from invoiced jobs, and contractor utilization — all filterable by date range
   5. All quote, approval, and invoice actions are captured in the job history and visible in the client portal
-**Plans:** 6/7 plans executed
+**Plans:** 7/7 plans complete
 
 Plans:
 - [ ] 08-00-PLAN.md — Wave 0 test stubs: backend integration/unit test stubs, Flutter E2E test stub, conftest.py update, WeasyPrint and fl_chart dependencies
@@ -200,4 +200,4 @@ Note: Phase 3 (Scheduling Engine) depends only on Phase 1 and can begin in paral
 | 5. Calendar and Dispatch UI | 6/6 | Complete   | 2026-03-09 |
 | 6. Field Workflow | 7/7 | Complete   | 2026-03-12 |
 | 7. Client Portal and Notifications | 4/4 | Complete   | 2026-03-13 |
-| 8. Business Operations | 6/7 | In Progress|  |
+| 8. Business Operations | 7/7 | Complete   | 2026-03-14 |
