@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 
 import '../database/app_database.dart';
 import '../network/dio_client.dart';
@@ -311,60 +312,76 @@ class SyncEngine {
       final data = response.data;
       if (data == null) return;
 
-      // Process each registered entity type from the response
-      final List<dynamic>? companies = data['companies'] as List<dynamic>?;
-      if (companies != null) {
-        final handler = _registry.getHandler('company');
-        for (final entity in companies) {
-          await handler.applyPulled(entity as Map<String, dynamic>);
+      // Entity types in FK dependency order (per CONTEXT.md locked decision).
+      // Each tuple: (serverResponseKey, handlerEntityType).
+      const entityTypes = [
+        ('companies', 'company'),
+        ('users', 'user'),
+        ('user_roles', 'user_role'),
+        ('jobs', 'job'),
+        ('bookings', 'booking'),
+        ('job_sites', 'job_site'),
+        ('job_notes', 'job_note'),
+        ('time_entries', 'time_entry'),
+        ('attachments', 'attachment'),
+        ('client_profiles', 'client_profile'),
+        ('job_requests', 'job_request'),
+        ('quotes', 'quote'),
+        ('quote_line_items', 'quote_line_item'),
+        ('invoices', 'invoice'),
+        ('invoice_line_items', 'invoice_line_item'),
+      ];
+
+      int totalPulled = 0;
+      int totalSkipped = 0;
+
+      for (final (responseKey, handlerType) in entityTypes) {
+        final entities = data[responseKey] as List<dynamic>?;
+        if (entities == null || entities.isEmpty) continue;
+
+        int typePulled = 0;
+        int typeSkipped = 0;
+
+        try {
+          final handler = _registry.getHandler(handlerType);
+          for (final entity in entities) {
+            try {
+              await handler.applyPulled(entity as Map<String, dynamic>);
+              typePulled++;
+            } catch (e) {
+              typeSkipped++;
+              final id = (entity is Map<String, dynamic>)
+                  ? entity['id'] ?? 'unknown'
+                  : 'unknown';
+              debugPrint('pullDelta: skip $handlerType $id — $e');
+            }
+          }
+        } catch (e) {
+          // Handler not registered — skip entire type
+          debugPrint('pullDelta: no handler for "$handlerType" — $e');
+          typeSkipped += entities.length;
         }
+
+        if (typePulled > 0 || typeSkipped > 0) {
+          debugPrint(
+            'pullDelta: $handlerType — $typePulled pulled, $typeSkipped skipped',
+          );
+        }
+        totalPulled += typePulled;
+        totalSkipped += typeSkipped;
       }
 
-      final List<dynamic>? users = data['users'] as List<dynamic>?;
-      if (users != null) {
-        final handler = _registry.getHandler('user');
-        for (final entity in users) {
-          await handler.applyPulled(entity as Map<String, dynamic>);
-        }
-      }
+      debugPrint(
+        'pullDelta: $totalPulled pulled, $totalSkipped skipped, '
+        '${entityTypes.length} types processed',
+      );
 
-      final List<dynamic>? userRoles = data['user_roles'] as List<dynamic>?;
-      if (userRoles != null) {
-        final handler = _registry.getHandler('user_role');
-        for (final entity in userRoles) {
-          await handler.applyPulled(entity as Map<String, dynamic>);
-        }
-      }
-
-      final List<dynamic>? jobs = data['jobs'] as List<dynamic>?;
-      if (jobs != null) {
-        final handler = _registry.getHandler('job');
-        for (final entity in jobs) {
-          await handler.applyPulled(entity as Map<String, dynamic>);
-        }
-      }
-
-      final List<dynamic>? jobNotes = data['job_notes'] as List<dynamic>?;
-      if (jobNotes != null) {
-        final handler = _registry.getHandler('job_note');
-        for (final entity in jobNotes) {
-          await handler.applyPulled(entity as Map<String, dynamic>);
-        }
-      }
-
-      final List<dynamic>? timeEntries = data['time_entries'] as List<dynamic>?;
-      if (timeEntries != null) {
-        final handler = _registry.getHandler('time_entry');
-        for (final entity in timeEntries) {
-          await handler.applyPulled(entity as Map<String, dynamic>);
-        }
-      }
-
-      final List<dynamic>? attachmentsList = data['attachments'] as List<dynamic>?;
-      if (attachmentsList != null) {
-        final handler = _registry.getHandler('attachment');
-        for (final entity in attachmentsList) {
-          await handler.applyPulled(entity as Map<String, dynamic>);
+      // Log unknown keys in response for forward-compatibility awareness.
+      final knownKeys = entityTypes.map((e) => e.$1).toSet()
+        ..add('server_timestamp');
+      for (final key in data.keys) {
+        if (!knownKeys.contains(key)) {
+          debugPrint('pullDelta: unknown key "$key" in response (forward-compat)');
         }
       }
 
