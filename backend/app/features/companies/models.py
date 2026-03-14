@@ -1,4 +1,4 @@
-from sqlalchemy import ARRAY, JSON, String, text
+from sqlalchemy import ARRAY, JSON, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.base_models import BaseEntityModel
@@ -21,3 +21,8 @@ class Company(BaseEntityModel):
     scheduling_config: Mapped[dict | None] = mapped_column(
         JSON, nullable=True, server_default=text("'{}'::jsonb")
     )
+    # Phase 8: sequential invoice numbering — added via migration 0011 ALTER TABLE
+    # invoice_prefix: tenant-customisable prefix (default 'INV')
+    # invoice_sequence: counter incremented atomically per invoice creation (SELECT FOR UPDATE)
+    invoice_prefix: Mapped[str] = mapped_column(String, nullable=False, server_default="'INV'")
+    invoice_sequence: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
