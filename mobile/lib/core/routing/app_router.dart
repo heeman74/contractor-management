@@ -28,6 +28,9 @@ import '../../features/jobs/presentation/screens/contractor_jobs_screen.dart';
 import '../../features/jobs/presentation/screens/job_detail_screen.dart';
 import '../../features/jobs/presentation/screens/drawing_pad_screen.dart';
 import '../../features/jobs/presentation/screens/timer_screen.dart';
+import '../../features/quotes/presentation/screens/quote_builder_screen.dart';
+import '../../features/quotes/presentation/screens/quote_detail_screen.dart';
+import '../../features/quotes/presentation/screens/quote_preview_screen.dart';
 import '../../features/jobs/presentation/screens/job_wizard_screen.dart';
 import '../../features/jobs/presentation/screens/jobs_pipeline_screen.dart';
 import '../../features/reports/presentation/screens/admin_reports_screen.dart';
@@ -183,6 +186,39 @@ final routerProvider = Provider.autoDispose<GoRouter>((ref) {
         builder: (context, state) {
           final invoiceId = state.pathParameters['invoiceId']!;
           return InvoiceDetailScreen(invoiceId: invoiceId);
+        },
+      ),
+      // Quote builder — admin creates/edits a quote for a specific job.
+      // Push via: context.push(RouteNames.quoteBuilderPath(jobId))
+      GoRoute(
+        path: RouteNames.quoteBuilder,
+        builder: (context, state) {
+          final jobId = state.pathParameters['jobId']!;
+          final extra = state.extra;
+          return QuoteBuilderScreen(
+            jobId: jobId,
+            existingQuote: extra is Map<String, dynamic>
+                ? extra['existingQuote'] as dynamic
+                : null,
+          );
+        },
+      ),
+      // Quote preview — admin sees quote as client will see it, then sends.
+      // Push via: context.push(RouteNames.quotePreviewPath(jobId))
+      GoRoute(
+        path: RouteNames.quotePreview,
+        builder: (context, state) {
+          final jobId = state.pathParameters['jobId']!;
+          return QuotePreviewScreen(jobId: jobId);
+        },
+      ),
+      // Quote detail — client-facing view with approve/decline actions.
+      // Push via: context.push(RouteNames.quoteDetailPath(quoteId))
+      GoRoute(
+        path: RouteNames.quoteDetail,
+        builder: (context, state) {
+          final quoteId = state.pathParameters['quoteId']!;
+          return QuoteDetailScreen(quoteId: quoteId);
         },
       ),
       // --- Shell routes (with bottom nav) ---

@@ -6,6 +6,8 @@ import '../../../../core/di/service_locator.dart';
 import '../../../../core/routing/route_names.dart';
 import '../../../../core/sync/sync_engine.dart';
 import '../../../invoices/presentation/providers/invoice_providers.dart';
+import '../../../quotes/data/quote_dao.dart';
+import '../../../quotes/domain/quote_entity.dart';
 import '../../../jobs/domain/job_entity.dart';
 import '../../../jobs/domain/job_status.dart';
 import '../providers/client_providers.dart';
@@ -74,8 +76,8 @@ class _JobDetailContentState extends ConsumerState<_JobDetailContent>
   @override
   void initState() {
     super.initState();
-    // 4 tabs: Photos, Notes, Details, History
-    _tabController = TabController(length: 4, vsync: this);
+    // 5 tabs: Photos, Notes, Details, History, Quote
+    _tabController = TabController(length: 5, vsync: this);
   }
 
   @override
@@ -162,6 +164,7 @@ class _JobDetailContentState extends ConsumerState<_JobDetailContent>
                 const Tab(text: 'Notes'),
                 const Tab(text: 'Details'),
                 const Tab(text: 'History'),
+                const Tab(text: 'Quote'),
               ],
             ),
 
@@ -174,6 +177,7 @@ class _JobDetailContentState extends ConsumerState<_JobDetailContent>
                   ClientNotesTab(jobId: widget.jobId, job: job),
                   _DetailsTab(job: job, jobId: widget.jobId),
                   _HistoryTab(job: job),
+                  _QuoteTab(jobId: widget.jobId),
                 ],
               ),
             ),
@@ -613,4 +617,142 @@ class _DetailRow extends StatelessWidget {
       ),
     );
   }
+}
+
+// ─── Quote tab ────────────────────────────────────────────────────────────────
+
+/// Client-facing quote tab inside the job detail screen.
+///
+/// Streams the latest sent/viewed/approved/declined quote for this job.
+/// Shows a "View Quote" button that navigates to [QuoteDetailScreen].
+/// When no quote exists yet, shows a placeholder message.
+class _QuoteTab extends ConsumerWidget {
+  final String jobId;
+
+  const _QuoteTab({required this.jobId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final quoteDao = getIt<QuoteDao>();
+
+    return StreamBuilder<List<QuoteEntity>>(
+      stream: quoteDao.watchQuotesForJob(jobId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final quotes = snapshot.data ?? [];
+        // Show only quotes visible to client: not drafts
+        final clientQuotes = quotes
+            .where((q) => q.status != 'draft')
+            .toList();
+
+        if (clientQuotes.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.description_outlined,
+                    size: 48,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'No quote yet',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Your contractor will send a quote for your approval.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        final quote = clientQuotes.first;
+        final statusColor = _quoteStatusColor(quote.status);
+
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Card(
+              child: ListTile(
+                leading: Icon(Icons.description, color: statusColor),
+                title: Text('Quote v${quote.revisionNumber}'),
+                subtitle: Text(
+                  _quoteStatusLabel(quote.status),
+                  style: TextStyle(color: statusColor),
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push(
+                  RouteNames.quoteDetailPath(quote.id),
+                ),
+              ),
+            ),
+            if (quote.total > 0) ...[
+              const SizedBox(height: 8),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Total',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      Text(
+                        '\$${quote.total.toStringAsFixed(2)}',
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+            if (quote.isPending && !quote.isExpired) ...[
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: () => context.push(
+                  RouteNames.quoteDetailPath(quote.id),
+                ),
+                icon: const Icon(Icons.check_circle_outline),
+                label: const Text('Review & Approve Quote'),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Color _quoteStatusColor(String status) => switch (status) {
+        'approved' => Colors.green,
+        'declined' => Colors.red,
+        'expired' => Colors.orange,
+        _ => Colors.blue,
+      };
+
+  String _quoteStatusLabel(String status) => switch (status) {
+        'sent' => 'Awaiting your approval',
+        'viewed' => 'Awaiting your approval',
+        'approved' => 'Approved',
+        'declined' => 'Declined',
+        'expired' => 'Expired',
+        'revised' => 'Revised',
+        _ => status,
+      };
 }
