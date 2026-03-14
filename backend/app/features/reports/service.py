@@ -39,6 +39,7 @@ from app.features.reports.schemas import (
 )
 from app.features.scheduling.models import Booking
 from app.features.users.models import User
+from app.features.users.models import UserRole as UserRoleModel
 
 
 class ReportingService:
@@ -166,28 +167,44 @@ class ReportingService:
             available_hours_each = Decimal("168")
 
         # Build booking conditions
+        # Booking uses TSTZRANGE (time_range); lower() extracts start timestamp.
         booking_conditions = [Booking.deleted_at.is_(None)]
         if start_date is not None:
-            booking_conditions.append(func.date(Booking.start_time) >= start_date)
+            booking_conditions.append(func.date(func.lower(Booking.time_range)) >= start_date)
         if end_date is not None:
-            booking_conditions.append(func.date(Booking.start_time) <= end_date)
+            booking_conditions.append(func.date(func.lower(Booking.time_range)) <= end_date)
 
-        # SUM of booking durations per contractor
-        # duration_minutes is stored as integer; convert to hours
+        # SUM of booking durations per contractor.
+        # EXTRACT(EPOCH FROM upper(time_range) - lower(time_range)) gives seconds;
+        # divide by 3600 to get hours.
+        duration_hours_expr = func.extract(
+            "epoch",
+            func.upper(Booking.time_range) - func.lower(Booking.time_range),
+        ) / cast(3600, Numeric)
         booked_hours_expr = func.coalesce(
-            func.sum(Booking.duration_minutes) / cast(60, Numeric),
+            func.sum(duration_hours_expr),
             cast(0, Numeric),
         ).label("booked_hours")
 
+        # COALESCE handles NULL first_name/last_name (nullable columns).
+        # Filter to users with contractor role via join on user_roles.
+        contractor_name_expr = (
+            func.coalesce(User.first_name, "") + " " + func.coalesce(User.last_name, "")
+        ).label("contractor_name")
         result = await self.db.execute(
             select(
                 User.id.label("contractor_id"),
-                (User.first_name + " " + User.last_name).label("contractor_name"),
+                contractor_name_expr,
                 booked_hours_expr,
+            )
+            .join(
+                UserRoleModel,
+                (UserRoleModel.user_id == User.id) & (UserRoleModel.role == "contractor"),
             )
             .join(Booking, Booking.contractor_id == User.id, isouter=True)
             .where(
                 User.deleted_at.is_(None),
+                UserRoleModel.deleted_at.is_(None),
             )
             .where(*booking_conditions if booking_conditions else [])
             .group_by(User.id, User.first_name, User.last_name)
@@ -309,11 +326,12 @@ class ReportingService:
         ]
 
         # Utilization — this contractor only
+        # Booking uses TSTZRANGE (time_range); lower() extracts start timestamp.
         booking_conditions = [Booking.deleted_at.is_(None), Booking.contractor_id == contractor_id]
         if start_date is not None:
-            booking_conditions.append(func.date(Booking.start_time) >= start_date)
+            booking_conditions.append(func.date(func.lower(Booking.time_range)) >= start_date)
         if end_date is not None:
-            booking_conditions.append(func.date(Booking.start_time) <= end_date)
+            booking_conditions.append(func.date(func.lower(Booking.time_range)) <= end_date)
 
         if start_date is not None and end_date is not None:
             delta_days = (end_date - start_date).days + 1
@@ -322,11 +340,18 @@ class ReportingService:
         else:
             available_hours = Decimal("168")
 
+        contractor_duration_hours_expr = func.extract(
+            "epoch",
+            func.upper(Booking.time_range) - func.lower(Booking.time_range),
+        ) / cast(3600, Numeric)
+        contractor_name_expr2 = (
+            func.coalesce(User.first_name, "") + " " + func.coalesce(User.last_name, "")
+        ).label("contractor_name")
         booking_result = await self.db.execute(
             select(
-                (User.first_name + " " + User.last_name).label("contractor_name"),
+                contractor_name_expr2,
                 func.coalesce(
-                    func.sum(Booking.duration_minutes) / cast(60, Numeric),
+                    func.sum(contractor_duration_hours_expr),
                     cast(0, Numeric),
                 ).label("booked_hours"),
             )
