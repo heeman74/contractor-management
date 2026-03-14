@@ -12,10 +12,12 @@ import '../sync/handlers/user_role_sync_handler.dart';
 import '../sync/handlers/user_sync_handler.dart';
 import '../sync/sync_engine.dart';
 import '../sync/sync_registry.dart';
+import '../../features/invoices/data/invoice_sync_handler.dart';
 import '../../features/jobs/data/client_profile_sync_handler.dart';
 import '../../features/jobs/data/job_request_sync_handler.dart';
 import '../../features/jobs/data/job_sync_handler.dart';
 import '../../features/jobs/presentation/services/attachment_upload_service.dart';
+import '../../features/quotes/data/quote_sync_handler.dart';
 import '../../features/schedule/data/booking_sync_handler.dart';
 import '../../features/schedule/data/job_site_sync_handler.dart';
 
@@ -61,6 +63,9 @@ Future<void> setupServiceLocator() async {
   // Phase 6: Field workflow sync handlers
   registry.register(NoteSyncHandler(dioClient, db));
   registry.register(TimeEntrySyncHandler(dioClient, db));
+  // Phase 8: Business operations sync handlers
+  registry.register(QuoteSyncHandler(dioClient, db));
+  registry.register(InvoiceSyncHandler(dioClient, db));
 
   getIt.registerSingleton<SyncRegistry>(registry);
 
@@ -88,6 +93,10 @@ Future<void> setupServiceLocator() async {
   getIt.registerSingleton<NoteDao>(db.noteDao);
   getIt.registerSingleton<AttachmentDao>(db.attachmentDao);
   getIt.registerSingleton<TimeEntryDao>(db.timeEntryDao);
+
+  // Phase 8 DAOs — registered for direct injection in business operations features
+  getIt.registerSingleton<QuoteDao>(db.quoteDao);
+  getIt.registerSingleton<InvoiceDao>(db.invoiceDao);
 
   // AttachmentUploadService — binary file uploader for field workflow attachments.
   // Registered AFTER SyncEngine to allow post-construction wiring via

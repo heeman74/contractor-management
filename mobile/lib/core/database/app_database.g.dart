@@ -14592,6 +14592,60 @@ class Quote extends DataClass implements Insertable<Quote> {
       deletedAt: deletedAt == null && nullToAbsent ? const Value.absent() : Value(deletedAt),
     );
   }
+  factory Quote.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Quote(
+      id: serializer.fromJson<String>(json['id']),
+      companyId: serializer.fromJson<String>(json['companyId']),
+      jobId: serializer.fromJson<String>(json['jobId']),
+      status: serializer.fromJson<String>(json['status']),
+      revisionNumber: serializer.fromJson<int>(json['revisionNumber']),
+      taxRate: serializer.fromJson<double>(json['taxRate']),
+      discountType: serializer.fromJson<String?>(json['discountType']),
+      discountValue: serializer.fromJson<double>(json['discountValue']),
+      expiryDate: serializer.fromJson<DateTime?>(json['expiryDate']),
+      sentAt: serializer.fromJson<DateTime?>(json['sentAt']),
+      viewedAt: serializer.fromJson<DateTime?>(json['viewedAt']),
+      approvedAt: serializer.fromJson<DateTime?>(json['approvedAt']),
+      declinedAt: serializer.fromJson<DateTime?>(json['declinedAt']),
+      declineReason: serializer.fromJson<String?>(json['declineReason']),
+      declineDetail: serializer.fromJson<String?>(json['declineDetail']),
+      adminNotes: serializer.fromJson<String?>(json['adminNotes']),
+      version: serializer.fromJson<int>(json['version']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'companyId': serializer.toJson<String>(companyId),
+      'jobId': serializer.toJson<String>(jobId),
+      'status': serializer.toJson<String>(status),
+      'revisionNumber': serializer.toJson<int>(revisionNumber),
+      'taxRate': serializer.toJson<double>(taxRate),
+      'discountType': serializer.toJson<String?>(discountType),
+      'discountValue': serializer.toJson<double>(discountValue),
+      'expiryDate': serializer.toJson<DateTime?>(expiryDate),
+      'sentAt': serializer.toJson<DateTime?>(sentAt),
+      'viewedAt': serializer.toJson<DateTime?>(viewedAt),
+      'approvedAt': serializer.toJson<DateTime?>(approvedAt),
+      'declinedAt': serializer.toJson<DateTime?>(declinedAt),
+      'declineReason': serializer.toJson<String?>(declineReason),
+      'declineDetail': serializer.toJson<String?>(declineDetail),
+      'adminNotes': serializer.toJson<String?>(adminNotes),
+      'version': serializer.toJson<int>(version),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+    };
+  }
   @override
   bool operator ==(Object other) =>
       identical(this, other) || (other is Quote && other.id == this.id);
@@ -14702,12 +14756,6 @@ class QuotesCompanion extends UpdateCompanion<Quote> {
   String toString() => 'QuotesCompanion(id: $id, jobId: $jobId, status: $status)';
 }
 
-typedef $$QuotesTableTableManager = ProcessedTableManager<
-    _$AppDatabase, $QuotesTable, Quote, $$QuotesTableFilterComposer,
-    $$QuotesTableOrderingComposer, $$QuotesTableAnnotationComposer,
-    $$QuotesTableCreateCompanionBuilder, $$QuotesTableUpdateCompanionBuilder,
-    (Quote, BaseReferences<_$AppDatabase, $QuotesTable, Quote>), Quote,
-    PrefetchHooks Function()>;
 typedef $$QuotesTableCreateCompanionBuilder = QuotesCompanion Function({
   Value<String> id,
   required String companyId,
@@ -14780,81 +14828,81 @@ final class $$QuotesTableAnnotationComposer
   $$QuotesTableAnnotationComposer({required super.$db, required super.$table, super.joinBuilder, super.$addJoinBuilderToRootComposer, super.$removeJoinBuilderFromRootComposer});
 }
 
-final class $$QuotesTableTableManager extends RootTableManager<
+class $$QuotesTableTableManager extends RootTableManager<
     _$AppDatabase, $QuotesTable, Quote, $$QuotesTableFilterComposer,
     $$QuotesTableOrderingComposer, $$QuotesTableAnnotationComposer,
     $$QuotesTableCreateCompanionBuilder, $$QuotesTableUpdateCompanionBuilder,
     (Quote, BaseReferences<_$AppDatabase, $QuotesTable, Quote>), Quote,
     PrefetchHooks Function()> {
   $$QuotesTableTableManager(_$AppDatabase db, $QuotesTable table)
-      : super(TableManagerState(
-          db: db, table: table,
-          createFilteringComposer: () => $$QuotesTableFilterComposer(db: db, table: table),
-          createOrderingComposer: () => $$QuotesTableOrderingComposer(db: db, table: table),
-          createComputedFieldComposer: () => $$QuotesTableAnnotationComposer(db: db, table: table),
-          updateCompanionCallback: ({
-            Value<String> id = const Value.absent(),
-            Value<String> companyId = const Value.absent(),
-            Value<String> jobId = const Value.absent(),
-            Value<String> status = const Value.absent(),
-            Value<int> revisionNumber = const Value.absent(),
-            Value<double> taxRate = const Value.absent(),
-            Value<String?> discountType = const Value.absent(),
-            Value<double> discountValue = const Value.absent(),
-            Value<DateTime?> expiryDate = const Value.absent(),
-            Value<DateTime?> sentAt = const Value.absent(),
-            Value<DateTime?> viewedAt = const Value.absent(),
-            Value<DateTime?> approvedAt = const Value.absent(),
-            Value<DateTime?> declinedAt = const Value.absent(),
-            Value<String?> declineReason = const Value.absent(),
-            Value<String?> declineDetail = const Value.absent(),
-            Value<String?> adminNotes = const Value.absent(),
-            Value<int> version = const Value.absent(),
-            Value<DateTime> createdAt = const Value.absent(),
-            Value<DateTime> updatedAt = const Value.absent(),
-            Value<DateTime?> deletedAt = const Value.absent(),
-            Value<int> rowid = const Value.absent(),
-          }) => QuotesCompanion(
-            id: id, companyId: companyId, jobId: jobId, status: status,
-            revisionNumber: revisionNumber, taxRate: taxRate, discountType: discountType,
-            discountValue: discountValue, expiryDate: expiryDate, sentAt: sentAt,
-            viewedAt: viewedAt, approvedAt: approvedAt, declinedAt: declinedAt,
-            declineReason: declineReason, declineDetail: declineDetail, adminNotes: adminNotes,
-            version: version, createdAt: createdAt, updatedAt: updatedAt, deletedAt: deletedAt, rowid: rowid,
-          ),
-          createCompanionCallback: ({
-            Value<String> id = const Value.absent(),
-            required String companyId,
-            required String jobId,
-            Value<String> status = const Value.absent(),
-            Value<int> revisionNumber = const Value.absent(),
-            Value<double> taxRate = const Value.absent(),
-            Value<String?> discountType = const Value.absent(),
-            Value<double> discountValue = const Value.absent(),
-            Value<DateTime?> expiryDate = const Value.absent(),
-            Value<DateTime?> sentAt = const Value.absent(),
-            Value<DateTime?> viewedAt = const Value.absent(),
-            Value<DateTime?> approvedAt = const Value.absent(),
-            Value<DateTime?> declinedAt = const Value.absent(),
-            Value<String?> declineReason = const Value.absent(),
-            Value<String?> declineDetail = const Value.absent(),
-            Value<String?> adminNotes = const Value.absent(),
-            Value<int> version = const Value.absent(),
-            required DateTime createdAt,
-            required DateTime updatedAt,
-            Value<DateTime?> deletedAt = const Value.absent(),
-            Value<int> rowid = const Value.absent(),
-          }) => QuotesCompanion.insert(
-            id: id, companyId: companyId, jobId: jobId, status: status,
-            revisionNumber: revisionNumber, taxRate: taxRate, discountType: discountType,
-            discountValue: discountValue, expiryDate: expiryDate, sentAt: sentAt,
-            viewedAt: viewedAt, approvedAt: approvedAt, declinedAt: declinedAt,
-            declineReason: declineReason, declineDetail: declineDetail, adminNotes: adminNotes,
-            version: version, createdAt: createdAt, updatedAt: updatedAt, deletedAt: deletedAt, rowid: rowid,
-          ),
-          withReferenceMapper: (p0) => p0.map((e) => (e.readTable(table), BaseReferences(db, table, e))).toList(),
-          prefetchHooksCallback: null,
-        ));
+    : super(TableManagerState(
+        db: db, table: table,
+        createFilteringComposer: () => $$QuotesTableFilterComposer($db: db, $table: table),
+        createOrderingComposer: () => $$QuotesTableOrderingComposer($db: db, $table: table),
+        createComputedFieldComposer: () => $$QuotesTableAnnotationComposer($db: db, $table: table),
+        updateCompanionCallback: ({
+          Value<String> id = const Value.absent(),
+          Value<String> companyId = const Value.absent(),
+          Value<String> jobId = const Value.absent(),
+          Value<String> status = const Value.absent(),
+          Value<int> revisionNumber = const Value.absent(),
+          Value<double> taxRate = const Value.absent(),
+          Value<String?> discountType = const Value.absent(),
+          Value<double> discountValue = const Value.absent(),
+          Value<DateTime?> expiryDate = const Value.absent(),
+          Value<DateTime?> sentAt = const Value.absent(),
+          Value<DateTime?> viewedAt = const Value.absent(),
+          Value<DateTime?> approvedAt = const Value.absent(),
+          Value<DateTime?> declinedAt = const Value.absent(),
+          Value<String?> declineReason = const Value.absent(),
+          Value<String?> declineDetail = const Value.absent(),
+          Value<String?> adminNotes = const Value.absent(),
+          Value<int> version = const Value.absent(),
+          Value<DateTime> createdAt = const Value.absent(),
+          Value<DateTime> updatedAt = const Value.absent(),
+          Value<DateTime?> deletedAt = const Value.absent(),
+          Value<int> rowid = const Value.absent(),
+        }) => QuotesCompanion(
+          id: id, companyId: companyId, jobId: jobId, status: status,
+          revisionNumber: revisionNumber, taxRate: taxRate, discountType: discountType,
+          discountValue: discountValue, expiryDate: expiryDate, sentAt: sentAt,
+          viewedAt: viewedAt, approvedAt: approvedAt, declinedAt: declinedAt,
+          declineReason: declineReason, declineDetail: declineDetail, adminNotes: adminNotes,
+          version: version, createdAt: createdAt, updatedAt: updatedAt, deletedAt: deletedAt, rowid: rowid,
+        ),
+        createCompanionCallback: ({
+          Value<String> id = const Value.absent(),
+          required String companyId,
+          required String jobId,
+          Value<String> status = const Value.absent(),
+          Value<int> revisionNumber = const Value.absent(),
+          Value<double> taxRate = const Value.absent(),
+          Value<String?> discountType = const Value.absent(),
+          Value<double> discountValue = const Value.absent(),
+          Value<DateTime?> expiryDate = const Value.absent(),
+          Value<DateTime?> sentAt = const Value.absent(),
+          Value<DateTime?> viewedAt = const Value.absent(),
+          Value<DateTime?> approvedAt = const Value.absent(),
+          Value<DateTime?> declinedAt = const Value.absent(),
+          Value<String?> declineReason = const Value.absent(),
+          Value<String?> declineDetail = const Value.absent(),
+          Value<String?> adminNotes = const Value.absent(),
+          Value<int> version = const Value.absent(),
+          required DateTime createdAt,
+          required DateTime updatedAt,
+          Value<DateTime?> deletedAt = const Value.absent(),
+          Value<int> rowid = const Value.absent(),
+        }) => QuotesCompanion.insert(
+          id: id, companyId: companyId, jobId: jobId, status: status,
+          revisionNumber: revisionNumber, taxRate: taxRate, discountType: discountType,
+          discountValue: discountValue, expiryDate: expiryDate, sentAt: sentAt,
+          viewedAt: viewedAt, approvedAt: approvedAt, declinedAt: declinedAt,
+          declineReason: declineReason, declineDetail: declineDetail, adminNotes: adminNotes,
+          version: version, createdAt: createdAt, updatedAt: updatedAt, deletedAt: deletedAt, rowid: rowid,
+        ),
+        withReferenceMapper: (p0) => p0.map((e) => (e.readTable(table), BaseReferences(db, table, e))).toList(),
+        prefetchHooksCallback: null,
+      ));
 }
 
 // ─── QuoteLineItems ───────────────────────────────────────────────────────────
@@ -15048,6 +15096,46 @@ class QuoteLineItem extends DataClass implements Insertable<QuoteLineItem> {
       deletedAt: deletedAt == null && nullToAbsent ? const Value.absent() : Value(deletedAt),
     );
   }
+  factory QuoteLineItem.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return QuoteLineItem(
+      id: serializer.fromJson<String>(json['id']),
+      companyId: serializer.fromJson<String>(json['companyId']),
+      quoteId: serializer.fromJson<String>(json['quoteId']),
+      itemType: serializer.fromJson<String>(json['itemType']),
+      description: serializer.fromJson<String>(json['description']),
+      quantity: serializer.fromJson<double>(json['quantity']),
+      unit: serializer.fromJson<String>(json['unit']),
+      unitPrice: serializer.fromJson<double>(json['unitPrice']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
+      version: serializer.fromJson<int>(json['version']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'companyId': serializer.toJson<String>(companyId),
+      'quoteId': serializer.toJson<String>(quoteId),
+      'itemType': serializer.toJson<String>(itemType),
+      'description': serializer.toJson<String>(description),
+      'quantity': serializer.toJson<double>(quantity),
+      'unit': serializer.toJson<String>(unit),
+      'unitPrice': serializer.toJson<double>(unitPrice),
+      'sortOrder': serializer.toJson<int>(sortOrder),
+      'version': serializer.toJson<int>(version),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+    };
+  }
   @override
   bool operator ==(Object other) =>
       identical(this, other) || (other is QuoteLineItem && other.id == this.id);
@@ -15135,12 +15223,6 @@ class QuoteLineItemsCompanion extends UpdateCompanion<QuoteLineItem> {
   String toString() => 'QuoteLineItemsCompanion(id: $id, quoteId: $quoteId)';
 }
 
-typedef $$QuoteLineItemsTableTableManager = ProcessedTableManager<
-    _$AppDatabase, $QuoteLineItemsTable, QuoteLineItem, $$QuoteLineItemsTableFilterComposer,
-    $$QuoteLineItemsTableOrderingComposer, $$QuoteLineItemsTableAnnotationComposer,
-    $$QuoteLineItemsTableCreateCompanionBuilder, $$QuoteLineItemsTableUpdateCompanionBuilder,
-    (QuoteLineItem, BaseReferences<_$AppDatabase, $QuoteLineItemsTable, QuoteLineItem>), QuoteLineItem,
-    PrefetchHooks Function()>;
 typedef $$QuoteLineItemsTableCreateCompanionBuilder = QuoteLineItemsCompanion Function({
   Value<String> id, required String companyId, required String quoteId, required String itemType,
   required String description, required double quantity, required String unit, required double unitPrice,
@@ -15174,44 +15256,46 @@ final class $$QuoteLineItemsTableAnnotationComposer
   $$QuoteLineItemsTableAnnotationComposer({required super.$db, required super.$table, super.joinBuilder, super.$addJoinBuilderToRootComposer, super.$removeJoinBuilderFromRootComposer});
 }
 
-final class $$QuoteLineItemsTableTableManager extends RootTableManager<
+class $$QuoteLineItemsTableTableManager extends RootTableManager<
     _$AppDatabase, $QuoteLineItemsTable, QuoteLineItem, $$QuoteLineItemsTableFilterComposer,
     $$QuoteLineItemsTableOrderingComposer, $$QuoteLineItemsTableAnnotationComposer,
     $$QuoteLineItemsTableCreateCompanionBuilder, $$QuoteLineItemsTableUpdateCompanionBuilder,
     (QuoteLineItem, BaseReferences<_$AppDatabase, $QuoteLineItemsTable, QuoteLineItem>), QuoteLineItem,
     PrefetchHooks Function()> {
   $$QuoteLineItemsTableTableManager(_$AppDatabase db, $QuoteLineItemsTable table)
-      : super(TableManagerState(
-          db: db, table: table,
-          createFilteringComposer: () => $$QuoteLineItemsTableFilterComposer(db: db, table: table),
-          createOrderingComposer: () => $$QuoteLineItemsTableOrderingComposer(db: db, table: table),
-          createComputedFieldComposer: () => $$QuoteLineItemsTableAnnotationComposer(db: db, table: table),
-          updateCompanionCallback: ({
-            Value<String> id = const Value.absent(), Value<String> companyId = const Value.absent(),
-            Value<String> quoteId = const Value.absent(), Value<String> itemType = const Value.absent(),
-            Value<String> description = const Value.absent(), Value<double> quantity = const Value.absent(),
-            Value<String> unit = const Value.absent(), Value<double> unitPrice = const Value.absent(),
-            Value<int> sortOrder = const Value.absent(), Value<int> version = const Value.absent(),
-            Value<DateTime> createdAt = const Value.absent(), Value<DateTime> updatedAt = const Value.absent(),
-            Value<DateTime?> deletedAt = const Value.absent(), Value<int> rowid = const Value.absent(),
-          }) => QuoteLineItemsCompanion(id: id, companyId: companyId, quoteId: quoteId, itemType: itemType,
-            description: description, quantity: quantity, unit: unit, unitPrice: unitPrice,
-            sortOrder: sortOrder, version: version, createdAt: createdAt, updatedAt: updatedAt,
-            deletedAt: deletedAt, rowid: rowid),
-          createCompanionCallback: ({
-            Value<String> id = const Value.absent(), required String companyId, required String quoteId,
-            required String itemType, required String description, required double quantity,
-            required String unit, required double unitPrice, Value<int> sortOrder = const Value.absent(),
-            Value<int> version = const Value.absent(), required DateTime createdAt,
-            required DateTime updatedAt, Value<DateTime?> deletedAt = const Value.absent(),
-            Value<int> rowid = const Value.absent(),
-          }) => QuoteLineItemsCompanion.insert(id: id, companyId: companyId, quoteId: quoteId,
-            itemType: itemType, description: description, quantity: quantity, unit: unit,
-            unitPrice: unitPrice, sortOrder: sortOrder, version: version, createdAt: createdAt,
-            updatedAt: updatedAt, deletedAt: deletedAt, rowid: rowid),
-          withReferenceMapper: (p0) => p0.map((e) => (e.readTable(table), BaseReferences(db, table, e))).toList(),
-          prefetchHooksCallback: null,
-        ));
+    : super(TableManagerState(
+        db: db, table: table,
+        createFilteringComposer: () => $$QuoteLineItemsTableFilterComposer($db: db, $table: table),
+        createOrderingComposer: () => $$QuoteLineItemsTableOrderingComposer($db: db, $table: table),
+        createComputedFieldComposer: () => $$QuoteLineItemsTableAnnotationComposer($db: db, $table: table),
+        updateCompanionCallback: ({
+          Value<String> id = const Value.absent(), Value<String> companyId = const Value.absent(),
+          Value<String> quoteId = const Value.absent(), Value<String> itemType = const Value.absent(),
+          Value<String> description = const Value.absent(), Value<double> quantity = const Value.absent(),
+          Value<String> unit = const Value.absent(), Value<double> unitPrice = const Value.absent(),
+          Value<int> sortOrder = const Value.absent(), Value<int> version = const Value.absent(),
+          Value<DateTime> createdAt = const Value.absent(), Value<DateTime> updatedAt = const Value.absent(),
+          Value<DateTime?> deletedAt = const Value.absent(), Value<int> rowid = const Value.absent(),
+        }) => QuoteLineItemsCompanion(
+          id: id, companyId: companyId, quoteId: quoteId, itemType: itemType,
+          description: description, quantity: quantity, unit: unit, unitPrice: unitPrice,
+          sortOrder: sortOrder, version: version, createdAt: createdAt, updatedAt: updatedAt,
+          deletedAt: deletedAt, rowid: rowid),
+        createCompanionCallback: ({
+          Value<String> id = const Value.absent(), required String companyId, required String quoteId,
+          required String itemType, required String description, required double quantity,
+          required String unit, required double unitPrice, Value<int> sortOrder = const Value.absent(),
+          Value<int> version = const Value.absent(), required DateTime createdAt,
+          required DateTime updatedAt, Value<DateTime?> deletedAt = const Value.absent(),
+          Value<int> rowid = const Value.absent(),
+        }) => QuoteLineItemsCompanion.insert(
+          id: id, companyId: companyId, quoteId: quoteId, itemType: itemType,
+          description: description, quantity: quantity, unit: unit, unitPrice: unitPrice,
+          sortOrder: sortOrder, version: version, createdAt: createdAt,
+          updatedAt: updatedAt, deletedAt: deletedAt, rowid: rowid),
+        withReferenceMapper: (p0) => p0.map((e) => (e.readTable(table), BaseReferences(db, table, e))).toList(),
+        prefetchHooksCallback: null,
+      ));
 }
 
 // ─── QuoteTemplates ───────────────────────────────────────────────────────────
@@ -15378,6 +15462,40 @@ class QuoteTemplate extends DataClass implements Insertable<QuoteTemplate> {
       deletedAt: deletedAt == null && nullToAbsent ? const Value.absent() : Value(deletedAt),
     );
   }
+  factory QuoteTemplate.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return QuoteTemplate(
+      id: serializer.fromJson<String>(json['id']),
+      companyId: serializer.fromJson<String>(json['companyId']),
+      name: serializer.fromJson<String>(json['name']),
+      description: serializer.fromJson<String?>(json['description']),
+      lineItemsJson: serializer.fromJson<String>(json['lineItemsJson']),
+      taxRate: serializer.fromJson<double>(json['taxRate']),
+      version: serializer.fromJson<int>(json['version']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'companyId': serializer.toJson<String>(companyId),
+      'name': serializer.toJson<String>(name),
+      'description': serializer.toJson<String?>(description),
+      'lineItemsJson': serializer.toJson<String>(lineItemsJson),
+      'taxRate': serializer.toJson<double>(taxRate),
+      'version': serializer.toJson<int>(version),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+    };
+  }
   @override
   bool operator ==(Object other) =>
       identical(this, other) || (other is QuoteTemplate && other.id == this.id);
@@ -15448,12 +15566,6 @@ class QuoteTemplatesCompanion extends UpdateCompanion<QuoteTemplate> {
   String toString() => 'QuoteTemplatesCompanion(id: $id, name: $name)';
 }
 
-typedef $$QuoteTemplatesTableTableManager = ProcessedTableManager<
-    _$AppDatabase, $QuoteTemplatesTable, QuoteTemplate, $$QuoteTemplatesTableFilterComposer,
-    $$QuoteTemplatesTableOrderingComposer, $$QuoteTemplatesTableAnnotationComposer,
-    $$QuoteTemplatesTableCreateCompanionBuilder, $$QuoteTemplatesTableUpdateCompanionBuilder,
-    (QuoteTemplate, BaseReferences<_$AppDatabase, $QuoteTemplatesTable, QuoteTemplate>), QuoteTemplate,
-    PrefetchHooks Function()>;
 typedef $$QuoteTemplatesTableCreateCompanionBuilder = QuoteTemplatesCompanion Function({
   Value<String> id, required String companyId, required String name, Value<String?> description,
   Value<String> lineItemsJson, Value<double> taxRate, Value<int> version,
@@ -15485,40 +15597,42 @@ final class $$QuoteTemplatesTableAnnotationComposer
   $$QuoteTemplatesTableAnnotationComposer({required super.$db, required super.$table, super.joinBuilder, super.$addJoinBuilderToRootComposer, super.$removeJoinBuilderFromRootComposer});
 }
 
-final class $$QuoteTemplatesTableTableManager extends RootTableManager<
+class $$QuoteTemplatesTableTableManager extends RootTableManager<
     _$AppDatabase, $QuoteTemplatesTable, QuoteTemplate, $$QuoteTemplatesTableFilterComposer,
     $$QuoteTemplatesTableOrderingComposer, $$QuoteTemplatesTableAnnotationComposer,
     $$QuoteTemplatesTableCreateCompanionBuilder, $$QuoteTemplatesTableUpdateCompanionBuilder,
     (QuoteTemplate, BaseReferences<_$AppDatabase, $QuoteTemplatesTable, QuoteTemplate>), QuoteTemplate,
     PrefetchHooks Function()> {
   $$QuoteTemplatesTableTableManager(_$AppDatabase db, $QuoteTemplatesTable table)
-      : super(TableManagerState(
-          db: db, table: table,
-          createFilteringComposer: () => $$QuoteTemplatesTableFilterComposer(db: db, table: table),
-          createOrderingComposer: () => $$QuoteTemplatesTableOrderingComposer(db: db, table: table),
-          createComputedFieldComposer: () => $$QuoteTemplatesTableAnnotationComposer(db: db, table: table),
-          updateCompanionCallback: ({
-            Value<String> id = const Value.absent(), Value<String> companyId = const Value.absent(),
-            Value<String> name = const Value.absent(), Value<String?> description = const Value.absent(),
-            Value<String> lineItemsJson = const Value.absent(), Value<double> taxRate = const Value.absent(),
-            Value<int> version = const Value.absent(), Value<DateTime> createdAt = const Value.absent(),
-            Value<DateTime> updatedAt = const Value.absent(), Value<DateTime?> deletedAt = const Value.absent(),
-            Value<int> rowid = const Value.absent(),
-          }) => QuoteTemplatesCompanion(id: id, companyId: companyId, name: name, description: description,
-            lineItemsJson: lineItemsJson, taxRate: taxRate, version: version,
-            createdAt: createdAt, updatedAt: updatedAt, deletedAt: deletedAt, rowid: rowid),
-          createCompanionCallback: ({
-            Value<String> id = const Value.absent(), required String companyId, required String name,
-            Value<String?> description = const Value.absent(), Value<String> lineItemsJson = const Value.absent(),
-            Value<double> taxRate = const Value.absent(), Value<int> version = const Value.absent(),
-            required DateTime createdAt, required DateTime updatedAt, Value<DateTime?> deletedAt = const Value.absent(),
-            Value<int> rowid = const Value.absent(),
-          }) => QuoteTemplatesCompanion.insert(id: id, companyId: companyId, name: name, description: description,
-            lineItemsJson: lineItemsJson, taxRate: taxRate, version: version,
-            createdAt: createdAt, updatedAt: updatedAt, deletedAt: deletedAt, rowid: rowid),
-          withReferenceMapper: (p0) => p0.map((e) => (e.readTable(table), BaseReferences(db, table, e))).toList(),
-          prefetchHooksCallback: null,
-        ));
+    : super(TableManagerState(
+        db: db, table: table,
+        createFilteringComposer: () => $$QuoteTemplatesTableFilterComposer($db: db, $table: table),
+        createOrderingComposer: () => $$QuoteTemplatesTableOrderingComposer($db: db, $table: table),
+        createComputedFieldComposer: () => $$QuoteTemplatesTableAnnotationComposer($db: db, $table: table),
+        updateCompanionCallback: ({
+          Value<String> id = const Value.absent(), Value<String> companyId = const Value.absent(),
+          Value<String> name = const Value.absent(), Value<String?> description = const Value.absent(),
+          Value<String> lineItemsJson = const Value.absent(), Value<double> taxRate = const Value.absent(),
+          Value<int> version = const Value.absent(), Value<DateTime> createdAt = const Value.absent(),
+          Value<DateTime> updatedAt = const Value.absent(), Value<DateTime?> deletedAt = const Value.absent(),
+          Value<int> rowid = const Value.absent(),
+        }) => QuoteTemplatesCompanion(
+          id: id, companyId: companyId, name: name, description: description,
+          lineItemsJson: lineItemsJson, taxRate: taxRate, version: version,
+          createdAt: createdAt, updatedAt: updatedAt, deletedAt: deletedAt, rowid: rowid),
+        createCompanionCallback: ({
+          Value<String> id = const Value.absent(), required String companyId, required String name,
+          Value<String?> description = const Value.absent(), Value<String> lineItemsJson = const Value.absent(),
+          Value<double> taxRate = const Value.absent(), Value<int> version = const Value.absent(),
+          required DateTime createdAt, required DateTime updatedAt, Value<DateTime?> deletedAt = const Value.absent(),
+          Value<int> rowid = const Value.absent(),
+        }) => QuoteTemplatesCompanion.insert(
+          id: id, companyId: companyId, name: name, description: description,
+          lineItemsJson: lineItemsJson, taxRate: taxRate, version: version,
+          createdAt: createdAt, updatedAt: updatedAt, deletedAt: deletedAt, rowid: rowid),
+        withReferenceMapper: (p0) => p0.map((e) => (e.readTable(table), BaseReferences(db, table, e))).toList(),
+        prefetchHooksCallback: null,
+      ));
 }
 
 // ─── Invoices ─────────────────────────────────────────────────────────────────
@@ -15755,6 +15869,52 @@ class Invoice extends DataClass implements Insertable<Invoice> {
       deletedAt: deletedAt == null && nullToAbsent ? const Value.absent() : Value(deletedAt),
     );
   }
+  factory Invoice.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Invoice(
+      id: serializer.fromJson<String>(json['id']),
+      companyId: serializer.fromJson<String>(json['companyId']),
+      jobId: serializer.fromJson<String>(json['jobId']),
+      quoteId: serializer.fromJson<String?>(json['quoteId']),
+      invoiceNumber: serializer.fromJson<String>(json['invoiceNumber']),
+      status: serializer.fromJson<String>(json['status']),
+      taxRate: serializer.fromJson<double>(json['taxRate']),
+      discountType: serializer.fromJson<String?>(json['discountType']),
+      discountValue: serializer.fromJson<double>(json['discountValue']),
+      dueDate: serializer.fromJson<DateTime?>(json['dueDate']),
+      issuedAt: serializer.fromJson<DateTime>(json['issuedAt']),
+      finalizedAt: serializer.fromJson<DateTime?>(json['finalizedAt']),
+      version: serializer.fromJson<int>(json['version']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'companyId': serializer.toJson<String>(companyId),
+      'jobId': serializer.toJson<String>(jobId),
+      'quoteId': serializer.toJson<String?>(quoteId),
+      'invoiceNumber': serializer.toJson<String>(invoiceNumber),
+      'status': serializer.toJson<String>(status),
+      'taxRate': serializer.toJson<double>(taxRate),
+      'discountType': serializer.toJson<String?>(discountType),
+      'discountValue': serializer.toJson<double>(discountValue),
+      'dueDate': serializer.toJson<DateTime?>(dueDate),
+      'issuedAt': serializer.toJson<DateTime>(issuedAt),
+      'finalizedAt': serializer.toJson<DateTime?>(finalizedAt),
+      'version': serializer.toJson<int>(version),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+    };
+  }
   @override
   bool operator ==(Object other) =>
       identical(this, other) || (other is Invoice && other.id == this.id);
@@ -15851,12 +16011,6 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
   String toString() => 'InvoicesCompanion(id: $id, jobId: $jobId, invoiceNumber: $invoiceNumber)';
 }
 
-typedef $$InvoicesTableTableManager = ProcessedTableManager<
-    _$AppDatabase, $InvoicesTable, Invoice, $$InvoicesTableFilterComposer,
-    $$InvoicesTableOrderingComposer, $$InvoicesTableAnnotationComposer,
-    $$InvoicesTableCreateCompanionBuilder, $$InvoicesTableUpdateCompanionBuilder,
-    (Invoice, BaseReferences<_$AppDatabase, $InvoicesTable, Invoice>), Invoice,
-    PrefetchHooks Function()>;
 typedef $$InvoicesTableCreateCompanionBuilder = InvoicesCompanion Function({
   Value<String> id, required String companyId, required String jobId, Value<String?> quoteId,
   required String invoiceNumber, Value<String> status, Value<double> taxRate, Value<String?> discountType,
@@ -15894,48 +16048,50 @@ final class $$InvoicesTableAnnotationComposer
   $$InvoicesTableAnnotationComposer({required super.$db, required super.$table, super.joinBuilder, super.$addJoinBuilderToRootComposer, super.$removeJoinBuilderFromRootComposer});
 }
 
-final class $$InvoicesTableTableManager extends RootTableManager<
+class $$InvoicesTableTableManager extends RootTableManager<
     _$AppDatabase, $InvoicesTable, Invoice, $$InvoicesTableFilterComposer,
     $$InvoicesTableOrderingComposer, $$InvoicesTableAnnotationComposer,
     $$InvoicesTableCreateCompanionBuilder, $$InvoicesTableUpdateCompanionBuilder,
     (Invoice, BaseReferences<_$AppDatabase, $InvoicesTable, Invoice>), Invoice,
     PrefetchHooks Function()> {
   $$InvoicesTableTableManager(_$AppDatabase db, $InvoicesTable table)
-      : super(TableManagerState(
-          db: db, table: table,
-          createFilteringComposer: () => $$InvoicesTableFilterComposer(db: db, table: table),
-          createOrderingComposer: () => $$InvoicesTableOrderingComposer(db: db, table: table),
-          createComputedFieldComposer: () => $$InvoicesTableAnnotationComposer(db: db, table: table),
-          updateCompanionCallback: ({
-            Value<String> id = const Value.absent(), Value<String> companyId = const Value.absent(),
-            Value<String> jobId = const Value.absent(), Value<String?> quoteId = const Value.absent(),
-            Value<String> invoiceNumber = const Value.absent(), Value<String> status = const Value.absent(),
-            Value<double> taxRate = const Value.absent(), Value<String?> discountType = const Value.absent(),
-            Value<double> discountValue = const Value.absent(), Value<DateTime?> dueDate = const Value.absent(),
-            Value<DateTime> issuedAt = const Value.absent(), Value<DateTime?> finalizedAt = const Value.absent(),
-            Value<int> version = const Value.absent(), Value<DateTime> createdAt = const Value.absent(),
-            Value<DateTime> updatedAt = const Value.absent(), Value<DateTime?> deletedAt = const Value.absent(),
-            Value<int> rowid = const Value.absent(),
-          }) => InvoicesCompanion(id: id, companyId: companyId, jobId: jobId, quoteId: quoteId,
-            invoiceNumber: invoiceNumber, status: status, taxRate: taxRate, discountType: discountType,
-            discountValue: discountValue, dueDate: dueDate, issuedAt: issuedAt, finalizedAt: finalizedAt,
-            version: version, createdAt: createdAt, updatedAt: updatedAt, deletedAt: deletedAt, rowid: rowid),
-          createCompanionCallback: ({
-            Value<String> id = const Value.absent(), required String companyId, required String jobId,
-            Value<String?> quoteId = const Value.absent(), required String invoiceNumber,
-            Value<String> status = const Value.absent(), Value<double> taxRate = const Value.absent(),
-            Value<String?> discountType = const Value.absent(), Value<double> discountValue = const Value.absent(),
-            Value<DateTime?> dueDate = const Value.absent(), required DateTime issuedAt,
-            Value<DateTime?> finalizedAt = const Value.absent(), Value<int> version = const Value.absent(),
-            required DateTime createdAt, required DateTime updatedAt, Value<DateTime?> deletedAt = const Value.absent(),
-            Value<int> rowid = const Value.absent(),
-          }) => InvoicesCompanion.insert(id: id, companyId: companyId, jobId: jobId, quoteId: quoteId,
-            invoiceNumber: invoiceNumber, status: status, taxRate: taxRate, discountType: discountType,
-            discountValue: discountValue, dueDate: dueDate, issuedAt: issuedAt, finalizedAt: finalizedAt,
-            version: version, createdAt: createdAt, updatedAt: updatedAt, deletedAt: deletedAt, rowid: rowid),
-          withReferenceMapper: (p0) => p0.map((e) => (e.readTable(table), BaseReferences(db, table, e))).toList(),
-          prefetchHooksCallback: null,
-        ));
+    : super(TableManagerState(
+        db: db, table: table,
+        createFilteringComposer: () => $$InvoicesTableFilterComposer($db: db, $table: table),
+        createOrderingComposer: () => $$InvoicesTableOrderingComposer($db: db, $table: table),
+        createComputedFieldComposer: () => $$InvoicesTableAnnotationComposer($db: db, $table: table),
+        updateCompanionCallback: ({
+          Value<String> id = const Value.absent(), Value<String> companyId = const Value.absent(),
+          Value<String> jobId = const Value.absent(), Value<String?> quoteId = const Value.absent(),
+          Value<String> invoiceNumber = const Value.absent(), Value<String> status = const Value.absent(),
+          Value<double> taxRate = const Value.absent(), Value<String?> discountType = const Value.absent(),
+          Value<double> discountValue = const Value.absent(), Value<DateTime?> dueDate = const Value.absent(),
+          Value<DateTime> issuedAt = const Value.absent(), Value<DateTime?> finalizedAt = const Value.absent(),
+          Value<int> version = const Value.absent(), Value<DateTime> createdAt = const Value.absent(),
+          Value<DateTime> updatedAt = const Value.absent(), Value<DateTime?> deletedAt = const Value.absent(),
+          Value<int> rowid = const Value.absent(),
+        }) => InvoicesCompanion(
+          id: id, companyId: companyId, jobId: jobId, quoteId: quoteId,
+          invoiceNumber: invoiceNumber, status: status, taxRate: taxRate, discountType: discountType,
+          discountValue: discountValue, dueDate: dueDate, issuedAt: issuedAt, finalizedAt: finalizedAt,
+          version: version, createdAt: createdAt, updatedAt: updatedAt, deletedAt: deletedAt, rowid: rowid),
+        createCompanionCallback: ({
+          Value<String> id = const Value.absent(), required String companyId, required String jobId,
+          Value<String?> quoteId = const Value.absent(), required String invoiceNumber,
+          Value<String> status = const Value.absent(), Value<double> taxRate = const Value.absent(),
+          Value<String?> discountType = const Value.absent(), Value<double> discountValue = const Value.absent(),
+          Value<DateTime?> dueDate = const Value.absent(), required DateTime issuedAt,
+          Value<DateTime?> finalizedAt = const Value.absent(), Value<int> version = const Value.absent(),
+          required DateTime createdAt, required DateTime updatedAt, Value<DateTime?> deletedAt = const Value.absent(),
+          Value<int> rowid = const Value.absent(),
+        }) => InvoicesCompanion.insert(
+          id: id, companyId: companyId, jobId: jobId, quoteId: quoteId,
+          invoiceNumber: invoiceNumber, status: status, taxRate: taxRate, discountType: discountType,
+          discountValue: discountValue, dueDate: dueDate, issuedAt: issuedAt, finalizedAt: finalizedAt,
+          version: version, createdAt: createdAt, updatedAt: updatedAt, deletedAt: deletedAt, rowid: rowid),
+        withReferenceMapper: (p0) => p0.map((e) => (e.readTable(table), BaseReferences(db, table, e))).toList(),
+        prefetchHooksCallback: null,
+      ));
 }
 
 // ─── InvoiceLineItems ─────────────────────────────────────────────────────────
@@ -16129,6 +16285,46 @@ class InvoiceLineItem extends DataClass implements Insertable<InvoiceLineItem> {
       deletedAt: deletedAt == null && nullToAbsent ? const Value.absent() : Value(deletedAt),
     );
   }
+  factory InvoiceLineItem.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return InvoiceLineItem(
+      id: serializer.fromJson<String>(json['id']),
+      companyId: serializer.fromJson<String>(json['companyId']),
+      invoiceId: serializer.fromJson<String>(json['invoiceId']),
+      itemType: serializer.fromJson<String>(json['itemType']),
+      description: serializer.fromJson<String>(json['description']),
+      quantity: serializer.fromJson<double>(json['quantity']),
+      unit: serializer.fromJson<String>(json['unit']),
+      unitPrice: serializer.fromJson<double>(json['unitPrice']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
+      version: serializer.fromJson<int>(json['version']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'companyId': serializer.toJson<String>(companyId),
+      'invoiceId': serializer.toJson<String>(invoiceId),
+      'itemType': serializer.toJson<String>(itemType),
+      'description': serializer.toJson<String>(description),
+      'quantity': serializer.toJson<double>(quantity),
+      'unit': serializer.toJson<String>(unit),
+      'unitPrice': serializer.toJson<double>(unitPrice),
+      'sortOrder': serializer.toJson<int>(sortOrder),
+      'version': serializer.toJson<int>(version),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+    };
+  }
   @override
   bool operator ==(Object other) =>
       identical(this, other) || (other is InvoiceLineItem && other.id == this.id);
@@ -16216,12 +16412,6 @@ class InvoiceLineItemsCompanion extends UpdateCompanion<InvoiceLineItem> {
   String toString() => 'InvoiceLineItemsCompanion(id: $id, invoiceId: $invoiceId)';
 }
 
-typedef $$InvoiceLineItemsTableTableManager = ProcessedTableManager<
-    _$AppDatabase, $InvoiceLineItemsTable, InvoiceLineItem, $$InvoiceLineItemsTableFilterComposer,
-    $$InvoiceLineItemsTableOrderingComposer, $$InvoiceLineItemsTableAnnotationComposer,
-    $$InvoiceLineItemsTableCreateCompanionBuilder, $$InvoiceLineItemsTableUpdateCompanionBuilder,
-    (InvoiceLineItem, BaseReferences<_$AppDatabase, $InvoiceLineItemsTable, InvoiceLineItem>), InvoiceLineItem,
-    PrefetchHooks Function()>;
 typedef $$InvoiceLineItemsTableCreateCompanionBuilder = InvoiceLineItemsCompanion Function({
   Value<String> id, required String companyId, required String invoiceId, required String itemType,
   required String description, required double quantity, required String unit, required double unitPrice,
@@ -16255,44 +16445,248 @@ final class $$InvoiceLineItemsTableAnnotationComposer
   $$InvoiceLineItemsTableAnnotationComposer({required super.$db, required super.$table, super.joinBuilder, super.$addJoinBuilderToRootComposer, super.$removeJoinBuilderFromRootComposer});
 }
 
-final class $$InvoiceLineItemsTableTableManager extends RootTableManager<
+class $$InvoiceLineItemsTableTableManager extends RootTableManager<
     _$AppDatabase, $InvoiceLineItemsTable, InvoiceLineItem, $$InvoiceLineItemsTableFilterComposer,
     $$InvoiceLineItemsTableOrderingComposer, $$InvoiceLineItemsTableAnnotationComposer,
     $$InvoiceLineItemsTableCreateCompanionBuilder, $$InvoiceLineItemsTableUpdateCompanionBuilder,
     (InvoiceLineItem, BaseReferences<_$AppDatabase, $InvoiceLineItemsTable, InvoiceLineItem>), InvoiceLineItem,
     PrefetchHooks Function()> {
   $$InvoiceLineItemsTableTableManager(_$AppDatabase db, $InvoiceLineItemsTable table)
-      : super(TableManagerState(
-          db: db, table: table,
-          createFilteringComposer: () => $$InvoiceLineItemsTableFilterComposer(db: db, table: table),
-          createOrderingComposer: () => $$InvoiceLineItemsTableOrderingComposer(db: db, table: table),
-          createComputedFieldComposer: () => $$InvoiceLineItemsTableAnnotationComposer(db: db, table: table),
-          updateCompanionCallback: ({
-            Value<String> id = const Value.absent(), Value<String> companyId = const Value.absent(),
-            Value<String> invoiceId = const Value.absent(), Value<String> itemType = const Value.absent(),
-            Value<String> description = const Value.absent(), Value<double> quantity = const Value.absent(),
-            Value<String> unit = const Value.absent(), Value<double> unitPrice = const Value.absent(),
-            Value<int> sortOrder = const Value.absent(), Value<int> version = const Value.absent(),
-            Value<DateTime> createdAt = const Value.absent(), Value<DateTime> updatedAt = const Value.absent(),
-            Value<DateTime?> deletedAt = const Value.absent(), Value<int> rowid = const Value.absent(),
-          }) => InvoiceLineItemsCompanion(id: id, companyId: companyId, invoiceId: invoiceId, itemType: itemType,
-            description: description, quantity: quantity, unit: unit, unitPrice: unitPrice,
-            sortOrder: sortOrder, version: version, createdAt: createdAt, updatedAt: updatedAt,
-            deletedAt: deletedAt, rowid: rowid),
-          createCompanionCallback: ({
-            Value<String> id = const Value.absent(), required String companyId, required String invoiceId,
-            required String itemType, required String description, required double quantity,
-            required String unit, required double unitPrice, Value<int> sortOrder = const Value.absent(),
-            Value<int> version = const Value.absent(), required DateTime createdAt,
-            required DateTime updatedAt, Value<DateTime?> deletedAt = const Value.absent(),
-            Value<int> rowid = const Value.absent(),
-          }) => InvoiceLineItemsCompanion.insert(id: id, companyId: companyId, invoiceId: invoiceId,
-            itemType: itemType, description: description, quantity: quantity, unit: unit,
-            unitPrice: unitPrice, sortOrder: sortOrder, version: version, createdAt: createdAt,
-            updatedAt: updatedAt, deletedAt: deletedAt, rowid: rowid),
-          withReferenceMapper: (p0) => p0.map((e) => (e.readTable(table), BaseReferences(db, table, e))).toList(),
-          prefetchHooksCallback: null,
-        ));
+    : super(TableManagerState(
+        db: db, table: table,
+        createFilteringComposer: () => $$InvoiceLineItemsTableFilterComposer($db: db, $table: table),
+        createOrderingComposer: () => $$InvoiceLineItemsTableOrderingComposer($db: db, $table: table),
+        createComputedFieldComposer: () => $$InvoiceLineItemsTableAnnotationComposer($db: db, $table: table),
+        updateCompanionCallback: ({
+          Value<String> id = const Value.absent(), Value<String> companyId = const Value.absent(),
+          Value<String> invoiceId = const Value.absent(), Value<String> itemType = const Value.absent(),
+          Value<String> description = const Value.absent(), Value<double> quantity = const Value.absent(),
+          Value<String> unit = const Value.absent(), Value<double> unitPrice = const Value.absent(),
+          Value<int> sortOrder = const Value.absent(), Value<int> version = const Value.absent(),
+          Value<DateTime> createdAt = const Value.absent(), Value<DateTime> updatedAt = const Value.absent(),
+          Value<DateTime?> deletedAt = const Value.absent(), Value<int> rowid = const Value.absent(),
+        }) => InvoiceLineItemsCompanion(
+          id: id, companyId: companyId, invoiceId: invoiceId, itemType: itemType,
+          description: description, quantity: quantity, unit: unit, unitPrice: unitPrice,
+          sortOrder: sortOrder, version: version, createdAt: createdAt, updatedAt: updatedAt,
+          deletedAt: deletedAt, rowid: rowid),
+        createCompanionCallback: ({
+          Value<String> id = const Value.absent(), required String companyId, required String invoiceId,
+          required String itemType, required String description, required double quantity,
+          required String unit, required double unitPrice, Value<int> sortOrder = const Value.absent(),
+          Value<int> version = const Value.absent(), required DateTime createdAt,
+          required DateTime updatedAt, Value<DateTime?> deletedAt = const Value.absent(),
+          Value<int> rowid = const Value.absent(),
+        }) => InvoiceLineItemsCompanion.insert(
+          id: id, companyId: companyId, invoiceId: invoiceId, itemType: itemType,
+          description: description, quantity: quantity, unit: unit, unitPrice: unitPrice,
+          sortOrder: sortOrder, version: version, createdAt: createdAt,
+          updatedAt: updatedAt, deletedAt: deletedAt, rowid: rowid),
+        withReferenceMapper: (p0) => p0.map((e) => (e.readTable(table), BaseReferences(db, table, e))).toList(),
+        prefetchHooksCallback: null,
+      ));
+}
+
+// ─── Phase 6 TableManagers (JobNotes, Attachments, TimeEntries) ───────────────
+
+class $$JobNotesTableTableManager extends RootTableManager<
+    _$AppDatabase, $JobNotesTable, JobNote, $$JobNotesTableFilterComposer,
+    $$JobNotesTableOrderingComposer, $$JobNotesTableAnnotationComposer,
+    $$JobNotesTableCreateCompanionBuilder, $$JobNotesTableUpdateCompanionBuilder,
+    (JobNote, BaseReferences<_$AppDatabase, $JobNotesTable, JobNote>), JobNote,
+    PrefetchHooks Function()> {
+  $$JobNotesTableTableManager(_$AppDatabase db, $JobNotesTable table)
+    : super(TableManagerState(
+        db: db, table: table,
+        createFilteringComposer: () => $$JobNotesTableFilterComposer($db: db, $table: table),
+        createOrderingComposer: () => $$JobNotesTableOrderingComposer($db: db, $table: table),
+        createComputedFieldComposer: () => $$JobNotesTableAnnotationComposer($db: db, $table: table),
+        updateCompanionCallback: ({
+          Value<String> id = const Value.absent(), Value<String> companyId = const Value.absent(),
+          Value<String> jobId = const Value.absent(), Value<String> authorId = const Value.absent(),
+          Value<String> body = const Value.absent(), Value<int> version = const Value.absent(),
+          Value<DateTime> createdAt = const Value.absent(), Value<DateTime> updatedAt = const Value.absent(),
+          Value<DateTime?> deletedAt = const Value.absent(), Value<int> rowid = const Value.absent(),
+        }) => JobNotesCompanion(
+          id: id, companyId: companyId, jobId: jobId, authorId: authorId, body: body,
+          version: version, createdAt: createdAt, updatedAt: updatedAt, deletedAt: deletedAt, rowid: rowid),
+        createCompanionCallback: ({
+          Value<String> id = const Value.absent(), required String companyId, required String jobId,
+          required String authorId, required String body, Value<int> version = const Value.absent(),
+          required DateTime createdAt, required DateTime updatedAt,
+          Value<DateTime?> deletedAt = const Value.absent(), Value<int> rowid = const Value.absent(),
+        }) => JobNotesCompanion.insert(
+          id: id, companyId: companyId, jobId: jobId, authorId: authorId, body: body,
+          version: version, createdAt: createdAt, updatedAt: updatedAt, deletedAt: deletedAt, rowid: rowid),
+        withReferenceMapper: (p0) => p0.map((e) => (e.readTable(table), BaseReferences(db, table, e))).toList(),
+        prefetchHooksCallback: null,
+      ));
+}
+
+typedef $$JobNotesTableCreateCompanionBuilder = JobNotesCompanion Function({
+  Value<String> id, required String companyId, required String jobId, required String authorId,
+  required String body, Value<int> version, required DateTime createdAt, required DateTime updatedAt,
+  Value<DateTime?> deletedAt, Value<int> rowid,
+});
+typedef $$JobNotesTableUpdateCompanionBuilder = JobNotesCompanion Function({
+  Value<String> id, Value<String> companyId, Value<String> jobId, Value<String> authorId,
+  Value<String> body, Value<int> version, Value<DateTime> createdAt, Value<DateTime> updatedAt,
+  Value<DateTime?> deletedAt, Value<int> rowid,
+});
+
+final class $$JobNotesTableFilterComposer extends Composer<_$AppDatabase, $JobNotesTable> {
+  $$JobNotesTableFilterComposer({required super.$db, required super.$table, super.joinBuilder, super.$addJoinBuilderToRootComposer, super.$removeJoinBuilderFromRootComposer});
+  ColumnFilters<String> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get jobId => $composableBuilder(column: $table.jobId, builder: (column) => ColumnFilters(column));
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(column: $table.deletedAt, builder: (column) => ColumnFilters(column));
+}
+final class $$JobNotesTableOrderingComposer extends Composer<_$AppDatabase, $JobNotesTable> {
+  $$JobNotesTableOrderingComposer({required super.$db, required super.$table, super.joinBuilder, super.$addJoinBuilderToRootComposer, super.$removeJoinBuilderFromRootComposer});
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+}
+final class $$JobNotesTableAnnotationComposer extends Composer<_$AppDatabase, $JobNotesTable> {
+  $$JobNotesTableAnnotationComposer({required super.$db, required super.$table, super.joinBuilder, super.$addJoinBuilderToRootComposer, super.$removeJoinBuilderFromRootComposer});
+}
+
+class $$AttachmentsTableTableManager extends RootTableManager<
+    _$AppDatabase, $AttachmentsTable, Attachment, $$AttachmentsTableFilterComposer,
+    $$AttachmentsTableOrderingComposer, $$AttachmentsTableAnnotationComposer,
+    $$AttachmentsTableCreateCompanionBuilder, $$AttachmentsTableUpdateCompanionBuilder,
+    (Attachment, BaseReferences<_$AppDatabase, $AttachmentsTable, Attachment>), Attachment,
+    PrefetchHooks Function()> {
+  $$AttachmentsTableTableManager(_$AppDatabase db, $AttachmentsTable table)
+    : super(TableManagerState(
+        db: db, table: table,
+        createFilteringComposer: () => $$AttachmentsTableFilterComposer($db: db, $table: table),
+        createOrderingComposer: () => $$AttachmentsTableOrderingComposer($db: db, $table: table),
+        createComputedFieldComposer: () => $$AttachmentsTableAnnotationComposer($db: db, $table: table),
+        updateCompanionCallback: ({
+          Value<String> id = const Value.absent(), Value<String> companyId = const Value.absent(),
+          Value<String> noteId = const Value.absent(), Value<String> attachmentType = const Value.absent(),
+          Value<String> localPath = const Value.absent(), Value<String?> thumbnailPath = const Value.absent(),
+          Value<String?> caption = const Value.absent(), Value<String> uploadStatus = const Value.absent(),
+          Value<String?> remoteUrl = const Value.absent(), Value<int> sortOrder = const Value.absent(),
+          Value<DateTime> createdAt = const Value.absent(), Value<DateTime> updatedAt = const Value.absent(),
+          Value<DateTime?> deletedAt = const Value.absent(), Value<int> rowid = const Value.absent(),
+        }) => AttachmentsCompanion(
+          id: id, companyId: companyId, noteId: noteId, attachmentType: attachmentType,
+          localPath: localPath, thumbnailPath: thumbnailPath, caption: caption,
+          uploadStatus: uploadStatus, remoteUrl: remoteUrl, sortOrder: sortOrder,
+          createdAt: createdAt, updatedAt: updatedAt, deletedAt: deletedAt, rowid: rowid),
+        createCompanionCallback: ({
+          Value<String> id = const Value.absent(), required String companyId, required String noteId,
+          required String attachmentType, required String localPath,
+          Value<String?> thumbnailPath = const Value.absent(), Value<String?> caption = const Value.absent(),
+          Value<String> uploadStatus = const Value.absent(), Value<String?> remoteUrl = const Value.absent(),
+          Value<int> sortOrder = const Value.absent(), required DateTime createdAt, required DateTime updatedAt,
+          Value<DateTime?> deletedAt = const Value.absent(), Value<int> rowid = const Value.absent(),
+        }) => AttachmentsCompanion.insert(
+          id: id, companyId: companyId, noteId: noteId, attachmentType: attachmentType,
+          localPath: localPath, thumbnailPath: thumbnailPath, caption: caption,
+          uploadStatus: uploadStatus, remoteUrl: remoteUrl, sortOrder: sortOrder,
+          createdAt: createdAt, updatedAt: updatedAt, deletedAt: deletedAt, rowid: rowid),
+        withReferenceMapper: (p0) => p0.map((e) => (e.readTable(table), BaseReferences(db, table, e))).toList(),
+        prefetchHooksCallback: null,
+      ));
+}
+
+typedef $$AttachmentsTableCreateCompanionBuilder = AttachmentsCompanion Function({
+  Value<String> id, required String companyId, required String noteId, required String attachmentType,
+  required String localPath, Value<String?> thumbnailPath, Value<String?> caption,
+  Value<String> uploadStatus, Value<String?> remoteUrl, Value<int> sortOrder,
+  required DateTime createdAt, required DateTime updatedAt, Value<DateTime?> deletedAt, Value<int> rowid,
+});
+typedef $$AttachmentsTableUpdateCompanionBuilder = AttachmentsCompanion Function({
+  Value<String> id, Value<String> companyId, Value<String> noteId, Value<String> attachmentType,
+  Value<String> localPath, Value<String?> thumbnailPath, Value<String?> caption,
+  Value<String> uploadStatus, Value<String?> remoteUrl, Value<int> sortOrder,
+  Value<DateTime> createdAt, Value<DateTime> updatedAt, Value<DateTime?> deletedAt, Value<int> rowid,
+});
+
+final class $$AttachmentsTableFilterComposer extends Composer<_$AppDatabase, $AttachmentsTable> {
+  $$AttachmentsTableFilterComposer({required super.$db, required super.$table, super.joinBuilder, super.$addJoinBuilderToRootComposer, super.$removeJoinBuilderFromRootComposer});
+  ColumnFilters<String> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get noteId => $composableBuilder(column: $table.noteId, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get uploadStatus => $composableBuilder(column: $table.uploadStatus, builder: (column) => ColumnFilters(column));
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(column: $table.deletedAt, builder: (column) => ColumnFilters(column));
+}
+final class $$AttachmentsTableOrderingComposer extends Composer<_$AppDatabase, $AttachmentsTable> {
+  $$AttachmentsTableOrderingComposer({required super.$db, required super.$table, super.joinBuilder, super.$addJoinBuilderToRootComposer, super.$removeJoinBuilderFromRootComposer});
+  ColumnOrderings<int> get sortOrder => $composableBuilder(column: $table.sortOrder, builder: (column) => ColumnOrderings(column));
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+}
+final class $$AttachmentsTableAnnotationComposer extends Composer<_$AppDatabase, $AttachmentsTable> {
+  $$AttachmentsTableAnnotationComposer({required super.$db, required super.$table, super.joinBuilder, super.$addJoinBuilderToRootComposer, super.$removeJoinBuilderFromRootComposer});
+}
+
+class $$TimeEntriesTableTableManager extends RootTableManager<
+    _$AppDatabase, $TimeEntriesTable, TimeEntry, $$TimeEntriesTableFilterComposer,
+    $$TimeEntriesTableOrderingComposer, $$TimeEntriesTableAnnotationComposer,
+    $$TimeEntriesTableCreateCompanionBuilder, $$TimeEntriesTableUpdateCompanionBuilder,
+    (TimeEntry, BaseReferences<_$AppDatabase, $TimeEntriesTable, TimeEntry>), TimeEntry,
+    PrefetchHooks Function()> {
+  $$TimeEntriesTableTableManager(_$AppDatabase db, $TimeEntriesTable table)
+    : super(TableManagerState(
+        db: db, table: table,
+        createFilteringComposer: () => $$TimeEntriesTableFilterComposer($db: db, $table: table),
+        createOrderingComposer: () => $$TimeEntriesTableOrderingComposer($db: db, $table: table),
+        createComputedFieldComposer: () => $$TimeEntriesTableAnnotationComposer($db: db, $table: table),
+        updateCompanionCallback: ({
+          Value<String> id = const Value.absent(), Value<String> companyId = const Value.absent(),
+          Value<String> jobId = const Value.absent(), Value<String> contractorId = const Value.absent(),
+          Value<DateTime> clockedInAt = const Value.absent(), Value<DateTime?> clockedOutAt = const Value.absent(),
+          Value<int?> durationSeconds = const Value.absent(), Value<String> sessionStatus = const Value.absent(),
+          Value<String> adjustmentLog = const Value.absent(), Value<int> version = const Value.absent(),
+          Value<DateTime> createdAt = const Value.absent(), Value<DateTime> updatedAt = const Value.absent(),
+          Value<DateTime?> deletedAt = const Value.absent(), Value<int> rowid = const Value.absent(),
+        }) => TimeEntriesCompanion(
+          id: id, companyId: companyId, jobId: jobId, contractorId: contractorId,
+          clockedInAt: clockedInAt, clockedOutAt: clockedOutAt, durationSeconds: durationSeconds,
+          sessionStatus: sessionStatus, adjustmentLog: adjustmentLog, version: version,
+          createdAt: createdAt, updatedAt: updatedAt, deletedAt: deletedAt, rowid: rowid),
+        createCompanionCallback: ({
+          Value<String> id = const Value.absent(), required String companyId, required String jobId,
+          required String contractorId, required DateTime clockedInAt,
+          Value<DateTime?> clockedOutAt = const Value.absent(), Value<int?> durationSeconds = const Value.absent(),
+          Value<String> sessionStatus = const Value.absent(), Value<String> adjustmentLog = const Value.absent(),
+          Value<int> version = const Value.absent(), required DateTime createdAt, required DateTime updatedAt,
+          Value<DateTime?> deletedAt = const Value.absent(), Value<int> rowid = const Value.absent(),
+        }) => TimeEntriesCompanion.insert(
+          id: id, companyId: companyId, jobId: jobId, contractorId: contractorId,
+          clockedInAt: clockedInAt, clockedOutAt: clockedOutAt, durationSeconds: durationSeconds,
+          sessionStatus: sessionStatus, adjustmentLog: adjustmentLog, version: version,
+          createdAt: createdAt, updatedAt: updatedAt, deletedAt: deletedAt, rowid: rowid),
+        withReferenceMapper: (p0) => p0.map((e) => (e.readTable(table), BaseReferences(db, table, e))).toList(),
+        prefetchHooksCallback: null,
+      ));
+}
+
+typedef $$TimeEntriesTableCreateCompanionBuilder = TimeEntriesCompanion Function({
+  Value<String> id, required String companyId, required String jobId, required String contractorId,
+  required DateTime clockedInAt, Value<DateTime?> clockedOutAt, Value<int?> durationSeconds,
+  Value<String> sessionStatus, Value<String> adjustmentLog, Value<int> version,
+  required DateTime createdAt, required DateTime updatedAt, Value<DateTime?> deletedAt, Value<int> rowid,
+});
+typedef $$TimeEntriesTableUpdateCompanionBuilder = TimeEntriesCompanion Function({
+  Value<String> id, Value<String> companyId, Value<String> jobId, Value<String> contractorId,
+  Value<DateTime> clockedInAt, Value<DateTime?> clockedOutAt, Value<int?> durationSeconds,
+  Value<String> sessionStatus, Value<String> adjustmentLog, Value<int> version,
+  Value<DateTime> createdAt, Value<DateTime> updatedAt, Value<DateTime?> deletedAt, Value<int> rowid,
+});
+
+final class $$TimeEntriesTableFilterComposer extends Composer<_$AppDatabase, $TimeEntriesTable> {
+  $$TimeEntriesTableFilterComposer({required super.$db, required super.$table, super.joinBuilder, super.$addJoinBuilderToRootComposer, super.$removeJoinBuilderFromRootComposer});
+  ColumnFilters<String> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get jobId => $composableBuilder(column: $table.jobId, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get sessionStatus => $composableBuilder(column: $table.sessionStatus, builder: (column) => ColumnFilters(column));
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(column: $table.deletedAt, builder: (column) => ColumnFilters(column));
+}
+final class $$TimeEntriesTableOrderingComposer extends Composer<_$AppDatabase, $TimeEntriesTable> {
+  $$TimeEntriesTableOrderingComposer({required super.$db, required super.$table, super.joinBuilder, super.$addJoinBuilderToRootComposer, super.$removeJoinBuilderFromRootComposer});
+  ColumnOrderings<DateTime> get clockedInAt => $composableBuilder(column: $table.clockedInAt, builder: (column) => ColumnOrderings(column));
+}
+final class $$TimeEntriesTableAnnotationComposer extends Composer<_$AppDatabase, $TimeEntriesTable> {
+  $$TimeEntriesTableAnnotationComposer({required super.$db, required super.$table, super.joinBuilder, super.$addJoinBuilderToRootComposer, super.$removeJoinBuilderFromRootComposer});
 }
 
 // ─── End of manually added generated classes ─────────────────────────────────
