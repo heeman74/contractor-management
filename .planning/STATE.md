@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 08-business-operations-01-PLAN.md
-last_updated: "2026-03-14T00:03:18.916Z"
+stopped_at: Completed 08-business-operations-02-PLAN.md
+last_updated: "2026-03-14T00:17:50.148Z"
 last_activity: "2026-03-13 — Phase 7 Plan 04: backend and Flutter E2E tests for notifications and client portal"
 progress:
   total_phases: 8
   completed_phases: 7
   total_plans: 49
-  completed_plans: 44
+  completed_plans: 45
   percent: 100
 ---
 
@@ -93,6 +93,7 @@ Progress: [██████████] 100%
 | Phase 07-client-portal-and-notifications P04 | 22h | 2 tasks | 6 files |
 | Phase 08-business-operations P00 | 3min | 2 tasks | 7 files |
 | Phase 08-business-operations P01 | 8min | 2 tasks | 14 files |
+| Phase 08-business-operations P02 | 11min | 2 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -239,6 +240,8 @@ Recent decisions affecting current work:
 - [Phase 08-business-operations]: WeasyPrint import deferred to call time — OSError on system lib absence raised as RuntimeError at call time, not import time
 - [Phase 08-business-operations]: from_orm_with_totals() classmethod computes quote/invoice totals inline — not stored columns, computed fresh from loaded line items
 - [Phase 08-business-operations]: line_items_json stored as TEXT in QuoteTemplate — avoids join table, parsed at service layer
+- [Phase 08-business-operations]: SELECT FOR UPDATE on company row for sequential invoice numbering — atomically increments invoice_sequence, prevents duplicate numbers under concurrent requests
+- [Phase 08-business-operations]: Sync delta client role: quotes filtered to sent/viewed/approved/declined — drafts never exposed to client devices
 
 ### Pending Todos
 
@@ -255,6 +258,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-14T00:03:18.909Z
-Stopped at: Completed 08-business-operations-01-PLAN.md
+Last session: 2026-03-14T00:17:42.686Z
+Stopped at: Completed 08-business-operations-02-PLAN.md
 Resume file: None
