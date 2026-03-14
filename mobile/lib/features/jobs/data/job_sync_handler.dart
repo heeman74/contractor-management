@@ -96,6 +96,15 @@ class JobSyncHandler extends SyncHandler {
             )
           : const Value.absent(),
       notes: Value(data['notes'] as String?),
+      gpsLatitude: data['gps_latitude'] is num
+          ? Value((data['gps_latitude'] as num).toDouble())
+          : const Value(null),
+      gpsLongitude: data['gps_longitude'] is num
+          ? Value((data['gps_longitude'] as num).toDouble())
+          : const Value(null),
+      gpsAddress: Value(data['gps_address'] as String?),
+      quoteId: Value(data['quote_id'] as String?),
+      invoiceId: Value(data['invoice_id'] as String?),
       estimatedDurationMinutes:
           Value(data['estimated_duration_minutes'] as int?),
       scheduledCompletionDate: data['scheduled_completion_date'] != null

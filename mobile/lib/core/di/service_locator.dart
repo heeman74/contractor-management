@@ -5,6 +5,7 @@ import '../auth/token_storage.dart';
 import '../database/app_database.dart';
 import '../network/dio_client.dart';
 import '../sync/connectivity_service.dart';
+import '../sync/handlers/attachment_sync_handler.dart';
 import '../sync/handlers/company_sync_handler.dart';
 import '../sync/handlers/note_sync_handler.dart';
 import '../sync/handlers/time_entry_sync_handler.dart';
@@ -12,11 +13,13 @@ import '../sync/handlers/user_role_sync_handler.dart';
 import '../sync/handlers/user_sync_handler.dart';
 import '../sync/sync_engine.dart';
 import '../sync/sync_registry.dart';
+import '../../features/invoices/data/invoice_line_item_sync_handler.dart';
 import '../../features/invoices/data/invoice_sync_handler.dart';
 import '../../features/jobs/data/client_profile_sync_handler.dart';
 import '../../features/jobs/data/job_request_sync_handler.dart';
 import '../../features/jobs/data/job_sync_handler.dart';
 import '../../features/jobs/presentation/services/attachment_upload_service.dart';
+import '../../features/quotes/data/quote_line_item_sync_handler.dart';
 import '../../features/quotes/data/quote_sync_handler.dart';
 import '../../features/schedule/data/booking_sync_handler.dart';
 import '../../features/schedule/data/job_site_sync_handler.dart';
@@ -66,6 +69,10 @@ Future<void> setupServiceLocator() async {
   // Phase 8: Business operations sync handlers
   registry.register(QuoteSyncHandler(dioClient, db));
   registry.register(InvoiceSyncHandler(dioClient, db));
+  // Phase 9: Gap closure — pull-only handlers for line items and attachments
+  registry.register(AttachmentSyncHandler(db));
+  registry.register(QuoteLineItemSyncHandler(db));
+  registry.register(InvoiceLineItemSyncHandler(db));
 
   getIt.registerSingleton<SyncRegistry>(registry);
 
