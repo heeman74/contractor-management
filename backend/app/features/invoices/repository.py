@@ -16,6 +16,15 @@ from sqlalchemy import and_, select
 from sqlalchemy.orm import joinedload, selectinload
 
 from app.core.base_repository import TenantScopedRepository
+
+# isort: split
+# Side-effect imports: ensure all referenced mappers are registered before
+# configure_mappers() triggers on Invoice relationship resolution.
+import app.features.quotes.models  # noqa: F401 — Quote mapper (Invoice.quote FK)
+import app.features.scheduling.models  # noqa: F401 — Booking mapper (Job.bookings)
+import app.features.users.models  # noqa: F401 — User mapper (Job.client_id)
+
+# isort: split
 from app.features.invoices.models import Invoice
 
 

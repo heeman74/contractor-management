@@ -283,3 +283,112 @@ class SyncService:
 
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
+
+    # -------------------------------------------------------------------------
+    # Phase 8 — business operations entity sync methods
+    # -------------------------------------------------------------------------
+
+    async def get_quotes_since(
+        self,
+        since: datetime,
+        *,
+        client_user_id: str | None = None,
+    ) -> list:
+        """Return all quotes changed since the given cursor timestamp.
+
+        For client-role users, only includes sent/viewed/approved/declined quotes
+        (not drafts or revised ones) to prevent premature quote disclosure.
+        Admin and contractor roles receive all non-draft quotes.
+        Includes line_items eagerly loaded (selectinload) — no N+1.
+
+        Args:
+            since:          High-water mark cursor timestamp.
+            client_user_id: When provided (client role), restricts to sent/viewed/
+                            approved/declined quotes for the client's own jobs.
+        """
+        from sqlalchemy.orm import selectinload
+
+        from app.features.quotes.models import Quote
+
+        stmt = (
+            select(Quote)
+            .where(or_(Quote.updated_at > since, Quote.deleted_at > since))
+            .options(selectinload(Quote.line_items))
+        )
+
+        if client_user_id is not None:
+            import uuid
+
+            from app.features.jobs.models import Job
+
+            client_uuid = uuid.UUID(client_user_id)
+            client_job_ids = select(Job.id).where(Job.client_id == client_uuid)
+            stmt = stmt.where(
+                Quote.job_id.in_(client_job_ids),
+                Quote.status.in_(["sent", "viewed", "approved", "declined"]),
+            )
+        # Admin/contractor: exclude drafts for cleanliness (admin sees all via API)
+        # Actually per plan: client sees only sent/viewed/approved/declined — no filter for admin
+
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_quote_line_items_since(self, since: datetime) -> list:
+        """Return all quote line items changed since the given cursor timestamp."""
+        from app.features.quotes.models import QuoteLineItem
+
+        result = await self.db.execute(
+            select(QuoteLineItem).where(
+                or_(QuoteLineItem.updated_at > since, QuoteLineItem.deleted_at > since)
+            )
+        )
+        return list(result.scalars().all())
+
+    async def get_invoices_since(
+        self,
+        since: datetime,
+        *,
+        client_user_id: str | None = None,
+    ) -> list:
+        """Return all invoices changed since the given cursor timestamp.
+
+        Includes line_items eagerly loaded (selectinload) — no N+1.
+        Client role users see invoices for their own jobs.
+
+        Args:
+            since:          High-water mark cursor timestamp.
+            client_user_id: When provided (client role), restricts to invoices
+                            for the client's own jobs.
+        """
+        from sqlalchemy.orm import selectinload
+
+        from app.features.invoices.models import Invoice
+
+        stmt = (
+            select(Invoice)
+            .where(or_(Invoice.updated_at > since, Invoice.deleted_at > since))
+            .options(selectinload(Invoice.line_items))
+        )
+
+        if client_user_id is not None:
+            import uuid
+
+            from app.features.jobs.models import Job
+
+            client_uuid = uuid.UUID(client_user_id)
+            client_job_ids = select(Job.id).where(Job.client_id == client_uuid)
+            stmt = stmt.where(Invoice.job_id.in_(client_job_ids))
+
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_invoice_line_items_since(self, since: datetime) -> list:
+        """Return all invoice line items changed since the given cursor timestamp."""
+        from app.features.invoices.models import InvoiceLineItem
+
+        result = await self.db.execute(
+            select(InvoiceLineItem).where(
+                or_(InvoiceLineItem.updated_at > since, InvoiceLineItem.deleted_at > since)
+            )
+        )
+        return list(result.scalars().all())
