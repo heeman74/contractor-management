@@ -20,6 +20,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 6: Field Workflow** - Job notes, photo capture, GPS address, drawing pad, and time tracking (completed 2026-03-12)
 - [x] **Phase 7: Client Portal and Notifications** - Client-facing job status, progress photos, delay visibility, and push notifications (completed 2026-03-13)
 - [x] **Phase 8: Business Operations** - Digital quoting, quote approval, invoicing, and reporting dashboard (completed 2026-03-14)
+- [ ] **Phase 9: Sync Engine Gap Closure** - Complete pullDelta() for all 14 entity types and fix JobSyncHandler missing fields (Gap Closure)
+- [ ] **Phase 10: UI & Backend Wiring Gap Closure** - Wire OverduePanel, QuoteBuilder navigation, and TravelTime injection (Gap Closure)
 
 ## Phase Details
 
@@ -184,12 +186,40 @@ Plans:
 - [ ] 08-05-PLAN.md — Invoice and reporting UI: Invoice detail with PDF download, payment tracking, admin reporting dashboard (4 charts), contractor limited stats, Reports bottom nav tab
 - [ ] 08-06-PLAN.md — E2E tests: Backend integration tests (quote-to-invoice lifecycle, reporting, RLS), Flutter widget tests (quote builder, approval, invoice, dashboard)
 
+### Phase 9: Sync Engine Gap Closure
+**Goal**: pullDelta() processes all 14 entity types from the server and JobSyncHandler maps all fields — enabling multi-device sync for bookings, quotes, invoices, and CRM data
+**Depends on**: Phase 2, Phase 8
+**Requirements**: INFRA-04, SCHED-03, FIELD-02, BIZ-01, BIZ-03
+**Gap Closure:** Closes gaps from v1.0 audit
+**Success Criteria** (what must be TRUE):
+  1. pullDelta() processes all 14 entity types: users, user_roles, companies, jobs, job_notes, time_entries, attachments, bookings, job_sites, client_profiles, job_requests, quotes, quote_line_items, invoices (+ invoice_line_items)
+  2. JobSyncHandler.applyPulled() maps gps_latitude, gps_longitude, gps_address, quote_id, and invoice_id into JobsCompanion
+  3. A booking created on device A appears on device B after delta pull
+  4. A quote/invoice created on device A appears on device B after delta pull
+
+Plans:
+- [ ] 09-01-PLAN.md — pullDelta() entity completion and JobSyncHandler field fixes with integration tests
+
+### Phase 10: UI & Backend Wiring Gap Closure
+**Goal**: Wire three orphaned components into production: OverduePanel in schedule screen, QuoteBuilder navigation from job detail, and TravelTimeCacheService injection in scheduling router
+**Depends on**: Phase 5, Phase 8, Phase 3
+**Requirements**: SCHED-08, BIZ-01, BIZ-02, SCHED-06
+**Gap Closure:** Closes gaps from v1.0 audit
+**Success Criteria** (what must be TRUE):
+  1. schedule_screen.dart renders OverduePanel (not a placeholder Container) — overdue jobs are visible to admins
+  2. JobDetailScreen shows a "Create Quote" button (admin-only) that navigates to QuoteBuilderScreen
+  3. scheduling/router.py injects TravelTimeCacheService into SchedulingService when ORS_API_KEY is set
+  4. All three wiring fixes have corresponding tests
+
+Plans:
+- [ ] 10-01-PLAN.md — OverduePanel wiring, QuoteBuilder navigation, TravelTime injection with tests
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 
-Note: Phase 3 (Scheduling Engine) depends only on Phase 1 and can begin in parallel with Phase 2 if capacity allows. All other phases depend on Phase 2 completing first.
+Note: Phase 3 (Scheduling Engine) depends only on Phase 1 and can begin in parallel with Phase 2 if capacity allows. All other phases depend on Phase 2 completing first. Phases 9-10 are gap closure phases from v1.0 audit.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -201,3 +231,5 @@ Note: Phase 3 (Scheduling Engine) depends only on Phase 1 and can begin in paral
 | 6. Field Workflow | 7/7 | Complete   | 2026-03-12 |
 | 7. Client Portal and Notifications | 4/4 | Complete   | 2026-03-13 |
 | 8. Business Operations | 7/7 | Complete   | 2026-03-14 |
+| 9. Sync Engine Gap Closure | 0/1 | Pending | |
+| 10. UI & Backend Wiring Gap Closure | 0/1 | Pending | |

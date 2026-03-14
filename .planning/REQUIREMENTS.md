@@ -12,7 +12,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **INFRA-01**: Multi-tenant company workspace with data isolation per company
 - [x] **INFRA-02**: Three user roles: company admin, contractor, client
 - [x] **INFRA-03**: Offline-first mobile app with local data storage
-- [x] **INFRA-04**: Background sync engine with conflict resolution
+- [ ] **INFRA-04**: Background sync engine with conflict resolution
 - [x] **INFRA-05**: Flutter mobile app (Android first, iOS second)
 - [x] **INFRA-06**: Python backend API (FastAPI) shared across platforms
 
@@ -20,12 +20,12 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **SCHED-01**: Job creation with details (description, address, client, assigned contractor)
 - [x] **SCHED-02**: Job lifecycle stages (Quote → Scheduled → In Progress → Complete → Invoiced)
-- [x] **SCHED-03**: Drag-and-drop calendar scheduling with color coding
+- [ ] **SCHED-03**: Drag-and-drop calendar scheduling with color coding
 - [x] **SCHED-04**: Contractor availability tracking (who's free when)
 - [x] **SCHED-05**: Conflict detection preventing double-bookings
-- [x] **SCHED-06**: Travel time awareness in scheduling (buffer between jobs)
+- [ ] **SCHED-06**: Travel time awareness in scheduling (buffer between jobs)
 - [x] **SCHED-07**: Multi-day job support (jobs spanning days/weeks with partial-day assignments)
-- [x] **SCHED-08**: Overdue task warnings when jobs miss scheduled completion
+- [ ] **SCHED-08**: Overdue task warnings when jobs miss scheduled completion
 - [x] **SCHED-09**: Forced delay justification — contractor must provide reason + new ETA for overdue jobs
 
 ### Client Experience
@@ -45,7 +45,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Business Operations
 
-- [x] **BIZ-01**: Digital quoting/estimates with line items
+- [ ] **BIZ-01**: Digital quoting/estimates with line items
 - [x] **BIZ-02**: Quote approval flow (send to client, client approves/declines)
 - [x] **BIZ-03**: Digital invoicing generated from completed jobs
 - [x] **BIZ-04**: Basic reporting dashboard (jobs by status, revenue, contractor utilization)
@@ -96,17 +96,17 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INFRA-05 | Phase 1 — Foundation | Complete |
 | INFRA-06 | Phase 1 — Foundation | Complete |
 | INFRA-03 | Phase 2 — Offline Sync Engine | Complete |
-| INFRA-04 | Phase 2 — Offline Sync Engine | Complete |
+| INFRA-04 | Phase 9 — Sync Engine Gap Closure | Pending |
 | SCHED-04 | Phase 3 — Scheduling Engine | Complete |
 | SCHED-05 | Phase 3 — Scheduling Engine | Complete |
-| SCHED-06 | Phase 3 — Scheduling Engine | Complete |
+| SCHED-06 | Phase 10 — UI & Backend Wiring Gap Closure | Pending |
 | SCHED-07 | Phase 3 — Scheduling Engine | Complete |
 | SCHED-01 | Phase 4 — Job Lifecycle | Complete |
 | SCHED-02 | Phase 4 — Job Lifecycle | Complete |
 | CLNT-01 | Phase 4 — Job Lifecycle | Complete |
 | CLNT-04 | Phase 4 — Job Lifecycle | Complete |
-| SCHED-03 | Phase 5 — Calendar and Dispatch UI | Complete |
-| SCHED-08 | Phase 5 — Calendar and Dispatch UI | Complete |
+| SCHED-03 | Phase 9 — Sync Engine Gap Closure | Pending |
+| SCHED-08 | Phase 10 — UI & Backend Wiring Gap Closure | Pending |
 | SCHED-09 | Phase 5 — Calendar and Dispatch UI | Complete |
 | FIELD-01 | Phase 6 — Field Workflow | Complete |
 | FIELD-02 | Phase 6 — Field Workflow | Complete |
@@ -115,7 +115,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLNT-02 | Phase 7 — Client Portal and Notifications | Complete |
 | CLNT-03 | Phase 7 — Client Portal and Notifications | Complete |
 | CLNT-05 | Phase 7 — Client Portal and Notifications | Complete |
-| BIZ-01 | Phase 8 — Business Operations | Complete |
+| BIZ-01 | Phase 10 — UI & Backend Wiring Gap Closure | Pending |
 | BIZ-02 | Phase 8 — Business Operations | Complete |
 | BIZ-03 | Phase 8 — Business Operations | Complete |
 | BIZ-04 | Phase 8 — Business Operations | Complete |
@@ -124,7 +124,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 - v1 requirements: 24 total
 - Mapped to phases: 24
 - Unmapped: 0
+- Satisfied: 19 (checkboxes checked)
+- Pending gap closure: 5 (INFRA-04, SCHED-03, SCHED-06, SCHED-08, BIZ-01)
 
 ---
 *Requirements defined: 2026-03-04*
-*Last updated: 2026-03-04 after roadmap creation — all 24 requirements mapped*
+*Last updated: 2026-03-13 — 5 requirements reset to pending for gap closure phases 9-10*
