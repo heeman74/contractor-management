@@ -9,6 +9,9 @@ import '../../features/schedule/presentation/providers/overdue_providers.dart';
 import '../../shared/models/user_role.dart';
 import 'sync_status_subtitle.dart';
 
+// NOTE: Reports tab is visible to admin and contractor only.
+// Client role does NOT get the Reports tab (per locked design decision).
+
 /// Shared app shell — wraps all authenticated routes with a bottom navigation bar
 /// and a unified app bar showing the current tab title and sync status subtitle.
 ///
@@ -29,7 +32,8 @@ import 'sync_status_subtitle.dart';
 /// - Jobs:     all roles
 /// - Schedule: all roles
 /// - Profile:  all roles
-/// - Team:     admin only (5th tab, shown only when user has UserRole.admin)
+/// - Team:     admin only (5th tab)
+/// - Reports:  admin and contractor only (last tab; client excluded per design decision)
 class AppShell extends ConsumerWidget {
   const AppShell({required this.navigationShell, super.key});
 
@@ -42,12 +46,14 @@ class AppShell extends ConsumerWidget {
     final authState = ref.watch(authNotifierProvider);
     final isAdmin = authState is AuthAuthenticated &&
         authState.roles.contains(UserRole.admin);
+    final isContractor = authState is AuthAuthenticated &&
+        authState.roles.contains(UserRole.contractor);
 
     // Watch overdue count for the bottom nav Schedule tab badge.
     // Badge remains visible on ALL tabs (it's on the bottom nav, not the calendar).
     final overdueCount = ref.watch(overdueJobCountProvider);
 
-    final tabs = _buildTabs(isAdmin);
+    final tabs = _buildTabs(isAdmin, isContractor);
     final currentIndex = _getCurrentIndex(tabs);
     final currentTab = tabs[currentIndex];
 
@@ -122,7 +128,7 @@ class AppShell extends ConsumerWidget {
     return icon;
   }
 
-  List<_TabItem> _buildTabs(bool isAdmin) {
+  List<_TabItem> _buildTabs(bool isAdmin, bool isContractor) {
     return [
       const _TabItem(
         label: 'Home',
@@ -154,6 +160,14 @@ class AppShell extends ConsumerWidget {
           icon: Icons.groups_outlined,
           selectedIcon: Icons.groups,
           route: RouteNames.adminTeam,
+        ),
+      // Reports tab — admin and contractor only (client excluded per design decision)
+      if (isAdmin || isContractor)
+        const _TabItem(
+          label: 'Reports',
+          icon: Icons.bar_chart_outlined,
+          selectedIcon: Icons.bar_chart,
+          route: RouteNames.reports,
         ),
     ];
   }
