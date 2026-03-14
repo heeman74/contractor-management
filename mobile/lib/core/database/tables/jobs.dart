@@ -56,6 +56,14 @@ class Jobs extends Table {
   IntColumn get estimatedDurationMinutes => integer().nullable()();
   DateTimeColumn get scheduledCompletionDate => dateTime().nullable()();
 
+  /// FK to Quotes.id — the most recent approved quote for this job.
+  /// Nullable — populated when a quote is approved and linked to this job.
+  TextColumn get quoteId => text().nullable()();
+
+  /// FK to Invoices.id — the invoice issued for this job.
+  /// Nullable — populated when an invoice is created for this job.
+  TextColumn get invoiceId => text().nullable()();
+
   /// GPS latitude captured at job site (nullable — set when contractor arrives).
   RealColumn get gpsLatitude => real().nullable()();
 

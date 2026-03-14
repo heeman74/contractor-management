@@ -4,10 +4,12 @@ import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../features/company/data/company_dao.dart';
+import '../../features/invoices/data/invoice_dao.dart';
 import '../../features/jobs/data/attachment_dao.dart';
 import '../../features/jobs/data/job_dao.dart';
 import '../../features/jobs/data/note_dao.dart';
 import '../../features/jobs/data/time_entry_dao.dart';
+import '../../features/quotes/data/quote_dao.dart';
 import '../../features/schedule/data/booking_dao.dart';
 import '../../features/users/data/user_dao.dart';
 import '../sync/sync_cursor_dao.dart';
@@ -17,10 +19,15 @@ import 'tables/bookings.dart';
 import 'tables/client_profiles.dart';
 import 'tables/client_properties.dart';
 import 'tables/companies.dart';
+import 'tables/invoice_line_items.dart';
+import 'tables/invoices.dart';
 import 'tables/job_notes.dart';
 import 'tables/job_requests.dart';
 import 'tables/job_sites.dart';
 import 'tables/jobs.dart';
+import 'tables/quote_line_items.dart';
+import 'tables/quote_templates.dart';
+import 'tables/quotes.dart';
 import 'tables/sync_cursor.dart';
 import 'tables/sync_queue.dart';
 import 'tables/time_entries.dart';
@@ -28,10 +35,12 @@ import 'tables/user_roles.dart';
 import 'tables/users.dart';
 
 export '../../features/company/data/company_dao.dart';
+export '../../features/invoices/data/invoice_dao.dart';
 export '../../features/jobs/data/attachment_dao.dart';
 export '../../features/jobs/data/job_dao.dart';
 export '../../features/jobs/data/note_dao.dart';
 export '../../features/jobs/data/time_entry_dao.dart';
+export '../../features/quotes/data/quote_dao.dart';
 export '../../features/schedule/data/booking_dao.dart';
 export '../../features/users/data/user_dao.dart';
 
@@ -53,6 +62,11 @@ part 'app_database.g.dart';
     JobNotes,
     Attachments,
     TimeEntries,
+    Quotes,
+    QuoteLineItems,
+    QuoteTemplates,
+    Invoices,
+    InvoiceLineItems,
   ],
   daos: [
     CompanyDao,
@@ -64,6 +78,8 @@ part 'app_database.g.dart';
     NoteDao,
     AttachmentDao,
     TimeEntryDao,
+    QuoteDao,
+    InvoiceDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -71,7 +87,7 @@ class AppDatabase extends _$AppDatabase {
       : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -103,6 +119,15 @@ class AppDatabase extends _$AppDatabase {
             await m.addColumn(jobs, jobs.gpsLatitude);
             await m.addColumn(jobs, jobs.gpsLongitude);
             await m.addColumn(jobs, jobs.gpsAddress);
+          }
+          if (from < 6) {
+            await m.createTable(quotes);
+            await m.createTable(quoteLineItems);
+            await m.createTable(quoteTemplates);
+            await m.createTable(invoices);
+            await m.createTable(invoiceLineItems);
+            await m.addColumn(jobs, jobs.quoteId);
+            await m.addColumn(jobs, jobs.invoiceId);
           }
         },
       );
