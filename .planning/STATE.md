@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Completed 08-business-operations-03-PLAN.md
-last_updated: "2026-03-14T00:45:00.000Z"
-last_activity: "2026-03-14 — Phase 8 Plan 03: Flutter quote/invoice data layer (Drift tables, DAOs, sync handlers)"
+status: in_progress
+stopped_at: Completed 08-business-operations-05-PLAN.md
+last_updated: "2026-03-14T01:00:00.000Z"
+last_activity: "2026-03-14 — Phase 8 Plan 05: Invoice detail screen, reporting dashboard, Reports tab navigation"
 progress:
   total_phases: 8
   completed_phases: 7
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 ## Current Position
 
 Phase: 8 of 8 (Business Operations)
-Plan: 3 of 6 in phase (08) — IN PROGRESS
-Status: Phase 8 Plan 03 complete — Flutter quote/invoice data layer done
-Last activity: 2026-03-14 — Phase 8 Plan 03: Flutter quote/invoice data layer (Drift tables, DAOs, sync handlers)
+Plan: 5 of 6 in phase (08) — IN PROGRESS
+Status: Phase 8 Plan 05 complete — Invoice detail, reporting dashboard, Reports tab done
+Last activity: 2026-03-14 — Phase 8 Plan 05: Invoice detail screen with PDF download, reporting dashboard (fl_chart), Reports tab navigation
 
 Progress: [██████████] 100%
 
@@ -95,6 +95,7 @@ Progress: [██████████] 100%
 | Phase 08-business-operations P01 | 8min | 2 tasks | 14 files |
 | Phase 08-business-operations P02 | 11min | 2 tasks | 13 files |
 | Phase 08-business-operations P03 | 460min | 2 tasks | 14 files |
+| Phase 08-business-operations P05 | 10min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -247,6 +248,11 @@ Recent decisions affecting current work:
 - [Phase 08-business-operations P03]: Two-query approach in DAO stream methods avoids N+1 and JOIN duplicate rows
 - [Phase 08-business-operations P03]: Quote templates use local-only operations (no sync queue dual-write)
 - [Phase 08-business-operations P03]: ProcessedTableManager typedefs replaced with RootTableManager classes to match existing codebase pattern
+- [Phase 08-business-operations P05]: Reports tab visible to admin and contractor only — client excluded per locked design decision
+- [Phase 08-business-operations P05]: Invoice detail is a top-level push route (no shell) — navigated via context.push() from job detail and client portal
+- [Phase 08-business-operations P05]: AdminDashboardNotifier watches dateRangeProvider — auto-refetches on date change without manual invalidation
+- [Phase 08-business-operations P05]: History tab added to ClientJobDetailScreen — renders Phase 8 event types (quote_*, invoice_generated) via switch expression
+- [Phase 08-business-operations P05]: DropdownButton + InputDecorator replaces DropdownButtonFormField for payment status — avoids deprecated .value in Flutter 3.33+
 
 ### Pending Todos
 
@@ -263,6 +269,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-14T00:45:00.000Z
-Stopped at: Completed 08-business-operations-03-PLAN.md
+Last session: 2026-03-14T01:00:00.000Z
+Stopped at: Completed 08-business-operations-05-PLAN.md
 Resume file: None
