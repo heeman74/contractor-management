@@ -9,9 +9,18 @@ import '../../../core/sync/sync_queue_dao.dart';
 
 /// SyncHandler implementation for the ClientProfile entity.
 ///
-/// Push: routes CREATE/UPDATE to the client profile REST endpoints.
-/// - CREATE → POST /api/v1/clients/profiles
-/// - UPDATE → PATCH /api/v1/clients/profiles/{id}
+/// Push: routes both CREATE and UPDATE to the single upsert endpoint.
+/// - CREATE → POST /api/v1/clients/{user_id}/profile
+/// - UPDATE → POST /api/v1/clients/{user_id}/profile  (upsert semantics)
+///
+/// The backend exposes only one endpoint for client profile writes:
+/// `POST /clients/{user_id}/profile` with upsert semantics. There is no
+/// separate PATCH endpoint. Both create and update operations map to the
+/// same POST call.
+///
+/// user_id is extracted from payload['userId'] (camelCase, as enqueued by
+/// job_dao.dart:insertClientProfile). Do NOT use item.entityId — that holds
+/// the profile UUID, not the user UUID.
 ///
 /// Pull: upserts received entities into the local Drift [clientProfiles] table.
 /// Tombstones (non-null [deleted_at]) are propagated as soft deletes.
@@ -28,20 +37,18 @@ class ClientProfileSyncHandler extends SyncHandler {
   Future<void> push(SyncQueueData item) async {
     final payload = jsonDecode(item.payload) as Map<String, dynamic>;
 
+    // Validate operation — only CREATE and UPDATE are supported.
+    // UPDATE uses the same POST upsert endpoint as CREATE (no PATCH exists).
     switch (item.operation.toUpperCase()) {
       case 'CREATE':
-        await _dioClient.pushWithIdempotency(
-          '/clients/profiles',
-          payload,
-          item.id,
-        );
       case 'UPDATE':
-        final profileId = item.entityId;
+        // userId is stored camelCase in the enqueued payload by job_dao.dart.
+        // item.entityId is the profile UUID — do NOT use it as the user_id path param.
+        final userId = payload['userId'] as String;
         await _dioClient.pushWithIdempotency(
-          '/clients/profiles/$profileId',
+          '/clients/$userId/profile',
           payload,
           item.id,
-          method: 'PATCH',
         );
       default:
         throw StateError(
