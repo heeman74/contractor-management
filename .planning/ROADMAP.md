@@ -22,7 +22,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 8: Business Operations** - Digital quoting, quote approval, invoicing, and reporting dashboard (completed 2026-03-14)
 - [x] **Phase 9: Sync Engine Gap Closure** - Complete pullDelta() for all 14 entity types and fix JobSyncHandler missing fields (Gap Closure) (completed 2026-03-14)
 - [x] **Phase 10: UI & Backend Wiring Gap Closure** - Wire OverduePanel, QuoteBuilder navigation, and TravelTime injection (Gap Closure) (completed 2026-03-15)
-- [ ] **Phase 11: Integration Polish** - Fix job site sync field names, render travel time blocks on calendar, show names in overdue panel (Gap Closure)
+- [x] **Phase 11: Integration Polish** - Fix job site sync field names, render travel time blocks on calendar, show names in overdue panel (Gap Closure) (completed 2026-03-15)
 
 ## Phase Details
 
@@ -229,7 +229,7 @@ Plans:
   3. OverduePanel displays client and contractor display names looked up from Drift, not raw UUID strings
   4. E2E flow "Job site coordinate sync to mobile" completes without data-layer break
 
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 - [ ] 11-01-PLAN.md — Fix job site sync field names (INT-01), add travel buffer intervals to calendar (INT-02), resolve overdue panel names from Drift (INT-03), E2E tests
@@ -253,4 +253,4 @@ Note: Phase 3 (Scheduling Engine) depends only on Phase 1 and can begin in paral
 | 8. Business Operations | 7/7 | Complete   | 2026-03-14 |
 | 9. Sync Engine Gap Closure | 2/2 | Complete   | 2026-03-14 |
 | 10. UI & Backend Wiring Gap Closure | 1/1 | Complete    | 2026-03-15 |
-| 11. Integration Polish | 0/1 | Pending    |  |
+| 11. Integration Polish | 1/1 | Complete   | 2026-03-15 |

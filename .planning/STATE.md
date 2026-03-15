@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 10-01-PLAN.md
-last_updated: "2026-03-15T03:04:02.899Z"
+stopped_at: Completed 11-01-PLAN.md
+last_updated: "2026-03-15T04:37:33.000Z"
 last_activity: "2026-03-14 — Phase 8 Plan 05: Invoice detail screen with PDF download, reporting dashboard (fl_chart), Reports tab navigation"
 progress:
-  total_phases: 10
-  completed_phases: 10
-  total_plans: 52
-  completed_plans: 52
+  total_phases: 11
+  completed_phases: 11
+  total_plans: 53
+  completed_plans: 53
   percent: 100
 ---
 
@@ -101,6 +101,7 @@ Progress: [██████████] 100%
 | Phase 09-sync-engine-gap-closure P01 | 4min | 2 tasks | 6 files |
 | Phase 09-sync-engine-gap-closure P02 | 15min | 2 tasks | 2 files |
 | Phase 10-ui-backend-wiring-gap-closure P01 | 6min | 2 tasks | 7 files |
+| Phase 11-integration-polish P01 | 15min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -270,6 +271,10 @@ Recent decisions affecting current work:
 - [Phase 09-sync-engine-gap-closure]: Backend invoice test uses generate endpoint (not POST /invoices/) — direct invoice creation requires job in complete status; generate flow exercises real approval lifecycle
 - [Phase 10-ui-backend-wiring-gap-closure]: get_scheduling_service FastAPI dependency injects CachedTravelTimeProvider when ORS_API_KEY is set; per-request httpx client is tech debt for lifespan-managed shared client
 - [Phase 10-ui-backend-wiring-gap-closure]: OverduePanel outer if (showOverduePanel) guard removed — widget manages its own animated visibility via AnimatedContainer height=0; outer guard prevents animation
+- [Phase 11-integration-polish]: INT-01: Backend uses latitude/longitude in JobSiteResponse JSON; Drift column names (lat/lng) intentionally different — only read-side mapping in applyPulled was wrong
+- [Phase 11-integration-polish]: INT-02: Travel buffer gap threshold is 60 minutes; interval end must equal nextBooking.timeRangeStart to satisfy ContractorLane isAtSameMomentAs matching
+- [Phase 11-integration-polish]: INT-03: overdueJobsProvider returns empty list when not AuthAuthenticated; _displayName uses firstName+lastName, firstName, or email-prefix fallback
+- [Phase 11-integration-polish]: INT-03 test: ConsumerWidget + tester.pump() required instead of bare ProviderContainer.read() — StreamProvider.autoDispose.family needs widget subscriber to stay alive and emit
 
 ### Pending Todos
 
@@ -286,6 +291,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T03:00:09.427Z
-Stopped at: Completed 10-01-PLAN.md
+Last session: 2026-03-15T04:37:32.991Z
+Stopped at: Completed 11-01-PLAN.md
 Resume file: None
