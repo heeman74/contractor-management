@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 09-02-PLAN.md
-last_updated: "2026-03-14T17:32:33.876Z"
+stopped_at: Completed 10-01-PLAN.md
+last_updated: "2026-03-15T03:00:09.435Z"
 last_activity: "2026-03-14 — Phase 8 Plan 05: Invoice detail screen with PDF download, reporting dashboard (fl_chart), Reports tab navigation"
 progress:
   total_phases: 10
-  completed_phases: 9
-  total_plans: 51
-  completed_plans: 51
+  completed_phases: 10
+  total_plans: 52
+  completed_plans: 52
   percent: 100
 ---
 
@@ -100,6 +100,7 @@ Progress: [██████████] 100%
 | Phase 08-business-operations P06 | 45min | 2 tasks | 4 files |
 | Phase 09-sync-engine-gap-closure P01 | 4min | 2 tasks | 6 files |
 | Phase 09-sync-engine-gap-closure P02 | 15min | 2 tasks | 2 files |
+| Phase 10-ui-backend-wiring-gap-closure P01 | 6min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -267,6 +268,8 @@ Recent decisions affecting current work:
 - [Phase 09-sync-engine-gap-closure]: GPS fields use 'is num' type check (not \!= null) to prevent runtime type error when JSON returns int instead of double
 - [Phase 09-sync-engine-gap-closure]: Mock invoice data requires non-null issued_at because Drift Invoices.issuedAt is non-nullable — null causes InvalidDataException at insert time
 - [Phase 09-sync-engine-gap-closure]: Backend invoice test uses generate endpoint (not POST /invoices/) — direct invoice creation requires job in complete status; generate flow exercises real approval lifecycle
+- [Phase 10-ui-backend-wiring-gap-closure]: get_scheduling_service FastAPI dependency injects CachedTravelTimeProvider when ORS_API_KEY is set; per-request httpx client is tech debt for lifespan-managed shared client
+- [Phase 10-ui-backend-wiring-gap-closure]: OverduePanel outer if (showOverduePanel) guard removed — widget manages its own animated visibility via AnimatedContainer height=0; outer guard prevents animation
 
 ### Pending Todos
 
@@ -283,6 +286,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-14T17:28:27.447Z
-Stopped at: Completed 09-02-PLAN.md
+Last session: 2026-03-15T03:00:09.427Z
+Stopped at: Completed 10-01-PLAN.md
 Resume file: None
