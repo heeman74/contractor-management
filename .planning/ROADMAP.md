@@ -23,7 +23,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 9: Sync Engine Gap Closure** - Complete pullDelta() for all 14 entity types and fix JobSyncHandler missing fields (Gap Closure) (completed 2026-03-14)
 - [x] **Phase 10: UI & Backend Wiring Gap Closure** - Wire OverduePanel, QuoteBuilder navigation, and TravelTime injection (Gap Closure) (completed 2026-03-15)
 - [x] **Phase 11: Integration Polish** - Fix job site sync field names, render travel time blocks on calendar, show names in overdue panel (Gap Closure) (completed 2026-03-15)
-- [ ] **Phase 12: Client Profile Sync Fix** - Fix ClientProfileSyncHandler push endpoint URLs to match backend routes (Gap Closure)
+- [x] **Phase 12: Client Profile Sync Fix** - Fix ClientProfileSyncHandler push endpoint URLs to match backend routes (Gap Closure) (completed 2026-03-15)
 
 ## Phase Details
 
@@ -245,7 +245,7 @@ Plans:
   2. Offline client profile edits sync successfully to the backend instead of returning 404 and parking
   3. E2E test verifies the complete offline-edit → sync → backend-persist flow
 
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 - [ ] 12-01-PLAN.md — Fix push() URL to POST /clients/{user_id}/profile, E2E tests for CREATE/UPDATE sync flow
@@ -270,4 +270,4 @@ Note: Phase 3 (Scheduling Engine) depends only on Phase 1 and can begin in paral
 | 9. Sync Engine Gap Closure | 2/2 | Complete   | 2026-03-14 |
 | 10. UI & Backend Wiring Gap Closure | 1/1 | Complete    | 2026-03-15 |
 | 11. Integration Polish | 1/1 | Complete    | 2026-03-15 |
-| 12. Client Profile Sync Fix | 0/1 | Planned    |  |
+| 12. Client Profile Sync Fix | 1/1 | Complete   | 2026-03-15 |

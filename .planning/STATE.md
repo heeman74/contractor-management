@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 11-01-PLAN.md
-last_updated: "2026-03-15T04:40:32.571Z"
+stopped_at: Completed 12-01-PLAN.md
+last_updated: "2026-03-15T05:46:09.093Z"
 last_activity: "2026-03-14 — Phase 8 Plan 05: Invoice detail screen with PDF download, reporting dashboard (fl_chart), Reports tab navigation"
 progress:
-  total_phases: 11
-  completed_phases: 11
-  total_plans: 53
-  completed_plans: 53
+  total_phases: 12
+  completed_phases: 12
+  total_plans: 54
+  completed_plans: 54
   percent: 100
 ---
 
@@ -102,6 +102,7 @@ Progress: [██████████] 100%
 | Phase 09-sync-engine-gap-closure P02 | 15min | 2 tasks | 2 files |
 | Phase 10-ui-backend-wiring-gap-closure P01 | 6min | 2 tasks | 7 files |
 | Phase 11-integration-polish P01 | 15min | 2 tasks | 4 files |
+| Phase 12-client-profile-sync-fix P01 | 3min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -275,6 +276,8 @@ Recent decisions affecting current work:
 - [Phase 11-integration-polish]: INT-02: Travel buffer gap threshold is 60 minutes; interval end must equal nextBooking.timeRangeStart to satisfy ContractorLane isAtSameMomentAs matching
 - [Phase 11-integration-polish]: INT-03: overdueJobsProvider returns empty list when not AuthAuthenticated; _displayName uses firstName+lastName, firstName, or email-prefix fallback
 - [Phase 11-integration-polish]: INT-03 test: ConsumerWidget + tester.pump() required instead of bare ProviderContainer.read() — StreamProvider.autoDispose.family needs widget subscriber to stay alive and emit
+- [Phase 12-client-profile-sync-fix]: Phase 12: ClientProfileSyncHandler uses single POST /clients/{userId}/profile for both CREATE and UPDATE — no operation switch needed when backend has upsert semantics
+- [Phase 12-client-profile-sync-fix]: Phase 12: userId extracted from payload['userId'] (camelCase) not item.entityId — entityId holds profile UUID, userId holds user FK
 
 ### Pending Todos
 
@@ -291,6 +294,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T04:37:32.991Z
-Stopped at: Completed 11-01-PLAN.md
+Last session: 2026-03-15T05:46:09.084Z
+Stopped at: Completed 12-01-PLAN.md
 Resume file: None
