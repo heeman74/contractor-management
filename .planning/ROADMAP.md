@@ -245,6 +245,11 @@ Plans:
   2. Offline client profile edits sync successfully to the backend instead of returning 404 and parking
   3. E2E test verifies the complete offline-edit → sync → backend-persist flow
 
+**Plans:** 1 plan
+
+Plans:
+- [ ] 12-01-PLAN.md — Fix push() URL to POST /clients/{user_id}/profile, E2E tests for CREATE/UPDATE sync flow
+
 ## Progress
 
 **Execution Order:**
