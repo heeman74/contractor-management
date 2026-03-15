@@ -1,7 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../features/auth/domain/auth_state.dart';
+import '../../../../features/auth/presentation/providers/auth_provider.dart';
 import '../../../../features/jobs/domain/job_entity.dart';
 import '../../../../features/jobs/presentation/providers/job_providers.dart';
+import '../../../../features/users/domain/user_entity.dart';
+import '../../../../features/users/presentation/providers/user_providers.dart';
 import '../../domain/overdue_service.dart';
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -71,11 +75,21 @@ class OverdueJobInfo {
 ///   - [severity]: [OverdueSeverity] tier (warning or critical)
 ///   - [hasDelayReport]: true if last status_history entry type == "delay"
 ///   - [latestDelayReason]: reason text from the last delay entry
+///   - [clientName]: resolved from [companyUsersProvider] (not raw UUID)
+///   - [contractorName]: resolved from [companyUsersProvider] (not raw UUID)
 ///
 /// Items are sorted by severity (critical first) then by daysOverdue (most overdue first).
 ///
 /// Watches [jobListNotifierProvider] — re-computes when Drift emits new data.
+/// Returns empty list when [authNotifierProvider] is not [AuthAuthenticated].
 final overdueJobsProvider = Provider<List<OverdueJobInfo>>((ref) {
+  // Require authenticated state to resolve company-scoped user names.
+  final authState = ref.watch(authNotifierProvider);
+  if (authState is! AuthAuthenticated) {
+    return [];
+  }
+  final companyId = authState.companyId;
+
   final jobsAsync = ref.watch(jobListNotifierProvider);
   final jobs = jobsAsync.maybeWhen(
     data: (jobs) => jobs
@@ -87,8 +101,16 @@ final overdueJobsProvider = Provider<List<OverdueJobInfo>>((ref) {
     orElse: () => <JobEntity>[],
   );
 
+  // Build a name lookup map from companyUsersProvider.
+  // Falls back gracefully to empty map when users are not yet loaded.
+  final usersAsync = ref.watch(companyUsersProvider(companyId));
+  final userNames = usersAsync.maybeWhen(
+    data: (users) => {for (final u in users) u.id: _displayName(u)},
+    orElse: () => <String, String>{},
+  );
+
   // Sort: critical first, then by daysOverdue descending.
-  return jobs.map(_toOverdueJobInfo).toList()
+  return jobs.map((job) => _toOverdueJobInfo(job, userNames)).toList()
     ..sort((a, b) {
       final severityCompare =
           _severityOrder(b.severity) - _severityOrder(a.severity);
@@ -109,8 +131,30 @@ final overdueJobCountProvider = Provider<int>((ref) {
 // Internal helpers
 // ────────────────────────────────────────────────────────────────────────────
 
+/// Resolve a display name for a user.
+///
+/// Priority order:
+///   1. "FirstName LastName" if both non-empty
+///   2. firstName alone if only first available
+///   3. Email username (before @) as fallback
+String _displayName(UserEntity user) {
+  final firstName = user.firstName ?? '';
+  final lastName = user.lastName ?? '';
+  if (firstName.isNotEmpty && lastName.isNotEmpty) {
+    return '$firstName $lastName';
+  }
+  if (firstName.isNotEmpty) return firstName;
+  return user.email.split('@').first;
+}
+
 /// Convert a [JobEntity] to [OverdueJobInfo], computing severity and delay data.
-OverdueJobInfo _toOverdueJobInfo(JobEntity job) {
+///
+/// Uses [userNames] map (userId → displayName) to resolve client and contractor
+/// names — falls back to the raw ID string if the user is not in the map.
+OverdueJobInfo _toOverdueJobInfo(
+  JobEntity job,
+  Map<String, String> userNames,
+) {
   final scheduledDate = job.scheduledCompletionDate!;
   final severity = OverdueService.computeSeverity(scheduledDate);
 
@@ -138,8 +182,12 @@ OverdueJobInfo _toOverdueJobInfo(JobEntity job) {
   return OverdueJobInfo(
     jobId: job.id,
     description: job.description,
-    clientName: job.clientId, // TODO: resolve from ClientProfile in future plan
-    contractorName: job.contractorId, // TODO: resolve from User in future plan
+    clientName: job.clientId != null
+        ? userNames[job.clientId!] ?? job.clientId
+        : null,
+    contractorName: job.contractorId != null
+        ? userNames[job.contractorId!] ?? job.contractorId
+        : null,
     scheduledCompletionDate: scheduledDate,
     daysOverdue: daysOverdue,
     severity: severity,

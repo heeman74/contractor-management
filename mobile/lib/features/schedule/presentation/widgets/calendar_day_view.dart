@@ -226,6 +226,33 @@ class _CalendarDayViewState extends ConsumerState<CalendarDayView> {
         ),
       ];
 
+      // Generate travel_buffer BlockedInterval entries between consecutive bookings.
+      //
+      // Sort this contractor's bookings by start time, then for each consecutive
+      // pair: if the gap is > 0 and <= 60 minutes, add a travel_buffer interval
+      // spanning from the end of the current booking to the start of the next.
+      //
+      // The interval start/end must exactly match booking.timeRangeEnd and
+      // nextBooking.timeRangeStart for ContractorLane._buildBookingWidgets()
+      // to match the interval (uses isAtSameMomentAs comparison).
+      // Gaps > 60 minutes are considered free time, not travel — skip them.
+      final sortedContractorBookings = List<BookingEntity>.from(contractorBookings)
+        ..sort((a, b) => a.timeRangeStart.compareTo(b.timeRangeStart));
+      for (var i = 0; i < sortedContractorBookings.length - 1; i++) {
+        final current = sortedContractorBookings[i];
+        final next = sortedContractorBookings[i + 1];
+        final gap = next.timeRangeStart.difference(current.timeRangeEnd);
+        if (gap.inMinutes > 0 && gap.inMinutes <= 60) {
+          blockedIntervals.add(
+            BlockedInterval(
+              start: current.timeRangeEnd,
+              end: next.timeRangeStart,
+              reason: 'travel_buffer',
+            ),
+          );
+        }
+      }
+
       return ContractorLane(
         contractor: contractor,
         dayStart: dayStart,

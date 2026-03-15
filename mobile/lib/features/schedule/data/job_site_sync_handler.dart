@@ -37,9 +37,12 @@ class JobSiteSyncHandler extends SyncHandler {
         ? DateTime.parse(data['deleted_at'] as String)
         : null;
 
-    // Parse lat/lng — backend stores as Numeric(9,6), JSON serializes as number.
-    final lat = data['lat'] is num ? (data['lat'] as num).toDouble() : null;
-    final lng = data['lng'] is num ? (data['lng'] as num).toDouble() : null;
+    // Parse latitude/longitude — backend JobSiteResponse field names.
+    // The Drift column names (lat, lng) differ from the backend JSON keys.
+    final lat =
+        data['latitude'] is num ? (data['latitude'] as num).toDouble() : null;
+    final lng =
+        data['longitude'] is num ? (data['longitude'] as num).toDouble() : null;
 
     final companion = JobSitesCompanion(
       id: Value(data['id'] as String),
