@@ -23,6 +23,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 9: Sync Engine Gap Closure** - Complete pullDelta() for all 14 entity types and fix JobSyncHandler missing fields (Gap Closure) (completed 2026-03-14)
 - [x] **Phase 10: UI & Backend Wiring Gap Closure** - Wire OverduePanel, QuoteBuilder navigation, and TravelTime injection (Gap Closure) (completed 2026-03-15)
 - [x] **Phase 11: Integration Polish** - Fix job site sync field names, render travel time blocks on calendar, show names in overdue panel (Gap Closure) (completed 2026-03-15)
+- [ ] **Phase 12: Client Profile Sync Fix** - Fix ClientProfileSyncHandler push endpoint URLs to match backend routes (Gap Closure)
 
 ## Phase Details
 
@@ -234,10 +235,20 @@ Plans:
 Plans:
 - [ ] 11-01-PLAN.md — Fix job site sync field names (INT-01), add travel buffer intervals to calendar (INT-02), resolve overdue panel names from Drift (INT-03), E2E tests
 
+### Phase 12: Client Profile Sync Fix
+**Goal**: Fix ClientProfileSyncHandler push endpoint URLs so offline client profile edits sync correctly to the backend instead of silently parking on 404
+**Depends on**: Phase 4
+**Requirements**: CLNT-01
+**Gap Closure:** Closes integration gap INT-04 from v1.0 audit
+**Success Criteria** (what must be TRUE):
+  1. ClientProfileSyncHandler pushes to `POST /clients/{user_id}/profile` (not `/clients/profiles`) matching the backend route
+  2. Offline client profile edits sync successfully to the backend instead of returning 404 and parking
+  3. E2E test verifies the complete offline-edit → sync → backend-persist flow
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11 -> 12
 
 Note: Phase 3 (Scheduling Engine) depends only on Phase 1 and can begin in parallel with Phase 2 if capacity allows. All other phases depend on Phase 2 completing first. Phases 9-10 are gap closure phases from v1.0 audit.
 
@@ -254,3 +265,4 @@ Note: Phase 3 (Scheduling Engine) depends only on Phase 1 and can begin in paral
 | 9. Sync Engine Gap Closure | 2/2 | Complete   | 2026-03-14 |
 | 10. UI & Backend Wiring Gap Closure | 1/1 | Complete    | 2026-03-15 |
 | 11. Integration Polish | 1/1 | Complete    | 2026-03-15 |
+| 12. Client Profile Sync Fix | 0/1 | Planned    |  |

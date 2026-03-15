@@ -103,7 +103,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SCHED-07 | Phase 3 — Scheduling Engine | Complete |
 | SCHED-01 | Phase 4 — Job Lifecycle | Complete |
 | SCHED-02 | Phase 4 — Job Lifecycle | Complete |
-| CLNT-01 | Phase 4 — Job Lifecycle | Complete |
+| CLNT-01 | Phase 4 — Job Lifecycle, Phase 12 — Client Profile Sync Fix | Complete |
 | CLNT-04 | Phase 4 — Job Lifecycle | Complete |
 | SCHED-03 | Phase 9 — Sync Engine Gap Closure | Complete |
 | SCHED-08 | Phase 10 — UI & Backend Wiring Gap Closure | Complete |
@@ -129,4 +129,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-04*
-*Last updated: 2026-03-14 — All 24 requirements satisfied after gap closure phases 9-10 completed*
+*Last updated: 2026-03-15 — All 24 requirements satisfied; Phase 12 added for INT-04 sync fix (CLNT-01 gap closure)*
