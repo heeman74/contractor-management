@@ -22,6 +22,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 8: Business Operations** - Digital quoting, quote approval, invoicing, and reporting dashboard (completed 2026-03-14)
 - [x] **Phase 9: Sync Engine Gap Closure** - Complete pullDelta() for all 14 entity types and fix JobSyncHandler missing fields (Gap Closure) (completed 2026-03-14)
 - [x] **Phase 10: UI & Backend Wiring Gap Closure** - Wire OverduePanel, QuoteBuilder navigation, and TravelTime injection (Gap Closure) (completed 2026-03-15)
+- [ ] **Phase 11: Integration Polish** - Fix job site sync field names, render travel time blocks on calendar, show names in overdue panel (Gap Closure)
 
 ## Phase Details
 
@@ -217,10 +218,24 @@ Plans:
 Plans:
 - [ ] 10-01-PLAN.md — OverduePanel wiring, QuoteBuilder navigation, TravelTime injection with tests
 
+### Phase 11: Integration Polish
+**Goal**: Fix three cross-phase wiring gaps so that job site coordinates sync correctly, travel time blocks render visually on the calendar, and the overdue panel displays human-readable names instead of raw UUIDs
+**Depends on**: Phase 9, Phase 10
+**Requirements**: SCHED-06, SCHED-08
+**Gap Closure:** Closes integration gaps INT-01, INT-02, INT-03 and flow gap "Job site coordinate sync to mobile" from v1.0 audit
+**Success Criteria** (what must be TRUE):
+  1. job_site_sync_handler.dart reads `latitude`/`longitude` from sync data — job site coordinates are non-null in Drift after sync
+  2. calendar_day_view.dart renders TravelTimeBlock widgets between consecutive bookings with travel buffer data
+  3. OverduePanel displays client and contractor display names looked up from Drift, not raw UUID strings
+  4. E2E flow "Job site coordinate sync to mobile" completes without data-layer break
+
+Plans:
+- (none yet)
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11
 
 Note: Phase 3 (Scheduling Engine) depends only on Phase 1 and can begin in parallel with Phase 2 if capacity allows. All other phases depend on Phase 2 completing first. Phases 9-10 are gap closure phases from v1.0 audit.
 
@@ -236,3 +251,4 @@ Note: Phase 3 (Scheduling Engine) depends only on Phase 1 and can begin in paral
 | 8. Business Operations | 7/7 | Complete   | 2026-03-14 |
 | 9. Sync Engine Gap Closure | 2/2 | Complete   | 2026-03-14 |
 | 10. UI & Backend Wiring Gap Closure | 1/1 | Complete    | 2026-03-15 |
+| 11. Integration Polish | 0/0 | Pending    |  |
