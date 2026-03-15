@@ -24,12 +24,15 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import CurrentUser, get_current_user
+from app.core.tenant import get_current_tenant_id
 from app.features.scheduling.schemas import (
     AvailabilityRequest,
     AvailabilityResponse,
@@ -47,8 +50,43 @@ from app.features.scheduling.service import (
     SchedulingConflictError,
     SchedulingService,
 )
+from app.features.scheduling.travel.cache import (
+    CachedTravelTimeProvider,
+    TravelTimeCacheService,
+)
+from app.features.scheduling.travel.ors_provider import OpenRouteServiceProvider
 
 router = APIRouter(prefix="/scheduling", tags=["scheduling"])
+
+
+# ---------------------------------------------------------------------------
+# Dependencies
+# ---------------------------------------------------------------------------
+
+
+async def get_scheduling_service(
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> SchedulingService:
+    """FastAPI dependency that constructs a SchedulingService with optional travel provider.
+
+    If ORS_API_KEY is set in environment, injects a CachedTravelTimeProvider backed
+    by OpenRouteService so availability calculations include real travel time blocks.
+    If ORS_API_KEY is absent, travel_provider=None and travel time is skipped.
+
+    NOTE: per-request httpx client — tech debt for lifespan-managed shared client.
+    """
+    travel_provider = None
+    if settings.ors_api_key:
+        company_id = get_current_tenant_id()
+        http_client = httpx.AsyncClient()
+        ors = OpenRouteServiceProvider(api_key=settings.ors_api_key, client=http_client)
+        cache_svc = TravelTimeCacheService(db=db, provider=ors)
+        travel_provider = CachedTravelTimeProvider(
+            cache_service=cache_svc,
+            company_id=company_id,
+        )
+    return SchedulingService(db=db, travel_provider=travel_provider)
 
 
 # ---------------------------------------------------------------------------
@@ -88,8 +126,7 @@ def _booking_to_response(booking) -> BookingResponse:
 )
 async def get_availability(
     request: AvailabilityRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user),
+    svc: SchedulingService = Depends(get_scheduling_service),
 ) -> list[AvailabilityResponse]:
     """Compute availability for one or more contractors on a specific date.
 
@@ -97,7 +134,6 @@ async def get_availability(
     results are sorted by distance from the job site (nearest first).
     Returns free windows and blocked intervals for each contractor.
     """
-    svc = SchedulingService(db)
     return await svc.get_available_slots(request)
 
 
@@ -110,8 +146,7 @@ async def get_contractor_availability(
     contractor_id: uuid.UUID,
     query_date: date,
     job_site_id: uuid.UUID | None = None,
-    db: AsyncSession = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user),
+    svc: SchedulingService = Depends(get_scheduling_service),
 ) -> AvailabilityResponse:
     """Convenience endpoint: availability for a single contractor on a given date.
 
@@ -119,7 +154,6 @@ async def get_contractor_availability(
     If job_site_id is provided, the response includes distance_km.
     Returns 404 if the contractor has no availability record.
     """
-    svc = SchedulingService(db)
     request = AvailabilityRequest(
         contractor_ids=[contractor_id],
         date=query_date,
@@ -147,15 +181,13 @@ async def get_contractor_availability(
 )
 async def create_booking(
     booking_data: BookingCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user),
+    svc: SchedulingService = Depends(get_scheduling_service),
 ) -> BookingResponse:
     """Book a single time slot for a contractor.
 
     Returns 409 if the slot conflicts with an existing booking.
     Returns 422 if the booking is outside working hours or below minimum duration.
     """
-    svc = SchedulingService(db)
     try:
         booking = await svc.book_slot(booking_data)
     except SchedulingConflictError as exc:
@@ -191,8 +223,7 @@ async def create_booking(
 )
 async def create_multiday_booking(
     booking_data: MultiDayBookingCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user),
+    svc: SchedulingService = Depends(get_scheduling_service),
 ) -> list[BookingResponse]:
     """Book multiple days for a contractor atomically.
 
@@ -200,7 +231,6 @@ async def create_multiday_booking(
     the entire booking is rejected — no partial bookings are created.
     Returns 409 if any day conflicts with an existing booking.
     """
-    svc = SchedulingService(db)
     try:
         bookings = await svc.book_multiday_job(booking_data)
     except SchedulingConflictError as exc:
@@ -288,8 +318,7 @@ async def list_bookings(
 )
 async def delete_booking(
     booking_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user),
+    svc: SchedulingService = Depends(get_scheduling_service),
 ) -> None:
     """Soft-delete a booking, freeing the contractor's time slot.
 
@@ -297,7 +326,6 @@ async def delete_booking(
     constraint WHERE clause excludes deleted bookings from conflict checks.
     Returns 404 if the booking is not found or already deleted.
     """
-    svc = SchedulingService(db)
     deleted = await svc.repository.soft_delete(booking_id)
     if not deleted:
         raise HTTPException(
@@ -321,8 +349,7 @@ class RescheduleRequest(BaseModel):
 async def reschedule_booking(
     booking_id: uuid.UUID,
     reschedule_data: RescheduleRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user),
+    svc: SchedulingService = Depends(get_scheduling_service),
 ) -> BookingResponse:
     """Move an existing booking to a new time slot.
 
@@ -330,7 +357,6 @@ async def reschedule_booking(
     If the new slot is unavailable, the original booking is restored.
     Returns 409 if the new slot conflicts, 422 if outside working hours.
     """
-    svc = SchedulingService(db)
     try:
         new_booking = await svc.reschedule_booking(
             booking_id=booking_id,
@@ -383,8 +409,7 @@ class ConflictCheckRequest(BaseModel):
 )
 async def check_conflicts(
     request: ConflictCheckRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user),
+    svc: SchedulingService = Depends(get_scheduling_service),
 ) -> list[ConflictDetail]:
     """Check for booking conflicts without creating any records.
 
@@ -392,7 +417,6 @@ async def check_conflicts(
     bookings if the slot is taken. No lock is acquired — this is a read-only
     pre-check for UI use before presenting booking options.
     """
-    svc = SchedulingService(db)
     return await svc.check_conflicts(
         contractor_id=request.contractor_id,
         start=request.start,
@@ -422,8 +446,7 @@ class SuggestDatesRequest(BaseModel):
 )
 async def suggest_dates(
     request: SuggestDatesRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user),
+    svc: SchedulingService = Depends(get_scheduling_service),
 ) -> list[DateSuggestion]:
     """Suggest available date combinations for a multi-day job.
 
@@ -431,7 +454,6 @@ async def suggest_dates(
     free time on each day. Consecutive date combinations are preferred
     over non-consecutive alternatives.
     """
-    svc = SchedulingService(db)
     return await svc.suggest_dates(
         contractor_id=request.contractor_id,
         num_days=request.num_days,
@@ -455,8 +477,7 @@ async def set_weekly_schedule(
     contractor_id: uuid.UUID,
     day_of_week: int,
     schedule_data: WeeklyScheduleCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user),
+    svc: SchedulingService = Depends(get_scheduling_service),
 ) -> list[dict]:
     """Replace all weekly schedule blocks for a contractor's day.
 
@@ -464,7 +485,6 @@ async def set_weekly_schedule(
     An empty blocks list clears the contractor's schedule for that day.
     Atomically replaces all existing blocks for (contractor_id, day_of_week).
     """
-    svc = SchedulingService(db)
     created = await svc.set_weekly_schedule(
         contractor_id=contractor_id,
         day_of_week=day_of_week,
@@ -492,8 +512,7 @@ async def set_date_override(
     contractor_id: uuid.UUID,
     override_date: date,
     override_data: DateOverrideCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user),
+    svc: SchedulingService = Depends(get_scheduling_service),
 ) -> list[dict]:
     """Replace all schedule overrides for a contractor's specific date.
 
@@ -503,7 +522,6 @@ async def set_date_override(
 
     Atomically replaces all existing overrides for (contractor_id, override_date).
     """
-    svc = SchedulingService(db)
     created = await svc.set_date_override(
         contractor_id=contractor_id,
         override_date=override_date,

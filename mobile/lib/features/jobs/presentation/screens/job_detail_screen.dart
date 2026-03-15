@@ -7,6 +7,8 @@ import '../../../../core/routing/route_names.dart';
 import '../../../../features/auth/domain/auth_state.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
 import '../../../../features/invoices/presentation/providers/invoice_providers.dart';
+import '../../../../features/quotes/domain/quote_entity.dart';
+import '../../../../features/quotes/presentation/providers/quote_providers.dart';
 import '../../../../features/schedule/presentation/widgets/delay_justification_dialog.dart';
 import '../../../../shared/models/user_role.dart';
 import '../../data/job_dao.dart';
@@ -262,6 +264,14 @@ class _DetailsTabState extends ConsumerState<_DetailsTab> {
     final isAdmin = authState is AuthAuthenticated &&
         authState.roles.contains(UserRole.admin);
 
+    // Watch quotes for this job (to show Create Quote vs View/Edit Quote)
+    final quotesAsync = ref.watch(quoteForJobProvider(job.id));
+    final quotes = quotesAsync.maybeWhen(
+      data: (q) => q,
+      orElse: () => <QuoteEntity>[],
+    );
+    final hasQuote = quotes.isNotEmpty;
+
     // Watch invoices for this job (to show View Invoice vs Generate Invoice)
     final invoicesAsync = ref.watch(invoicesForJobProvider(job.id));
     final invoices = invoicesAsync.maybeWhen(data: (i) => i, orElse: () => []);
@@ -312,6 +322,59 @@ class _DetailsTabState extends ConsumerState<_DetailsTab> {
             ),
           ),
         ),
+
+        // ── Quote Section (admin only, non-terminal jobs) ─────────────────
+        if (isAdmin &&
+            job.jobStatus != JobStatus.cancelled &&
+            job.jobStatus != JobStatus.invoiced) ...[
+          const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.request_quote_outlined,
+                        size: 18,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Quote',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: hasQuote
+                        ? OutlinedButton.icon(
+                            icon: const Icon(Icons.edit_note_outlined, size: 16),
+                            label: const Text('View / Edit Quote'),
+                            onPressed: () => context.push(
+                              RouteNames.quoteBuilderPath(job.id),
+                            ),
+                          )
+                        : FilledButton.icon(
+                            icon: const Icon(Icons.add, size: 16),
+                            label: const Text('Create Quote'),
+                            onPressed: () => context.push(
+                              RouteNames.quoteBuilderPath(job.id),
+                            ),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
 
         // ── Invoice Section (admin only) ──────────────────────────────────
         if (isAdmin) ...[

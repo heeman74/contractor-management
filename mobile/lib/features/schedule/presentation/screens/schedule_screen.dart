@@ -14,6 +14,7 @@ import '../providers/overdue_providers.dart';
 import '../widgets/calendar_day_view.dart';
 import '../widgets/calendar_month_view.dart';
 import '../widgets/calendar_week_view.dart';
+import '../widgets/overdue_panel.dart';
 import '../widgets/unscheduled_jobs_drawer.dart';
 
 /// Admin dispatch calendar screen — replaces the Phase 5 placeholder.
@@ -105,31 +106,8 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
             },
           ),
 
-          // ── Overdue panel placeholder (Plan 04 replaces with real widget) ──
-          if (showOverduePanel)
-            Container(
-              color: Colors.orange.withValues(alpha: 0.08),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
-                children: [
-                  const Icon(Icons.warning_amber_rounded,
-                      size: 16, color: Colors.orange),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text(
-                      'Overdue panel loading...',
-                      style: TextStyle(fontSize: 12, color: Colors.orange),
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => ref
-                        .read(showOverduePanelProvider.notifier)
-                        .state = false,
-                    child: const Icon(Icons.close, size: 16),
-                  ),
-                ],
-              ),
-            ),
+          // ── Overdue panel — animated show/hide managed internally by OverduePanel ──
+          const OverduePanel(),
 
           // ── Calendar content area + unscheduled drawer ───────────────────
           Expanded(

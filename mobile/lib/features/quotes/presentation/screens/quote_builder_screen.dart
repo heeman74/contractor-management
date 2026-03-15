@@ -6,8 +6,9 @@ import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_database.dart';
-import '../../../../features/auth/presentation/providers/auth_provider.dart';
+import '../../../../core/routing/route_names.dart';
 import '../../../../features/auth/domain/auth_state.dart';
+import '../../../../features/auth/presentation/providers/auth_provider.dart';
 import '../../domain/quote_entity.dart';
 import '../providers/quote_providers.dart';
 import '../widgets/line_item_form.dart';
@@ -345,7 +346,7 @@ class _QuoteBuilderScreenState extends ConsumerState<QuoteBuilderScreen> {
       );
       return;
     }
-    context.push('/jobs/${widget.jobId}/quote/preview');
+    context.push(RouteNames.quotePreviewPath(widget.jobId));
   }
 
   Future<void> _showSaveTemplateDialog(QuoteBuilderState builderState) async {

@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     jwt_secret_key: str  # No default — must be set via env
     redis_url: str = "redis://localhost:6379/0"
     debug: bool = False
+    ors_api_key: str | None = None  # OpenRouteService API key; omit to disable travel time
 
     # CORS origins (comma-separated in env, e.g. "http://localhost:3000,https://app.example.com")
     cors_origins: str = ""
