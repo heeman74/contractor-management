@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A multi-company SaaS platform for contractor management — builders, electricians, plumbers, and other trade professionals. Company admins manage their contractor teams and job schedules, contractors track their work in the field with offline-capable tools, and clients stay informed about their job progress through a dedicated portal. Available as a mobile app (Flutter/Android) with a shared Python backend API (FastAPI + PostgreSQL).
+A multi-company SaaS platform for contractor management — builders, electricians, plumbers, and other trade professionals. Company admins manage their contractor teams and job schedules via a web dashboard (Next.js) and mobile app (Flutter/Android), contractors track their work in the field with offline-capable mobile tools, and clients stay informed about their job progress through a dedicated portal. Shared Python backend API (FastAPI + PostgreSQL).
 
 ## Core Value
 
@@ -35,9 +35,17 @@ Clients always know exactly what's happening with their job — no more chasing 
 
 ### Active
 
-- [ ] User authentication (email/password, OAuth)
-- [ ] Password reset via email
-- [ ] Session management and token refresh
+- [ ] Web admin dashboard (Next.js + React + Redux) — full admin capabilities on desktop
+- [ ] Web auth: JWT login, session management, token refresh for web
+- [ ] Web quoting: create, edit, send quotes with line items
+- [ ] Web contractor management: profiles, availability, assignments
+- [ ] Web job scheduling: calendar view, conflict detection, drag-and-drop
+- [ ] Web job management: lifecycle tracking, status updates
+- [ ] Web client/CRM management
+- [ ] Web invoicing and payment views
+- [ ] Web reporting dashboard with charts and data tables
+
+#### Carried from v1.0
 - [ ] In-app payment processing (Stripe/Square)
 - [ ] iOS support
 - [ ] Edit invoice functionality (backend ready, UI stubbed)
@@ -46,7 +54,7 @@ Clients always know exactly what's happening with their job — no more chasing 
 
 ### Out of Scope
 
-- Web dashboard — mobile-first, web doubles product surface area
+- ~~Web dashboard~~ — NOW IN SCOPE for v2.0 (admin-only web dashboard)
 - Real-time chat — job notes + notifications cover communication
 - Inventory/materials tracking — adds complexity, use line items instead
 - GPS live tracking — battery drain, privacy; job status updates accomplish same value
@@ -54,6 +62,21 @@ Clients always know exactly what's happening with their job — no more chasing 
 - Route optimization — deferred to v2+
 - Recurring job automation — deferred to v2+
 - QuickBooks/Xero integration — deferred to v2+
+
+## Current Milestone: v2.0 Web Admin Dashboard
+
+**Goal:** Give company admins a full-featured desktop web experience for managing their contracting business — quoting, contractor management, scheduling, jobs, clients, invoicing, and reporting — powered by the existing backend API.
+
+**Target features:**
+- Next.js web app with React + Redux state management
+- JWT authentication with the existing FastAPI backend
+- Quoting workflow (create, edit, send, track approvals)
+- Contractor management (profiles, availability, team assignments)
+- Job scheduling with calendar and conflict detection
+- Job lifecycle management and status tracking
+- Client/CRM management
+- Invoicing and payment tracking
+- Reporting dashboard with charts
 
 ## Context
 
@@ -69,9 +92,9 @@ Tech stack: Flutter 3.32+ (Drift, Riverpod 3, GoRouter, GetIt) + FastAPI 0.115 (
 
 ## Constraints
 
-- **Platform**: Flutter for mobile (Android priority, iOS second)
-- **Backend**: Python FastAPI — shared API serving mobile platforms
-- **Architecture**: Offline-first with local Drift DB and background sync
+- **Platform**: Flutter for mobile (Android priority, iOS second); Next.js for web (admin dashboard)
+- **Backend**: Python FastAPI — shared API serving mobile and web platforms
+- **Architecture**: Offline-first with local Drift DB and background sync (mobile); server-rendered + client hydration (web)
 - **Testing**: Every feature ships with unit and E2E tests
 - **Scalability**: Multi-tenant with PostgreSQL RLS from day one
 - **Performance**: Scheduling calculations fast with large teams
@@ -90,6 +113,7 @@ Tech stack: Flutter 3.32+ (Drift, Riverpod 3, GoRouter, GetIt) + FastAPI 0.115 (
 | Transactional outbox for sync | Reliable offline mutations, idempotent | ✓ Good — no data loss in testing |
 | GIST constraint for scheduling | DB-level conflict prevention, no app races | ✓ Good — concurrent booking tests pass |
 | WeasyPrint for PDF | Open source, server-side, no browser dependency | ⚠️ Revisit — requires system libs |
+| Next.js + Redux for web admin | SSR performance, Redux for complex admin state, same API backend | — Pending |
 
 ---
-*Last updated: 2026-03-15 after v1.0 milestone*
+*Last updated: 2026-03-14 after v2.0 milestone start*
