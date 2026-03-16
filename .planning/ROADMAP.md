@@ -50,13 +50,13 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
   3. Navigating between modules does not trigger a login redirect — token refresh happens invisibly
   4. Admin can log out and immediately cannot access any protected page
   5. The global sidebar is visible and functional on every page, and user-friendly error messages appear for auth failures, validation errors, and server errors
-**Plans**: TBD
+**Plans:** 4 plans
 
 Plans:
-- [ ] 13-01: Backend prep — client_type DB migration, unified get_current_user (cookie + Bearer), CORS env-var update
-- [ ] 13-02: Next.js project scaffold — App Router, TypeScript strict, Tailwind v4, shadcn/ui, Redux makeStore, TanStack Query provider
-- [ ] 13-03: Auth layer — Route Handlers (/api/auth/login, /api/auth/refresh, /api/auth/logout), apiClient fetch wrapper with 401 retry, Next.js Middleware UX guard
-- [ ] 13-04: Login page, dashboard shell layout — sidebar, topbar, breadcrumbs, global error handling, TypeScript type definitions
+- [ ] 13-01-PLAN.md — Backend prep: dual-auth get_current_user (cookie + Bearer), client_type migration, CORS verification
+- [ ] 13-02-PLAN.md — Next.js scaffold: App Router, TypeScript strict, Tailwind v4, shadcn/ui, Redux makeStore, TanStack Query provider
+- [ ] 13-03-PLAN.md — Auth layer: Route Handlers (login/refresh/logout), API proxy, apiClient with 401 retry, proxy.ts route guard
+- [ ] 13-04-PLAN.md — Login page, dashboard shell (sidebar + topbar), dashboard home with KPI cards, error pages, status badge
 
 ### Phase 14: Job Management
 **Goal**: Admins can manage the full job lifecycle from a single, searchable web interface — reviewing requests, tracking progress, and driving jobs through every status stage
@@ -162,7 +162,7 @@ Note: Phase 16 (Quotes/Invoices) depends only on Phase 13 and may be parallelize
 | 10. UI & Backend Wiring Gap Closure | v1.0 | 1/1 | Complete | 2026-03-15 |
 | 11. Integration Polish | v1.0 | 1/1 | Complete | 2026-03-15 |
 | 12. Client Profile Sync Fix | v1.0 | 1/1 | Complete | 2026-03-15 |
-| 13. Web Foundation and Auth | v2.0 | 0/4 | Not started | - |
+| 13. Web Foundation and Auth | v2.0 | 0/4 | Planned | - |
 | 14. Job Management | v2.0 | 0/3 | Not started | - |
 | 15. Scheduling Calendar | v2.0 | 0/3 | Not started | - |
 | 16. Quotes and Invoices | v2.0 | 0/5 | Not started | - |
