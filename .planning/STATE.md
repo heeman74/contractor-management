@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Web Admin Dashboard
 status: planning
-stopped_at: Completed 14-job-management/14-03-PLAN.md
-last_updated: "2026-03-16T23:12:43.267Z"
+stopped_at: Completed 14-job-management/14-02-PLAN.md
+last_updated: "2026-03-16T23:14:08.010Z"
 last_activity: 2026-03-15 — v2.0 roadmap created, all 29 requirements mapped across 6 phases
 progress:
   total_phases: 6
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 7
-  completed_plans: 6
+  completed_plans: 7
   percent: 0
 ---
 
@@ -55,6 +55,8 @@ Progress: [░░░░░░░░░░] 0%
 - [Phase 14-job-management]: Requests tab badge shows pending-only count via client-side filter
 - [Phase 14-job-management]: Suspense boundary wraps useSearchParams consumer — required by Next.js App Router for static page generation
 - [Phase 14-job-management]: Static requests segment before [requestId] prevents Next.js route shadowing; approve fires immediately without confirmation dialog
+- [Phase 14-job-management]: base-ui DropdownMenuTrigger has no asChild prop — styled inline with Tailwind matching Button outline/sm
+- [Phase 14-job-management]: Cancel note creation fires inside transitionMutation onSuccess callback — ensures note only created after successful transition
 
 ### Pending Todos
 
@@ -68,6 +70,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16T23:12:43.262Z
-Stopped at: Completed 14-job-management/14-03-PLAN.md
+Last session: 2026-03-16T23:14:08.005Z
+Stopped at: Completed 14-job-management/14-02-PLAN.md
 Resume file: None

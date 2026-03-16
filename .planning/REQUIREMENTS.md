@@ -19,8 +19,8 @@ Requirements for web admin dashboard. Each maps to roadmap phases.
 ### Job Management
 
 - [x] **JOBS-01**: Admin can view all jobs in a filterable list with status tabs and search
-- [ ] **JOBS-02**: Admin can view full job detail including notes, assigned contractor, client, and status
-- [ ] **JOBS-03**: Admin can transition job status through the lifecycle (Quote→Scheduled→In Progress→Complete→Invoiced)
+- [x] **JOBS-02**: Admin can view full job detail including notes, assigned contractor, client, and status
+- [x] **JOBS-03**: Admin can transition job status through the lifecycle (Quote→Scheduled→In Progress→Complete→Invoiced)
 - [x] **JOBS-04**: Admin can review client-submitted job requests and approve or decline them
 
 ### Scheduling
@@ -109,8 +109,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AUTH-05 | Phase 13 | Complete |
 | AUTH-06 | Phase 13 | Complete |
 | JOBS-01 | Phase 14 | Complete |
-| JOBS-02 | Phase 14 | Pending |
-| JOBS-03 | Phase 14 | Pending |
+| JOBS-02 | Phase 14 | Complete |
+| JOBS-03 | Phase 14 | Complete |
 | JOBS-04 | Phase 14 | Complete |
 | SCHED-01 | Phase 15 | Pending |
 | SCHED-02 | Phase 15 | Pending |

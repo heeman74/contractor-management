@@ -32,7 +32,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 **Milestone Goal:** Give company admins a full-featured desktop web experience for managing their contracting business — quoting, contractor management, scheduling, jobs, clients, invoicing, and reporting — powered by the existing FastAPI backend.
 
 - [x] **Phase 13: Web Foundation and Auth** — Next.js scaffold, httpOnly cookie auth, session management, global navigation shell (completed 2026-03-16)
-- [ ] **Phase 14: Job Management** — Filterable jobs list, job detail, status transitions, job request review queue
+- [x] **Phase 14: Job Management** — Filterable jobs list, job detail, status transitions, job request review queue (completed 2026-03-16)
 - [ ] **Phase 15: Scheduling Calendar** — Weekly calendar with contractor lanes, drag-and-drop rescheduling, conflict detection
 - [ ] **Phase 16: Quotes and Invoices** — Quote create/edit/send with line items, invoice payment recording, PDF downloads
 - [ ] **Phase 17: CRM — Clients and Contractors** — Client list and job history, contractor profiles, weekly schedule editor, date overrides
@@ -67,7 +67,7 @@ Plans:
   2. Admin can open any job and see full detail — notes, contractor assignment, client info, current status, and time tracking
   3. Admin can advance or revert a job's status through the full lifecycle (Quote → Scheduled → In Progress → Complete → Invoiced)
   4. Admin can view inbound client-submitted job requests and approve or decline each one
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [ ] 14-01-PLAN.md — Shared foundation (types, StatusBadge colors, ui-slice pageTitle, shadcn installs, Playwright stubs) + jobs list page with tabs, search, sort, pagination
@@ -163,7 +163,7 @@ Note: Phase 16 (Quotes/Invoices) depends only on Phase 13 and may be parallelize
 | 11. Integration Polish | v1.0 | 1/1 | Complete | 2026-03-15 |
 | 12. Client Profile Sync Fix | v1.0 | 1/1 | Complete | 2026-03-15 |
 | 13. Web Foundation and Auth | 4/4 | Complete   | 2026-03-16 | - |
-| 14. Job Management | 2/3 | In Progress|  | - |
+| 14. Job Management | 3/3 | Complete   | 2026-03-16 | - |
 | 15. Scheduling Calendar | v2.0 | 0/3 | Not started | - |
 | 16. Quotes and Invoices | v2.0 | 0/5 | Not started | - |
 | 17. CRM — Clients and Contractors | v2.0 | 0/5 | Not started | - |
