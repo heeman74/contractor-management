@@ -27,6 +27,9 @@ class User(TenantScopedModel):
     # IANA timezone name (e.g., 'America/Vancouver') for weekly template interpretation.
     # All datetimes are stored in UTC; timezone is used only for display and local-time conversion.
     timezone: Mapped[str] = mapped_column(String, nullable=False, server_default="UTC")
+    # client_type: identifies the originating client ('mobile' | 'web' | None).
+    # Added in migration 0012 to enable per-client session attribution.
+    client_type: Mapped[str | None] = mapped_column(String, nullable=True)
 
     roles: Mapped[list["UserRole"]] = relationship(back_populates="user", lazy="raise")
 
