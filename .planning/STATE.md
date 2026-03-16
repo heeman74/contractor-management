@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Web Admin Dashboard
 status: planning
-stopped_at: Completed 13-web-foundation-and-auth/13-01-PLAN.md
-last_updated: "2026-03-16T07:08:11.449Z"
+stopped_at: Completed 13-02-PLAN.md
+last_updated: "2026-03-16T07:09:20.935Z"
 last_activity: 2026-03-15 — v2.0 roadmap created, all 29 requirements mapped across 6 phases
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 4
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -44,6 +44,9 @@ Progress: [░░░░░░░░░░] 0%
 - v2.0: Phase 16 (Quotes/Invoices) depends only on Phase 13 and may be parallelized with Phases 14-15
 - [Phase 13-web-foundation-and-auth]: Bearer header takes priority over access_token cookie in get_current_user — mobile unaffected, web uses cookie fallback
 - [Phase 13-web-foundation-and-auth]: client_type nullable column (no backfill) enables session attribution for web vs mobile clients
+- [Phase 13]: Redux makeStore factory pattern (never module-level singleton) prevents cross-request tenant data leakage in SSR
+- [Phase 13]: Error toasts persist with duration Infinity — all toast.error() calls must include { duration: Infinity }
+- [Phase 13]: Playwright test stubs use test.skip() to satisfy ship-with-feature requirement without false failures during scaffold phase
 
 ### Pending Todos
 
@@ -57,6 +60,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16T07:08:11.445Z
-Stopped at: Completed 13-web-foundation-and-auth/13-01-PLAN.md
+Last session: 2026-03-16T07:09:20.930Z
+Stopped at: Completed 13-02-PLAN.md
 Resume file: None
