@@ -48,25 +48,29 @@ Exceptions:
 - Touch targets (sort headers, tab buttons): minimum 44px height per accessibility standard
 - Two-column layout split: `grid-cols-[1fr_360px]` giving ~65% main / ~35% sidebar at 1280px viewport
 
+Note: 12px (`py-3`) is outside the standard spacing scale and is permitted **only** in the two explicitly declared contexts above (tab bar and table rows). Do not use `py-3` elsewhere to prevent spacing drift.
+
 ---
 
 ## Typography
 
+Two weights only — no intermediate weight permitted in this phase.
+
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
-| Body | 14px (text-sm) | 400 (regular) | 1.5 |
-| Label | 12px (text-xs) | 500 (medium) | 1.4 |
-| Heading | 20px (text-xl) | 600 (semibold) | 1.2 |
-| Display | 28px (text-2xl) | 600 (semibold) | 1.2 |
+| Body | 14px (text-sm) | 400 (font-normal) | 1.5 |
+| Label | 12px (text-xs) | 600 (font-semibold) | 1.4 |
+| Heading | 20px (text-xl) | 600 (font-semibold) | 1.2 |
+| Display | 28px (text-2xl) | 600 (font-semibold) | 1.2 |
 
 Source: Established in Phase 13 codebase — `page.tsx` uses `text-xl font-semibold` for page headings, `text-sm` for body, `text-xs` for metadata. Display size reserved for count numbers in tab badges if rendered large (not used in Phase 14 at 28px — tab count badges use `text-xs`).
 
 Notes specific to this phase:
-- Column headers in DataTable: `text-xs font-medium text-gray-500 uppercase tracking-wide` (consistent with existing activity table pattern)
+- Column headers in DataTable: `text-xs font-semibold text-gray-500 uppercase tracking-wide` (consistent with existing activity table pattern; weight raised from medium to semibold to comply with 2-weight rule)
 - Job description in detail page main column: `text-sm` body weight 400, `leading-relaxed` (1.625)
 - Section headings within detail page (Notes, Activity, Time Tracking): `text-sm font-semibold text-gray-900`
-- Sidebar metadata labels (Status, Contractor, Client, Address): `text-xs font-medium text-gray-500 uppercase tracking-wide`
-- Sidebar metadata values: `text-sm font-medium text-gray-900`
+- Sidebar metadata labels (Status, Contractor, Client, Address): `text-xs font-semibold text-gray-500 uppercase tracking-wide`
+- Sidebar metadata values: `text-sm font-normal text-gray-900`
 
 ---
 
@@ -176,6 +180,9 @@ All components already installed in `web/src/components/ui/` from Phase 13. No n
 ### Layout Patterns
 
 **Jobs list page layout:**
+
+Primary visual anchor: status tab bar + table — eye enters at the tab bar (high-contrast active tab underline), then scans down through job rows in reading order.
+
 ```
 <page>
   <header row>     [page title "Jobs"]  [search bar — right-aligned]
