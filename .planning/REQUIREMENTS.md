@@ -14,11 +14,11 @@ Requirements for web admin dashboard. Each maps to roadmap phases.
 - [x] **AUTH-03**: Token refresh happens transparently without interrupting admin workflow
 - [x] **AUTH-04**: Admin can log out and session is fully invalidated
 - [x] **AUTH-05**: Global sidebar navigation provides persistent access to all modules
-- [ ] **AUTH-06**: User-friendly error messages display for auth, validation, conflict, and server errors
+- [x] **AUTH-06**: User-friendly error messages display for auth, validation, conflict, and server errors
 
 ### Job Management
 
-- [ ] **JOBS-01**: Admin can view all jobs in a filterable list with status tabs and search
+- [x] **JOBS-01**: Admin can view all jobs in a filterable list with status tabs and search
 - [ ] **JOBS-02**: Admin can view full job detail including notes, assigned contractor, client, and status
 - [ ] **JOBS-03**: Admin can transition job status through the lifecycle (Quote→Scheduled→In Progress→Complete→Invoiced)
 - [ ] **JOBS-04**: Admin can review client-submitted job requests and approve or decline them
@@ -107,8 +107,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AUTH-03 | Phase 13 | Complete |
 | AUTH-04 | Phase 13 | Complete |
 | AUTH-05 | Phase 13 | Complete |
-| AUTH-06 | Phase 13 | Pending |
-| JOBS-01 | Phase 14 | Pending |
+| AUTH-06 | Phase 13 | Complete |
+| JOBS-01 | Phase 14 | Complete |
 | JOBS-02 | Phase 14 | Pending |
 | JOBS-03 | Phase 14 | Pending |
 | JOBS-04 | Phase 14 | Pending |

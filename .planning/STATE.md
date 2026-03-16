@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Web Admin Dashboard
 status: planning
-stopped_at: Phase 14 UI-SPEC approved
-last_updated: "2026-03-16T22:33:35.676Z"
+stopped_at: Completed 14-job-management/14-01-PLAN.md
+last_updated: "2026-03-16T23:09:32.437Z"
 last_activity: 2026-03-15 — v2.0 roadmap created, all 29 requirements mapped across 6 phases
 progress:
   total_phases: 6
   completed_phases: 1
-  total_plans: 4
-  completed_plans: 4
+  total_plans: 7
+  completed_plans: 5
   percent: 0
 ---
 
@@ -51,6 +51,9 @@ Progress: [░░░░░░░░░░] 0%
 - [Phase 13-web-foundation-and-auth]: Refresh cookie scoped to path=/api/auth/refresh — browser only sends it to that endpoint, reducing attack surface
 - [Phase 13-web-foundation-and-auth]: Login page always redirects to / (dashboard home) — no redirectTo parameter honored
 - [Phase 13-web-foundation-and-auth]: StatusBadge reusable component with semantic color map ready for phases 14-18
+- [Phase 14-job-management]: useQueries for parallel per-status count queries avoids hooks-in-loop violation
+- [Phase 14-job-management]: Requests tab badge shows pending-only count via client-side filter
+- [Phase 14-job-management]: Suspense boundary wraps useSearchParams consumer — required by Next.js App Router for static page generation
 
 ### Pending Todos
 
@@ -64,6 +67,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16T22:33:35.671Z
-Stopped at: Phase 14 UI-SPEC approved
-Resume file: .planning/phases/14-job-management/14-UI-SPEC.md
+Last session: 2026-03-16T23:09:32.432Z
+Stopped at: Completed 14-job-management/14-01-PLAN.md
+Resume file: None
