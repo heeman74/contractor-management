@@ -9,10 +9,10 @@ Requirements for web admin dashboard. Each maps to roadmap phases.
 
 ### Web Foundation & Auth
 
-- [ ] **AUTH-01**: Admin can log in with email and password via the web dashboard
+- [x] **AUTH-01**: Admin can log in with email and password via the web dashboard
 - [x] **AUTH-02**: Web session persists across browser refresh using httpOnly cookie tokens
 - [x] **AUTH-03**: Token refresh happens transparently without interrupting admin workflow
-- [ ] **AUTH-04**: Admin can log out and session is fully invalidated
+- [x] **AUTH-04**: Admin can log out and session is fully invalidated
 - [x] **AUTH-05**: Global sidebar navigation provides persistent access to all modules
 - [ ] **AUTH-06**: User-friendly error messages display for auth, validation, conflict, and server errors
 
@@ -102,10 +102,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | Phase 13 | Pending |
+| AUTH-01 | Phase 13 | Complete |
 | AUTH-02 | Phase 13 | Complete |
 | AUTH-03 | Phase 13 | Complete |
-| AUTH-04 | Phase 13 | Pending |
+| AUTH-04 | Phase 13 | Complete |
 | AUTH-05 | Phase 13 | Complete |
 | AUTH-06 | Phase 13 | Pending |
 | JOBS-01 | Phase 14 | Pending |

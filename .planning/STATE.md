@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Web Admin Dashboard
 status: planning
-stopped_at: Completed 13-02-PLAN.md
-last_updated: "2026-03-16T07:09:20.935Z"
+stopped_at: Completed 13-03-PLAN.md
+last_updated: "2026-03-16T07:14:58.697Z"
 last_activity: 2026-03-15 — v2.0 roadmap created, all 29 requirements mapped across 6 phases
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 4
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -47,6 +47,8 @@ Progress: [░░░░░░░░░░] 0%
 - [Phase 13]: Redux makeStore factory pattern (never module-level singleton) prevents cross-request tenant data leakage in SSR
 - [Phase 13]: Error toasts persist with duration Infinity — all toast.error() calls must include { duration: Infinity }
 - [Phase 13]: Playwright test stubs use test.skip() to satisfy ship-with-feature requirement without false failures during scaffold phase
+- [Phase 13-web-foundation-and-auth]: proxy.ts checks cookie existence only — optimistic guard, real validation at FastAPI on each API call
+- [Phase 13-web-foundation-and-auth]: Refresh cookie scoped to path=/api/auth/refresh — browser only sends it to that endpoint, reducing attack surface
 
 ### Pending Todos
 
@@ -60,6 +62,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16T07:09:20.930Z
-Stopped at: Completed 13-02-PLAN.md
+Last session: 2026-03-16T07:14:49.425Z
+Stopped at: Completed 13-03-PLAN.md
 Resume file: None
