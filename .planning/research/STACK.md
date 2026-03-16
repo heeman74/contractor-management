@@ -1,114 +1,171 @@
 # Stack Research
 
-**Domain:** Contractor management SaaS — Flutter mobile + Python backend
-**Researched:** 2026-03-04
-**Confidence:** HIGH (all versions verified against pub.dev and PyPI as of research date)
+**Domain:** Contractor management SaaS — Flutter mobile + Python backend + Next.js web admin dashboard
+**Researched:** 2026-03-14
+**Confidence:** HIGH (web additions verified via WebSearch against npm/official docs; Flutter/backend sections carried from prior research at 2026-03-04)
 
 ---
 
 ## Recommended Stack
 
-### Core Technologies
+### Core Technologies — Existing (DO NOT CHANGE)
+
+These are already built, tested, and validated in v1.0. Do not replace or re-research.
+
+| Technology | Version | Purpose | Status |
+|------------|---------|---------|--------|
+| Flutter | 3.32+ (SDK) | Android mobile app (contractors + clients) | Shipped v1.0 |
+| FastAPI | 0.115+ | Python backend API (shared by mobile + web) | Shipped v1.0 |
+| PostgreSQL | 13 | Primary database with RLS multi-tenancy | Shipped v1.0 |
+| SQLAlchemy | 2.0 async | ORM + async DB access | Shipped v1.0 |
+| JWT (python-jose) | 3.3+ | Access tokens (15 min) + refresh rotation (30 days) | Shipped v1.0 |
+
+---
+
+### Core Technologies — New (Web Admin Dashboard)
 
 | Technology | Version | Purpose | Why Recommended |
 |------------|---------|---------|-----------------|
-| Flutter | 3.32+ (SDK) | Cross-platform mobile app (Android + iOS) | Official Flutter recommendation; single codebase, mature offline support, first-class testing tooling. Android-first aligns with priority order. |
-| Dart | 3.8+ | Flutter language | Required by Flutter; null-safe by default, strong typing reduces runtime bugs in offline sync logic |
-| FastAPI | 0.135.1 | Python backend API | Async-native (ASGI), automatic OpenAPI docs, excellent type safety via Pydantic, lowest boilerplate for REST APIs in Python. Fastest path to mobile-compatible JSON API. |
-| PostgreSQL | 16+ | Primary database | Best-in-class Row Level Security for tenant isolation. RLS enforces multi-tenant data separation at the database layer, not the app layer — critical for SaaS. |
-| SQLAlchemy | 2.0.48 | ORM + async DB access | SQLAlchemy 2.0 has full async support via `asyncpg`. Native async is required when paired with FastAPI's async endpoints to avoid thread pool bottlenecks. |
-| Alembic | 1.18.4 | Database schema migrations | Standard migration tool for SQLAlchemy. `--autogenerate` compares Python models to actual DB schema — essential for evolving a multi-tenant schema safely. |
-| Drift | 2.32.0 | Local SQLite ORM for Flutter | Type-safe, reactive, code-generated SQL queries. Supports background isolates, migration APIs, and streaming queries — the right fit for offline-first where SQLite is the source of truth. |
-| Riverpod | 3.2.1 | Flutter state management | Compile-time safe providers, no BuildContext dependency, excellent testing support, and tight offline-first integration. Preferred over BLoC for this project due to lower boilerplate and native async handling. |
+| Next.js | 16.x | Web framework (App Router) | App Router + React Server Components enable server-side rendering for fast initial page loads. Version 16 is stable in 2026. Vercel's official framework for React, with built-in caching, route handlers (API proxying for auth), and middleware for JWT auth guards. Use over Create React App (abandoned) or Vite SPA (no SSR) because admin dashboards benefit from SSR for analytics pages. |
+| React | 19.x | UI library | Required by Next.js 16. React 19 ships with improved Suspense batching, the `use()` hook for async data, and concurrent features that reduce perceived load time on complex admin views. |
+| TypeScript | 5.x | Type safety | Required. Admin dashboards have complex data shapes (jobs, quotes, invoices). TypeScript catches mismatches between API response shapes and UI expectations at compile time, not runtime. |
+| Redux Toolkit | 2.11.x | Client-side state management | RTK is the mandated choice per PROJECT.md. Use for server-actionable client state: currently selected company/tenant context, auth session (user, roles, token), active sidebar/filter state, and optimistic updates. RTK 2.x ships with Immer 11 (~30% faster mutations). Do NOT use for server data — that is TanStack Query's job. |
+| React-Redux | 9.x | Redux ↔ React bindings | Required peer of Redux Toolkit. Version 9 ships alongside RTK 2.0/Redux 5.0. |
+| TanStack Query | 5.90.x | Server state / data fetching | Handles all API data: caching, background refetch, stale-while-revalidate, pagination, and optimistic updates for mutations. Removes the need to manually manage loading/error states in Redux for server data. Works alongside Redux: TQ owns server state, Redux owns client state. |
+| Tailwind CSS | v4.x | Utility-first CSS | v4 is the correct choice for new Next.js 16 projects. v4 uses CSS-first configuration (`@theme` directive), produces ~70% smaller production CSS than v3, and builds 5x faster. shadcn/ui officially supports Tailwind v4. |
+| shadcn/ui | latest (copy-paste) | Component system | The dominant React admin UI library in 2026 (shipped 600+ components in Feb 2026). Zero runtime dependency — components are copied into your project as local TypeScript files. No version lock, no breaking upgrades. Provides DataTable, Sidebar, Card, Dialog, Form, Chart wrappers, Command palette, and all primitives needed for admin dashboards. Built on Radix UI (accessibility) + Tailwind CSS. Use over MUI (too opinionated, large bundle) or Ant Design (outdated aesthetics). |
 
-### Supporting Libraries — Flutter
+---
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| drift_flutter | 0.3.0 | Flutter-specific Drift integration | Every screen — opens the SQLite database with platform-appropriate settings for Android/iOS |
-| go_router | 17.1.0 | Declarative navigation | Navigation across all three role-specific UX flows (admin, contractor, client). Handles deep linking and role-based route guards. |
-| dio | 5.9.2 | HTTP client for API sync | All network requests. Use interceptors for: auth token injection, offline queue detection, and request retry logic. Prefer over base `http` package for interceptors alone. |
-| connectivity_plus | 7.0.0 | Network state detection | Detecting online/offline transitions to gate sync operations. Flutter Favorite package, cross-platform. |
-| workmanager | 0.9.0+3 | Background sync scheduling | Scheduling periodic background sync when app is not active. Only option that works on both Android and iOS for background Dart execution. |
-| freezed | 3.2.5 | Immutable data classes + unions | All domain models (Job, Contractor, Client, Schedule). Generates `copyWith`, `==`, `toString`, and sealed class patterns. Eliminates a major class of mutation bugs in offline state. |
-| json_serializable | 6.13.0 | JSON de/serialization code gen | API response parsing. Use alongside `freezed` — `freezed` generates the model, `json_serializable` generates `fromJson`/`toJson`. |
-| riverpod_generator | 4.0.3 | Riverpod code generation | Reduces provider boilerplate via `@riverpod` annotations. Required with Riverpod 3.x for idiomatic usage. |
-| get_it | 9.2.1 | Service locator / DI container | Registering singletons (DioClient, DatabaseService, SyncEngine). Use alongside Riverpod: Riverpod for UI state, get_it for infrastructure services. |
-| mocktail | 1.0.4 | Unit test mocking | Mocking repositories and services in unit tests. Preferred over `mockito` — no code generation required, works natively with null safety. |
-| patrol | 4.2.0 | E2E / integration testing | End-to-end tests that interact with native OS dialogs (permissions, notifications). Required for E2E on Android — flutter's built-in `integration_test` cannot handle native dialogs. |
+### Supporting Libraries — Web Admin
 
-### Supporting Libraries — Python Backend
+#### Authentication
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| Pydantic | 2.12.5 | Request/response validation | All API schemas. FastAPI requires it. v2 is Rust-backed — JSON serialization is 2x faster, critical for large schedule payloads. |
-| asyncpg | 0.30+ | Async PostgreSQL driver | The only production-grade async Postgres driver. Required for SQLAlchemy async mode — do not use `psycopg2` (synchronous, blocks the event loop). |
-| pytest | 9.0.2 | Test framework | All backend tests. `pytest-asyncio` extends it for testing async FastAPI endpoints. |
-| httpx | 0.28.1 | Async HTTP test client | Testing FastAPI endpoints. `httpx.AsyncClient` with `ASGITransport` lets you test the ASGI app without running a real server. |
-| Celery | 5.4+ | Async task queue | Background jobs: sync conflict resolution batches, scheduled job reminders, availability recalculation after edits. Use with Redis as broker. |
-| Redis | 7.x (server) | Message broker + cache | Celery broker and result backend. Also useful for caching scheduling computations (availability windows, conflict checks). |
-| python-jose | 3.3+ | JWT handling | Tenant context extraction from JWT claims. Each request carries `tenant_id` in JWT — FastAPI dependency extracts and validates it before any DB access. |
-| python-dotenv | 1.0+ | Environment config | Local dev environment variables. Use `pydantic-settings` in production for structured config validation. |
+| Library | Version | Purpose | Why |
+|---------|---------|---------|-----|
+| (None — custom implementation) | — | JWT session management | Do NOT use Auth.js/NextAuth for this project. The existing FastAPI backend issues its own JWT access + refresh tokens with a specific rotation protocol. Auth.js adds a translation layer that fights your existing token format. Instead: implement a thin custom auth layer using Next.js Route Handlers as an API proxy, store tokens in httpOnly cookies (not localStorage — XSS protection), and use Next.js Middleware to guard routes by checking cookie presence. This is 50 lines of code, not a library. |
+| jose | 5.x | JWT decode (client-side, no verify) | Decodes JWT claims in Next.js Middleware and Server Components to extract user roles/company_id without network round-trips. Do not use for verification — the FastAPI backend verifies tokens. |
 
-### Development Tools
+#### Forms and Validation
+
+| Library | Version | Purpose | Why |
+|---------|---------|---------|-----|
+| react-hook-form | 7.71.x | Form state management | Industry standard for React forms. Uncontrolled-component approach means zero re-renders on keypress. Handles all admin forms: job creation, quote line items, contractor profiles. shadcn/ui Form components are designed for react-hook-form. |
+| zod | 3.x | Schema validation | Validates form inputs client-side and API payloads. Share schemas between client validation and (optionally) typed API response parsing. Use `zodResolver` from `@hookform/resolvers` to connect with react-hook-form. |
+| @hookform/resolvers | 3.x | zod ↔ react-hook-form bridge | Connects zod schemas to react-hook-form's validation pipeline. |
+
+#### Data Display
+
+| Library | Version | Purpose | Why |
+|---------|---------|---------|-----|
+| @tanstack/react-table | 8.21.x | Headless data table engine | Powers sortable, filterable, paginated tables for jobs list, contractor list, invoice list. shadcn/ui's DataTable component is built on TanStack Table. Headless means full control over rendering — no style conflicts. Same library used by Linear and Notion. |
+
+#### Charts and Reporting
+
+| Library | Version | Purpose | Why |
+|---------|---------|---------|-----|
+| Recharts | 3.8.x | Charts for reporting dashboard | React-native SVG charting library. Version 3.x rewrote state management for better React 19 compatibility. shadcn/ui's Chart components (BarChart, LineChart, AreaChart, PieChart) are thin wrappers over Recharts — using Recharts directly through shadcn/ui gives accessibility, theming, and responsive wrappers for free. Covers all reporting needs: jobs by status (bar), revenue over time (line/area), contractor utilization (bar), job completion rate (pie). 3.6M weekly downloads — well maintained. |
+
+#### Calendar and Scheduling
+
+| Library | Version | Purpose | Why |
+|---------|---------|---------|-----|
+| react-big-calendar | 1.19.x | Scheduling calendar with drag-and-drop | Google Calendar / Outlook-style calendar component. Supports month, week, and day views. Built-in drag-and-drop addon (`react-big-calendar/lib/addons/dragAndDrop`) for rescheduling jobs by dragging between time slots — mirrors the Flutter drag-and-drop schedule from v1.0. MIT license, no premium tier required. Use `date-fns` as the localizer (not Moment.js). |
+| date-fns | 3.x | Date formatting and arithmetic | Required as the localizer for react-big-calendar when avoiding Moment.js. Functional, tree-shakeable, TypeScript-first. Use for all date display formatting in the dashboard (job dates, schedule views, invoice due dates). Prefer over dayjs for this project because shadcn/ui's date picker components are built around date-fns. |
+
+#### HTTP and API
+
+| Library | Version | Purpose | Why |
+|---------|---------|---------|-----|
+| Native `fetch` | built-in | API calls from Server Components and Route Handlers | Next.js 16's App Router extends native fetch with caching, revalidation tags, and memoization. Axios opts out of this system on the server. Use native fetch in Server Components and Route Handlers. |
+| TanStack Query client | 5.90.x | API calls from Client Components | In Client Components (DataTables, forms, real-time updates), use TanStack Query `useQuery`/`useMutation` with native fetch under the hood. This gives automatic caching, background refresh, and stale-while-revalidate. |
+
+#### Utilities
+
+| Library | Version | Purpose | Why |
+|---------|---------|---------|-----|
+| clsx | 2.x | Conditional class names | Required by shadcn/ui for merging Tailwind classes conditionally. Included in shadcn/ui setup by default. |
+| tailwind-merge | 2.x | Tailwind class deduplication | Prevents conflicting Tailwind utilities when merging class strings. Required by shadcn/ui's `cn()` utility. |
+| lucide-react | 0.4x+ | Icon library | shadcn/ui's default icon set. Consistent with the component library. MIT licensed. |
+
+---
+
+### Testing Stack — Web Admin
+
+| Library | Version | Purpose | Why |
+|---------|---------|---------|-----|
+| Vitest | 2.x | Unit + component test runner | 10-20x faster than Jest on large codebases. Native ESM + TypeScript support without Babel. Jest-compatible API means minimal migration cost if team knows Jest. Next.js officially documents Vitest as a supported test runner. |
+| @testing-library/react | 16.x | Component test utilities | User-centric assertions (`getByRole`, `getByText`) that mirror how real users interact with the UI. Works with Vitest via `@testing-library/jest-dom` matchers. |
+| @testing-library/user-event | 14.x | Realistic user interaction simulation | Simulates real browser events (type, click, tab, keyboard navigation) more accurately than `fireEvent`. Required for testing form flows. |
+| Playwright | 1.4x+ | E2E browser testing | Faster than Cypress in CI (290ms vs 420ms per action). Free built-in test sharding (no paid cloud). Supports Chromium, Firefox, and WebKit. TypeScript-first. Next.js has official Playwright integration docs. Use for: full auth flows, job creation wizard, drag-and-drop calendar, calendar conflict detection. |
+| MSW (Mock Service Worker) | 2.x | API mocking in tests | Intercepts fetch calls at the network level — no Axios adapter needed. Works in both Vitest (Node environment) and Playwright. Use to mock FastAPI responses in component tests without spinning up the backend. |
+
+---
+
+### Development Tools — Web Admin
 
 | Tool | Purpose | Notes |
 |------|---------|-------|
-| Docker + Docker Compose | Local backend dev environment | Run PostgreSQL, Redis, FastAPI, and Celery worker together. Eliminates "works on my machine" for backend. |
-| Alembic | Schema migrations | `alembic revision --autogenerate -m "description"` to generate migrations from SQLAlchemy model changes. Run `alembic upgrade head` on container start. |
-| build_runner | Flutter code generation | Required for Drift, freezed, json_serializable, and riverpod_generator. Run `dart run build_runner build --delete-conflicting-outputs` after model changes. |
-| GitHub Actions | CI/CD | Lint + test on PR. Android APK build on `main` push. Use Fastlane for Play Store deployment. |
-| Fastlane | Android release automation | Automates signing, versioning, and Google Play internal track uploads from GitHub Actions. |
+| ESLint | Lint TypeScript + React | Use `eslint-config-next` (bundled with Next.js) — covers React hooks rules, import order, and Next.js-specific rules. |
+| Prettier | Code formatting | Set up alongside ESLint. Use `prettier-plugin-tailwindcss` to auto-sort Tailwind class names. |
+| TypeScript strict mode | Type checking | Enable `"strict": true` in tsconfig. Next.js 16 defaults to strict mode. Catches API response shape mismatches early. |
 
 ---
 
 ## Installation
 
-### Flutter (pubspec.yaml)
+### Next.js App Bootstrap
 
-```yaml
-dependencies:
-  flutter_riverpod: ^3.2.1
-  riverpod_annotation: ^4.0.3
-  drift: ^2.32.0
-  drift_flutter: ^0.3.0
-  go_router: ^17.1.0
-  dio: ^5.9.2
-  connectivity_plus: ^7.0.0
-  workmanager: ^0.9.0+3
-  freezed_annotation: ^3.2.5
-  json_annotation: ^4.9.0
-  get_it: ^9.2.1
+```bash
+# Scaffold with App Router + TypeScript + Tailwind v4
+npx create-next-app@latest web --typescript --tailwind --app --turbopack
 
-dev_dependencies:
-  flutter_test:
-    sdk: flutter
-  riverpod_generator: ^4.0.3
-  freezed: ^3.2.5
-  json_serializable: ^6.13.0
-  build_runner: ^2.4.0
-  mocktail: ^1.0.4
-  patrol: ^4.2.0
+cd web
+
+# Core state management
+npm install @reduxjs/toolkit react-redux @tanstack/react-query
+
+# Auth utilities
+npm install jose
+
+# Forms and validation
+npm install react-hook-form zod @hookform/resolvers
+
+# Data tables
+npm install @tanstack/react-table
+
+# Charts
+npm install recharts
+
+# Calendar and dates
+npm install react-big-calendar date-fns
+
+# shadcn/ui CLI (installs components on demand)
+npx shadcn@latest init
+
+# Icons (pulled in by shadcn init, but explicit)
+npm install lucide-react
+
+# Utilities
+npm install clsx tailwind-merge
+
+# Dev dependencies
+npm install -D vitest @vitejs/plugin-react jsdom
+npm install -D @testing-library/react @testing-library/user-event @testing-library/jest-dom
+npm install -D msw
+npm install -D @playwright/test
+npm install -D prettier prettier-plugin-tailwindcss eslint-config-prettier
 ```
 
-### Python Backend (requirements.txt)
+### shadcn/ui Core Components for Admin Dashboard
 
-```
-fastapi[standard]==0.135.1
-sqlalchemy[asyncio]==2.0.48
-alembic==1.18.4
-pydantic==2.12.5
-asyncpg==0.30.0
-celery[redis]==5.4.0
-redis==5.2.0
-python-jose[cryptography]==3.3.0
-python-dotenv==1.0.1
-uvicorn[standard]==0.32.0
-
-# Dev / test
-pytest==9.0.2
-pytest-asyncio==0.24.0
-httpx==0.28.1
+```bash
+# Run after `npx shadcn@latest init`
+npx shadcn@latest add button input label card table dialog form
+npx shadcn@latest add sidebar navigation-menu dropdown-menu
+npx shadcn@latest add data-table chart badge select textarea
+npx shadcn@latest add toast sonner calendar date-picker
+npx shadcn@latest add command sheet popover
 ```
 
 ---
@@ -117,14 +174,17 @@ httpx==0.28.1
 
 | Recommended | Alternative | When to Use Alternative |
 |-------------|-------------|-------------------------|
-| FastAPI | Django REST Framework | If team has deep Django expertise, or admin UI (Django admin) is a high priority early on |
-| Riverpod | BLoC | If the team is enterprise-scale (10+ Flutter devs) and strict event/state separation is a compliance requirement |
-| Drift | ObjectBox | If write performance is the dominant concern (ObjectBox is faster for high-frequency writes); Drift has better SQL query expressiveness |
-| Drift (custom sync) | PowerSync | If budget allows for a managed sync service (~$49+/mo) and you want to skip building the sync engine entirely. PowerSync syncs Postgres to SQLite automatically. Evaluate after MVP. |
-| PostgreSQL RLS | Schema-per-tenant | Schema-per-tenant is stronger isolation but dramatically more complex to operate. RLS is the right starting point for a SaaS with shared infra. |
-| Celery + Redis | ARQ | ARQ is pure-async and simpler, but has smaller community. Use ARQ if the team is async-first Python and Celery's synchronous worker model feels awkward. |
-| mocktail | mockito | Use mockito if the team prefers generated mocks and is already running build_runner for other packages |
-| patrol | integration_test (built-in) | Use built-in integration_test if E2E tests will never need native OS interaction (permissions, notifications). Unlikely for this app. |
+| Next.js 16 (App Router) | Next.js 16 (Pages Router) | Never on a new project. App Router enables Server Components, async/await in components, and Next.js Middleware for route guards. Pages Router is for projects already on it. |
+| shadcn/ui | Material UI (MUI) | If the organization has existing MUI design system tokens and wants consistency across multiple apps. MUI is a heavy dependency (~300KB) vs shadcn's zero runtime cost. |
+| shadcn/ui | Ant Design | If building a data-heavy internal tool for Chinese enterprise — Ant Design has strong support for that ecosystem. Otherwise shadcn has better React 19/Tailwind v4 support. |
+| Recharts (via shadcn) | Chart.js (react-chartjs-2) | Chart.js uses Canvas, which can handle 1M+ data points smoothly. If the reporting dashboard needs to render thousands of data points simultaneously, switch to react-chartjs-2. For ContractorHub's scale (< 10K jobs per company), Recharts SVG is fine. |
+| Recharts (via shadcn) | Nivo | Nivo has richer chart types (heatmaps, network graphs, treemaps). Use Nivo if advanced visualization types are required beyond bar/line/area/pie. |
+| react-big-calendar | FullCalendar | FullCalendar has more built-in features (timeline view, resource scheduling) but drag-and-drop and resource views require the premium Scheduler package ($200+/year/developer). react-big-calendar covers ContractorHub's needs (week/day drag-and-drop) under MIT for free. |
+| TanStack Query | SWR | SWR is simpler but less capable. TanStack Query's mutation API, cache invalidation strategies, and devtools are superior for a complex admin dashboard with many interdependent data entities. |
+| Playwright | Cypress | Cypress is better for DX (visual time-travel debugger) but requires paid Cypress Cloud for parallelization. Playwright's free sharding and WebKit support make it the better choice for a full-stack project with limited CI budget. |
+| Vitest | Jest | Jest is the legacy choice. Vitest is 10-20x faster and has first-class ESM/TypeScript support. No reason to use Jest for a new Next.js 16 project. |
+| Native fetch + TanStack Query | Axios | Axios opts out of Next.js App Router's extended fetch caching system on the server side. Native fetch gets automatic request memoization, revalidation tags, and CDN caching. Use native fetch everywhere; TanStack Query wraps it client-side. |
+| Custom JWT auth (httpOnly cookies) | Auth.js / NextAuth | Auth.js is the right choice when you use social OAuth providers (Google, GitHub). For this project, the FastAPI backend is the only auth authority and uses its own JWT format with refresh token rotation. Auth.js would add complexity without benefit. |
 
 ---
 
@@ -132,40 +192,90 @@ httpx==0.28.1
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| Provider (Flutter) | Provider is officially superseded. Riverpod is by the same author but fixes Provider's fundamental design issues (context dependency, rebuild scope, testability). No reason to start new projects with Provider. | Riverpod 3.x |
-| GetX | GetX bundles routing, state, and DI into one opinionated framework that short-circuits Flutter's widget tree. Makes testing difficult and creates tight coupling. The community is moving away from it. | Riverpod + go_router + get_it separately |
-| Hive | Hive v2 is effectively unmaintained (last release 2022). Hive v3 (Isar successor) is not stable. For structured relational data (jobs, contractors, schedules), SQLite with Drift is dramatically more capable. | Drift |
-| SQLite directly (without Drift) | Raw SQLite (via sqflite) means no type safety, no migration framework, no streaming queries. Every SQL string is a latent bug. Drift generates type-safe query code from your schema. | Drift |
-| psycopg2 (synchronous) | psycopg2 blocks the asyncio event loop. In an async FastAPI app, one slow DB query blocks all concurrent requests. FastAPI's performance advantage disappears. | asyncpg via SQLAlchemy async |
-| Django ORM (in async FastAPI) | Django ORM is not async-native. Using it with FastAPI requires `sync_to_async` wrappers, adding complexity without benefit. If using Django, use DRF. If using FastAPI, use SQLAlchemy async. | SQLAlchemy 2.0 async |
-| SQLite on the backend | SQLite does not support concurrent writes and lacks the RLS capabilities needed for multi-tenant isolation. PostgreSQL is the only appropriate choice here. | PostgreSQL |
-| Flutter Driver (old) | flutter_driver is the deprecated E2E framework. `integration_test` replaced it for Flutter tests, and Patrol extends integration_test for native interaction. Flutter Driver should not appear in new code. | patrol + integration_test |
-| Separate database per tenant (at launch) | Correct isolation model but operationally catastrophic at scale. Running 100 tenants means 100 databases, 100 migration runs, 100 connection pools. Use PostgreSQL RLS instead. Revisit at 1000+ tenants if compliance demands it. | PostgreSQL RLS in shared DB |
+| localStorage for JWT storage | JavaScript-accessible storage is vulnerable to XSS attacks. OWASP explicitly recommends against it for session tokens. | httpOnly cookies set by Next.js Route Handler acting as auth proxy |
+| Redux for server/API data | Redux reducers for API data require manual loading/error/success state management. RTK Query is an option but TanStack Query has better cache invalidation, devtools, and community support for dashboards. | TanStack Query for server state; Redux for client-only state |
+| Moment.js | Effectively unmaintained, ships non-tree-shakeable 300KB bundle. react-big-calendar accepts date-fns as localizer. | date-fns |
+| react-chartjs-2 (by default) | Canvas rendering cannot scale to complex SVG-based interactions. For ContractorHub's scale, Recharts is cleaner and integrates with shadcn's Chart primitives. Switch only if rendering 100K+ data points. | Recharts via shadcn/ui Chart |
+| Next.js Pages Router (for new features) | Pages Router does not support React Server Components, Server Actions, or Next.js Middleware-based route guards at the granularity needed. | App Router exclusively |
+| Client-side JWT verification | JWTs should only be verified by the FastAPI backend. Client-side verification using the secret key requires exposing the secret to the browser. | Decode JWT claims locally with `jose` (no verification); let FastAPI validate on every request. |
+| Tailwind CSS v3 | v3 requires a config file and produces larger CSS bundles. v4 is the correct choice for new Next.js 16 projects — official shadcn/ui docs have a dedicated v4 migration guide. | Tailwind CSS v4 |
+
+---
+
+## Integration Points with Existing FastAPI Backend
+
+This section documents exactly how the web admin connects to the existing backend — critical for avoiding duplication.
+
+### Auth Flow (Web)
+
+1. `POST /auth/login` → FastAPI returns `{ access_token, refresh_token }` (existing endpoint, no changes needed)
+2. Next.js Route Handler (`/api/auth/login`) receives credentials from the browser, calls FastAPI, then sets httpOnly cookies: `access_token` and `refresh_token`
+3. Subsequent requests from Client Components go through Next.js Route Handlers (acting as API proxy) or directly to FastAPI with the access token forwarded from the cookie
+4. Token refresh: Next.js Middleware or Route Handler calls `POST /auth/refresh` (existing endpoint) when access token is expired
+5. Logout: Route Handler clears cookies and calls `POST /auth/logout` (existing endpoint)
+
+No FastAPI auth changes required. The web dashboard is a new consumer of the existing auth API.
+
+### CORS Configuration (Backend Change Required)
+
+The existing FastAPI CORS config likely allows only the Flutter dev origin. Add the Next.js dev/prod origins:
+
+```python
+# backend/app/main.py — add web origins
+ALLOWED_ORIGINS = [
+    "http://localhost:3000",        # Next.js dev
+    "https://admin.contractorhub.com",  # Next.js prod
+    # existing mobile origins...
+]
+```
+
+### company_id / Tenant Context
+
+The existing JWT carries `company_id`. The web admin reads this from the decoded JWT (via `jose`) to:
+- Display the correct company name in the nav
+- Include in API requests (FastAPI extracts it from the JWT server-side via RLS — the web client does not need to manually inject it)
+
+### API Response Schemas
+
+The existing FastAPI Pydantic schemas are the source of truth. Define TypeScript types in `web/src/types/` that mirror them. Do not redefine business logic — the FastAPI backend owns all validation and conflict detection.
+
+```typescript
+// web/src/types/job.ts — mirrors FastAPI JobResponse schema
+export interface Job {
+  id: string;
+  company_id: string;
+  title: string;
+  status: 'quote' | 'scheduled' | 'in_progress' | 'complete' | 'invoiced';
+  scheduled_start: string;   // ISO 8601
+  scheduled_end: string;
+  contractor_id: string | null;
+  client_id: string;
+}
+```
 
 ---
 
 ## Stack Patterns by Variant
 
-**If offline sync needs are simple (append-only job logs, no conflict resolution):**
-- Skip Celery + Redis
-- Use FastAPI BackgroundTasks for lightweight async operations
-- Still use Drift + workmanager on client side
+**For server-rendered analytics/reporting pages:**
+- Fetch data in Next.js Server Components (no TanStack Query needed)
+- Use native fetch with `{ next: { revalidate: 60 } }` for 1-minute cache
+- Render Recharts charts as Client Components (charts require browser APIs)
 
-**If scheduling engine becomes computationally heavy:**
-- Extract scheduling logic into a Celery task
-- Cache availability windows in Redis with TTL
-- Scheduling results should be pre-computed and stored, not calculated on request
+**For interactive scheduling calendar:**
+- Calendar itself is a Client Component (drag-and-drop requires browser events)
+- Seed initial calendar data via Server Component → pass as props
+- Use TanStack Query `useMutation` to update job times after drag; invalidate calendar query on success
 
-**If the team decides to use PowerSync instead of custom sync:**
-- Remove workmanager, Celery, and custom sync queue logic
-- PowerSync handles Postgres-to-SQLite bidirectional sync automatically
-- Keep Drift as the local database layer (PowerSync's Flutter SDK builds on Drift)
-- Cost: ~$49+/month for managed plan; self-host option available
+**For data tables (jobs list, contractor list, invoices):**
+- Use TanStack Table with server-side pagination (pass `page` and `limit` to FastAPI)
+- Use TanStack Query with `keepPreviousData: true` to avoid loading flicker on page change
+- Column definitions typed against the TypeScript API types
 
-**If iOS becomes equal priority to Android immediately:**
-- No stack changes required — Flutter and workmanager both support iOS
-- iOS background execution is more restricted than Android; document task constraints early
-- patrol supports both platforms equally
+**For multi-step job creation wizard:**
+- Use `react-hook-form` with `useFormContext` to share state across steps
+- Each step validates only its own fields before advancing
+- Final submission via TanStack Query `useMutation` to `POST /jobs`
 
 ---
 
@@ -173,43 +283,36 @@ httpx==0.28.1
 
 | Package A | Compatible With | Notes |
 |-----------|-----------------|-------|
-| flutter_riverpod 3.2.1 | Dart 3.4+, Flutter 3.22+ | Riverpod 3.x requires Dart 3.x |
-| drift 2.32.0 | Dart 3.x, drift_flutter 0.3.0 | Use drift_flutter for the Flutter-specific database opener |
-| freezed 3.2.5 | Dart 3.x, build_runner 2.4+ | Works alongside json_serializable in the same model file |
-| FastAPI 0.135.1 | Pydantic 2.x, Python 3.9+ | FastAPI no longer supports Pydantic v1 |
-| SQLAlchemy 2.0.48 | asyncpg 0.29+, Alembic 1.x | Use `sqlalchemy[asyncio]` install target to pull greenlet |
-| patrol 4.2.0 | Flutter 3.22+, Android SDK 21+ | Requires native configuration in android/ and ios/ project folders |
+| Next.js 16 | React 19, TypeScript 5, Tailwind v4 | App Router requires React 19 for full feature set |
+| shadcn/ui | Tailwind v4, Radix UI primitives, react-hook-form 7.x | shadcn has dedicated Tailwind v4 docs — follow them exactly |
+| Redux Toolkit 2.11 | React-Redux 9.x, Redux 5.x, Reselect 5.x | These must all be at major versions that shipped together (all November 2023+) |
+| TanStack Query 5.x | React 18+ (uses useSyncExternalStore) | v5 requires React 18 minimum — React 19 fully supported |
+| react-big-calendar 1.19 | date-fns 3.x | Use `dateFnsLocalizer` from `react-big-calendar/lib/localizers/date-fns`. Do NOT use the Moment.js localizer. |
+| Recharts 3.x | React 18+, React 19 | Recharts 3.0 rewrote state management for React 19 compatibility |
+| Playwright 1.4x | Node 18+ | Install via `npm init playwright@latest` for proper browser binary setup |
+| Vitest 2.x | Vite 5+, Next.js 16 | Requires vite config alongside next.config — see Next.js Vitest docs |
 
 ---
 
 ## Sources
 
-- pub.dev/packages/flutter_riverpod — Version 3.2.1 verified (HIGH confidence)
-- pub.dev/packages/drift — Version 2.32.0 verified (HIGH confidence)
-- pub.dev/packages/drift_flutter — Version 0.3.0 verified (HIGH confidence)
-- pub.dev/packages/go_router — Version 17.1.0 verified (HIGH confidence)
-- pub.dev/packages/dio — Version 5.9.2 verified (HIGH confidence)
-- pub.dev/packages/connectivity_plus — Version 7.0.0 verified (HIGH confidence)
-- pub.dev/packages/workmanager — Version 0.9.0+3 verified (HIGH confidence)
-- pub.dev/packages/freezed — Version 3.2.5 verified (HIGH confidence)
-- pub.dev/packages/json_serializable — Version 6.13.0 verified (HIGH confidence)
-- pub.dev/packages/riverpod_generator — Version 4.0.3 verified (HIGH confidence)
-- pub.dev/packages/get_it — Version 9.2.1 verified (HIGH confidence)
-- pub.dev/packages/mocktail — Version 1.0.4 verified (HIGH confidence)
-- pub.dev/packages/patrol — Version 4.2.0 verified (HIGH confidence)
-- pypi.org/project/fastapi — Version 0.135.1 verified (HIGH confidence)
-- pypi.org/project/sqlalchemy — Version 2.0.48 verified (HIGH confidence)
-- pypi.org/project/alembic — Version 1.18.4 verified (HIGH confidence)
-- pypi.org/project/pydantic — Version 2.12.5 verified (HIGH confidence)
-- pypi.org/project/pytest — Version 9.0.2 verified (HIGH confidence)
-- pypi.org/project/httpx — Version 0.28.1 verified (HIGH confidence)
-- docs.flutter.dev/app-architecture/design-patterns/offline-first — Offline-first pattern (HIGH confidence)
-- docs.powersync.com/client-sdks/reference/flutter — PowerSync Flutter SDK (MEDIUM confidence)
-- medium.com/@koushiksathish3/multi-tenant-architecture-with-fastapi — FastAPI multi-tenancy patterns (MEDIUM confidence)
-- dinkomarinac.dev/blog/building-local-first-flutter-apps-with-riverpod-drift-and-powersync — Riverpod + Drift integration pattern (MEDIUM confidence)
-- fastapi.tiangolo.com/advanced/async-tests — Async testing with httpx (HIGH confidence)
+- [Next.js 15/16 features 2026](https://jishulabs.com/blog/nextjs-15-16-features-migration-guide-2026) — Next.js 16 stable confirmed (MEDIUM confidence)
+- [Redux Toolkit npm](https://www.npmjs.com/package/@reduxjs/toolkit) — version 2.11.2 verified (HIGH confidence)
+- [shadcn/ui 2026 admin dashboard guide](https://adminlte.io/blog/build-admin-dashboard-shadcn-nextjs/) — shadcn/ui as standard choice confirmed (MEDIUM confidence)
+- [Tailwind CSS v4 announcement](https://tailwindcss.com/blog/tailwindcss-v4) — v4 performance improvements verified (HIGH confidence)
+- [Recharts npm](https://www.jsdocs.io/package/recharts) — version 3.8.0 verified (HIGH confidence)
+- [react-big-calendar npm](https://www.npmjs.com/package/react-big-calendar) — version 1.19.4 verified (HIGH confidence)
+- [TanStack Query npm](https://www.npmjs.com/package/@tanstack/react-query) — version 5.90.21 verified (HIGH confidence)
+- [TanStack Table npm](https://www.npmjs.com/package/@tanstack/react-table) — version 8.21.3 verified (HIGH confidence)
+- [react-hook-form npm](https://www.npmjs.com/package/react-hook-form) — version 7.71.2 verified (HIGH confidence)
+- [Playwright vs Cypress 2026](https://www.getautonoma.com/blog/playwright-vs-cypress) — Playwright recommended for enterprise (MEDIUM confidence)
+- [Vitest Next.js guide](https://nextjs.org/docs/app/guides/testing/vitest) — Official Next.js Vitest docs (HIGH confidence)
+- [Next.js FastAPI JWT auth](https://medium.com/@sl_mar/building-a-secure-jwt-authentication-system-with-fastapi-and-next-js-301e749baec2) — httpOnly cookie pattern (MEDIUM confidence)
+- [Auth.js FastAPI integration](https://authjs.dev/guides/integrating-third-party-backends) — Auth.js third-party backend guide (HIGH confidence — used to confirm NOT using Auth.js)
+- [date-fns vs dayjs comparison](https://github.com/shadcn-ui/ui/discussions/4817) — shadcn recommends date-fns (HIGH confidence)
+- [shadcn/ui Tailwind v4 docs](https://ui.shadcn.com/docs/tailwind-v4) — official Tailwind v4 compatibility (HIGH confidence)
 
 ---
 
-*Stack research for: ContractorHub — Contractor Management SaaS (Flutter + FastAPI)*
-*Researched: 2026-03-04*
+*Stack research for: ContractorHub — Web Admin Dashboard (Next.js 16 + React 19 + Redux Toolkit + FastAPI backend)*
+*Researched: 2026-03-14*

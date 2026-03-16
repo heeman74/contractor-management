@@ -1,178 +1,280 @@
 # Pitfalls Research
 
-**Domain:** Offline-first multi-tenant contractor management SaaS (Flutter + Python/FastAPI)
-**Researched:** 2026-03-04
-**Confidence:** MEDIUM-HIGH (core patterns well-documented; some Flutter-specific offline gotchas from community sources)
+**Domain:** Adding Next.js web admin dashboard to existing FastAPI + Flutter mobile platform (ContractorHub v2.0)
+**Researched:** 2026-03-14
+**Confidence:** HIGH (security/auth pitfalls from official CVE disclosures and FastAPI docs; SSR/Redux from official RTK docs and GitHub issues; integration risks from existing codebase analysis)
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1: Offline-First Retrofitted Instead of Architected From Day One
+### Pitfall 1: Storing JWT Access Tokens in localStorage — XSS Attack Surface
 
 **What goes wrong:**
-The team starts building online-first (API calls on every user action, UI driven by server state), then tries to bolt on offline support later. This requires complete re-architecture of the data layer, UI state management, and sync logic. The Flutter side needs a local data layer, an action queue, a conflict resolver, and a sync engine — none of which are trivially added after the fact.
+The web dashboard stores the JWT access token in `localStorage` or `sessionStorage` for convenience. Any third-party script (analytics, a compromised npm dependency, a future XSS vulnerability) can read `localStorage` from JavaScript and exfiltrate the token. An attacker who obtains the access token can impersonate any admin with full company data access including all RLS-scoped records.
 
 **Why it happens:**
-Online-first is the default mental model. Developers test on their local machines with fast WiFi, so connectivity failures feel theoretical until real users in the field report data loss.
+localStorage is the first instinct — it persists across tabs, survives page refresh, and is trivial to read/write. Tutorials and quick-start examples almost universally use it. Secure storage (httpOnly cookies) requires server-side involvement that feels like overhead.
 
 **How to avoid:**
-Treat offline-first as the foundational architecture decision, not a feature. From Phase 1, the Flutter app reads exclusively from a local SQLite database (via `sqflite` or `drift`). Network calls write to a pending action queue, not directly to the UI. The backend is a sync target, never the source of truth for the local app state.
+Store the access token in a `httpOnly`, `Secure`, `SameSite=Lax` cookie, never in JavaScript-accessible storage. The FastAPI backend must expose a `/auth/web/login` endpoint (or extend existing `/auth/login`) that sets the cookie in the response. The refresh token similarly goes in a separate `httpOnly` cookie with a tighter path (e.g., `Path=/auth/refresh`). Since the mobile app uses Bearer tokens in headers, the backend must support BOTH patterns simultaneously — cookie-based for web, header-based for mobile — using a single auth verification function that checks the cookie first, then falls back to the `Authorization` header.
 
 **Warning signs:**
-- Any `await http.get(...)` that directly populates a UI widget without local cache
-- No local database in the project after the first sprint
-- "We'll add offline later" in any planning discussion
+- `localStorage.setItem('access_token', ...)` anywhere in the Next.js codebase
+- Redux auth slice persisted to `localStorage` via `redux-persist` without token exclusion
+- Login response stores token client-side in any JavaScript-accessible location
 
 **Phase to address:**
-Foundation / Architecture phase — must be locked in before any feature work begins.
+Phase 1: Web Authentication — must be the foundational decision before any other feature code touches auth.
 
 ---
 
-### Pitfall 2: Silent Data Overwrite During Sync (Last-Write-Wins Without Version Control)
+### Pitfall 2: CORS Wildcard + allow_credentials Breaks Mobile and Blocks Web
 
 **What goes wrong:**
-Contractor A edits a job offline for 2 hours. Dispatcher also edits the same job on the web/another device. When contractor syncs, the app uploads without checking whether the server version has advanced. The server silently accepts the older version, discarding the dispatcher's changes. Nobody notices until the job shows up at the wrong address.
+A developer adds `CORSMiddleware` to FastAPI for the web dashboard and uses `allow_origins=["*"]` with `allow_credentials=True`. This configuration is invalid per the CORS spec and FastAPI will reject it — credentialed requests require explicit origin enumeration. Attempting to fix this by setting `allow_origins=["*"]` without credentials allows the web to work but silently breaks the mobile app's ability to send `Authorization` headers on preflight. Alternatively, over-restricting origins to only the web domain blocks mobile API calls.
 
 **Why it happens:**
-Last-write-wins (LWW) by timestamp is easy to implement and appears to work in testing (single device, single user). The failure only surfaces under concurrent multi-device usage.
+The existing FastAPI backend may have no CORS configuration (mobile apps are not browser clients and don't send CORS preflight). The developer adds CORS for the web without understanding that mobile clients using `Authorization: Bearer` headers are also affected by CORS validation if they ever reach a browser-mediated context, or without testing that the existing mobile app still functions correctly after the CORS change.
 
 **How to avoid:**
-Every entity must carry a `version` integer or `updated_at` UTC timestamp. The sync endpoint must check: if `server_version > client_version`, reject the write and return the conflict payload. The client must present a resolution UI or apply a field-level merge strategy. For scheduling data (job assignments, availability blocks), use pessimistic locking — the server rejects the update rather than silently overwriting.
+Configure `CORSMiddleware` with explicit, environment-specific allowed origins — never wildcards when credentials are involved. The `allow_origins` list must include the web dashboard origin (`https://admin.contractorhub.com` for production, `http://localhost:3000` for dev) but mobile apps do not send CORS preflights (they are native clients, not browsers). Set `allow_credentials=True`, enumerate `allow_headers` explicitly (`["Authorization", "Content-Type", "X-Request-ID"]`). Test the mobile app against the updated API before shipping.
+
+```python
+# CORRECT
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,   # ["https://admin.contractorhub.com"]
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+)
+
+# WRONG — will be rejected by browsers
+allow_origins=["*"], allow_credentials=True
+```
 
 **Warning signs:**
-- No `version`, `etag`, or `updated_at` columns in the data model
-- PUT/PATCH endpoints that accept updates without checking current server state
-- "Sync" implemented as a simple `POST` of all local records
+- `allow_origins=["*"]` in any CORS configuration where `allow_credentials=True`
+- CORS origins hardcoded to a single environment's URL
+- No test that verifies the mobile app's auth flow still works after CORS changes
 
 **Phase to address:**
-Data sync / offline architecture phase. Conflict detection schema (version columns) must be established during database design, before any sync code is written.
+Phase 1: Web Authentication — CORS must be configured correctly before any web feature calls the API.
 
 ---
 
-### Pitfall 3: Missing Tenant Context on Background Tasks
+### Pitfall 3: Next.js Middleware Auth Bypass (CVE-2025-29927)
 
 **What goes wrong:**
-FastAPI middleware correctly scopes all HTTP requests to the authenticated tenant. But background tasks (Celery workers, FastAPI `BackgroundTasks`, scheduled jobs) do not go through middleware. A task that sends "job completed" notifications runs without a tenant context, queries `SELECT * FROM jobs WHERE status = 'complete'` without a tenant filter, and either crashes, returns nothing, or — in the worst case — notifies the wrong company's clients.
+The team implements authentication guards in Next.js middleware (`middleware.ts`) — the standard pattern for protecting routes in the App Router. An attacker sends requests with the `x-middleware-subrequest` header, bypassing all middleware logic. Every protected admin page is accessible without a valid token. All company data is exposed.
 
 **Why it happens:**
-HTTP middleware is the standard pattern for injecting tenant context. Developers assume this coverage extends to all async work. Async task queues (Celery, ARQ, FastAPI background tasks) are called from within a request but execute outside it, stripping the request-scoped context variable.
+CVE-2025-29927 (CVSS 9.1) affects all Next.js versions below 12.3.5 / 13.5.9 / 14.2.25 / 15.2.3. Self-hosted deployments using `next start` or the `standalone` output are vulnerable. Developers rely on middleware as the single auth enforcement point, not realizing it can be bypassed at the infrastructure level.
 
 **How to avoid:**
-Serialize `tenant_id` explicitly into every task payload. At task execution start, explicitly set the tenant context (via a `ContextVar` or SQLAlchemy session scoping) before any database access. Create a decorator or base task class that enforces this contract — tasks that don't receive `tenant_id` in their kwargs should fail loudly at startup. Never rely on global or request-scoped context inside workers.
+Two mitigations, both required:
+1. Use Next.js 15.2.3+ (patched). Pin the version in `package.json` with an exact version or `>=15.2.3`.
+2. Do not rely solely on Next.js middleware for auth enforcement. Every API call from server components and route handlers must independently verify the session by calling the FastAPI backend. Middleware is a UI redirect convenience layer, not a security boundary.
+
+If using a load balancer (nginx, Caddy), add a rule to strip any incoming `x-middleware-subrequest` header before it reaches Next.js.
 
 **Warning signs:**
-- Background tasks that take `job_id` but not `tenant_id` as a parameter
-- No tenant-scoping tests for async notification paths
-- Workers that use a `db` session without setting tenant context first
+- Next.js version below 15.2.3 in `package.json`
+- Auth logic exists only in `middleware.ts` with no server-side token verification in individual route handlers
+- No Dependabot or automated security scanning on the `web/` directory
 
 **Phase to address:**
-Multi-tenant foundation phase. The pattern must be established when the first background task is written, not after.
+Phase 1: Web Authentication — version pinning and defense-in-depth auth must be established before any routes are protected.
 
 ---
 
-### Pitfall 4: Scheduling Race Condition — Double-Booking Under Concurrent Requests
+### Pitfall 4: Redux Store as SSR Singleton — Cross-Request State Pollution
 
 **What goes wrong:**
-Two dispatchers at the same company simultaneously assign different jobs to contractor Hana. Both read her availability, see she's free at 10am Tuesday, and write the booking. Without database-level locking, both transactions succeed, and Hana has two jobs at 10am Tuesday. The conflict detection logic in the application layer checked availability before writing, but the check and the write are not atomic.
+The Redux store is created as a module-level singleton (`const store = configureStore(...)`). On the server side, Next.js runs multiple requests concurrently in the same Node.js process. User A's auth state bleeds into User B's server-rendered page. In the best case, pages render with wrong data. In a multi-tenant SaaS, in the worst case, admin from Company A sees Company B's dashboard data in their server-rendered HTML.
 
 **Why it happens:**
-Application-level checks are not a substitute for database-level serialization. "Check then act" patterns fail under concurrent load. This is subtle in development (single-user testing) but surfaces immediately in production with multiple dispatchers or when the mobile app and the web dashboard write simultaneously.
+React apps in client-only mode use a single store per browser tab — the singleton pattern is correct there. The same pattern copy-pasted into a Next.js App Router setup shares that singleton across all server-side renders in the process.
 
 **How to avoid:**
-Use PostgreSQL advisory locks or row-level pessimistic locking (`SELECT ... FOR UPDATE`) when reading a contractor's schedule slots before writing a new booking. The availability check and the insert must be in the same database transaction with the lock held. Alternatively, use a unique constraint on `(contractor_id, time_slot_start)` as a last-resort guard that makes duplicate bookings fail loudly rather than silently.
+Follow the RTK official Next.js pattern exactly: export a `makeStore` factory function, not a store instance. Use RTK's `createStoreRef` / React context approach for App Router, or `next-redux-wrapper` for Pages Router. Never import the store directly into server components — pass data as props from server to client components.
+
+```typescript
+// CORRECT — factory pattern
+export const makeStore = () => configureStore({ reducer: rootReducer });
+export type AppStore = ReturnType<typeof makeStore>;
+
+// WRONG — singleton
+export const store = configureStore({ reducer: rootReducer }); // shared across all SSR requests
+```
 
 **Warning signs:**
-- Scheduling endpoints that do `SELECT availability`, then `INSERT booking` as two separate database calls without a transaction
-- No database-level unique constraints on contractor time slots
-- Load tests not included in scheduling feature tests
+- `export const store = configureStore(...)` at module level in `store.ts`
+- Server components that `import { store } from '@/store'` directly
+- No `makeStore` factory function in the codebase
 
 **Phase to address:**
-Scheduling engine phase. Must be addressed during initial scheduler design, not after.
+Phase 1: Web Foundation — store architecture must be set correctly from the first component, before any feature slices are added.
 
 ---
 
-### Pitfall 5: Multi-Tenant Data Leak via Missing WHERE Clause
+### Pitfall 5: Next.js Router Cache Serving Stale Auth Data After Logout
 
 **What goes wrong:**
-A developer writes `SELECT * FROM jobs WHERE id = $1` instead of `SELECT * FROM jobs WHERE id = $1 AND tenant_id = $2`. An admin from Company A can retrieve Company B's job by guessing or iterating the ID. This is a catastrophic trust violation in a SaaS context — it can end the product.
+Admin logs out. The Next.js App Router has cached the dashboard page in its Router Cache (30-second TTL for dynamic routes, 5 minutes for static). The next user on the same browser session navigates back and sees the previous admin's dashboard — including company-specific data — from the client-side cache, without making a new server request.
 
 **Why it happens:**
-Developers add `tenant_id` to the schema but forget to include it in individual query filters, especially on admin/internal endpoints, bulk export queries, or reporting queries added under deadline. Even one missed filter is a full data breach.
+The Next.js App Router Router Cache is client-side and cannot be opted out of in older versions. It serves pages from memory without hitting the server during navigation. Developers test logout by redirecting to `/login` and assume the data is gone, but the back button or direct URL access can reveal cached content.
 
 **How to avoid:**
-Enable PostgreSQL Row Level Security (RLS) on all tenant-scoped tables. RLS policies act as invisible, mandatory `WHERE tenant_id = current_setting('app.current_tenant_id')` clauses that the database enforces regardless of what the application sends. This is a defense-in-depth backstop — even a buggy query cannot cross tenant boundaries. Set `app.current_tenant_id` at the start of every request via a middleware that pulls it from the authenticated user's JWT claims or session.
+Three complementary approaches:
+1. Use Next.js 15+ where the Router Cache default staletime for dynamic routes is 0 (disabled by default). Set `staleTimes: { dynamic: 0 }` in `next.config.ts` for explicit control.
+2. Call `router.refresh()` on logout to invalidate the router cache immediately.
+3. Use cookie-based sessions — Next.js automatically invalidates Router Cache entries when cookies change (`cookies.delete()` on logout triggers cache invalidation).
+4. Add `Cache-Control: no-store` headers on API responses that return sensitive tenant data.
 
 **Warning signs:**
-- Queries in the codebase using only `WHERE id = $1` on tenant-scoped tables
-- No RLS policies in the database schema
-- No cross-tenant isolation tests (attempting to access resource from a different tenant's token and expecting 404/403)
+- Logout handler only redirects to `/login` without calling `router.refresh()`
+- Next.js version below 15 with no `staleTimes` configuration
+- Admin dashboard pages without `no-store` cache headers on their data fetches
 
 **Phase to address:**
-Multi-tenant foundation phase. RLS must be configured in the initial database schema migration, before any feature code is written.
+Phase 1: Web Authentication — logout flow must include cache invalidation from the start.
 
 ---
 
-### Pitfall 6: Flutter SQLite Schema Migration Breaks Existing User Data
+### Pitfall 6: Web Auth Flow Breaking Existing Mobile Refresh Token Family
 
 **What goes wrong:**
-The team adds a new column to the local SQLite schema in an app update. Users who already have the app installed upgrade without re-installing. If the `onUpgrade` migration in `sqflite` is not implemented, the old schema remains and the new code crashes trying to access the missing column. In the worst case, the developer drops and recreates the table (a common shortcut in tutorials) and wipes all locally stored offline data the user hasn't synced yet.
+The existing mobile app uses JWT refresh token rotation with family revocation (reuse detection). The web dashboard is added and uses the same `/auth/refresh` endpoint with `httpOnly` cookies instead of Bearer tokens. The refresh endpoint's family revocation logic, designed for a single active client, detects what looks like token reuse (two different clients holding refresh tokens from the same family) and invalidates all sessions — logging out all mobile users of that company when the web admin logs in, or vice versa.
 
 **Why it happens:**
-During development, the app is repeatedly uninstalled and reinstalled, which always runs `onCreate`. The `onUpgrade` path is never exercised locally. This creates a false confidence that migrations work.
+The backend refresh token model assumes one active refresh token per user (one active session). Adding a web client means the same user now has two legitimate sessions: one in the mobile app, one in the browser. If the token family logic uses a shared family ID per user (not per session), the second login triggers the reuse detection cascade.
 
 **How to avoid:**
-Treat database migrations as first-class code. Every schema change requires a versioned migration function in `onUpgrade`. Write a migration test that opens a copy of the v1 database, runs the upgrade to v2, and verifies data integrity. Never use `DROP TABLE` in an upgrade migration — use `ALTER TABLE ADD COLUMN` for additive changes. For destructive changes, migrate data to a temp table first.
+Extend the refresh token model before shipping web auth. Each session (mobile, web) must belong to an independent token family. Add a `session_id` or `client_type` field to the `refresh_tokens` table. Family revocation fires only within a family, not across all families for that user. Test the scenario: admin logs into web while contractor app is active — verify neither session is terminated.
 
 **Warning signs:**
-- `onUpgrade` callback that calls `onCreate` (dropping all tables)
-- Database version number never incremented when schema changes
-- No migration tests in the test suite
+- `refresh_tokens` table without a `session_id` or `client_type` column
+- Family revocation query uses `WHERE user_id = $1` without filtering by `family_id`
+- No test that exercises simultaneous mobile + web active sessions for the same user
 
 **Phase to address:**
-Foundation / data layer phase. The migration discipline must be established with the first schema version, and every subsequent phase that changes the schema must include a migration test.
+Phase 1: Web Authentication — must audit and extend the refresh token model before the web login endpoint goes live.
 
 ---
 
-### Pitfall 7: Background Sync Kills Battery / Gets Killed by OS
+### Pitfall 7: API Contract Changes Breaking Mobile Without Detection
 
 **What goes wrong:**
-The Flutter app registers a periodic background sync task using `workmanager` or a Dart isolate. On Android, Doze mode and battery optimization kill the background process silently — the user never syncs. On iOS, apps are suspended almost immediately after backgrounding without a background fetch registration. The developer tests on a plugged-in device and assumes it works.
+The web admin dashboard requires richer responses from the API — more fields, different shapes, new relationships. A developer adds a new required field to a response schema, renames a field for web clarity, or changes a nullable field to required. The mobile app, which was not updated, silently receives null where it expects a string, causing crashes or data corruption in the Flutter Drift sync layer. The problem surfaces days or weeks later when a mobile user in the field experiences data loss.
 
 **Why it happens:**
-Android and iOS both aggressively manage background processes. The behavior differs between manufacturers (Samsung, Xiaomi, and Huawei are notorious for aggressive killing) and OS versions. Tests on simulators and plugged-in devices don't reproduce the real-world behavior.
+Web and mobile share the same FastAPI backend but are developed on different timelines. Without a shared contract test layer, changes to Pydantic response schemas are not validated against the mobile app's deserialization expectations. Flutter's `json_serializable` with `unknownEnumValue` / nullable handling may silently swallow missing fields rather than failing loudly.
 
 **How to avoid:**
-Use `workmanager` (Android) and Background App Refresh (iOS) with realistic expectations about timing — these are best-effort, not guaranteed. The primary sync trigger should be foreground launch + connectivity restored, not background timer. Add a sync status indicator in the UI so users know when their data is pending. For urgent syncs (e.g., job completion), use a foreground service notification on Android to guarantee execution. Test on physical, battery-restricted, unplugged devices.
+Adopt additive-only API changes as a strict rule:
+- New response fields must be `Optional` with a default in Pydantic — never suddenly required
+- Never rename existing fields — add a new field with the new name, deprecate the old one
+- Never remove fields consumed by mobile (check Flutter models before removing)
+- Add a contract test in CI: serialize the current Flutter model classes against real API responses and assert no missing required fields
+
+Create a shared OpenAPI schema validation step in CI that runs on every backend PR, generating and diffing the OpenAPI spec against the last committed version, flagging removals or type changes as breaking.
 
 **Warning signs:**
-- Background sync tested only on plugged-in emulators
-- No sync status UI indicator in the app
-- Sync relies solely on a periodic timer with no foreground-launch trigger
+- Pydantic response schemas with new `required` fields added without `Optional` + default
+- Backend PRs that rename existing response fields
+- No OpenAPI spec diffing in CI
+- Flutter `fromJson` methods using `!` (non-null assertion) on fields that might become absent
 
 **Phase to address:**
-Offline sync phase. Background sync strategy and its limitations must be designed upfront.
+Phase 1: Web Foundation — OpenAPI contract testing must be in CI before any web-driven API changes land.
 
 ---
 
-### Pitfall 8: Action Queue Not Idempotent — Duplicate Sync Creates Duplicate Records
+### Pitfall 8: RTK Query SSR Data Fetching Causing Hydration Mismatches
 
 **What goes wrong:**
-The sync engine uploads a "create job" action. The server processes it, creates the job, but the network drops before the 200 response arrives. The sync engine retries the action. The server creates a second job. The contractor now has duplicate jobs in their list. If the contractor has been working offline for hours, the entire queue may be re-submitted on reconnect, creating cascading duplicates.
+A Next.js server component fetches data using RTK Query (or Redux dispatch). The server renders HTML with the fetched data. The client hydrates but the Redux store is empty (client starts fresh) or initializes with different data. React throws a hydration error: "Text content does not match server-rendered HTML." The page flickers, or worse, the mismatch is suppressed with `suppressHydrationWarning` and stale server data is silently shown.
 
 **Why it happens:**
-Retry logic is implemented without idempotency. The developer assumes if a request got no response, the action didn't execute on the server. This assumption is wrong — the server may have fully processed the request before the network dropped.
+RTK Query is designed for client-side data fetching and caching. Using it in server components without proper store hydration results in a server/client state mismatch. The official RTK docs explicitly state: "RTK Query is for data fetching on the client only" — server components should use plain `fetch` calls.
 
 **How to avoid:**
-Every action in the queue must carry a client-generated UUID (idempotency key). The server must store this key and, on duplicate submission, return the original response (200 OK with the existing record) instead of creating a new one. The server-side deduplication table can be short-lived (e.g., 48 hours) — just long enough to cover typical offline windows. On the Flutter side, never delete an action from the queue until the server confirms acceptance.
+Separate server-state fetching from client-state management explicitly:
+- Server components: use `fetch` directly against the FastAPI backend (with session cookie forwarded), never RTK Query dispatch
+- Client components: use RTK Query for interactive data that needs cache invalidation and real-time updates
+- Hydrate the Redux store from server-fetched data using the RTK `makeStore` + `PreloadedState` pattern, then let RTK Query take over for subsequent fetches
 
 **Warning signs:**
-- Sync actions without a client-generated UUID field
-- Server POST endpoints that create new records without deduplication checks
-- "Sync" implemented as re-submitting all local records on reconnect
+- `store.dispatch(someApi.endpoints.getData.initiate())` inside a server component or `getServerSideProps`
+- Hydration error warnings in the browser console on initial load
+- `suppressHydrationWarning={true}` used anywhere in the app
 
 **Phase to address:**
-Offline sync phase. Idempotency key design must be established during queue design.
+Phase 1: Web Foundation — data fetching architecture must be resolved before the first page component is built.
+
+---
+
+### Pitfall 9: Multi-Tenant RLS Not Applied to Web-Specific Queries
+
+**What goes wrong:**
+The web dashboard adds new query patterns not used by the mobile app — aggregate reporting, cross-entity search, bulk export. A developer writes a reporting query without realizing the `SET LOCAL app.current_tenant_id` context variable must be set for every database session that accesses RLS-protected tables. The reporting endpoint returns data from all tenants, or the RLS policy blocks the query entirely.
+
+**Why it happens:**
+Mobile-facing endpoints were all written with the tenant context middleware in place. The pattern is established but implicit — a new web-specific endpoint added by a developer unfamiliar with the tenant isolation mechanism may omit the dependency injection, or use a raw SQL query that bypasses the SQLAlchemy session that has the tenant context set.
+
+**How to avoid:**
+All new web endpoints must use `Depends(get_current_user)` + the tenant context middleware exactly as existing endpoints do. Any new service methods must inherit from `TenantScopedService`. Add a CI test for every new API endpoint that verifies: (a) a valid token from Company A cannot retrieve Company B's data, and (b) the endpoint returns 403/404 without a token.
+
+**Warning signs:**
+- New endpoints without `Depends(get_current_user)`
+- Raw `db.execute(text("SELECT ..."))` calls without session-level tenant context
+- No cross-tenant isolation tests for web-specific endpoints in the test suite
+
+**Phase to address:**
+Every phase — each new web endpoint must include a cross-tenant isolation test. Establish as a PR checklist item.
+
+---
+
+### Pitfall 10: Dual Auth Flow Complexity — Web Cookies vs Mobile Bearer Tokens
+
+**What goes wrong:**
+The backend auth middleware is extended to handle both httpOnly cookie auth (web) and Bearer token auth (mobile). A subtle bug in the precedence logic causes mobile `Authorization` headers to be ignored when a cookie is present (or absent), breaking mobile auth for users who have ever used the web dashboard on the same device/browser. Worse, a web session cookie is inadvertently sent by the browser on mobile WebView requests, confusing the auth layer.
+
+**Why it happens:**
+Supporting two auth mechanisms in one FastAPI dependency increases complexity. `get_current_user` must try the cookie first, then the header, without throwing on the absence of either until both are exhausted. Error messages that only reference "Bearer token" confuse web users, and vice versa.
+
+**How to avoid:**
+Create a single `get_current_user` dependency that checks both sources explicitly:
+
+```python
+async def get_current_user(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    # 1. Check httpOnly cookie (web)
+    token = request.cookies.get("access_token")
+    # 2. Fall back to Bearer header (mobile)
+    if not token:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return await verify_token(token, db)
+```
+
+Write explicit tests: mobile client sends Bearer header → authenticated; web client sends cookie → authenticated; both present → cookie wins; neither present → 401.
+
+**Warning signs:**
+- Separate `get_current_user_web` and `get_current_user_mobile` dependencies that share no code
+- Auth middleware that only checks one auth mechanism
+- No test covering the Bearer-header path after adding cookie support
+
+**Phase to address:**
+Phase 1: Web Authentication — unified auth dependency design must precede any endpoint implementation.
 
 ---
 
@@ -180,14 +282,14 @@ Offline sync phase. Idempotency key design must be established during queue desi
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Online-first with "offline later" plan | Faster initial velocity | Full re-architecture required; not incrementally addable | Never — for this project |
-| Single shared database user (no RLS) | Simpler connection config | One missed `WHERE` clause = data breach; no defense in depth | Never in production |
-| `onUpgrade` drops and recreates tables | Simple migration code | Destroys user's unsynced offline data permanently | Never in production |
-| LWW sync without version check | Simple sync implementation | Silent data loss under concurrent multi-device usage | Never for scheduling data |
-| Skip idempotency keys in action queue | Faster queue implementation | Duplicate records on every retry during network flakiness | Never |
-| Hard-code `tenant_id` checks in app code only | Simpler than RLS setup | Single missed filter = tenant data leak | Only during development, must be replaced before any real data |
-| Scheduling check + insert without transaction | Simpler query code | Double-bookings under concurrent dispatcher usage | Never |
-| Sync background task via periodic timer only | Simple implementation | Silent failures on Android/iOS power management | Only supplementary; never the sole mechanism |
+| Store JWT in localStorage | Trivial implementation | XSS can exfiltrate tokens; admin data exposed | Never for admin dashboard |
+| CORS wildcard `*` with credentials | No origin management | Invalid per spec; breaks browser credentialed requests | Never |
+| Redux singleton store | Simple setup | Cross-request state pollution in SSR; tenant data leakage risk | Never in Next.js SSR context |
+| Middleware-only auth guard | Simple route protection | CVE-2025-29927 bypass; not a security boundary | Never as sole auth mechanism |
+| Skip OpenAPI contract testing | Faster CI | Mobile app breaks silently on field removal | Never |
+| Shared refresh token family for web+mobile | No model changes | New web session revokes all mobile sessions | Never |
+| Copy mobile API endpoints for web without additive review | Faster feature delivery | Field changes break mobile | Never without regression tests |
+| RTK Query in server components | Unified data fetching | Hydration mismatches, SSR/client state desync | Never |
 
 ---
 
@@ -195,12 +297,14 @@ Offline sync phase. Idempotency key design must be established during queue desi
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| Flutter + FastAPI REST | Pydantic model changes break Flutter JSON deserialization silently — new required fields cause null crashes | Add `required: false` with defaults for new fields; version the API; use Freezed/json_serializable with unknown field tolerance |
-| Flutter sqflite + FastAPI | Using integer timestamps (ms since epoch) on Flutter, ISO strings on Python — comparison bugs in conflict resolution | Standardize on UTC ISO 8601 strings everywhere; parse to `DateTime` on Flutter, `datetime` on Python |
-| Flutter connectivity_plus | `connectivity_plus` reports network connectivity (interface UP), not actual internet access — reports "connected" on captive portals and dead WiFi | Use `internet_connection_checker` to verify actual HTTP reachability before triggering sync |
-| Celery/background tasks + FastAPI middleware | Middleware sets `tenant_id` via ContextVar scoped to the request; tasks run outside request scope | Serialize `tenant_id` explicitly into every task payload; re-establish context at task start |
-| PostgreSQL RLS + SQLAlchemy | SQLAlchemy connection pooling reuses connections; `SET LOCAL app.current_tenant_id` only lasts for a transaction, not the connection | Use `SET LOCAL` inside a transaction, or use `RESET` on connection return to pool; never use `SET` (session-level) with pooled connections |
-| Flutter workmanager + Android | Background tasks registered with workmanager are killed on many Android OEM builds (Samsung, Xiaomi, Huawei) | Provide in-app instructions to disable battery optimization for the app; use foreground service for guaranteed critical syncs |
+| FastAPI + Next.js CORS | `allow_origins=["*"]` with `allow_credentials=True` | Enumerate origins explicitly; wildcard is invalid with credentials |
+| FastAPI refresh tokens + web client | Existing single-family-per-user model conflicts with multi-session | Add `session_id` column; revoke by family, not user |
+| FastAPI + httpOnly cookies | Cookie `SameSite=Strict` blocks browser cross-origin API calls during redirects | Use `SameSite=Lax` for auth cookies; `Strict` only for CSRF tokens |
+| Redux + Next.js App Router | Module-level store singleton shared across SSR requests | Use `makeStore` factory; never `export const store = ...` at module level |
+| RTK Query + server components | Dispatching RTK queries in server components causes hydration mismatch | Server components use `fetch`; RTK Query client components only |
+| Next.js Router Cache + logout | Post-logout navigation shows cached authenticated pages | Call `router.refresh()` on logout; use Next.js 15 with `dynamic: 0` staletime |
+| OpenAPI schema + Flutter | New required Pydantic fields break Flutter deserialization silently | All new fields `Optional` with defaults; diff OpenAPI spec in CI |
+| Playwright E2E + MSW | MSW only intercepts client-side fetch by default; SSR requests bypass it | Use MSW server-side handler integration for Next.js SSR test coverage |
 
 ---
 
@@ -208,12 +312,11 @@ Offline sync phase. Idempotency key design must be established during queue desi
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| N+1 queries in contractor schedule view | Schedule page takes 3-10s to load with 10+ contractors | Eager-load job assignments with contractor records; use `select_related`/joined load in SQLAlchemy | 5+ contractors per company |
-| Full table scan for availability check | Scheduling becomes slow as job history grows | Index `(contractor_id, start_time, end_time)` on the schedule table from day one | ~500 job records |
-| Sync uploading entire local database on reconnect | First sync after long offline period times out or OOMs | Sync only dirty/changed records using `is_dirty` flag or `pending_sync` queue table | After 4+ hours offline with active usage |
-| Unindexed `tenant_id` columns | All queries slow as tenant count grows | Add index on `tenant_id` (and composite indexes where `tenant_id` is the leading column) for every tenant-scoped table | ~10 tenants / ~1000 rows |
-| Travel time calculation on every scheduling request | Scheduler API latency grows with team size | Cache travel time matrix between job sites; recalculate only when new site added | 10+ contractors, 20+ active job sites |
-| Flutter SQLite on main thread | UI jank and ANR (Application Not Responding) dialogs | All database operations in `compute()` or `async` with `drift`'s async API; never sync SQLite on main isolate | Any non-trivial query |
+| RTK Query over-fetching on every route change | Dashboard feels slow; excessive API calls visible in network tab | Use RTK Query `keepUnusedDataFor` and cache tags; normalize entity state | Immediately at scale with large data sets |
+| Non-normalized Redux state with large contractor/job lists | UI re-renders entire job list on single record update | Use `createEntityAdapter` for all list data; update by ID not by position | 50+ contractors, 200+ jobs per company |
+| Unoptimized Next.js bundle including admin-only chart libraries | Initial page load >3s for admin dashboard | Dynamic import heavy charting libs: `dynamic(() => import('recharts'), { ssr: false })` | First page load on slower connections |
+| Server component fetches without caching headers | Reporting dashboard refetches on every navigation | Use `fetch` with `{ next: { revalidate: 60 } }` for stable reporting data | Any non-trivial admin data load |
+| Polling for real-time dashboard updates | Excessive API load; backend overwhelmed by web dashboard polling | Use polling intervals >30s for non-critical data; long-polling or WebSocket for live scheduling | 10+ simultaneous admin users |
 
 ---
 
@@ -221,12 +324,12 @@ Offline sync phase. Idempotency key design must be established during queue desi
 
 | Mistake | Risk | Prevention |
 |---------|------|------------|
-| Trusting client-supplied `tenant_id` in requests | Tenant A passes Tenant B's `tenant_id` to access their data | Derive `tenant_id` exclusively from the authenticated JWT/session on the server; never accept it as a request parameter |
-| Leaking `tenant_id` in sequential integer IDs | Tenant can enumerate other tenants' resources by incrementing IDs | Use UUIDs (v4) for all externally exposed IDs on tenant-scoped resources |
-| Storing sensitive job data (addresses, client contacts) in plaintext SQLite on device | Device theft exposes all client data | Enable SQLite encryption (SQLCipher via `sqflite_sqlcipher` package) for sensitive fields; at minimum, store in Flutter Secure Storage |
-| Raw database errors returned in API responses | Stack traces / table names / tenant context exposed to client | Catch all SQLAlchemy/psycopg2 exceptions at the API boundary; return generic error messages; log full errors server-side only |
-| Background task results stored without tenant scoping | Cached results from one tenant's task visible to another | Tag all cache keys with `tenant_id` prefix; never store task results in a shared cache namespace |
-| JWT without tenant claim | Auth works but tenant resolution requires extra DB lookup on every request, creating a bottleneck and a TOCTOU window | Include `tenant_id` in JWT claims at token issuance |
+| Access token in localStorage or sessionStorage | XSS exfiltration of admin JWT; full tenant data access | httpOnly cookie only; never JavaScript-accessible storage |
+| Middleware-only auth (CVE-2025-29927) | Authentication bypass via `x-middleware-subrequest` header | Use Next.js ≥15.2.3; verify session in every server component independently |
+| CSRF with cookie-based auth | Malicious site triggers state-changing requests using admin's session cookie | Add `SameSite=Lax` to cookies; use double-submit CSRF token for state-changing requests; FastAPI `Depends` on CSRF header check |
+| Trusting `company_id` from the web request body | Web admin could submit another company's ID to access their data | Derive `company_id` from authenticated JWT claims only; never from request body or query params |
+| Exposing internal error details in web API responses | Stack traces reveal table names, tenant IDs, internal architecture | All errors caught at API boundary; return generic `{"detail": "..."}` only; full errors logged server-side |
+| Missing rate limiting on web auth endpoints | Brute-force of admin credentials; credential stuffing | `slowapi` rate limits on `/auth/web/login` and `/auth/refresh` (same limits as mobile); web login additionally protected by CAPTCHA in production |
 
 ---
 
@@ -234,27 +337,27 @@ Offline sync phase. Idempotency key design must be established during queue desi
 
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
-| No sync status indicator | Contractors don't know if their field updates (job completion, photos) have been uploaded — they may retype everything thinking it was lost | Show persistent sync status: "3 items pending sync", "Syncing...", "All synced" with timestamp |
-| Blocking UI during sync | App freezes while uploading large photo batch after reconnecting | Sync in background; let user continue working; show non-blocking progress indicator |
-| Conflict resolved silently by server overwrite | Dispatcher edits a job; contractor's offline edit wipes it with no warning | Surface conflicts explicitly: "This record was changed on another device. Review the differences." |
-| Job status transitions without offline guard | Contractor marks job "Complete" offline, client immediately sees it (cached) — but the actual server state is still "In Progress" for days | Show client a "pending confirmation" state for actions that haven't synced; only promote to definitive state after server acknowledgment |
-| Scheduling view not showing travel time gaps | Dispatchers book jobs back-to-back without travel time, creating impossible schedules contractors can't meet | Visually display travel time buffers between jobs in the schedule view |
-| Generic "Error" messages during sync failures | Contractors don't know whether to retry, wait, or call the office | Distinguish: "No internet — will retry when connected" vs "Server error — contact support" vs "Data conflict — needs review" |
+| No loading skeleton on RTK Query data fetches | Dashboard feels broken / blank on first load | Use RTK Query `isLoading` with Shadcn/Tailwind skeleton components on every data table |
+| Web calendar shows all jobs (no company filter) | Admin confused seeing data from wrong context | Derive `company_id` from auth context at page load; never show cross-company data |
+| Form submission with stale RTK Query cache | Admin submits quote update; list still shows old status | Invalidate RTK Query tags on mutation; `invalidatesTags: ['Quote']` on every write mutation |
+| No optimistic updates on status changes | Job status change feels slow; admin clicks again | Use RTK Query `optimisticUpdate` for job lifecycle transitions; roll back on error |
+| Web dashboard mobile-unusable | Admin on tablet gets broken layout | Use responsive Tailwind breakpoints from the start; test at 768px viewport |
+| Logout doesn't clear all tabs | Other open browser tabs still show authenticated content | Use `BroadcastChannel` API to signal logout across tabs; each tab subscribes and redirects |
 
 ---
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **Offline mode:** Works without network on initial launch (not just after first online session) — verify by installing fresh app with airplane mode on
-- [ ] **Conflict resolution:** Test two devices editing the same job simultaneously offline — verify neither silently overwrites the other
-- [ ] **Schema migration:** Uninstall v1 app, install v1, add data, upgrade to v2 without reinstalling — verify data intact and new columns accessible
-- [ ] **Tenant isolation:** Log in as Tenant A, attempt to access Tenant B's job ID in API calls — verify 404 (not 403, which leaks existence)
-- [ ] **Double-booking prevention:** Fire two concurrent booking requests for the same contractor at the same time — verify only one succeeds at the database level
-- [ ] **Background task tenant context:** Trigger a notification background task — verify it only sends to the correct tenant's clients
-- [ ] **Idempotent sync:** Submit the same action queue entry twice — verify server returns the original result, not a duplicate record
-- [ ] **Battery-restricted sync:** Test background sync on a real Android device with battery optimization enabled for the app — verify sync still occurs on foreground return
-- [ ] **Large offline session:** Go offline, create 50 records, reconnect — verify all 50 sync without timeout, crash, or duplicates
-- [ ] **Multi-day job display:** Create a job spanning 3 days — verify it appears correctly on all 3 days in schedule view, not just the start day
+- [ ] **Auth security:** Token stored in httpOnly cookie — verify `document.cookie` in browser console cannot read the access token
+- [ ] **CORS:** Mobile app's existing auth flow still works after CORS middleware is added — run the mobile app against the dev backend and verify login + token refresh
+- [ ] **Middleware bypass:** Next.js version is ≥15.2.3 — verify `package.json` and confirm with `next --version` in CI
+- [ ] **SSR store isolation:** Two concurrent server requests render with independent Redux stores — write a test that simulates two requests and asserts no state leak
+- [ ] **Logout cache:** Post-logout navigation does not show cached authenticated pages — manually test browser Back button after logout
+- [ ] **Token family isolation:** Mobile app session survives web dashboard login — test both sessions remain active simultaneously
+- [ ] **API contract:** All new Pydantic response fields are `Optional` with defaults — diff the OpenAPI spec before/after each backend PR
+- [ ] **Cross-tenant web:** Web admin endpoints deny cross-company access — automated test with Company A token accessing Company B's resources
+- [ ] **CSRF protection:** State-changing web requests rejected without CSRF token — test from a different origin using fetch with credentials
+- [ ] **Hydration:** No hydration mismatch warnings in browser console on first load of any dashboard page
 
 ---
 
@@ -262,13 +365,13 @@ Offline sync phase. Idempotency key design must be established during queue desi
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Online-first retrofitted to offline | HIGH | Rebuild data layer with local-first architecture; migrate UI state management; ~2-4 week rewrite |
-| Silent data overwrite discovered in production | HIGH | Audit sync logs for affected records; restore from DB backups; add version check to all sync endpoints; notify affected tenants |
-| Tenant data leak discovered | CRITICAL | Immediate: rotate all API keys/tokens, audit access logs, notify affected tenants; legal/compliance review; add RLS retroactively |
-| Double-booking in production | MEDIUM | Detect conflicts via reporting query; notify affected contractors; add pessimistic locking to scheduling transactions |
-| SQLite migration data loss | MEDIUM | If pre-synced: restore from server; if not synced yet: data is gone — cannot recover; add migration tests going forward |
-| Action queue creating duplicates | MEDIUM | Write a deduplication script to identify and merge duplicate records; add idempotency keys to queue and server |
-| Background sync silently failing | LOW | Add sync status telemetry (anonymous, opt-in); prompt users to disable battery optimization in onboarding |
+| JWT stored in localStorage exposed | CRITICAL | Force logout all sessions (invalidate all refresh tokens in DB); rotate JWT secret; audit access logs for anomalous access; notify affected admins |
+| CORS wildcard breaks mobile auth | MEDIUM | Update CORS config to explicit origins; deploy backend hotfix; verify mobile app auth flow in staging before production deploy |
+| Redux SSR singleton leaks tenant data | HIGH | Audit server logs for cross-user renders; refactor to makeStore factory; regression test all SSR paths before redeploy |
+| Next.js middleware bypass exploited | CRITICAL | Immediately upgrade Next.js to ≥15.2.3; add load balancer header strip rule; audit server logs for `x-middleware-subrequest` header presence; rotate all admin tokens |
+| API contract change breaks mobile | MEDIUM | Revert field change on backend; deploy hotfix; add optional field with default; coordinate mobile client update |
+| Web session invalidates all mobile sessions | MEDIUM | Hotfix: add session_id to token family scope; invalidate all current tokens (force re-login); redeploy backend |
+| Router cache serving stale data | LOW | Ship Next.js config with `staleTimes: { dynamic: 0 }`; add `router.refresh()` to logout; cache is client-side and self-heals on hard refresh |
 
 ---
 
@@ -276,37 +379,37 @@ Offline sync phase. Idempotency key design must be established during queue desi
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| Offline-first not architected from start | Phase 1: Foundation | Local DB exists before any API call; no direct API-to-UI bindings |
-| Silent data overwrite (no versioning) | Phase 1: Foundation (schema) + Phase 2: Sync | Every entity has `version`/`updated_at`; sync endpoint rejects stale writes in tests |
-| Missing tenant context in background tasks | Phase 1: Multi-tenant foundation | Background task test asserts correct tenant scoping; cross-tenant notification test |
-| Scheduling race condition / double-booking | Phase 3: Scheduling engine | Concurrent request load test proves only one booking created |
-| Missing WHERE clause / tenant data leak | Phase 1: Multi-tenant foundation | RLS enabled in schema migration; cross-tenant API tests in CI |
-| SQLite migration breaks existing data | Every schema-change phase | Migration test opens old DB version, upgrades, verifies data integrity |
-| Background sync killed by OS | Phase 2: Sync engine | Physical device test with battery optimization enabled |
-| Action queue not idempotent | Phase 2: Sync engine | Duplicate submission test returns original record, not duplicate |
-| Noisy neighbor performance degradation | Phase 4: Scale hardening | Per-tenant query time monitored; RLS indexes verified in DB plan |
-| Travel time not in scheduling UI | Phase 3: Scheduling engine | Dispatcher schedule view shows buffer zones between jobs |
+| JWT in localStorage (XSS) | Phase 1: Web Auth | `document.cookie` test; no `localStorage` token writes in codebase search |
+| CORS wildcard breaks mobile | Phase 1: Web Auth | Mobile app regression test in CI against backend with CORS enabled |
+| Middleware bypass CVE-2025-29927 | Phase 1: Web Auth | `package.json` version check; server-side token verification in every route handler |
+| Redux SSR singleton | Phase 1: Web Foundation | Two-request concurrency test; `makeStore` factory confirmed in code review |
+| Router cache stale auth data | Phase 1: Web Auth | Manual logout + back button test; `staleTimes` config verified |
+| Refresh token family conflict | Phase 1: Web Auth | Simultaneous mobile + web session test; neither session revoked |
+| API contract breaking mobile | Phase 1: Web Foundation + every backend-change phase | OpenAPI spec diff in CI; mobile deserialization test on every schema change |
+| RTK Query SSR hydration mismatch | Phase 1: Web Foundation | No hydration warnings in CI build output; server component data fetching via `fetch` only |
+| RLS not applied to web queries | Every phase adding new endpoints | Cross-tenant isolation test for every new endpoint |
+| Dual auth flow complexity | Phase 1: Web Auth | Bearer-header path test + cookie path test + "both present" test |
 
 ---
 
 ## Sources
 
-- AppMaster: Offline-First Background Sync — Conflicts, Retries, UX (https://appmaster.io/blog/offline-first-background-sync-conflict-retries-ux)
-- Android Developers: Build an Offline-First App (https://developer.android.com/topic/architecture/data-layer/offline-first)
-- Flutter Official Docs: Offline-First Support (https://docs.flutter.dev/app-architecture/design-patterns/offline-first)
-- DEV Community: Offline-First Architecture in Flutter Parts 1 & 2 (https://dev.to/anurag_dev/implementing-offline-first-architecture-in-flutter-part-1-local-storage-with-conflict-resolution-4mdl)
-- Sachith Dassanayake: Offline Sync & Conflict Resolution Patterns (Feb 2026) (https://www.sachith.co.uk/offline-sync-conflict-resolution-patterns-architecture-trade%E2%80%91offs-practical-guide-feb-19-2026/)
-- DZone: Conflict Resolution — LWW vs CRDTs (https://dzone.com/articles/conflict-resolution-using-last-write-wins-vs-crdts)
-- AWS: Multi-Tenant Data Isolation with PostgreSQL RLS (https://aws.amazon.com/blogs/database/multi-tenant-data-isolation-with-postgresql-row-level-security/)
-- permit.io: Postgres RLS Implementation Guide — Best Practices and Common Pitfalls (https://www.permit.io/blog/postgres-rls-implementation-guide)
-- Medium: Multi-Tenant Architecture with FastAPI — Design Patterns and Pitfalls (https://medium.com/@koushiksathish3/multi-tenant-architecture-with-fastapi-design-patterns-and-pitfalls-aa3f9e75bf8c)
-- HackerNoon: How to Solve Race Conditions in a Booking System (https://hackernoon.com/how-to-solve-race-conditions-in-a-booking-system)
-- Medium: Flutter SQLite Common Mistakes (https://medium.com/@sparkleo/common-sqlite-mistakes-flutter-devs-make-and-how-to-avoid-them-1102ab0117d5)
-- Medium: Background Sync Issue in Flutter — Debugging (https://dev.to/linwood_matthews_221/debugging-nightmare-fixing-a-background-sync-issue-in-flutter-15nl)
-- Medium: Flutter Background Tasks Struggles (https://medium.com/@fourstrokesdigital/why-flutter-apps-struggle-with-background-tasks-18918f1b1b98)
-- Neon: The Noisy Neighbor Problem in Multitenant Architectures (https://neon.com/blog/noisy-neighbor-multitenant)
-- Security Boulevard: Tenant Isolation in Multi-Tenant Systems (https://securityboulevard.com/2025/12/tenant-isolation-in-multi-tenant-systems-architecture-identity-and-security/)
+- Next.js Official Docs: Authentication — https://nextjs.org/docs/pages/guides/authentication
+- Redux Toolkit: Next.js Setup (store per request) — https://redux-toolkit.js.org/usage/nextjs
+- RTK Query: Server-Side Rendering — https://redux-toolkit.js.org/rtk-query/usage/server-side-rendering
+- FastAPI Official Docs: CORS — https://fastapi.tiangolo.com/tutorial/cors/
+- CVE-2025-29927 (Datadog Analysis) — https://securitylabs.datadoghq.com/articles/nextjs-middleware-auth-bypass/
+- CVE-2025-29927 (NVD) — https://nvd.nist.gov/vuln/detail/CVE-2025-29927
+- Next.js GitHub Discussion: Router Cache Stale Data — https://github.com/vercel/next.js/issues/69979
+- Next.js GitHub Discussion: Redux + localStorage Hydration — https://github.com/vercel/next.js/discussions/54350
+- RTK GitHub Discussion: App Router + RSC compatibility — https://github.com/reduxjs/redux-toolkit/discussions/4251
+- RTK GitHub Issue: SSR memory leak — https://github.com/reduxjs/redux-toolkit/issues/3988
+- OWASP: JWT Storage Best Practices (localStorage vs cookies)
+- TurboStarter: Complete Next.js Security Guide 2025 — https://www.turbostarter.dev/blog/complete-nextjs-security-guide-2025-authentication-api-protection-and-best-practices
+- FastAPI GitHub Issue: CORS wildcard with credentials — https://github.com/fastapi/fastapi/issues/4530
+- Next.js Official: Caching Guide — https://nextjs.org/docs/app/guides/caching
+- TheWidlarzGroup: Next.js SSR JWT with external backend — https://thewidlarzgroup.com/nextjs-auth/
 
 ---
-*Pitfalls research for: Offline-first multi-tenant contractor management SaaS (Flutter + FastAPI)*
-*Researched: 2026-03-04*
+*Pitfalls research for: Adding Next.js web admin dashboard to existing FastAPI + Flutter mobile platform*
+*Researched: 2026-03-14*
