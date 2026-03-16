@@ -67,12 +67,12 @@ Plans:
   2. Admin can open any job and see full detail — notes, contractor assignment, client info, current status, and time tracking
   3. Admin can advance or revert a job's status through the full lifecycle (Quote → Scheduled → In Progress → Complete → Invoiced)
   4. Admin can view inbound client-submitted job requests and approve or decline each one
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 14-01: Jobs list page — Server Component initial fetch, Client DataTable with status filter tabs, column sort, server-side pagination
-- [ ] 14-02: Job detail page — status display, notes, contractor/client info, time tracking; status transition actions
-- [ ] 14-03: Job request review queue — pending requests list, approve/decline actions with confirmation dialog
+- [ ] 14-01-PLAN.md — Shared foundation (types, StatusBadge colors, ui-slice pageTitle, shadcn installs, Playwright stubs) + jobs list page with tabs, search, sort, pagination
+- [ ] 14-02-PLAN.md — Job detail page with two-column layout, notes, activity history, status transitions with confirmation dialogs
+- [ ] 14-03-PLAN.md — Job request detail page with approve/decline actions and redirect flows
 
 ### Phase 15: Scheduling Calendar
 **Goal**: Admins can see the full team schedule at a glance and reschedule or reassign bookings by dragging them, with the system preventing conflicts before they are confirmed
@@ -163,7 +163,7 @@ Note: Phase 16 (Quotes/Invoices) depends only on Phase 13 and may be parallelize
 | 11. Integration Polish | v1.0 | 1/1 | Complete | 2026-03-15 |
 | 12. Client Profile Sync Fix | v1.0 | 1/1 | Complete | 2026-03-15 |
 | 13. Web Foundation and Auth | 4/4 | Complete   | 2026-03-16 | - |
-| 14. Job Management | v2.0 | 0/3 | Not started | - |
+| 14. Job Management | v2.0 | 0/3 | Planning complete | - |
 | 15. Scheduling Calendar | v2.0 | 0/3 | Not started | - |
 | 16. Quotes and Invoices | v2.0 | 0/5 | Not started | - |
 | 17. CRM — Clients and Contractors | v2.0 | 0/5 | Not started | - |
