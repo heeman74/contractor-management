@@ -321,7 +321,7 @@ export default function proxy(request: NextRequest) {
 
   if (!hasSession) {
     const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirectTo", pathname);
+    // NOTE: No redirectTo param — per CONTEXT.md, login always redirects to dashboard home
     return NextResponse.redirect(loginUrl);
   }
 
