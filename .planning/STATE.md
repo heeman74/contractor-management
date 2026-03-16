@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Web Admin Dashboard
 status: planning
-stopped_at: Phase 13 context gathered
-last_updated: "2026-03-16T05:39:28.686Z"
+stopped_at: Completed 13-web-foundation-and-auth/13-01-PLAN.md
+last_updated: "2026-03-16T07:08:11.449Z"
 last_activity: 2026-03-15 — v2.0 roadmap created, all 29 requirements mapped across 6 phases
 progress:
   total_phases: 6
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 4
+  completed_plans: 1
   percent: 0
 ---
 
@@ -42,6 +42,8 @@ Progress: [░░░░░░░░░░] 0%
 - v2.0: Redux makeStore factory pattern (never module-level singleton) to prevent cross-request tenant data leakage in SSR
 - v2.0: Backend changes are additive-only — no existing Pydantic fields renamed or removed (protects mobile app)
 - v2.0: Phase 16 (Quotes/Invoices) depends only on Phase 13 and may be parallelized with Phases 14-15
+- [Phase 13-web-foundation-and-auth]: Bearer header takes priority over access_token cookie in get_current_user — mobile unaffected, web uses cookie fallback
+- [Phase 13-web-foundation-and-auth]: client_type nullable column (no backfill) enables session attribution for web vs mobile clients
 
 ### Pending Todos
 
@@ -55,6 +57,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16T05:39:28.678Z
-Stopped at: Phase 13 context gathered
-Resume file: .planning/phases/13-web-foundation-and-auth/13-CONTEXT.md
+Last session: 2026-03-16T07:08:11.445Z
+Stopped at: Completed 13-web-foundation-and-auth/13-01-PLAN.md
+Resume file: None
