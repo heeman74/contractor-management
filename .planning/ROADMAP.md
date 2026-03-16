@@ -31,7 +31,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 **Milestone Goal:** Give company admins a full-featured desktop web experience for managing their contracting business — quoting, contractor management, scheduling, jobs, clients, invoicing, and reporting — powered by the existing FastAPI backend.
 
-- [ ] **Phase 13: Web Foundation and Auth** — Next.js scaffold, httpOnly cookie auth, session management, global navigation shell
+- [x] **Phase 13: Web Foundation and Auth** — Next.js scaffold, httpOnly cookie auth, session management, global navigation shell (completed 2026-03-16)
 - [ ] **Phase 14: Job Management** — Filterable jobs list, job detail, status transitions, job request review queue
 - [ ] **Phase 15: Scheduling Calendar** — Weekly calendar with contractor lanes, drag-and-drop rescheduling, conflict detection
 - [ ] **Phase 16: Quotes and Invoices** — Quote create/edit/send with line items, invoice payment recording, PDF downloads
@@ -50,7 +50,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
   3. Navigating between modules does not trigger a login redirect — token refresh happens invisibly
   4. Admin can log out and immediately cannot access any protected page
   5. The global sidebar is visible and functional on every page, and user-friendly error messages appear for auth failures, validation errors, and server errors
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
 - [ ] 13-01-PLAN.md — Backend prep: dual-auth get_current_user (cookie + Bearer), client_type migration, CORS verification
@@ -162,7 +162,7 @@ Note: Phase 16 (Quotes/Invoices) depends only on Phase 13 and may be parallelize
 | 10. UI & Backend Wiring Gap Closure | v1.0 | 1/1 | Complete | 2026-03-15 |
 | 11. Integration Polish | v1.0 | 1/1 | Complete | 2026-03-15 |
 | 12. Client Profile Sync Fix | v1.0 | 1/1 | Complete | 2026-03-15 |
-| 13. Web Foundation and Auth | 3/4 | In Progress|  | - |
+| 13. Web Foundation and Auth | 4/4 | Complete   | 2026-03-16 | - |
 | 14. Job Management | v2.0 | 0/3 | Not started | - |
 | 15. Scheduling Calendar | v2.0 | 0/3 | Not started | - |
 | 16. Quotes and Invoices | v2.0 | 0/5 | Not started | - |
