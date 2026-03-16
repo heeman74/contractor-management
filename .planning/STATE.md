@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Web Admin Dashboard
 status: planning
-stopped_at: Completed 14-job-management/14-01-PLAN.md
-last_updated: "2026-03-16T23:09:32.437Z"
+stopped_at: Completed 14-job-management/14-03-PLAN.md
+last_updated: "2026-03-16T23:12:43.267Z"
 last_activity: 2026-03-15 — v2.0 roadmap created, all 29 requirements mapped across 6 phases
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 7
-  completed_plans: 5
+  completed_plans: 6
   percent: 0
 ---
 
@@ -54,6 +54,7 @@ Progress: [░░░░░░░░░░] 0%
 - [Phase 14-job-management]: useQueries for parallel per-status count queries avoids hooks-in-loop violation
 - [Phase 14-job-management]: Requests tab badge shows pending-only count via client-side filter
 - [Phase 14-job-management]: Suspense boundary wraps useSearchParams consumer — required by Next.js App Router for static page generation
+- [Phase 14-job-management]: Static requests segment before [requestId] prevents Next.js route shadowing; approve fires immediately without confirmation dialog
 
 ### Pending Todos
 
@@ -67,6 +68,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16T23:09:32.432Z
-Stopped at: Completed 14-job-management/14-01-PLAN.md
+Last session: 2026-03-16T23:12:43.262Z
+Stopped at: Completed 14-job-management/14-03-PLAN.md
 Resume file: None
