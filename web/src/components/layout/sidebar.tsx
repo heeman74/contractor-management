@@ -203,8 +203,7 @@ export function Sidebar() {
     } catch {
       // ignore storage errors
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [dispatch]);
 
   const handleToggle = () => {
     dispatch(toggleSidebar());

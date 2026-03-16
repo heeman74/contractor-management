@@ -179,7 +179,7 @@ export default function DashboardPage() {
             {sortedRecentJobs.map((job) => (
               <li key={job.id} className="flex items-center gap-4 px-4 py-3 hover:bg-gray-50">
                 <span className="flex-1 truncate text-sm font-medium text-gray-900">
-                  {job.title}
+                  {job.description}
                 </span>
                 <StatusBadge status={job.status} size="sm" />
                 {(job as Job & { updated_at?: string }).updated_at && (

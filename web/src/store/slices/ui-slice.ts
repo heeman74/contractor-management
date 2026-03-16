@@ -2,6 +2,7 @@ import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
 interface UiState {
   sidebarCollapsed: boolean;
+  pageTitle: string | null;
 }
 
 function getInitialSidebarState(): boolean {
@@ -17,6 +18,7 @@ function getInitialSidebarState(): boolean {
 
 const initialState: UiState = {
   sidebarCollapsed: false,
+  pageTitle: null,
 };
 
 const uiSlice = createSlice({
@@ -53,9 +55,12 @@ const uiSlice = createSlice({
         }
       }
     },
+    setPageTitle(state, action: PayloadAction<string | null>) {
+      state.pageTitle = action.payload;
+    },
   },
 });
 
-export const { initSidebar, toggleSidebar, setSidebarCollapsed } =
+export const { initSidebar, toggleSidebar, setSidebarCollapsed, setPageTitle } =
   uiSlice.actions;
 export default uiSlice.reducer;

@@ -24,6 +24,10 @@ const colorMap: Record<string, string> = {
   // Blue — scheduled/sent states
   scheduled: "bg-blue-100 text-blue-800",
   sent: "bg-blue-100 text-blue-800",
+  // Indigo — quote states
+  quote: "bg-indigo-100 text-indigo-800",
+  // Teal — invoiced states
+  invoiced: "bg-teal-100 text-teal-800",
   // Gray — draft states
   draft: "bg-gray-100 text-gray-700",
 };

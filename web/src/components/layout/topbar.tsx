@@ -31,6 +31,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   clients: "Clients",
   contractors: "Contractors",
   reports: "Reports",
+  requests: "Requests",
 };
 
 interface BreadcrumbSegment {
@@ -63,8 +64,18 @@ export function Topbar() {
   const dispatch = useAppDispatch();
   const displayName = useAppSelector((state) => state.auth.displayName);
   const companyName = useAppSelector((state) => state.auth.companyName);
+  const pageTitle = useAppSelector((state) => state.ui.pageTitle);
 
   const breadcrumbs = buildBreadcrumbs(pathname);
+
+  // Override the last breadcrumb label with pageTitle when the segment is a UUID
+  // (i.e., not a recognized SEGMENT_LABELS key — e.g., /jobs/abc123-uuid-...)
+  if (pageTitle && breadcrumbs.length > 1) {
+    const lastCrumb = breadcrumbs[breadcrumbs.length - 1];
+    if (!lastCrumb.href && !SEGMENT_LABELS[pathname.split("/").filter(Boolean).pop() ?? ""]) {
+      lastCrumb.label = pageTitle;
+    }
+  }
 
   const handleLogout = async () => {
     try {
