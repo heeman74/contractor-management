@@ -269,11 +269,15 @@ class SchedulingRepository(TenantScopedRepository[Booking]):
         trade_type: str,
         company_id: uuid.UUID,
     ) -> list[User]:
-        """Return all contractor users whose company supports the given trade_type.
+        """Return contractor users in the company, optionally filtered by trade_type.
 
-        Queries users with the 'contractor' role within the company. Trade type
-        filtering is applied in the service layer from the company's trade_types array
-        because the contractor -> trade relationship lives on the company level.
+        Currently filters only by role='contractor' because the User model has no
+        trade_type field — the trade relationship lives at the company level.
+
+        TODO: When a trade_type/specialty column is added to User or a
+        contractor_trades join table is created, add a WHERE filter on trade_type
+        here. Until then, callers must post-filter results if trade specificity
+        is required.
         """
         from app.features.users.models import UserRole
 

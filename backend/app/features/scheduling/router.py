@@ -115,23 +115,13 @@ def _require_admin(current_user: CurrentUser) -> None:
 
 
 def _booking_to_response(booking) -> BookingResponse:
-    """Convert a Booking ORM model to BookingResponse schema."""
-    return BookingResponse(
-        id=booking.id,
-        company_id=booking.company_id,
-        version=booking.version,
-        created_at=booking.created_at,
-        updated_at=booking.updated_at,
-        deleted_at=booking.deleted_at,
-        contractor_id=booking.contractor_id,
-        job_id=booking.job_id,
-        job_site_id=booking.job_site_id,
-        time_range_start=booking.time_range.lower,
-        time_range_end=booking.time_range.upper,
-        day_index=booking.day_index,
-        parent_booking_id=booking.parent_booking_id,
-        notes=booking.notes,
-    )
+    """Convert a Booking ORM model to BookingResponse schema.
+
+    Uses model_validate() per CLAUDE.md convention. The BookingResponse
+    model_validator(mode='before') handles extracting time_range.lower/upper
+    into time_range_start/time_range_end.
+    """
+    return BookingResponse.model_validate(booking, from_attributes=True)
 
 
 # ---------------------------------------------------------------------------

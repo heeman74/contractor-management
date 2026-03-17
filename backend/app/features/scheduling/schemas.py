@@ -213,6 +213,37 @@ class BookingResponse(TenantResponseSchema):
     parent_booking_id: uuid.UUID | None = None
     notes: str | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def extract_time_range(cls, data: object) -> object:
+        """Extract time_range_start/end from a PostgreSQL TSTZRANGE column.
+
+        When model_validate() is called with from_attributes=True on a Booking
+        ORM object, the 'time_range' attribute is a SQLAlchemy Range with .lower
+        and .upper. This validator maps those to the flat start/end fields.
+        """
+        if hasattr(data, "time_range") and hasattr(data.time_range, "lower"):
+            # ORM object — read attributes directly
+            time_range = data.time_range
+            # Build a dict from the ORM attributes so Pydantic can populate fields
+            return {
+                "id": data.id,
+                "company_id": data.company_id,
+                "version": data.version,
+                "created_at": data.created_at,
+                "updated_at": data.updated_at,
+                "deleted_at": data.deleted_at,
+                "contractor_id": data.contractor_id,
+                "job_id": data.job_id,
+                "job_site_id": data.job_site_id,
+                "time_range_start": time_range.lower,
+                "time_range_end": time_range.upper,
+                "day_index": data.day_index,
+                "parent_booking_id": data.parent_booking_id,
+                "notes": data.notes,
+            }
+        return data
+
 
 class ConflictDetail(BaseModel):
     """Details about a conflicting booking, returned when a booking attempt fails (409).
@@ -301,9 +332,3 @@ class SuggestDatesRequest(BaseModel):
     preferred_start: date
     duration_hours: float = Field(gt=0)
     within_days: int = Field(default=30, ge=1, le=90)
-
-    @model_validator(mode="after")
-    def validate_caps(self) -> "SuggestDatesRequest":
-        if self.num_days < 1:
-            raise ValueError("num_days must be at least 1")
-        return self

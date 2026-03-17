@@ -1032,9 +1032,11 @@ class SchedulingService(TenantScopedService[Booking]):
         """
         self._require_tenant_id()
 
-        # Fetch existing booking
+        # Fetch existing booking (also reject if already soft-deleted)
         existing = await self.repository.get_by_id(booking_id)
         if existing is None:
+            raise BookingNotFoundError(booking_id)
+        if existing.deleted_at is not None:
             raise BookingNotFoundError(booking_id)
 
         # Soft-delete the existing booking to free the slot for conflict checking
@@ -1184,18 +1186,16 @@ class SchedulingService(TenantScopedService[Booking]):
             stmt = stmt.where(Booking.contractor_id == contractor_id)
 
         if date_from is not None:
+            # Booking must end after date_from (i.e., overlap with or start after date_from)
             range_start = datetime(date_from.year, date_from.month, date_from.day, tzinfo=UTC)
-            stmt = stmt.where(
-                Booking.time_range.op(">>")(func.tstzrange(None, range_start, "(]")).is_(False)
-            )
+            stmt = stmt.where(Booking.time_range.op("&&")(func.tstzrange(range_start, None, "[)")))
 
         if date_to is not None:
+            # Booking must start before date_to+1 (i.e., overlap with or end before end-of-day)
             range_end = datetime(date_to.year, date_to.month, date_to.day, tzinfo=UTC) + timedelta(
                 days=1
             )
-            stmt = stmt.where(
-                Booking.time_range.op("<<")(func.tstzrange(range_end, None, "[)")).is_(False)
-            )
+            stmt = stmt.where(Booking.time_range.op("&&")(func.tstzrange(None, range_end, "()")))
 
         stmt = stmt.order_by(Booking.time_range).limit(limit).offset(offset)
         result = await self.db.execute(stmt)
