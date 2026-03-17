@@ -4,7 +4,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { apiPatch } from "@/lib/api-client";
-import type { CalendarBooking } from "@/types/schedule";
+import type { BookingResponse } from "@/types/schedule";
+import type { Job } from "@/types/api";
 
 interface RescheduleArgs {
   bookingId: string;
@@ -12,6 +13,12 @@ interface RescheduleArgs {
   end: Date;
   contractorId: string;
   contractorName?: string;
+}
+
+/** Raw cache shape stored by useBookings queryFn */
+interface BookingsCacheData {
+  rawBookings: BookingResponse[];
+  rawJobs: Job[];
 }
 
 /**
@@ -41,28 +48,44 @@ export function useRescheduleMutation() {
     onMutate: async (args) => {
       // 1. Cancel outgoing refetches to prevent overwrite
       await queryClient.cancelQueries({ queryKey: ["bookings"] });
-      // 2. Snapshot current data for rollback
-      const previousBookings = queryClient.getQueryData(["bookings"]);
-      // 3. Optimistically update the cache — find all queries whose key starts with "bookings"
-      queryClient.setQueriesData<CalendarBooking[]>(
+
+      // 2. Snapshot ALL matching booking queries for rollback (fuzzy match)
+      const queryCache = queryClient.getQueryCache();
+      const matchingQueries = queryCache.findAll({ queryKey: ["bookings"] });
+      const snapshots: Array<{ queryKey: readonly unknown[]; data: unknown }> = [];
+      for (const query of matchingQueries) {
+        snapshots.push({ queryKey: query.queryKey, data: query.state.data });
+      }
+
+      // 3. Optimistically update the raw cache shape — find all queries whose key starts with "bookings"
+      queryClient.setQueriesData<BookingsCacheData>(
         { queryKey: ["bookings"] },
-        (old) =>
-          old?.map((b) =>
-            b.id === args.bookingId
-              ? { ...b, start: args.start, end: args.end, resourceId: args.contractorId }
-              : b
-          )
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            rawBookings: old.rawBookings.map((b) =>
+              b.id === args.bookingId
+                ? {
+                    ...b,
+                    time_range_start: args.start.toISOString(),
+                    time_range_end: args.end.toISOString(),
+                    contractor_id: args.contractorId,
+                  }
+                : b
+            ),
+          };
+        }
       );
-      return { previousBookings };
+      return { snapshots };
     },
 
     onError: (_err, _args, context) => {
-      // Roll back to snapshot on ANY error
-      if (context?.previousBookings) {
-        queryClient.setQueriesData(
-          { queryKey: ["bookings"] },
-          context.previousBookings
-        );
+      // Roll back ALL snapshotted queries on ANY error
+      if (context?.snapshots) {
+        for (const { queryKey, data } of context.snapshots) {
+          queryClient.setQueryData(queryKey, data);
+        }
       }
       toast.error("Failed to reschedule — please try again", { duration: Infinity });
     },

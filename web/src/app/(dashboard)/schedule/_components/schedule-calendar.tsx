@@ -3,10 +3,10 @@
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Calendar, dateFnsLocalizer, Views, type View, type EventProps } from "react-big-calendar";
 import withDragAndDrop, { type EventInteractionArgs } from "react-big-calendar/lib/addons/dragAndDrop";
-import { format, parse, startOfWeek, getDay } from "date-fns";
+import { format, parse, startOfWeek, getDay, addDays, subDays, addWeeks, subWeeks } from "date-fns";
 import { enUS } from "date-fns/locale";
 import { CalendarOff } from "lucide-react";
 import Link from "next/link";
@@ -40,6 +40,12 @@ const localizer = dateFnsLocalizer({
 
 // Create DnD-capable calendar
 const DnDCalendar = withDragAndDrop<CalendarBooking, ContractorResource>(Calendar);
+
+// Fix #8: Extract noop toolbar to module-level constant to avoid new reference per render
+const NoopToolbar = () => null;
+
+// Fix #3: Module-level scroll target (8 AM) — avoids re-scroll on every render
+const SCROLL_TO_TIME = new Date(1970, 0, 1, 8, 0, 0);
 
 // Map CalendarView -> react-big-calendar View
 function toRBCView(view: CalendarView): View {
@@ -102,34 +108,45 @@ export default function ScheduleCalendar() {
     end: Date;
   } | null>(null);
 
-  // Build contractor name lookup map
-  const contractorNameMap = new Map(contractors.map((c) => [c.id, c.name]));
+  // Fix #9: Memoize contractor name lookup map
+  const contractorNameMap = useMemo(
+    () => new Map(contractors.map((c) => [c.id, c.name])),
+    [contractors]
+  );
 
-  // Apply client-side filtering to bookings and contractor resources
-  const filteredBookings = bookings.filter((b) => {
-    if (filterTrades.length > 0) {
-      const contractor = contractors.find((c) => c.id === b.resourceId);
-      if (!contractor?.tradeType || !filterTrades.includes(contractor.tradeType))
-        return false;
-    }
-    if (filterStatuses.length > 0 && !filterStatuses.includes(b.status))
-      return false;
-    if (
-      filterContractors.length > 0 &&
-      !filterContractors.includes(b.resourceId)
-    )
-      return false;
-    return true;
-  });
+  // Fix #9: Memoize filtered bookings
+  const filteredBookings = useMemo(
+    () =>
+      bookings.filter((b) => {
+        if (filterTrades.length > 0) {
+          const contractor = contractors.find((c) => c.id === b.resourceId);
+          if (!contractor?.tradeType || !filterTrades.includes(contractor.tradeType))
+            return false;
+        }
+        if (filterStatuses.length > 0 && !filterStatuses.includes(b.status))
+          return false;
+        if (
+          filterContractors.length > 0 &&
+          !filterContractors.includes(b.resourceId)
+        )
+          return false;
+        return true;
+      }),
+    [bookings, contractors, filterTrades, filterStatuses, filterContractors]
+  );
 
-  const filteredContractors =
-    filterContractors.length > 0
-      ? contractors.filter((c) => filterContractors.includes(c.id))
-      : filterTrades.length > 0
-        ? contractors.filter(
-            (c) => c.tradeType && filterTrades.includes(c.tradeType)
-          )
-        : contractors;
+  // Fix #9: Memoize filtered contractors
+  const filteredContractors = useMemo(
+    () =>
+      filterContractors.length > 0
+        ? contractors.filter((c) => filterContractors.includes(c.id))
+        : filterTrades.length > 0
+          ? contractors.filter(
+              (c) => c.tradeType && filterTrades.includes(c.tradeType)
+            )
+          : contractors,
+    [contractors, filterContractors, filterTrades]
+  );
 
   // Filter change handlers
   const handleFiltersChange = useCallback(
@@ -289,7 +306,21 @@ export default function ScheduleCalendar() {
     // No optimistic update was applied, so nothing to rollback
   }, []);
 
-  // Keyboard shortcuts
+  // Fix #5: ConflictModal overlay close handler — clears all related state
+  const handleConflictModalOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open) {
+        setConflictModalOpen(false);
+        setPendingMove(null);
+        setConflicts([]);
+      } else {
+        setConflictModalOpen(true);
+      }
+    },
+    []
+  );
+
+  // Fix #4: DST-safe keyboard navigation using date-fns
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       // Don't fire shortcuts when typing in inputs
@@ -306,17 +337,17 @@ export default function ScheduleCalendar() {
         case "ArrowLeft":
           e.preventDefault();
           if (view === "day") {
-            navigate(new Date(date.getTime() - 86400000));
+            navigate(subDays(date, 1));
           } else {
-            navigate(new Date(date.getTime() - 7 * 86400000));
+            navigate(subWeeks(date, 1));
           }
           break;
         case "ArrowRight":
           e.preventDefault();
           if (view === "day") {
-            navigate(new Date(date.getTime() + 86400000));
+            navigate(addDays(date, 1));
           } else {
-            navigate(new Date(date.getTime() + 7 * 86400000));
+            navigate(addWeeks(date, 1));
           }
           break;
         case "t":
@@ -341,6 +372,16 @@ export default function ScheduleCalendar() {
   const selectedContractorName = selectedBooking
     ? contractors.find((c) => c.id === selectedBooking.resourceId)?.name
     : undefined;
+
+  // Fix #10: Memoize components object to prevent recreation every render
+  const calendarComponents = useMemo(
+    () => ({
+      event: BookingEventWrapper,
+      resourceHeader: ContractorLaneHeaderWrapper,
+      toolbar: NoopToolbar,
+    }),
+    []
+  );
 
   // Empty state: no contractors yet
   if (!contractorsLoading && contractors.length === 0) {
@@ -438,19 +479,15 @@ export default function ScheduleCalendar() {
           onEventDrop={handleEventDrop}
           draggableAccessor={() => true}
           resizable={false}
-          components={{
-            event: BookingEventWrapper,
-            resourceHeader: ContractorLaneHeaderWrapper,
-            toolbar: () => null,
-          }}
-          scrollToTime={new Date()}
+          components={calendarComponents}
+          scrollToTime={SCROLL_TO_TIME}
           style={{ height: "calc(100vh - 200px)", minHeight: 600 }}
         />
       </div>
 
       <ConflictModal
         open={conflictModalOpen}
-        onOpenChange={setConflictModalOpen}
+        onOpenChange={handleConflictModalOpenChange}
         conflicts={conflicts}
         onConfirm={handleConfirmConflict}
         onCancel={handleCancelConflict}

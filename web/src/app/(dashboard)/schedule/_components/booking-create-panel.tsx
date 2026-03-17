@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { apiGet } from "@/lib/api-client";
@@ -35,6 +35,12 @@ export function BookingCreatePanel({
 }: BookingCreatePanelProps) {
   const [selectedJobId, setSelectedJobId] = useState("");
   const [notes, setNotes] = useState("");
+
+  // Reset form state when the panel re-opens with a different slot
+  useEffect(() => {
+    setSelectedJobId("");
+    setNotes("");
+  }, [contractorId, startTime, endTime]);
 
   const createBooking = useCreateBookingMutation();
 

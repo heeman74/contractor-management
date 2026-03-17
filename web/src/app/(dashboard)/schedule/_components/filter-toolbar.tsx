@@ -31,6 +31,14 @@ const STATUS_OPTIONS = [
   "invoiced",
 ];
 
+/** Format snake_case status values for display (e.g. "in_progress" -> "In Progress") */
+function formatStatusLabel(status: string): string {
+  return status
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 export function FilterToolbar({
   contractors,
   filterTrades,
@@ -141,7 +149,7 @@ export function FilterToolbar({
                     onFiltersChange(filterTrades, newStatuses, filterContractors);
                   }}
                 >
-                  {status}
+                  {formatStatusLabel(status)}
                 </DropdownMenuCheckboxItem>
               ))}
             </DropdownMenuContent>
