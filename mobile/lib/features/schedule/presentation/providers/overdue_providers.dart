@@ -184,10 +184,11 @@ OverdueJobInfo _toOverdueJobInfo(
   String? latestDelayReason;
   if (job.statusHistory.isNotEmpty) {
     final lastEntry = job.statusHistory.last;
-    final entryType = lastEntry['type'] as String?;
-    if (entryType == 'delay') {
+    final entryType = lastEntry['type'];
+    if (entryType is String && entryType == 'delay') {
       hasDelayReport = true;
-      latestDelayReason = lastEntry['reason'] as String?;
+      final reason = lastEntry['reason'];
+      latestDelayReason = reason is String ? reason : null;
     }
   }
 

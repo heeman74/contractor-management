@@ -160,6 +160,55 @@ final bookingsForDateProvider =
 );
 
 // ────────────────────────────────────────────────────────────────────────────
+// Bookings for selected week (Mon–Sun)
+// ────────────────────────────────────────────────────────────────────────────
+
+/// Streams bookings for the full week (Monday–Sunday) of the selected date.
+///
+/// Uses [BookingDao.watchBookingsByCompanyAndDateRange] with a 7-day range.
+/// Required by week view which needs all 7 days of bookings, not just one day.
+class BookingsForWeekNotifier extends AsyncNotifier<List<BookingEntity>> {
+  @override
+  Future<List<BookingEntity>> build() async {
+    final authState = ref.watch(authNotifierProvider);
+    if (authState is! AuthAuthenticated) return [];
+
+    final selectedDate = ref.watch(calendarDateProvider);
+    final dao = ref.watch(bookingDaoProvider);
+    final companyId = authState.companyId;
+
+    // Compute Monday of the selected week
+    final monday = DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+    ).subtract(Duration(days: selectedDate.weekday - 1));
+    // Sunday end = Monday + 7 days
+    final sundayEnd = monday.add(const Duration(days: 7));
+
+    final stream = dao.watchBookingsByCompanyAndDateRange(
+      companyId,
+      monday,
+      sundayEnd,
+    );
+
+    final sub = stream.listen(
+      (bookings) => state = AsyncData(bookings),
+      onError: (Object e, StackTrace st) => state = AsyncError(e, st),
+    );
+    ref.onDispose(sub.cancel);
+
+    return await stream.first;
+  }
+}
+
+/// Provider for [BookingsForWeekNotifier].
+final bookingsForWeekProvider =
+    AsyncNotifierProvider<BookingsForWeekNotifier, List<BookingEntity>>(
+  BookingsForWeekNotifier.new,
+);
+
+// ────────────────────────────────────────────────────────────────────────────
 // Contractor list providers
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -343,14 +392,24 @@ class UndoAction {
   const UndoAction({
     required this.type,
     required this.bookingId,
+    required this.expectedVersion,
     this.previousContractorId,
     this.previousStart,
     this.previousEnd,
     this.childBookingIds = const [],
+    this.childExpectedVersions = const [],
   });
 
   final UndoActionType type;
   final String bookingId;
+
+  /// The version the booking will be at after the forward mutation.
+  ///
+  /// Used by [undoLastBooking] as the currentVersion for the reverse operation.
+  /// - For creates: 1 (booking starts at version 1, undo soft-deletes with version 1).
+  /// - For reassign/resize: currentVersion+1 (the version after the forward mutation).
+  /// - For multiDayCreate: 1 for all child bookings (each starts at version 1).
+  final int expectedVersion;
 
   /// Original contractorId before a reassign operation.
   final String? previousContractorId;
@@ -363,6 +422,9 @@ class UndoAction {
 
   /// Child booking IDs for multi-day creates (all removed on undo).
   final List<String> childBookingIds;
+
+  /// Expected versions for child bookings (parallel to [childBookingIds]).
+  final List<int> childExpectedVersions;
 }
 
 /// Stack of undoable booking operations (max depth 10).
@@ -443,9 +505,11 @@ class BookingOperationsNotifier extends Notifier<void> {
     }
 
     // Push to undo stack (max 10 items).
+    // New bookings start at version 1, so undo soft-delete passes version 1.
     _pushUndo(UndoAction(
       type: UndoActionType.create,
       bookingId: bookingId,
+      expectedVersion: 1,
     ));
 
     return bookingId;
@@ -476,9 +540,11 @@ class BookingOperationsNotifier extends Notifier<void> {
       currentVersion,
     );
 
+    // After reassign, version is currentVersion+1. Undo needs that version.
     _pushUndo(UndoAction(
       type: UndoActionType.reassign,
       bookingId: bookingId,
+      expectedVersion: currentVersion + 1,
       previousContractorId: previousContractorId,
       previousStart: previousStart,
       previousEnd: previousEnd,
@@ -507,9 +573,11 @@ class BookingOperationsNotifier extends Notifier<void> {
       currentVersion,
     );
 
+    // After resize, version is currentVersion+1. Undo needs that version.
     _pushUndo(UndoAction(
       type: UndoActionType.resize,
       bookingId: bookingId,
+      expectedVersion: currentVersion + 1,
       previousStart: previousStart,
       previousEnd: previousEnd,
     ));
@@ -557,7 +625,10 @@ class BookingOperationsNotifier extends Notifier<void> {
       updated[parentIdx] = UndoAction(
         type: UndoActionType.multiDayCreate,
         bookingId: parentBookingId,
+        // Parent booking is version 1 (newly created); children are also version 1.
+        expectedVersion: 1,
         childBookingIds: childIds,
+        childExpectedVersions: List.filled(childIds.length, 1),
       );
       ref.read(undoStackProvider.notifier).state = updated;
     }
@@ -582,7 +653,8 @@ class BookingOperationsNotifier extends Notifier<void> {
 
     switch (action.type) {
       case UndoActionType.create:
-        await bookingDao.softDeleteBooking(action.bookingId, 1);
+        await bookingDao.softDeleteBooking(
+            action.bookingId, action.expectedVersion);
 
       case UndoActionType.reassign:
         if (action.previousContractorId != null &&
@@ -593,7 +665,7 @@ class BookingOperationsNotifier extends Notifier<void> {
             action.previousContractorId!,
             action.previousStart!,
             action.previousEnd!,
-            1, // version — incrementing is handled inside updateBookingContractorAndTime
+            action.expectedVersion,
           );
         }
 
@@ -603,16 +675,21 @@ class BookingOperationsNotifier extends Notifier<void> {
             action.bookingId,
             action.previousStart!,
             action.previousEnd!,
-            1,
+            action.expectedVersion,
           );
         }
 
       case UndoActionType.multiDayCreate:
         // Undo all child bookings first, then the parent.
-        for (final childId in action.childBookingIds) {
-          await bookingDao.softDeleteBooking(childId, 1);
+        for (var i = 0; i < action.childBookingIds.length; i++) {
+          final childVersion = i < action.childExpectedVersions.length
+              ? action.childExpectedVersions[i]
+              : action.expectedVersion;
+          await bookingDao.softDeleteBooking(
+              action.childBookingIds[i], childVersion);
         }
-        await bookingDao.softDeleteBooking(action.bookingId, 1);
+        await bookingDao.softDeleteBooking(
+            action.bookingId, action.expectedVersion);
     }
   }
 

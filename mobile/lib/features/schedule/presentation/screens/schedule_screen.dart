@@ -176,6 +176,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
         ),
       CalendarViewMode.month => _buildMonthView(
           bookingsAsync,
+          jobsAsync,
         ),
     };
   }
@@ -257,13 +258,16 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     AsyncValue<List<UserEntity>> contractorsAsync,
     AsyncValue<List<JobEntity>> jobsAsync,
   ) {
-    if (bookingsAsync is AsyncLoading ||
+    // Use week-range bookings provider instead of single-day bookingsAsync.
+    final weekBookingsAsync = ref.watch(bookingsForWeekProvider);
+
+    if (weekBookingsAsync is AsyncLoading ||
         contractorsAsync is AsyncLoading ||
         jobsAsync is AsyncLoading) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    final bookingError = bookingsAsync.error;
+    final bookingError = weekBookingsAsync.error;
     final contractorError = contractorsAsync.error;
     if (bookingError != null || contractorError != null) {
       return Center(
@@ -281,19 +285,13 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
       );
     }
 
-    // Compute 7-day range for week — week view needs the full 7 days.
-    // bookingsForDateProvider only covers one day; for week view we need
-    // all bookings in the week range. We use the full booking stream from
-    // bookingsForDateProvider as a fallback — the parent screen will wire
-    // a week-range provider in a future enhancement. For now, show all
-    // bookings from the month's loaded data.
     final allJobs = jobsAsync.value ?? [];
     final jobMap = <String, JobEntity>{
       for (final job in allJobs) job.id: job,
     };
 
     return CalendarWeekView(
-      bookings: bookingsAsync.value ?? [],
+      bookings: weekBookingsAsync.value ?? [],
       contractors: contractorsAsync.value ?? [],
       jobs: jobMap,
     );
@@ -301,13 +299,20 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
 
   Widget _buildMonthView(
     AsyncValue<List<BookingEntity>> bookingsAsync,
+    AsyncValue<List<JobEntity>> jobsAsync,
   ) {
-    if (bookingsAsync is AsyncLoading) {
+    if (bookingsAsync is AsyncLoading || jobsAsync is AsyncLoading) {
       return const Center(child: CircularProgressIndicator());
     }
 
+    final allJobs = jobsAsync.value ?? [];
+    final jobMap = <String, JobEntity>{
+      for (final job in allJobs) job.id: job,
+    };
+
     return CalendarMonthView(
       bookings: bookingsAsync.value ?? [],
+      jobs: jobMap,
     );
   }
 

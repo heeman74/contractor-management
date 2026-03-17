@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../features/jobs/domain/job_entity.dart';
 import '../../domain/booking_entity.dart';
+import '../../domain/overdue_service.dart';
 import '../providers/calendar_providers.dart';
 
 /// Month view: standard calendar grid with booking count badges per day.
@@ -21,11 +23,15 @@ import '../providers/calendar_providers.dart';
 class CalendarMonthView extends ConsumerStatefulWidget {
   const CalendarMonthView({
     required this.bookings,
+    required this.jobs,
     super.key,
   });
 
   /// All bookings for the full month range (company-scoped).
   final List<BookingEntity> bookings;
+
+  /// Job lookup map (jobId -> JobEntity) for severity computation.
+  final Map<String, JobEntity> jobs;
 
   @override
   ConsumerState<CalendarMonthView> createState() => _CalendarMonthViewState();
@@ -40,7 +46,7 @@ class _CalendarMonthViewState extends ConsumerState<CalendarMonthView> {
     final todayDate = DateTime(today.year, today.month, today.day);
 
     // Build booking count map: date string -> (count, max severity)
-    final bookingMap = _buildBookingMap(widget.bookings);
+    final bookingMap = _buildBookingMap(widget.bookings, widget.jobs);
 
     return GestureDetector(
       onHorizontalDragEnd: (details) {
@@ -108,20 +114,37 @@ class _CalendarMonthViewState extends ConsumerState<CalendarMonthView> {
 
   /// Builds a map from "yyyy-MM-dd" to [_DayBookingSummary].
   ///
-  /// Groups bookings by day and computes worst-case severity for badge coloring.
-  Map<String, _DayBookingSummary> _buildBookingMap(List<BookingEntity> bookings) {
+  /// Groups bookings by day and computes worst-case severity for badge coloring
+  /// using [OverdueService.computeSeverity] on each booking's associated job.
+  Map<String, _DayBookingSummary> _buildBookingMap(
+    List<BookingEntity> bookings,
+    Map<String, JobEntity> jobs,
+  ) {
     final map = <String, _DayBookingSummary>{};
 
     for (final booking in bookings) {
       final key = _dateKey(booking.timeRangeStart);
       final existing = map[key];
+
+      // Compute severity from the booking's associated job.
+      final job = jobs[booking.jobId];
+      final severity = job != null
+          ? OverdueService.computeSeverity(job.scheduledCompletionDate)
+          : OverdueSeverity.none;
+      final isCritical = severity == OverdueSeverity.critical;
+      final isWarning = severity == OverdueSeverity.warning;
+
       if (existing == null) {
-        map[key] = const _DayBookingSummary(count: 1, hasCritical: false, hasWarning: false);
+        map[key] = _DayBookingSummary(
+          count: 1,
+          hasCritical: isCritical,
+          hasWarning: isWarning,
+        );
       } else {
         map[key] = _DayBookingSummary(
           count: existing.count + 1,
-          hasCritical: existing.hasCritical,
-          hasWarning: existing.hasWarning,
+          hasCritical: existing.hasCritical || isCritical,
+          hasWarning: existing.hasWarning || isWarning,
         );
       }
     }
