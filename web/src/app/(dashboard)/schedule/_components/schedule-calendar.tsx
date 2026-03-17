@@ -47,6 +47,11 @@ const NoopToolbar = () => null;
 // Fix #3: Module-level scroll target (8 AM) — avoids re-scroll on every render
 const SCROLL_TO_TIME = new Date(1970, 0, 1, 8, 0, 0);
 
+// Module-level calendar bounds and draggable accessor — avoids new objects every render
+const CALENDAR_MIN = new Date(1970, 0, 1, 6, 0, 0);
+const CALENDAR_MAX = new Date(1970, 0, 1, 20, 0, 0);
+const ALWAYS_DRAGGABLE = () => true as const;
+
 // Map CalendarView -> react-big-calendar View
 function toRBCView(view: CalendarView): View {
   switch (view) {
@@ -96,8 +101,14 @@ export default function ScheduleCalendar() {
   const { bookings, isLoading } = useBookings(date, view);
   const { contractors, isLoading: contractorsLoading } = useContractors();
 
-  const [selectedBooking, setSelectedBooking] = useState<CalendarBooking | null>(null);
+  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [bookingPanelOpen, setBookingPanelOpen] = useState(false);
+
+  // Derive selected booking from bookings array so panel always shows fresh data after reschedule
+  const selectedBooking = useMemo(
+    () => (selectedBookingId ? bookings.find((b) => b.id === selectedBookingId) ?? null : null),
+    [selectedBookingId, bookings]
+  );
 
   // Slot selection state for booking creation panel
   const [createPanelOpen, setCreatePanelOpen] = useState(false);
@@ -205,7 +216,7 @@ export default function ScheduleCalendar() {
   const conflictCheck = useConflictCheck();
 
   const handleEventClick = useCallback((event: CalendarBooking) => {
-    setSelectedBooking(event);
+    setSelectedBookingId(event.id);
     setBookingPanelOpen(true);
   }, []);
 
@@ -219,6 +230,14 @@ export default function ScheduleCalendar() {
   const handleViewChange = useCallback(
     (newView: View) => {
       navigate(date, fromRBCView(newView));
+    },
+    [date, navigate]
+  );
+
+  // Toolbar-compatible view change handler (accepts CalendarView directly)
+  const handleToolbarViewChange = useCallback(
+    (newView: CalendarView) => {
+      navigate(date, newView);
     },
     [date, navigate]
   );
@@ -334,6 +353,23 @@ export default function ScheduleCalendar() {
         return;
       }
 
+      // Escape closes open panels/modals; all other shortcuts are suppressed when a panel/modal is open
+      if (e.key === "Escape") {
+        if (conflictModalOpen) {
+          handleCancelConflict();
+        } else if (createPanelOpen) {
+          setCreatePanelOpen(false);
+        } else if (bookingPanelOpen) {
+          setBookingPanelOpen(false);
+        }
+        return;
+      }
+
+      // Suppress navigation/shortcut keys while any panel or modal is open
+      if (bookingPanelOpen || createPanelOpen || conflictModalOpen) {
+        return;
+      }
+
       switch (e.key) {
         case "ArrowLeft":
           e.preventDefault();
@@ -359,19 +395,12 @@ export default function ScheduleCalendar() {
         case "T":
           navigate(new Date());
           break;
-        case "Escape":
-          if (conflictModalOpen) {
-            handleCancelConflict();
-          } else if (bookingPanelOpen) {
-            setBookingPanelOpen(false);
-          }
-          break;
       }
     }
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [date, view, navigate, bookingPanelOpen, conflictModalOpen, handleCancelConflict]);
+  }, [date, view, navigate, bookingPanelOpen, createPanelOpen, conflictModalOpen, handleCancelConflict]);
 
   // Look up contractor name for the booking panel
   const selectedContractorName = selectedBooking
@@ -417,7 +446,7 @@ export default function ScheduleCalendar() {
         date={date}
         view={view}
         onNavigate={handleNavigate}
-        onViewChange={(newView) => navigate(date, newView)}
+        onViewChange={handleToolbarViewChange}
       />
 
       <FilterToolbar
@@ -476,13 +505,13 @@ export default function ScheduleCalendar() {
           views={[Views.WEEK, Views.DAY, Views.MONTH]}
           step={15}
           timeslots={2}
-          min={new Date(0, 0, 0, 6, 0, 0)}
-          max={new Date(0, 0, 0, 20, 0, 0)}
+          min={CALENDAR_MIN}
+          max={CALENDAR_MAX}
           onSelectEvent={handleEventClick}
           selectable={true}
           onSelectSlot={handleSelectSlot}
           onEventDrop={handleEventDrop}
-          draggableAccessor={() => true}
+          draggableAccessor={ALWAYS_DRAGGABLE}
           resizable={false}
           components={calendarComponents}
           scrollToTime={SCROLL_TO_TIME}

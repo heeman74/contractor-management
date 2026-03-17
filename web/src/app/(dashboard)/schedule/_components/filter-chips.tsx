@@ -1,14 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
-
-/** Format snake_case status values for display (e.g. "in_progress" -> "In Progress") */
-function formatStatusLabel(status: string): string {
-  return status
-    .split("_")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
+import { formatStatusLabel } from "../_hooks/format-status-label";
 
 interface FilterChipsProps {
   filterTrades: string[];

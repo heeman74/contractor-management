@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { parseISO, format, isValid } from "date-fns";
 import type { CalendarView } from "@/types/schedule";
 
@@ -9,14 +9,15 @@ export function useScheduleUrl() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  // Parse date from URL (default to today)
+  // Parse date from URL (default to today, memoized to avoid new Date() every render)
+  const defaultDate = useRef(new Date()).current;
   const dateParam = searchParams.get("date");
   let date: Date;
   if (dateParam) {
     const parsed = parseISO(dateParam);
-    date = isValid(parsed) ? parsed : new Date();
+    date = isValid(parsed) ? parsed : defaultDate;
   } else {
-    date = new Date();
+    date = defaultDate;
   }
 
   // Parse view from URL (default to "week")

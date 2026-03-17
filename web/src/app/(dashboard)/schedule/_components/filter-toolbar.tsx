@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAppSelector, useAppDispatch } from "@/store/hooks";
 import { toggleFilterToolbar } from "@/store/slices/schedule-slice";
+import { formatStatusLabel } from "../_hooks/format-status-label";
 import type { ContractorResource } from "@/types/schedule";
 
 interface FilterToolbarProps {
@@ -30,14 +31,6 @@ const STATUS_OPTIONS = [
   "complete",
   "invoiced",
 ];
-
-/** Format snake_case status values for display (e.g. "in_progress" -> "In Progress") */
-function formatStatusLabel(status: string): string {
-  return status
-    .split("_")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
 
 export function FilterToolbar({
   contractors,
