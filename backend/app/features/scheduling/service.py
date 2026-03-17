@@ -1004,6 +1004,7 @@ class SchedulingService(TenantScopedService[Booking]):
         booking_id: uuid.UUID,
         new_start: datetime,
         new_end: datetime,
+        new_contractor_id: uuid.UUID | None = None,
     ) -> Booking:
         """Reschedule an existing booking to a new time slot.
 
@@ -1014,6 +1015,8 @@ class SchedulingService(TenantScopedService[Booking]):
         4. Return the new booking on success
 
         Travel time conflicts are treated as hard rejections (same as booking conflicts).
+        new_contractor_id: optional — for cross-lane DnD reassignment. Falls back to
+        existing.contractor_id when not provided (same-lane time-only reschedule).
         """
         self._require_tenant_id()
 
@@ -1030,7 +1033,7 @@ class SchedulingService(TenantScopedService[Booking]):
         # Attempt to create the new booking
         try:
             new_booking_data = BookingCreate(
-                contractor_id=existing.contractor_id,
+                contractor_id=new_contractor_id if new_contractor_id else existing.contractor_id,
                 job_id=existing.job_id,
                 job_site_id=existing.job_site_id,
                 start=new_start,

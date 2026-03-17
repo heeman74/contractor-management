@@ -339,6 +339,7 @@ class RescheduleRequest(BaseModel):
 
     start: datetime
     end: datetime
+    contractor_id: uuid.UUID | None = None  # Optional: for cross-lane reassignment
 
 
 @router.patch(
@@ -356,12 +357,14 @@ async def reschedule_booking(
     Atomically soft-deletes the existing booking and creates a new one.
     If the new slot is unavailable, the original booking is restored.
     Returns 409 if the new slot conflicts, 422 if outside working hours.
+    Optionally reassigns to a different contractor via contractor_id.
     """
     try:
         new_booking = await svc.reschedule_booking(
             booking_id=booking_id,
             new_start=reschedule_data.start,
             new_end=reschedule_data.end,
+            new_contractor_id=reschedule_data.contractor_id,
         )
     except ValueError as exc:
         raise HTTPException(
