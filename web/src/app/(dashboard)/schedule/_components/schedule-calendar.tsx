@@ -17,6 +17,8 @@ import { BookingEvent } from "./booking-event";
 import { ContractorLaneHeader } from "./contractor-lane-header";
 import { BookingPanel } from "./booking-panel";
 import { BookingCreatePanel } from "./booking-create-panel";
+import { FilterToolbar } from "./filter-toolbar";
+import { FilterChips } from "./filter-chips";
 import { ConflictModal } from "./conflict-modal";
 import { useBookings } from "../_hooks/use-bookings";
 import { useContractors } from "../_hooks/use-contractors";
@@ -75,7 +77,16 @@ function ContractorLaneHeaderWrapper({ resource }: { resource: ContractorResourc
 }
 
 export default function ScheduleCalendar() {
-  const { date, view, navigate } = useScheduleUrl();
+  const {
+    date,
+    view,
+    filterTrades,
+    filterStatuses,
+    filterContractors,
+    navigate,
+    setFilters,
+    clearFilters,
+  } = useScheduleUrl();
   const { bookings, isLoading } = useBookings(date, view);
   const { contractors, isLoading: contractorsLoading } = useContractors();
 
@@ -90,6 +101,76 @@ export default function ScheduleCalendar() {
     start: Date;
     end: Date;
   } | null>(null);
+
+  // Build contractor name lookup map
+  const contractorNameMap = new Map(contractors.map((c) => [c.id, c.name]));
+
+  // Apply client-side filtering to bookings and contractor resources
+  const filteredBookings = bookings.filter((b) => {
+    if (filterTrades.length > 0) {
+      const contractor = contractors.find((c) => c.id === b.resourceId);
+      if (!contractor?.tradeType || !filterTrades.includes(contractor.tradeType))
+        return false;
+    }
+    if (filterStatuses.length > 0 && !filterStatuses.includes(b.status))
+      return false;
+    if (
+      filterContractors.length > 0 &&
+      !filterContractors.includes(b.resourceId)
+    )
+      return false;
+    return true;
+  });
+
+  const filteredContractors =
+    filterContractors.length > 0
+      ? contractors.filter((c) => filterContractors.includes(c.id))
+      : filterTrades.length > 0
+        ? contractors.filter(
+            (c) => c.tradeType && filterTrades.includes(c.tradeType)
+          )
+        : contractors;
+
+  // Filter change handlers
+  const handleFiltersChange = useCallback(
+    (trades: string[], statuses: string[], contractorIds: string[]) => {
+      setFilters(trades, statuses, contractorIds);
+    },
+    [setFilters]
+  );
+
+  const handleRemoveTrade = useCallback(
+    (trade: string) => {
+      setFilters(
+        filterTrades.filter((t) => t !== trade),
+        filterStatuses,
+        filterContractors
+      );
+    },
+    [filterTrades, filterStatuses, filterContractors, setFilters]
+  );
+
+  const handleRemoveStatus = useCallback(
+    (status: string) => {
+      setFilters(
+        filterTrades,
+        filterStatuses.filter((s) => s !== status),
+        filterContractors
+      );
+    },
+    [filterTrades, filterStatuses, filterContractors, setFilters]
+  );
+
+  const handleRemoveContractor = useCallback(
+    (id: string) => {
+      setFilters(
+        filterTrades,
+        filterStatuses,
+        filterContractors.filter((c) => c !== id)
+      );
+    },
+    [filterTrades, filterStatuses, filterContractors, setFilters]
+  );
 
   // DnD state: pending move awaiting conflict confirmation
   const [pendingMove, setPendingMove] = useState<{
@@ -293,6 +374,25 @@ export default function ScheduleCalendar() {
         onViewChange={(newView) => navigate(date, newView)}
       />
 
+      <FilterToolbar
+        contractors={contractors}
+        filterTrades={filterTrades}
+        filterStatuses={filterStatuses}
+        filterContractors={filterContractors}
+        onFiltersChange={handleFiltersChange}
+      />
+
+      <FilterChips
+        filterTrades={filterTrades}
+        filterStatuses={filterStatuses}
+        filterContractors={filterContractors}
+        contractorNames={contractorNameMap}
+        onRemoveTrade={handleRemoveTrade}
+        onRemoveStatus={handleRemoveStatus}
+        onRemoveContractor={handleRemoveContractor}
+        onClearAll={clearFilters}
+      />
+
       <div className="relative">
         {isLoading && (
           <div className="absolute inset-0 bg-white/60 z-10 flex items-center justify-center">
@@ -317,8 +417,8 @@ export default function ScheduleCalendar() {
 
         <DnDCalendar
           localizer={localizer}
-          events={bookings}
-          resources={contractors}
+          events={filteredBookings}
+          resources={filteredContractors}
           resourceIdAccessor="id"
           resourceTitleAccessor="name"
           resourceAccessor="resourceId"
