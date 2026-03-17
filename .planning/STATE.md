@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Web Admin Dashboard
 status: planning
-stopped_at: Completed 15-03-PLAN.md
-last_updated: "2026-03-17T07:21:46.989Z"
+stopped_at: Completed 15-04-PLAN.md
+last_updated: "2026-03-17T20:04:27.898Z"
 last_activity: 2026-03-15 — v2.0 roadmap created, all 29 requirements mapped across 6 phases
 progress:
   total_phases: 6
   completed_phases: 3
-  total_plans: 10
-  completed_plans: 10
+  total_plans: 11
+  completed_plans: 11
   percent: 0
 ---
 
@@ -63,6 +63,8 @@ Progress: [░░░░░░░░░░] 0%
 - [Phase 15]: EventInteractionArgs.start/end are stringOrDate — coerce to Date before use to satisfy TypeScript strict mode
 - [Phase 15]: Conflict pre-check fires before any optimistic update — only apply optimistic update when no conflicts or user confirms
 - [Phase Phase 15-scheduling-calendar]: SlotInfo.resourceId coerced with String() before contractor lookup — react-big-calendar types it as string|number|undefined
+- [Phase 15-scheduling-calendar]: sa_inspect guard in _job_with_client_name() prevents lazy-raise MissingGreenlet after db.refresh() while still populating client_name from already-loaded relationships
+- [Phase 15-scheduling-calendar]: client_name is additive-only on JobResponse — no existing fields renamed or removed (protects mobile Dart models)
 
 ### Pending Todos
 
@@ -76,6 +78,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-17T07:21:37.138Z
-Stopped at: Completed 15-03-PLAN.md
+Last session: 2026-03-17T20:04:27.893Z
+Stopped at: Completed 15-04-PLAN.md
 Resume file: None
