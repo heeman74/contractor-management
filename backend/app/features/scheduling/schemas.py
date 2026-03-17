@@ -156,6 +156,12 @@ class DayBlock(BaseModel):
     start_time: time
     end_time: time
 
+    @model_validator(mode="after")
+    def validate_end_after_start(self) -> "DayBlock":
+        if self.end_time <= self.start_time:
+            raise ValueError("end_time must be after start_time")
+        return self
+
 
 class BookingCreate(BaseModel):
     """Payload for creating a single-day booking.
@@ -276,18 +282,22 @@ class DateSuggestion(BaseModel):
 class WeeklyScheduleCreate(BaseModel):
     """Create or replace a contractor's weekly schedule for a specific day.
 
+    contractor_id and day_of_week come from path params in the router
+    (PUT /schedules/{contractor_id}/weekly/{day_of_week}).
+
     blocks replaces all existing blocks for (contractor_id, day_of_week) atomically.
     An empty blocks list effectively clears the contractor's schedule for that day,
     meaning the contractor is treated as having no working hours on that day of the week.
     """
 
-    contractor_id: uuid.UUID
-    day_of_week: int = Field(ge=0, le=6)
     blocks: list[TimeBlock]
 
 
 class DateOverrideCreate(BaseModel):
     """Create a date-specific schedule override for a contractor.
+
+    contractor_id and override_date come from path params in the router
+    (PUT /schedules/{contractor_id}/overrides/{override_date}).
 
     Two modes:
     1. Full-day unavailable: is_unavailable=True, blocks must be None or empty.
@@ -296,8 +306,6 @@ class DateOverrideCreate(BaseModel):
     An override replaces the weekly template for override_date entirely.
     """
 
-    contractor_id: uuid.UUID
-    override_date: date
     is_unavailable: bool = False
     blocks: list[TimeBlock] | None = None
 
@@ -322,6 +330,12 @@ class ConflictCheckRequest(BaseModel):
     contractor_id: uuid.UUID
     start: datetime
     end: datetime
+
+    @model_validator(mode="after")
+    def validate_end_after_start(self) -> "ConflictCheckRequest":
+        if self.end <= self.start:
+            raise ValueError("end must be after start")
+        return self
 
 
 class SuggestDatesRequest(BaseModel):
