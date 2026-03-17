@@ -74,7 +74,7 @@ export function useBookings(
         return {
           id: booking.id,
           title: job?.description ?? "Unknown Job",
-          clientName: "", // Client name not directly available on job; populated in Phase 16
+          clientName: job?.client_name ?? "",
           start: startZoned,
           end: endZoned,
           resourceId: booking.contractor_id,

@@ -51,6 +51,7 @@ export interface Job {
   status_history: StatusHistoryEntry[];
   priority: "low" | "medium" | "high" | "urgent";
   client_id: string | null;
+  client_name: string | null;
   contractor_id: string | null;
   purchase_order_number: string | null;
   external_reference: string | null;
