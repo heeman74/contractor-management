@@ -165,7 +165,7 @@ Note: Phase 16 (Quotes/Invoices) depends only on Phase 13 and may be parallelize
 | 12. Client Profile Sync Fix | v1.0 | 1/1 | Complete | 2026-03-15 |
 | 13. Web Foundation and Auth | 4/4 | Complete   | 2026-03-16 | - |
 | 14. Job Management | 3/3 | Complete    | 2026-03-16 | - |
-| 15. Scheduling Calendar | 4/4 | Complete   | 2026-03-17 | - |
+| 15. Scheduling Calendar | 4/4 | Complete    | 2026-03-17 | - |
 | 16. Quotes and Invoices | v2.0 | 0/5 | Not started | - |
 | 17. CRM — Clients and Contractors | v2.0 | 0/5 | Not started | - |
 | 18. Reporting Dashboard | v2.0 | 0/3 | Not started | - |
