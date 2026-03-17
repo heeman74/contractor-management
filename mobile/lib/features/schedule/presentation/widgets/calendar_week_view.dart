@@ -318,7 +318,6 @@ class _ContractorWeekRow extends StatelessWidget {
                   child: _DayCellContent(
                     bookings: dayBookings,
                     jobs: jobs,
-                    context: context,
                     theme: theme,
                   ),
                 ),
@@ -355,13 +354,11 @@ class _DayCellContent extends StatelessWidget {
   const _DayCellContent({
     required this.bookings,
     required this.jobs,
-    required this.context,
     required this.theme,
   });
 
   final List<BookingEntity> bookings;
   final Map<String, JobEntity> jobs;
-  final BuildContext context;
   final ThemeData theme;
 
   static const _maxVisible = 3;

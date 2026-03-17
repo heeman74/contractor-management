@@ -75,42 +75,44 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
         final syncEngine = getIt<SyncEngine>();
         await syncEngine.syncNow();
       },
-      child: Column(
-        children: [
-          // ── Header bar ──────────────────────────────────────────────────
-          _CalendarHeader(
-            selectedDate: selectedDate,
-            viewMode: viewMode,
-            overdueCount: overdueCount,
-            tradeFilter: tradeFilter,
-            drawerOpen: _drawerOpen,
-            onDateChanged: (date) {
-              ref.read(calendarDateProvider.notifier).state = date;
-            },
-            onViewModeChanged: (mode) {
-              ref.read(calendarViewModeProvider.notifier).state = mode;
-            },
-            onTradeFilterChanged: (filter) {
-              ref.read(calendarTradeTypeFilterProvider.notifier).state = filter;
-              // Reset to page 0 when filter changes
-              ref.read(contractorPageIndexProvider.notifier).state = 0;
-            },
-            onTapOverdueBadge: () {
-              // Toggle overdue panel — wired per plan 03 requirement.
-              // Plan 04 will replace the placeholder with the real OverduePanel.
-              ref.read(showOverduePanelProvider.notifier).state =
-                  !showOverduePanel;
-            },
-            onToggleDrawer: () {
-              setState(() => _drawerOpen = !_drawerOpen);
-            },
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(
+            child: _CalendarHeader(
+              selectedDate: selectedDate,
+              viewMode: viewMode,
+              overdueCount: overdueCount,
+              tradeFilter: tradeFilter,
+              drawerOpen: _drawerOpen,
+              onDateChanged: (date) {
+                ref.read(calendarDateProvider.notifier).state = date;
+              },
+              onViewModeChanged: (mode) {
+                ref.read(calendarViewModeProvider.notifier).state = mode;
+              },
+              onTradeFilterChanged: (filter) {
+                ref.read(calendarTradeTypeFilterProvider.notifier).state = filter;
+                // Reset to page 0 when filter changes
+                ref.read(contractorPageIndexProvider.notifier).state = 0;
+              },
+              onTapOverdueBadge: () {
+                // Toggle overdue panel — wired per plan 03 requirement.
+                ref.read(showOverduePanelProvider.notifier).state =
+                    !showOverduePanel;
+              },
+              onToggleDrawer: () {
+                setState(() => _drawerOpen = !_drawerOpen);
+              },
+            ),
           ),
 
           // ── Overdue panel — animated show/hide managed internally by OverduePanel ──
-          const OverduePanel(),
+          const SliverToBoxAdapter(child: OverduePanel()),
 
           // ── Calendar content area + unscheduled drawer ───────────────────
-          Expanded(
+          SliverFillRemaining(
+            hasScrollBody: true,
             child: Stack(
               children: [
                 // Main calendar content
@@ -545,9 +547,14 @@ class _CalendarHeader extends StatelessWidget {
               ),
 
               // Trade type filter dropdown
-              _TradeFilterDropdown(
-                currentFilter: tradeFilter,
-                onChanged: onTradeFilterChanged,
+              // TODO(schedule): Trade filter is non-functional until UserEntity
+              // has tradeType support. Tooltip informs the user.
+              Tooltip(
+                message: 'Trade filter coming soon',
+                child: _TradeFilterDropdown(
+                  currentFilter: tradeFilter,
+                  onChanged: onTradeFilterChanged,
+                ),
               ),
             ],
           ),

@@ -86,20 +86,24 @@ class _ContractorScheduleScreenState
         final syncEngine = getIt<SyncEngine>();
         await syncEngine.syncNow();
       },
-      child: Column(
-        children: [
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
           // ── Header: view toggle + date navigation ──────────────────────
-          _ContractorScheduleHeader(
-            selectedDate: selectedDate,
-            viewMode: _viewMode,
-            onViewModeChanged: (mode) => setState(() => _viewMode = mode),
-            onDateChanged: (date) {
-              ref.read(calendarDateProvider.notifier).state = date;
-            },
+          SliverToBoxAdapter(
+            child: _ContractorScheduleHeader(
+              selectedDate: selectedDate,
+              viewMode: _viewMode,
+              onViewModeChanged: (mode) => setState(() => _viewMode = mode),
+              onDateChanged: (date) {
+                ref.read(calendarDateProvider.notifier).state = date;
+              },
+            ),
           ),
 
           // ── Content area ───────────────────────────────────────────────
-          Expanded(
+          SliverFillRemaining(
+            hasScrollBody: true,
             child: bookingsAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(

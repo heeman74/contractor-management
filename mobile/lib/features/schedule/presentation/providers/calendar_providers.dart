@@ -221,8 +221,10 @@ final filteredContractorsProvider = Provider<AsyncValue<List<UserEntity>>>(
       // when user profiles include trade specialization.
       var filtered = users;
       if (tradeFilter != null) {
-        // Placeholder: filter would be applied here when UserEntity has tradeType.
-        // For now all users pass through the filter.
+        // TODO(schedule): Trade filter is a no-op — UserEntity does not yet have
+        // a tradeType field. The dropdown is visible but non-functional. Implement
+        // filtering when UserEntity trade type support is added (Plan 05+).
+        // Until then, all contractors pass through regardless of filter selection.
         filtered = users;
       }
 
@@ -263,6 +265,9 @@ class BookingDragData {
     required this.durationMinutes,
     this.existingBookingId,
     this.sourceContractorId,
+    this.previousStart,
+    this.previousEnd,
+    this.previousVersion,
   });
 
   /// The job being scheduled or reassigned.
@@ -276,6 +281,15 @@ class BookingDragData {
 
   /// Non-null when dragging an existing booking from another contractor's lane.
   final String? sourceContractorId;
+
+  /// Original start time of the booking being dragged (for cross-lane reassignment).
+  final DateTime? previousStart;
+
+  /// Original end time of the booking being dragged (for cross-lane reassignment).
+  final DateTime? previousEnd;
+
+  /// Version of the booking being dragged (for optimistic concurrency).
+  final int? previousVersion;
 }
 
 // ────────────────────────────────────────────────────────────────────────────

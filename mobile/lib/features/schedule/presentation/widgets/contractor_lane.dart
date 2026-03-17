@@ -56,6 +56,7 @@ class ContractorLane extends ConsumerWidget {
     required this.totalDayHeightMinutes,
     required this.companyId,
     super.key,
+    this.currentTime,
     this.showHeader = true,
     this.showCompleted = false,
     this.onBookingCreated,
@@ -88,6 +89,12 @@ class ContractorLane extends ConsumerWidget {
 
   /// Company ID for booking creation (tenant scope).
   final String companyId;
+
+  /// Current time for the "now" line. Passed from a stateful parent that
+  /// updates it periodically (e.g., every minute) to avoid creating a new
+  /// DateTime.now() on every rebuild, which would force the CustomPainter
+  /// to repaint unnecessarily.
+  final DateTime? currentTime;
 
   /// Whether to show the contractor name/avatar header above the lane.
   /// Set to `false` when headers are rendered separately by the parent.
@@ -122,7 +129,7 @@ class ContractorLane extends ConsumerWidget {
               pixelsPerMinute: pixelsPerMinute,
               blockedIntervals: blockedIntervals,
               laneWidth: laneWidth,
-              currentTime: DateTime.now(),
+              currentTime: currentTime ?? DateTime.now(),
             ),
           ),
 
@@ -388,11 +395,9 @@ class _SlotDragTarget extends ConsumerWidget {
             slotStart.add(Duration(minutes: dragData.durationMinutes));
 
         if (dragData.existingBookingId != null) {
-          // Reassign existing booking to this lane/time
-          final existingBooking = bookings.firstWhere(
-            (b) => b.id == dragData.existingBookingId,
-            orElse: () => throw StateError('Booking not found'),
-          );
+          // Reassign existing booking to this lane/time.
+          // Use drag data for previous start/end/version — the source booking
+          // may not exist in THIS lane's bookings list (cross-lane drag).
           await ref
               .read(bookingOperationsProvider.notifier)
               .reassignBooking(
@@ -402,9 +407,9 @@ class _SlotDragTarget extends ConsumerWidget {
                 newEnd: slotEnd,
                 previousContractorId:
                     dragData.sourceContractorId ?? contractor.id,
-                previousStart: existingBooking.timeRangeStart,
-                previousEnd: existingBooking.timeRangeEnd,
-                currentVersion: existingBooking.version,
+                previousStart: dragData.previousStart ?? slotStart,
+                previousEnd: dragData.previousEnd ?? slotEnd,
+                currentVersion: dragData.previousVersion ?? 1,
               );
           onBookingReassigned?.call(dragData.existingBookingId!);
         } else {

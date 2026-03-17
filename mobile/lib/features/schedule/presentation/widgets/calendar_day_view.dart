@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -76,13 +78,18 @@ class CalendarDayView extends ConsumerStatefulWidget {
 
 class _CalendarDayViewState extends ConsumerState<CalendarDayView> {
   late final ScrollController _scrollController;
-  late final PageController _pageController;
+  late Timer _currentTimeTimer;
+  DateTime _currentTime = DateTime.now();
 
   @override
   void initState() {
     super.initState();
     _scrollController = ScrollController();
-    _pageController = PageController();
+
+    // Update the "now" line every 60 seconds instead of on every rebuild.
+    _currentTimeTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+      setState(() => _currentTime = DateTime.now());
+    });
 
     // Auto-scroll to working hours start (06:00) after the first frame.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -93,7 +100,7 @@ class _CalendarDayViewState extends ConsumerState<CalendarDayView> {
   @override
   void dispose() {
     _scrollController.dispose();
-    _pageController.dispose();
+    _currentTimeTimer.cancel();
     super.dispose();
   }
 
@@ -262,6 +269,7 @@ class _CalendarDayViewState extends ConsumerState<CalendarDayView> {
         laneWidth: laneWidth,
         pixelsPerMinute: pixelsPerMinute,
         totalDayHeightMinutes: _totalDayMinutes,
+        currentTime: _currentTime,
         showHeader: false,
         showCompleted: showCompleted,
         companyId: widget.companyId,

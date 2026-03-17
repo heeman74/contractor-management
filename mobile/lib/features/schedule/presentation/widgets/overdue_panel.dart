@@ -33,29 +33,30 @@ class OverduePanel extends ConsumerWidget {
     final isVisible = ref.watch(showOverduePanelProvider);
     final overdueJobs = ref.watch(overdueJobsProvider);
 
-    return AnimatedContainer(
+    return AnimatedCrossFade(
       duration: const Duration(milliseconds: 250),
-      curve: Curves.easeInOut,
-      height: isVisible ? null : 0,
-      clipBehavior: Clip.hardEdge,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        border: Border(
-          bottom: BorderSide(
-            color: Theme.of(context).colorScheme.outlineVariant,
+      crossFadeState:
+          isVisible ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+      firstChild: Container(
+        clipBehavior: Clip.hardEdge,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          border: Border(
+            bottom: BorderSide(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        child: _PanelContent(overdueJobs: overdueJobs),
       ),
-      child: isVisible
-          ? _PanelContent(overdueJobs: overdueJobs)
-          : const SizedBox.shrink(),
+      secondChild: const SizedBox.shrink(),
     );
   }
 }

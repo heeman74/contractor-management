@@ -155,7 +155,19 @@ OverdueJobInfo _toOverdueJobInfo(
   JobEntity job,
   Map<String, String> userNames,
 ) {
-  final scheduledDate = job.scheduledCompletionDate!;
+  final scheduledDate = job.scheduledCompletionDate;
+  if (scheduledDate == null) {
+    // Should not happen — isOverdue filters for non-null scheduledCompletionDate.
+    // Defensive fallback: return a non-overdue entry.
+    return OverdueJobInfo(
+      jobId: job.id,
+      description: job.description,
+      scheduledCompletionDate: DateTime.now(),
+      daysOverdue: 0,
+      severity: OverdueSeverity.none,
+      hasDelayReport: false,
+    );
+  }
   final severity = OverdueService.computeSeverity(scheduledDate);
 
   final now = DateTime.now();

@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -181,6 +183,9 @@ class _BookingCardState extends State<BookingCard> {
       durationMinutes: widget.durationMinutes,
       existingBookingId: widget.booking.id,
       sourceContractorId: widget.booking.contractorId,
+      previousStart: widget.booking.timeRangeStart,
+      previousEnd: widget.booking.timeRangeEnd,
+      previousVersion: widget.booking.version,
     );
 
     return SizedBox(
@@ -476,7 +481,7 @@ class _BookingCardContent extends StatelessWidget {
                 if (cardHeight >= 36 && job.clientId != null) ...[
                   const SizedBox(height: 1),
                   Text(
-                    'Client ${job.clientId!.substring(0, 8)}',
+                    'Client ${job.clientId!.substring(0, min(8, job.clientId!.length))}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
