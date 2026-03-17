@@ -5,20 +5,24 @@ import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
 
 import { useState, useEffect, useCallback } from "react";
 import { Calendar, dateFnsLocalizer, Views, type View, type EventProps } from "react-big-calendar";
-import withDragAndDrop from "react-big-calendar/lib/addons/dragAndDrop";
+import withDragAndDrop, { type EventInteractionArgs } from "react-big-calendar/lib/addons/dragAndDrop";
 import { format, parse, startOfWeek, getDay } from "date-fns";
 import { enUS } from "date-fns/locale";
 import { CalendarOff } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
 
 import { CalendarToolbar } from "./calendar-toolbar";
 import { BookingEvent } from "./booking-event";
 import { ContractorLaneHeader } from "./contractor-lane-header";
 import { BookingPanel } from "./booking-panel";
+import { ConflictModal } from "./conflict-modal";
 import { useBookings } from "../_hooks/use-bookings";
 import { useContractors } from "../_hooks/use-contractors";
 import { useScheduleUrl } from "../_hooks/use-schedule-url";
-import type { CalendarBooking, ContractorResource, CalendarView } from "@/types/schedule";
+import { useRescheduleMutation } from "../_hooks/use-reschedule";
+import { useConflictCheck } from "../_hooks/use-conflict-check";
+import type { CalendarBooking, ContractorResource, CalendarView, ConflictDetail } from "@/types/schedule";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -77,6 +81,21 @@ export default function ScheduleCalendar() {
   const [selectedBooking, setSelectedBooking] = useState<CalendarBooking | null>(null);
   const [bookingPanelOpen, setBookingPanelOpen] = useState(false);
 
+  // DnD state: pending move awaiting conflict confirmation
+  const [pendingMove, setPendingMove] = useState<{
+    bookingId: string;
+    start: Date;
+    end: Date;
+    contractorId: string;
+    contractorName?: string;
+  } | null>(null);
+  const [conflicts, setConflicts] = useState<ConflictDetail[]>([]);
+  const [conflictModalOpen, setConflictModalOpen] = useState(false);
+
+  // DnD hooks
+  const reschedule = useRescheduleMutation();
+  const conflictCheck = useConflictCheck();
+
   const handleEventClick = useCallback((event: CalendarBooking) => {
     setSelectedBooking(event);
     setBookingPanelOpen(true);
@@ -95,6 +114,64 @@ export default function ScheduleCalendar() {
     },
     [date, navigate]
   );
+
+  // DnD: handle event drop — runs conflict pre-check before saving
+  const handleEventDrop = useCallback(
+    async ({ event, start, end, resourceId }: EventInteractionArgs<CalendarBooking>) => {
+      // Coerce stringOrDate to Date (react-big-calendar may pass strings in some views)
+      const startDate = start instanceof Date ? start : new Date(start);
+      const endDate = end instanceof Date ? end : new Date(end);
+
+      // Fall back to original contractor if same-lane drop (resourceId may be undefined)
+      const contractorId = (resourceId as string | undefined) ?? event.resourceId;
+
+      // Find contractor name for the success toast
+      const contractor = contractors.find((c) => c.id === contractorId);
+      const contractorName = contractor?.name;
+
+      try {
+        // Pre-check for conflicts (SCHED-03) before committing the move
+        const conflictResults = await conflictCheck.mutateAsync({
+          contractor_id: contractorId,
+          start: startDate.toISOString(),
+          end: endDate.toISOString(),
+        });
+
+        if (conflictResults.length > 0) {
+          // Conflicts found — hold move in pending state and show modal
+          setPendingMove({ bookingId: event.id, start: startDate, end: endDate, contractorId, contractorName });
+          setConflicts(conflictResults);
+          setConflictModalOpen(true);
+          // Do NOT apply optimistic update yet — wait for user confirmation
+        } else {
+          // No conflicts — save immediately with optimistic update
+          reschedule.mutate({ bookingId: event.id, start: startDate, end: endDate, contractorId, contractorName });
+        }
+      } catch {
+        // Conflict check itself failed (network error)
+        toast.error("Failed to check for conflicts — please try again", { duration: Infinity });
+      }
+    },
+    [contractors, conflictCheck, reschedule]
+  );
+
+  // DnD: user clicked "Confirm Anyway" — proceed with the pending move
+  const handleConfirmConflict = useCallback(() => {
+    if (pendingMove) {
+      reschedule.mutate(pendingMove);
+    }
+    setConflictModalOpen(false);
+    setPendingMove(null);
+    setConflicts([]);
+  }, [pendingMove, reschedule]);
+
+  // DnD: user clicked "Cancel" — discard pending move (no optimistic update was applied)
+  const handleCancelConflict = useCallback(() => {
+    setConflictModalOpen(false);
+    setPendingMove(null);
+    setConflicts([]);
+    // No optimistic update was applied, so nothing to rollback
+  }, []);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -131,7 +208,9 @@ export default function ScheduleCalendar() {
           navigate(new Date());
           break;
         case "Escape":
-          if (bookingPanelOpen) {
+          if (conflictModalOpen) {
+            handleCancelConflict();
+          } else if (bookingPanelOpen) {
             setBookingPanelOpen(false);
           }
           break;
@@ -140,7 +219,7 @@ export default function ScheduleCalendar() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [date, view, navigate, bookingPanelOpen]);
+  }, [date, view, navigate, bookingPanelOpen, conflictModalOpen, handleCancelConflict]);
 
   // Look up contractor name for the booking panel
   const selectedContractorName = selectedBooking
@@ -194,6 +273,11 @@ export default function ScheduleCalendar() {
           .rbc-today {
             background-color: rgb(239 246 255);
           }
+          .rbc-addons-dnd-drag-preview {
+            opacity: 0.7;
+            outline: 2px dashed;
+            outline-color: oklch(0.205 0 0);
+          }
         `}</style>
 
         <DnDCalendar
@@ -215,6 +299,9 @@ export default function ScheduleCalendar() {
           max={new Date(0, 0, 0, 20, 0, 0)}
           onSelectEvent={handleEventClick}
           selectable={true}
+          onEventDrop={handleEventDrop}
+          draggableAccessor={() => true}
+          resizable={false}
           components={{
             event: BookingEventWrapper,
             resourceHeader: ContractorLaneHeaderWrapper,
@@ -224,6 +311,14 @@ export default function ScheduleCalendar() {
           style={{ height: "calc(100vh - 200px)", minHeight: 600 }}
         />
       </div>
+
+      <ConflictModal
+        open={conflictModalOpen}
+        onOpenChange={setConflictModalOpen}
+        conflicts={conflicts}
+        onConfirm={handleConfirmConflict}
+        onCancel={handleCancelConflict}
+      />
 
       <BookingPanel
         booking={selectedBooking}
