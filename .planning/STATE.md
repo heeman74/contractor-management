@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Web Admin Dashboard
 status: planning
-stopped_at: Completed 15-01-PLAN.md
-last_updated: "2026-03-17T07:01:14.155Z"
+stopped_at: Completed 15-02-PLAN.md
+last_updated: "2026-03-17T07:12:38.536Z"
 last_activity: 2026-03-15 — v2.0 roadmap created, all 29 requirements mapped across 6 phases
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 10
-  completed_plans: 8
+  completed_plans: 9
   percent: 0
 ---
 
@@ -60,6 +60,8 @@ Progress: [░░░░░░░░░░] 0%
 - [Phase 15-scheduling-calendar]: page.tsx requires use client for ssr:false dynamic import in Next.js App Router — Server Components cannot use ssr:false
 - [Phase 15-scheduling-calendar]: base-ui Button has no asChild prop — use buttonVariants + Link pattern for link-styled buttons in web layer
 - [Phase 15-scheduling-calendar]: react-big-calendar EventProps adapter wrapper pattern needed to bridge library types to custom event component props
+- [Phase 15]: EventInteractionArgs.start/end are stringOrDate — coerce to Date before use to satisfy TypeScript strict mode
+- [Phase 15]: Conflict pre-check fires before any optimistic update — only apply optimistic update when no conflicts or user confirms
 
 ### Pending Todos
 
@@ -73,6 +75,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-17T07:01:14.149Z
-Stopped at: Completed 15-01-PLAN.md
+Last session: 2026-03-17T07:12:38.530Z
+Stopped at: Completed 15-02-PLAN.md
 Resume file: None
