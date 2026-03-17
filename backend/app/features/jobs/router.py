@@ -127,6 +127,35 @@ _SINGLE_DAY_MAX_MINUTES = 480
 
 router = APIRouter(tags=["jobs"])
 
+
+# ---------------------------------------------------------------------------
+# Helper — build JobResponse with client_name from eager-loaded relationship
+# ---------------------------------------------------------------------------
+
+
+def _job_with_client_name(job) -> JobResponse:  # type: ignore[type-arg]
+    """Serialize a Job ORM object to JobResponse, populating client_name.
+
+    Accesses job.client only when the relationship attribute is already
+    loaded in the SQLAlchemy instance state. If not loaded (e.g. after
+    db.refresh() on a newly-created or mutated job), client_name is left
+    as None rather than triggering a lazy-load that would raise with
+    lazy="raise".
+
+    Combines first_name + last_name; returns None when no client is
+    assigned or both name parts are empty.
+    """
+    from sqlalchemy import inspect as sa_inspect
+
+    resp = JobResponse.model_validate(job)
+    insp = sa_inspect(job)
+    # Check if 'client' relationship is already loaded (not expired/unloaded)
+    if "client" not in insp.unloaded and job.client is not None:
+        parts = [job.client.first_name, job.client.last_name]
+        resp.client_name = " ".join(p for p in parts if p) or None
+    return resp
+
+
 # ---------------------------------------------------------------------------
 # Helper — derive booking times from job data
 # ---------------------------------------------------------------------------
@@ -169,7 +198,7 @@ async def create_job(
         user_id=current_user.user_id,
         company_id=current_user.company_id,
     )
-    return JobResponse.model_validate(job)
+    return _job_with_client_name(job)
 
 
 @router.get("/jobs/", response_model=list[JobResponse])
@@ -195,7 +224,7 @@ async def list_jobs(
         offset=offset,
         limit=limit,
     )
-    return [JobResponse.model_validate(j) for j in jobs]
+    return [_job_with_client_name(j) for j in jobs]
 
 
 @router.get("/jobs/search", response_model=list[JobResponse])
@@ -219,7 +248,7 @@ async def search_jobs(
         trade_type=trade_type,
         priority=priority,
     )
-    return [JobResponse.model_validate(j) for j in jobs]
+    return [_job_with_client_name(j) for j in jobs]
 
 
 @router.get("/jobs/contractor/mine", response_model=list[JobResponse])
@@ -230,7 +259,7 @@ async def get_my_contractor_jobs(
     """Return all active jobs assigned to the current authenticated user (contractor view)."""
     svc = JobService(db)
     jobs = await svc.get_contractor_jobs(current_user.user_id)
-    return [JobResponse.model_validate(j) for j in jobs]
+    return [_job_with_client_name(j) for j in jobs]
 
 
 # NOTE: /jobs/requests* and /jobs/request/{company_id} routes are declared BEFORE
@@ -519,7 +548,7 @@ async def report_job_delay(
     """
     svc = JobService(db)
     job = await svc.report_delay(job_id, data, user_id=current_user.user_id)
-    return JobResponse.model_validate(job)
+    return _job_with_client_name(job)
 
 
 # ---------------------------------------------------------------------------
@@ -672,7 +701,7 @@ async def get_job(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Job {job_id} not found",
         )
-    return JobResponse.model_validate(job)
+    return _job_with_client_name(job)
 
 
 @router.patch("/jobs/{job_id}", response_model=JobResponse)
@@ -685,7 +714,7 @@ async def update_job(
     """Partial update of non-lifecycle fields (PATCH semantics). Returns 404 if not found."""
     svc = JobService(db)
     job = await svc.update_job(job_id, data)
-    return JobResponse.model_validate(job)
+    return _job_with_client_name(job)
 
 
 @router.patch("/jobs/{job_id}/transition", response_model=JobResponse)
@@ -808,7 +837,7 @@ async def transition_job(
                 ),
             ) from exc
 
-    return JobResponse.model_validate(job)
+    return _job_with_client_name(job)
 
 
 @router.delete("/jobs/{job_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)

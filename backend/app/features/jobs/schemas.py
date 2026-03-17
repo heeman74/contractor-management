@@ -136,6 +136,7 @@ class JobResponse(BaseResponseSchema):
     status_history: list[dict[str, Any]] = Field(default_factory=list)
     priority: JobPriority
     client_id: uuid.UUID | None = None
+    client_name: str | None = None
     contractor_id: uuid.UUID | None = None
     purchase_order_number: str | None = None
     external_reference: str | None = None
