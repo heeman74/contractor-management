@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Web Admin Dashboard
 status: planning
-stopped_at: Phase 15 context gathered
-last_updated: "2026-03-17T05:03:04.527Z"
+stopped_at: Completed 15-01-PLAN.md
+last_updated: "2026-03-17T07:01:14.155Z"
 last_activity: 2026-03-15 — v2.0 roadmap created, all 29 requirements mapped across 6 phases
 progress:
   total_phases: 6
   completed_phases: 2
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 10
+  completed_plans: 8
   percent: 0
 ---
 
@@ -57,6 +57,9 @@ Progress: [░░░░░░░░░░] 0%
 - [Phase 14-job-management]: Static requests segment before [requestId] prevents Next.js route shadowing; approve fires immediately without confirmation dialog
 - [Phase 14-job-management]: base-ui DropdownMenuTrigger has no asChild prop — styled inline with Tailwind matching Button outline/sm
 - [Phase 14-job-management]: Cancel note creation fires inside transitionMutation onSuccess callback — ensures note only created after successful transition
+- [Phase 15-scheduling-calendar]: page.tsx requires use client for ssr:false dynamic import in Next.js App Router — Server Components cannot use ssr:false
+- [Phase 15-scheduling-calendar]: base-ui Button has no asChild prop — use buttonVariants + Link pattern for link-styled buttons in web layer
+- [Phase 15-scheduling-calendar]: react-big-calendar EventProps adapter wrapper pattern needed to bridge library types to custom event component props
 
 ### Pending Todos
 
@@ -70,6 +73,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-17T05:03:04.519Z
-Stopped at: Phase 15 context gathered
-Resume file: .planning/phases/15-scheduling-calendar/15-CONTEXT.md
+Last session: 2026-03-17T07:01:14.149Z
+Stopped at: Completed 15-01-PLAN.md
+Resume file: None

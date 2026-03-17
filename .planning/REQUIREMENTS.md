@@ -25,7 +25,7 @@ Requirements for web admin dashboard. Each maps to roadmap phases.
 
 ### Scheduling
 
-- [ ] **SCHED-01**: Admin can view a weekly calendar with side-by-side contractor lanes
+- [x] **SCHED-01**: Admin can view a weekly calendar with side-by-side contractor lanes
 - [ ] **SCHED-02**: Admin can drag-and-drop bookings to reschedule or reassign contractors
 - [ ] **SCHED-03**: Calendar displays conflict warnings before confirming a booking
 
@@ -112,7 +112,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | JOBS-02 | Phase 14 | Complete |
 | JOBS-03 | Phase 14 | Complete |
 | JOBS-04 | Phase 14 | Complete |
-| SCHED-01 | Phase 15 | Pending |
+| SCHED-01 | Phase 15 | Complete |
 | SCHED-02 | Phase 15 | Pending |
 | SCHED-03 | Phase 15 | Pending |
 | QUOTE-01 | Phase 16 | Pending |
