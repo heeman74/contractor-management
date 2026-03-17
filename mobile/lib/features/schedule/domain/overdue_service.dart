@@ -22,10 +22,13 @@ class OverdueService {
   ///
   /// Compare whole-day difference: strips time component so a booking on
   /// the scheduled date is not considered overdue until the next calendar day.
-  static OverdueSeverity computeSeverity(DateTime? scheduledCompletionDate) {
+  static OverdueSeverity computeSeverity(
+    DateTime? scheduledCompletionDate, {
+    DateTime? now,
+  }) {
     if (scheduledCompletionDate == null) return OverdueSeverity.none;
 
-    final now = DateTime.now();
+    now ??= DateTime.now();
     final todayStart = DateTime(now.year, now.month, now.day);
     final dueDate = DateTime(
       scheduledCompletionDate.year,
@@ -47,12 +50,16 @@ class OverdueService {
   /// invoiced, and cancelled jobs are terminal and excluded.
   ///
   /// Returns true if status is active AND today > scheduledCompletionDate.
-  static bool isOverdue(String status, DateTime? scheduledCompletionDate) {
+  static bool isOverdue(
+    String status,
+    DateTime? scheduledCompletionDate, {
+    DateTime? now,
+  }) {
     const activeStatuses = {'scheduled', 'in_progress'};
     if (!activeStatuses.contains(status)) return false;
     if (scheduledCompletionDate == null) return false;
 
-    final now = DateTime.now();
+    now ??= DateTime.now();
     final todayStart = DateTime(now.year, now.month, now.day);
     final dueDate = DateTime(
       scheduledCompletionDate.year,

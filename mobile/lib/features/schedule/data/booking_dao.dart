@@ -185,6 +185,8 @@ class BookingDao extends DatabaseAccessor<AppDatabase> with _$BookingDaoMixin {
   ///
   /// Used for cross-lane drag-and-drop reassignment. Updates both
   /// contractorId and time range in a single transaction with outbox entry.
+  /// Includes optimistic concurrency check — throws [StateError] if the
+  /// row was modified concurrently (version mismatch).
   Future<void> updateBookingContractorAndTime(
     String id,
     String newContractorId,
@@ -195,7 +197,10 @@ class BookingDao extends DatabaseAccessor<AppDatabase> with _$BookingDaoMixin {
     final now = DateTime.now();
     final newVersion = currentVersion + 1;
     await db.transaction(() async {
-      await (update(bookings)..where((tbl) => tbl.id.equals(id))).write(
+      final rowsAffected = await (update(bookings)
+            ..where((tbl) =>
+                tbl.id.equals(id) & tbl.version.equals(currentVersion)))
+          .write(
         BookingsCompanion(
           contractorId: Value(newContractorId),
           timeRangeStart: Value(newStart),
@@ -204,6 +209,12 @@ class BookingDao extends DatabaseAccessor<AppDatabase> with _$BookingDaoMixin {
           updatedAt: Value(now),
         ),
       );
+      if (rowsAffected == 0) {
+        throw StateError(
+          'Concurrent modification detected for booking $id '
+          '(expected version $currentVersion)',
+        );
+      }
       await into(syncQueue).insert(
         _buildQueueEntry(
           entityType: 'booking',
@@ -226,6 +237,8 @@ class BookingDao extends DatabaseAccessor<AppDatabase> with _$BookingDaoMixin {
   ///
   /// Bumps the version for optimistic locking. The sync payload includes
   /// the new time range and current version for server-side conflict detection.
+  /// Includes optimistic concurrency check — throws [StateError] if the
+  /// row was modified concurrently (version mismatch).
   Future<void> updateBookingTime(
     String id,
     DateTime newStart,
@@ -235,7 +248,10 @@ class BookingDao extends DatabaseAccessor<AppDatabase> with _$BookingDaoMixin {
     final now = DateTime.now();
     final newVersion = currentVersion + 1;
     await db.transaction(() async {
-      await (update(bookings)..where((tbl) => tbl.id.equals(id))).write(
+      final rowsAffected = await (update(bookings)
+            ..where((tbl) =>
+                tbl.id.equals(id) & tbl.version.equals(currentVersion)))
+          .write(
         BookingsCompanion(
           timeRangeStart: Value(newStart),
           timeRangeEnd: Value(newEnd),
@@ -243,6 +259,12 @@ class BookingDao extends DatabaseAccessor<AppDatabase> with _$BookingDaoMixin {
           updatedAt: Value(now),
         ),
       );
+      if (rowsAffected == 0) {
+        throw StateError(
+          'Concurrent modification detected for booking $id '
+          '(expected version $currentVersion)',
+        );
+      }
       await into(syncQueue).insert(
         _buildQueueEntry(
           entityType: 'booking',
@@ -264,17 +286,28 @@ class BookingDao extends DatabaseAccessor<AppDatabase> with _$BookingDaoMixin {
   ///
   /// The booking remains in the local DB as a tombstone — sync propagates
   /// the deletedAt timestamp to other devices and the backend.
+  /// Includes optimistic concurrency check — throws [StateError] if the
+  /// row was modified concurrently (version mismatch).
   Future<void> softDeleteBooking(String id, int currentVersion) async {
     final now = DateTime.now();
     final newVersion = currentVersion + 1;
     await db.transaction(() async {
-      await (update(bookings)..where((tbl) => tbl.id.equals(id))).write(
+      final rowsAffected = await (update(bookings)
+            ..where((tbl) =>
+                tbl.id.equals(id) & tbl.version.equals(currentVersion)))
+          .write(
         BookingsCompanion(
           deletedAt: Value(now),
           version: Value(newVersion),
           updatedAt: Value(now),
         ),
       );
+      if (rowsAffected == 0) {
+        throw StateError(
+          'Concurrent modification detected for booking $id '
+          '(expected version $currentVersion)',
+        );
+      }
       await into(syncQueue).insert(
         _buildQueueEntry(
           entityType: 'booking',

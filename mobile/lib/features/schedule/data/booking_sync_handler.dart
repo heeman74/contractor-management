@@ -7,6 +7,44 @@ import '../../../core/network/dio_client.dart';
 import '../../../core/sync/sync_handler.dart';
 import '../../../core/sync/sync_queue_dao.dart'; // SyncQueueData type
 
+/// Type-safe helpers for parsing API response data.
+///
+/// These avoid bare `as` casts on dynamic maps, throwing [FormatException]
+/// with clear messages when the response shape doesn't match expectations.
+String _requireString(Map<String, dynamic> data, String key) {
+  final value = data[key];
+  if (value is! String) {
+    throw FormatException('Expected String for $key, got ${value.runtimeType}');
+  }
+  return value;
+}
+
+String? _optionalString(Map<String, dynamic> data, String key) {
+  final value = data[key];
+  if (value == null) return null;
+  if (value is! String) {
+    throw FormatException('Expected String? for $key, got ${value.runtimeType}');
+  }
+  return value;
+}
+
+int? _optionalInt(Map<String, dynamic> data, String key) {
+  final value = data[key];
+  if (value == null) return null;
+  if (value is! int) {
+    throw FormatException('Expected int? for $key, got ${value.runtimeType}');
+  }
+  return value;
+}
+
+int _requireInt(Map<String, dynamic> data, String key) {
+  final value = data[key];
+  if (value is! int) {
+    throw FormatException('Expected int for $key, got ${value.runtimeType}');
+  }
+  return value;
+}
+
 /// SyncHandler implementation for the Booking entity.
 ///
 /// Push: routes CREATE/UPDATE/DELETE to the appropriate REST endpoints.
@@ -61,33 +99,38 @@ class BookingSyncHandler extends SyncHandler {
 
   @override
   Future<void> applyPulled(Map<String, dynamic> data) async {
-    final deletedAt = data['deleted_at'] != null
-        ? DateTime.parse(data['deleted_at'] as String)
-        : null;
+    final deletedAtStr = _optionalString(data, 'deleted_at');
+    final deletedAt =
+        deletedAtStr != null ? DateTime.parse(deletedAtStr) : null;
+
+    final timeRangeStartStr = _optionalString(data, 'time_range_start');
+    final timeRangeEndStr = _optionalString(data, 'time_range_end');
+    final createdAtStr = _optionalString(data, 'created_at');
+    final updatedAtStr = _optionalString(data, 'updated_at');
 
     final companion = BookingsCompanion(
-      id: Value(data['id'] as String),
-      companyId: Value(data['company_id'] as String),
-      contractorId: Value(data['contractor_id'] as String),
-      jobId: Value(data['job_id'] as String),
-      jobSiteId: Value(data['job_site_id'] as String?),
-      timeRangeStart: data['time_range_start'] != null
-          ? Value(DateTime.parse(data['time_range_start'] as String))
+      id: Value(_requireString(data, 'id')),
+      companyId: Value(_requireString(data, 'company_id')),
+      contractorId: Value(_requireString(data, 'contractor_id')),
+      jobId: Value(_requireString(data, 'job_id')),
+      jobSiteId: Value(_optionalString(data, 'job_site_id')),
+      timeRangeStart: timeRangeStartStr != null
+          ? Value(DateTime.parse(timeRangeStartStr))
           : const Value.absent(),
-      timeRangeEnd: data['time_range_end'] != null
-          ? Value(DateTime.parse(data['time_range_end'] as String))
+      timeRangeEnd: timeRangeEndStr != null
+          ? Value(DateTime.parse(timeRangeEndStr))
           : const Value.absent(),
-      dayIndex: Value(data['day_index'] as int?),
-      parentBookingId: Value(data['parent_booking_id'] as String?),
-      notes: Value(data['notes'] as String?),
+      dayIndex: Value(_optionalInt(data, 'day_index')),
+      parentBookingId: Value(_optionalString(data, 'parent_booking_id')),
+      notes: Value(_optionalString(data, 'notes')),
       version: data['version'] != null
-          ? Value(data['version'] as int)
+          ? Value(_requireInt(data, 'version'))
           : const Value.absent(),
-      createdAt: data['created_at'] != null
-          ? Value(DateTime.parse(data['created_at'] as String))
+      createdAt: createdAtStr != null
+          ? Value(DateTime.parse(createdAtStr))
           : const Value.absent(),
-      updatedAt: data['updated_at'] != null
-          ? Value(DateTime.parse(data['updated_at'] as String))
+      updatedAt: updatedAtStr != null
+          ? Value(DateTime.parse(updatedAtStr))
           : const Value.absent(),
       deletedAt: Value(deletedAt),
     );

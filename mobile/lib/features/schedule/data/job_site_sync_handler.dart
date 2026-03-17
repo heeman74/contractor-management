@@ -4,6 +4,35 @@ import '../../../core/database/app_database.dart';
 import '../../../core/sync/sync_handler.dart';
 import '../../../core/sync/sync_queue_dao.dart';
 
+/// Type-safe helpers for parsing API response data.
+///
+/// These avoid bare `as` casts on dynamic maps, throwing [FormatException]
+/// with clear messages when the response shape doesn't match expectations.
+String _requireString(Map<String, dynamic> data, String key) {
+  final value = data[key];
+  if (value is! String) {
+    throw FormatException('Expected String for $key, got ${value.runtimeType}');
+  }
+  return value;
+}
+
+String? _optionalString(Map<String, dynamic> data, String key) {
+  final value = data[key];
+  if (value == null) return null;
+  if (value is! String) {
+    throw FormatException('Expected String? for $key, got ${value.runtimeType}');
+  }
+  return value;
+}
+
+int _requireInt(Map<String, dynamic> data, String key) {
+  final value = data[key];
+  if (value is! int) {
+    throw FormatException('Expected int for $key, got ${value.runtimeType}');
+  }
+  return value;
+}
+
 /// SyncHandler implementation for the JobSite entity.
 ///
 /// JobSites are read-only from the mobile client's perspective:
@@ -33,9 +62,9 @@ class JobSiteSyncHandler extends SyncHandler {
 
   @override
   Future<void> applyPulled(Map<String, dynamic> data) async {
-    final deletedAt = data['deleted_at'] != null
-        ? DateTime.parse(data['deleted_at'] as String)
-        : null;
+    final deletedAtStr = _optionalString(data, 'deleted_at');
+    final deletedAt =
+        deletedAtStr != null ? DateTime.parse(deletedAtStr) : null;
 
     // Parse latitude/longitude — backend JobSiteResponse field names.
     // The Drift column names (lat, lng) differ from the backend JSON keys.
@@ -44,21 +73,24 @@ class JobSiteSyncHandler extends SyncHandler {
     final lng =
         data['longitude'] is num ? (data['longitude'] as num).toDouble() : null;
 
+    final createdAtStr = _optionalString(data, 'created_at');
+    final updatedAtStr = _optionalString(data, 'updated_at');
+
     final companion = JobSitesCompanion(
-      id: Value(data['id'] as String),
-      companyId: Value(data['company_id'] as String),
-      address: Value(data['address'] as String),
+      id: Value(_requireString(data, 'id')),
+      companyId: Value(_requireString(data, 'company_id')),
+      address: Value(_requireString(data, 'address')),
       lat: Value(lat),
       lng: Value(lng),
-      formattedAddress: Value(data['formatted_address'] as String?),
+      formattedAddress: Value(_optionalString(data, 'formatted_address')),
       version: data['version'] != null
-          ? Value(data['version'] as int)
+          ? Value(_requireInt(data, 'version'))
           : const Value.absent(),
-      createdAt: data['created_at'] != null
-          ? Value(DateTime.parse(data['created_at'] as String))
+      createdAt: createdAtStr != null
+          ? Value(DateTime.parse(createdAtStr))
           : const Value.absent(),
-      updatedAt: data['updated_at'] != null
-          ? Value(DateTime.parse(data['updated_at'] as String))
+      updatedAt: updatedAtStr != null
+          ? Value(DateTime.parse(updatedAtStr))
           : const Value.absent(),
       deletedAt: Value(deletedAt),
     );

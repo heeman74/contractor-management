@@ -1,6 +1,10 @@
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
+@TableIndex(name: 'idx_bookings_contractor_time', columns: {#contractorId, #timeRangeStart, #deletedAt})
+@TableIndex(name: 'idx_bookings_company_time', columns: {#companyId, #timeRangeStart, #deletedAt})
+@TableIndex(name: 'idx_bookings_job_id', columns: {#jobId, #deletedAt})
+
 /// Drift table definition for the Booking entity.
 ///
 /// A Booking represents a scheduled time block for a contractor. It mirrors

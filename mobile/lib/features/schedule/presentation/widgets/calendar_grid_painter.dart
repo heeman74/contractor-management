@@ -199,10 +199,12 @@ class CalendarGridPainter extends CustomPainter {
     if (oldDelegate.pixelsPerMinute != pixelsPerMinute) return true;
     if (oldDelegate.dayStart != dayStart) return true;
 
-    // Repaint if "now" line minute changes.
+    // Repaint if "now" line hour or minute changes.
+    final oldHour = oldDelegate.currentTime?.hour;
+    final newHour = currentTime?.hour;
     final oldMinute = oldDelegate.currentTime?.minute;
     final newMinute = currentTime?.minute;
-    if (oldMinute != newMinute) return true;
+    if (oldHour != newHour || oldMinute != newMinute) return true;
 
     // Repaint if blocked intervals list length or content changes.
     if (oldDelegate.blockedIntervals.length != blockedIntervals.length) {
