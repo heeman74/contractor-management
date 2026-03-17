@@ -16,6 +16,7 @@ import { CalendarToolbar } from "./calendar-toolbar";
 import { BookingEvent } from "./booking-event";
 import { ContractorLaneHeader } from "./contractor-lane-header";
 import { BookingPanel } from "./booking-panel";
+import { BookingCreatePanel } from "./booking-create-panel";
 import { ConflictModal } from "./conflict-modal";
 import { useBookings } from "../_hooks/use-bookings";
 import { useContractors } from "../_hooks/use-contractors";
@@ -81,6 +82,15 @@ export default function ScheduleCalendar() {
   const [selectedBooking, setSelectedBooking] = useState<CalendarBooking | null>(null);
   const [bookingPanelOpen, setBookingPanelOpen] = useState(false);
 
+  // Slot selection state for booking creation panel
+  const [createPanelOpen, setCreatePanelOpen] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<{
+    contractorId: string;
+    contractorName: string;
+    start: Date;
+    end: Date;
+  } | null>(null);
+
   // DnD state: pending move awaiting conflict confirmation
   const [pendingMove, setPendingMove] = useState<{
     bookingId: string;
@@ -113,6 +123,31 @@ export default function ScheduleCalendar() {
       navigate(date, fromRBCView(newView));
     },
     [date, navigate]
+  );
+
+  // Handle click on empty time slot to open booking creation panel
+  const handleSelectSlot = useCallback(
+    ({ start, end, resourceId }: { start: Date; end: Date; resourceId?: string | number }) => {
+      if (!resourceId) return; // No contractor lane identified
+      const resourceIdStr = String(resourceId);
+      const contractor = contractors.find((c) => c.id === resourceIdStr);
+      if (!contractor) return;
+
+      // Default end time = start + 1 hour if end equals start (single click)
+      const effectiveEnd =
+        end.getTime() === start.getTime()
+          ? new Date(start.getTime() + 60 * 60 * 1000)
+          : end;
+
+      setSelectedSlot({
+        contractorId: resourceIdStr,
+        contractorName: contractor.name,
+        start,
+        end: effectiveEnd,
+      });
+      setCreatePanelOpen(true);
+    },
+    [contractors]
   );
 
   // DnD: handle event drop — runs conflict pre-check before saving
@@ -299,6 +334,7 @@ export default function ScheduleCalendar() {
           max={new Date(0, 0, 0, 20, 0, 0)}
           onSelectEvent={handleEventClick}
           selectable={true}
+          onSelectSlot={handleSelectSlot}
           onEventDrop={handleEventDrop}
           draggableAccessor={() => true}
           resizable={false}
@@ -326,6 +362,17 @@ export default function ScheduleCalendar() {
         onOpenChange={setBookingPanelOpen}
         contractorName={selectedContractorName}
       />
+
+      {selectedSlot && (
+        <BookingCreatePanel
+          open={createPanelOpen}
+          onOpenChange={setCreatePanelOpen}
+          contractorId={selectedSlot.contractorId}
+          contractorName={selectedSlot.contractorName}
+          startTime={selectedSlot.start}
+          endTime={selectedSlot.end}
+        />
+      )}
     </div>
   );
 }
