@@ -2,6 +2,14 @@
 
 import { X } from "lucide-react";
 
+/** Format snake_case status values for display (e.g. "in_progress" -> "In Progress") */
+function formatStatusLabel(status: string): string {
+  return status
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 interface FilterChipsProps {
   filterTrades: string[];
   filterStatuses: string[];
@@ -54,7 +62,7 @@ export function FilterChips({
           key={`status-${status}`}
           className="inline-flex items-center gap-1 rounded-full bg-gray-100 text-gray-700 text-xs font-medium px-3 py-1"
         >
-          Status: {status}
+          Status: {formatStatusLabel(status)}
           <button
             type="button"
             onClick={() => onRemoveStatus(status)}

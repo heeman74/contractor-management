@@ -46,9 +46,7 @@ export function BookingCreatePanel({
 
   const { data: availableJobs } = useQuery({
     queryKey: ["jobs", "bookable"],
-    queryFn: () => apiGet<Job[]>("/api/v1/jobs?status=quote&limit=200"),
-    select: (data) =>
-      data.filter((j) => j.status === "quote" || j.status === "scheduled"),
+    queryFn: () => apiGet<Job[]>("/api/v1/jobs?status=quote&status=scheduled&limit=200"),
     enabled: open,
   });
 
@@ -136,6 +134,24 @@ export function BookingCreatePanel({
                 ))}
               </select>
             )}
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label
+              htmlFor="booking-notes"
+              className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1 block"
+            >
+              Notes
+            </label>
+            <textarea
+              id="booking-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Optional booking notes..."
+              rows={3}
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
+            />
           </div>
 
           {/* Inline error */}

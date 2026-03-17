@@ -6,7 +6,7 @@ import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Calendar, dateFnsLocalizer, Views, type View, type EventProps } from "react-big-calendar";
 import withDragAndDrop, { type EventInteractionArgs } from "react-big-calendar/lib/addons/dragAndDrop";
-import { format, parse, startOfWeek, getDay, addDays, subDays, addWeeks, subWeeks } from "date-fns";
+import { format, parse, startOfWeek, getDay, addDays, subDays, addWeeks, subWeeks, addMonths, subMonths } from "date-fns";
 import { enUS } from "date-fns/locale";
 import { CalendarOff } from "lucide-react";
 import Link from "next/link";
@@ -268,6 +268,7 @@ export default function ScheduleCalendar() {
           contractor_id: contractorId,
           start: startDate.toISOString(),
           end: endDate.toISOString(),
+          exclude_booking_id: event.id,
         });
 
         if (conflictResults.length > 0) {
@@ -338,6 +339,8 @@ export default function ScheduleCalendar() {
           e.preventDefault();
           if (view === "day") {
             navigate(subDays(date, 1));
+          } else if (view === "month") {
+            navigate(subMonths(date, 1));
           } else {
             navigate(subWeeks(date, 1));
           }
@@ -346,6 +349,8 @@ export default function ScheduleCalendar() {
           e.preventDefault();
           if (view === "day") {
             navigate(addDays(date, 1));
+          } else if (view === "month") {
+            navigate(addMonths(date, 1));
           } else {
             navigate(addWeeks(date, 1));
           }

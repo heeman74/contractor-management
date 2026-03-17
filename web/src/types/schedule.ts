@@ -53,6 +53,7 @@ export interface ConflictCheckRequest {
   contractor_id: string;
   start: string;  // ISO datetime
   end: string;    // ISO datetime
+  exclude_booking_id?: string;  // exclude this booking from conflict results (e.g. the one being moved)
 }
 
 export interface RescheduleRequest {

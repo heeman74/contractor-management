@@ -1,17 +1,11 @@
-import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { createSlice } from "@reduxjs/toolkit";
 
 interface ScheduleUiState {
   filterToolbarCollapsed: boolean;
-  selectedBookingId: string | null;
-  bookingPanelOpen: boolean;
-  conflictModalOpen: boolean;
 }
 
 const initialState: ScheduleUiState = {
   filterToolbarCollapsed: true,
-  selectedBookingId: null,
-  bookingPanelOpen: false,
-  conflictModalOpen: false,
 };
 
 const scheduleSlice = createSlice({
@@ -21,29 +15,9 @@ const scheduleSlice = createSlice({
     toggleFilterToolbar(state) {
       state.filterToolbarCollapsed = !state.filterToolbarCollapsed;
     },
-    openBookingPanel(state, action: PayloadAction<string>) {
-      state.selectedBookingId = action.payload;
-      state.bookingPanelOpen = true;
-    },
-    closeBookingPanel(state) {
-      state.bookingPanelOpen = false;
-      state.selectedBookingId = null;
-    },
-    openConflictModal(state) {
-      state.conflictModalOpen = true;
-    },
-    closeConflictModal(state) {
-      state.conflictModalOpen = false;
-    },
   },
 });
 
-export const {
-  toggleFilterToolbar,
-  openBookingPanel,
-  closeBookingPanel,
-  openConflictModal,
-  closeConflictModal,
-} = scheduleSlice.actions;
+export const { toggleFilterToolbar } = scheduleSlice.actions;
 
 export default scheduleSlice.reducer;
