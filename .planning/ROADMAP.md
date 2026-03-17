@@ -82,12 +82,12 @@ Plans:
   1. Admin can view a weekly calendar where each contractor has a dedicated lane showing their bookings
   2. Admin can drag a booking to a different time or contractor lane and the change is saved
   3. Before a drag-and-drop is confirmed, any scheduling conflict is surfaced as a warning that the admin must acknowledge or cancel
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 15-01: Calendar infrastructure — react-big-calendar with resources prop (contractor lanes), dateFnsLocalizer, dynamic import with ssr:false, TanStack Query data loading
-- [ ] 15-02: Drag-and-drop rescheduling — onEventDrop handler, optimistic update with TanStack Query, 409 conflict rollback, week navigation
-- [ ] 15-03: Conflict detection display — POST /scheduling/conflicts pre-check on drop, conflict warning modal with confirm/cancel
+- [ ] 15-01-PLAN.md — Calendar infrastructure: types, hooks, Redux slice, react-big-calendar with resources prop, booking detail panel, toolbar navigation
+- [ ] 15-02-PLAN.md — Drag-and-drop rescheduling: backend contractor_id support, optimistic update/rollback, conflict pre-check, conflict warning modal
+- [ ] 15-03-PLAN.md — Booking creation from empty slots, multi-filter toolbar with chips, E2E test stubs
 
 ### Phase 16: Quotes and Invoices
 **Goal**: Admins can create, edit, and send quotes from their desktop and record payments against invoices, with PDF downloads for both
@@ -164,7 +164,7 @@ Note: Phase 16 (Quotes/Invoices) depends only on Phase 13 and may be parallelize
 | 12. Client Profile Sync Fix | v1.0 | 1/1 | Complete | 2026-03-15 |
 | 13. Web Foundation and Auth | 4/4 | Complete   | 2026-03-16 | - |
 | 14. Job Management | 3/3 | Complete    | 2026-03-16 | - |
-| 15. Scheduling Calendar | v2.0 | 0/3 | Not started | - |
+| 15. Scheduling Calendar | v2.0 | 0/3 | Planning complete | - |
 | 16. Quotes and Invoices | v2.0 | 0/5 | Not started | - |
 | 17. CRM — Clients and Contractors | v2.0 | 0/5 | Not started | - |
 | 18. Reporting Dashboard | v2.0 | 0/3 | Not started | - |
