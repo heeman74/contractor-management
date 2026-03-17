@@ -299,8 +299,9 @@ class _FilterBar extends StatelessWidget {
           const SizedBox(height: 4),
 
           // Trade type dropdown
+          // ignore: deprecated_member_use
           DropdownButtonFormField<String?>(
-            initialValue: tradeFilter,
+            value: tradeFilter,
             decoration: const InputDecoration(
               contentPadding:
                   EdgeInsets.symmetric(horizontal: 8, vertical: 4),

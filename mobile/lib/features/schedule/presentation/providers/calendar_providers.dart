@@ -209,6 +209,52 @@ final bookingsForWeekProvider =
 );
 
 // ────────────────────────────────────────────────────────────────────────────
+// Bookings for selected month (1st–last day)
+// ────────────────────────────────────────────────────────────────────────────
+
+/// Streams bookings for the full month of the selected date.
+///
+/// Uses [BookingDao.watchBookingsByCompanyAndDateRange] with a range from
+/// the first day to the last day of the month. Required by month view which
+/// needs all days of the month, not just one day.
+class BookingsForMonthNotifier extends AsyncNotifier<List<BookingEntity>> {
+  @override
+  Future<List<BookingEntity>> build() async {
+    final authState = ref.watch(authNotifierProvider);
+    if (authState is! AuthAuthenticated) return [];
+
+    final selectedDate = ref.watch(calendarDateProvider);
+    final dao = ref.watch(bookingDaoProvider);
+    final companyId = authState.companyId;
+
+    // First day of the month at midnight
+    final monthStart = DateTime(selectedDate.year, selectedDate.month, 1);
+    // First day of the next month (exclusive end)
+    final monthEnd = DateTime(selectedDate.year, selectedDate.month + 1, 1);
+
+    final stream = dao.watchBookingsByCompanyAndDateRange(
+      companyId,
+      monthStart,
+      monthEnd,
+    );
+
+    final sub = stream.listen(
+      (bookings) => state = AsyncData(bookings),
+      onError: (Object e, StackTrace st) => state = AsyncError(e, st),
+    );
+    ref.onDispose(sub.cancel);
+
+    return await stream.first;
+  }
+}
+
+/// Provider for [BookingsForMonthNotifier].
+final bookingsForMonthProvider =
+    AsyncNotifierProvider<BookingsForMonthNotifier, List<BookingEntity>>(
+  BookingsForMonthNotifier.new,
+);
+
+// ────────────────────────────────────────────────────────────────────────────
 // Contractor list providers
 // ────────────────────────────────────────────────────────────────────────────
 

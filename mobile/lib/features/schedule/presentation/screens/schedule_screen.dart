@@ -175,7 +175,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
           jobsAsync,
         ),
       CalendarViewMode.month => _buildMonthView(
-          bookingsAsync,
+          ref,
           jobsAsync,
         ),
     };
@@ -298,10 +298,12 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
   }
 
   Widget _buildMonthView(
-    AsyncValue<List<BookingEntity>> bookingsAsync,
+    WidgetRef ref,
     AsyncValue<List<JobEntity>> jobsAsync,
   ) {
-    if (bookingsAsync is AsyncLoading || jobsAsync is AsyncLoading) {
+    final monthBookingsAsync = ref.watch(bookingsForMonthProvider);
+
+    if (monthBookingsAsync is AsyncLoading || jobsAsync is AsyncLoading) {
       return const Center(child: CircularProgressIndicator());
     }
 
@@ -311,7 +313,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     };
 
     return CalendarMonthView(
-      bookings: bookingsAsync.value ?? [],
+      bookings: monthBookingsAsync.value ?? [],
       jobs: jobMap,
     );
   }

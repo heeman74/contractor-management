@@ -140,11 +140,10 @@ class CalendarGridPainter extends CustomPainter {
     final now = currentTime;
     if (now == null) return;
 
-    // Only show "now" line if today matches the rendered day.
-    final today = DateTime.now();
-    final isToday = today.year == dayStart.year &&
-        today.month == dayStart.month &&
-        today.day == dayStart.day;
+    // Only show "now" line if currentTime matches the rendered day.
+    final isToday = now.year == dayStart.year &&
+        now.month == dayStart.month &&
+        now.day == dayStart.day;
     if (!isToday) return;
 
     final nowY = _minutesFromDayStart(now) * pixelsPerMinute;

@@ -50,19 +50,6 @@ enum _ContractorViewMode { list, calendar }
 class _ContractorScheduleScreenState
     extends ConsumerState<ContractorScheduleScreen> {
   _ContractorViewMode _viewMode = _ContractorViewMode.list;
-  late final ScrollController _scrollController;
-
-  @override
-  void initState() {
-    super.initState();
-    _scrollController = ScrollController();
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -76,8 +63,9 @@ class _ContractorScheduleScreenState
     final contractorId = authState.userId;
     final companyId = authState.companyId;
 
+    final normalizedDate = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
     final bookingsAsync = ref.watch(
-      _contractorBookingsProvider((contractorId: contractorId, date: selectedDate)),
+      _contractorBookingsProvider((contractorId: contractorId, date: normalizedDate)),
     );
     final jobsAsync = ref.watch(jobListNotifierProvider);
 
@@ -140,7 +128,6 @@ class _ContractorScheduleScreenState
                     selectedDate: selectedDate,
                     bookings: bookings,
                     jobMap: jobMap,
-                    scrollController: _scrollController,
                   );
                 }
               },
@@ -606,7 +593,6 @@ class _ContractorCalendarView extends ConsumerStatefulWidget {
     required this.selectedDate,
     required this.bookings,
     required this.jobMap,
-    required this.scrollController,
   });
 
   final String contractorId;
@@ -614,7 +600,6 @@ class _ContractorCalendarView extends ConsumerStatefulWidget {
   final DateTime selectedDate;
   final List<BookingEntity> bookings;
   final Map<String, JobEntity> jobMap;
-  final ScrollController scrollController;
 
   @override
   ConsumerState<_ContractorCalendarView> createState() =>
