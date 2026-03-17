@@ -82,12 +82,13 @@ Plans:
   1. Admin can view a weekly calendar where each contractor has a dedicated lane showing their bookings
   2. Admin can drag a booking to a different time or contractor lane and the change is saved
   3. Before a drag-and-drop is confirmed, any scheduling conflict is surfaced as a warning that the admin must acknowledge or cancel
-**Plans:** 3/3 plans complete
+**Plans:** 4 plans (3 complete + 1 gap closure)
 
 Plans:
 - [ ] 15-01-PLAN.md — Calendar infrastructure: types, hooks, Redux slice, react-big-calendar with resources prop, booking detail panel, toolbar navigation
 - [ ] 15-02-PLAN.md — Drag-and-drop rescheduling: backend contractor_id support, optimistic update/rollback, conflict pre-check, conflict warning modal
 - [ ] 15-03-PLAN.md — Booking creation from empty slots, multi-filter toolbar with chips, E2E test stubs
+- [ ] 15-04-PLAN.md — Gap closure: add client_name to JobResponse and wire into calendar booking events
 
 ### Phase 16: Quotes and Invoices
 **Goal**: Admins can create, edit, and send quotes from their desktop and record payments against invoices, with PDF downloads for both
@@ -164,7 +165,7 @@ Note: Phase 16 (Quotes/Invoices) depends only on Phase 13 and may be parallelize
 | 12. Client Profile Sync Fix | v1.0 | 1/1 | Complete | 2026-03-15 |
 | 13. Web Foundation and Auth | 4/4 | Complete   | 2026-03-16 | - |
 | 14. Job Management | 3/3 | Complete    | 2026-03-16 | - |
-| 15. Scheduling Calendar | 3/3 | Complete   | 2026-03-17 | - |
+| 15. Scheduling Calendar | 3/4 | Gap closure | 2026-03-17 | - |
 | 16. Quotes and Invoices | v2.0 | 0/5 | Not started | - |
 | 17. CRM — Clients and Contractors | v2.0 | 0/5 | Not started | - |
 | 18. Reporting Dashboard | v2.0 | 0/3 | Not started | - |
