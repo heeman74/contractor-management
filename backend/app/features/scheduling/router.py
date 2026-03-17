@@ -22,11 +22,11 @@ Custom domain (not standard CRUD) so CRUDRouter mixin is NOT used per CLAUDE.md 
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from collections.abc import AsyncGenerator
+from datetime import date
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -38,13 +38,17 @@ from app.features.scheduling.schemas import (
     AvailabilityResponse,
     BookingCreate,
     BookingResponse,
+    ConflictCheckRequest,
     ConflictDetail,
     DateOverrideCreate,
     DateSuggestion,
     MultiDayBookingCreate,
+    RescheduleRequest,
+    SuggestDatesRequest,
     WeeklyScheduleCreate,
 )
 from app.features.scheduling.service import (
+    BookingNotFoundError,
     BookingTooShortError,
     OutsideWorkingHoursError,
     SchedulingConflictError,
@@ -64,9 +68,16 @@ router = APIRouter(prefix="/scheduling", tags=["scheduling"])
 # ---------------------------------------------------------------------------
 
 
+async def _get_http_client() -> AsyncGenerator[httpx.AsyncClient, None]:
+    """Yield an httpx.AsyncClient that is properly closed after the request."""
+    async with httpx.AsyncClient() as client:
+        yield client
+
+
 async def get_scheduling_service(
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
+    http_client: httpx.AsyncClient = Depends(_get_http_client),
 ) -> SchedulingService:
     """FastAPI dependency that constructs a SchedulingService with optional travel provider.
 
@@ -74,12 +85,12 @@ async def get_scheduling_service(
     by OpenRouteService so availability calculations include real travel time blocks.
     If ORS_API_KEY is absent, travel_provider=None and travel time is skipped.
 
-    NOTE: per-request httpx client — tech debt for lifespan-managed shared client.
+    The httpx.AsyncClient is managed by the _get_http_client dependency and closed
+    automatically when the request finishes.
     """
     travel_provider = None
     if settings.ors_api_key:
         company_id = get_current_tenant_id()
-        http_client = httpx.AsyncClient()
         ors = OpenRouteServiceProvider(api_key=settings.ors_api_key, client=http_client)
         cache_svc = TravelTimeCacheService(db=db, provider=ors)
         travel_provider = CachedTravelTimeProvider(
@@ -92,6 +103,15 @@ async def get_scheduling_service(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _require_admin(current_user: CurrentUser) -> None:
+    """Raise 403 if the current user is not an admin."""
+    if "admin" not in current_user.roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin role required",
+        )
 
 
 def _booking_to_response(booking) -> BookingResponse:
@@ -267,46 +287,23 @@ async def list_bookings(
     contractor_id: uuid.UUID | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
-    db: AsyncSession = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user),
+    limit: int = Query(default=100, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    svc: SchedulingService = Depends(get_scheduling_service),
 ) -> list[BookingResponse]:
     """List bookings with optional contractor and date range filters.
 
     If contractor_id is omitted, all bookings for the company are returned.
     date_from and date_to filter bookings that overlap the given range.
+    Supports pagination via limit and offset query parameters.
     """
-    from sqlalchemy import func, select
-
-    from app.core.tenant import get_current_tenant_id
-    from app.features.scheduling.models import Booking
-
-    company_id = get_current_tenant_id()
-
-    stmt = select(Booking).where(
-        Booking.deleted_at.is_(None),
-        Booking.company_id == company_id,
+    bookings = await svc.list_bookings(
+        contractor_id=contractor_id,
+        date_from=date_from,
+        date_to=date_to,
+        limit=limit,
+        offset=offset,
     )
-
-    if contractor_id is not None:
-        stmt = stmt.where(Booking.contractor_id == contractor_id)
-
-    if date_from is not None:
-        range_start = datetime(date_from.year, date_from.month, date_from.day)
-        stmt = stmt.where(
-            Booking.time_range.op(">>")(func.tstzrange(None, range_start, "(]")).is_(False)
-        )
-
-    if date_to is not None:
-        from datetime import timedelta
-
-        range_end = datetime(date_to.year, date_to.month, date_to.day) + timedelta(days=1)
-        stmt = stmt.where(
-            Booking.time_range.op("<<")(func.tstzrange(range_end, None, "[)")).is_(False)
-        )
-
-    stmt = stmt.order_by(Booking.time_range)
-    result = await db.execute(stmt)
-    bookings = list(result.scalars().all())
     return [_booking_to_response(b) for b in bookings]
 
 
@@ -318,28 +315,23 @@ async def list_bookings(
 )
 async def delete_booking(
     booking_id: uuid.UUID,
+    current_user: CurrentUser = Depends(get_current_user),
     svc: SchedulingService = Depends(get_scheduling_service),
 ) -> None:
     """Soft-delete a booking, freeing the contractor's time slot.
 
-    The booking record is retained with deleted_at set. The GIST exclusion
-    constraint WHERE clause excludes deleted bookings from conflict checks.
+    Requires admin role. The booking record is retained with deleted_at set.
+    The GIST exclusion constraint WHERE clause excludes deleted bookings
+    from conflict checks.
     Returns 404 if the booking is not found or already deleted.
     """
+    _require_admin(current_user)
     deleted = await svc.repository.soft_delete(booking_id)
     if not deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Booking {booking_id} not found",
         )
-
-
-class RescheduleRequest(BaseModel):
-    """Payload for rescheduling a booking to a new time slot."""
-
-    start: datetime
-    end: datetime
-    contractor_id: uuid.UUID | None = None  # Optional: for cross-lane reassignment
 
 
 @router.patch(
@@ -366,7 +358,7 @@ async def reschedule_booking(
             new_end=reschedule_data.end,
             new_contractor_id=reschedule_data.contractor_id,
         )
-    except ValueError as exc:
+    except BookingNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
@@ -397,14 +389,6 @@ async def reschedule_booking(
 # ---------------------------------------------------------------------------
 
 
-class ConflictCheckRequest(BaseModel):
-    """Payload for a read-only conflict check."""
-
-    contractor_id: uuid.UUID
-    start: datetime
-    end: datetime
-
-
 @router.post(
     "/conflicts",
     response_model=list[ConflictDetail],
@@ -430,16 +414,6 @@ async def check_conflicts(
 # ---------------------------------------------------------------------------
 # Date suggestion endpoint
 # ---------------------------------------------------------------------------
-
-
-class SuggestDatesRequest(BaseModel):
-    """Payload for multi-day date suggestion."""
-
-    contractor_id: uuid.UUID
-    num_days: int
-    preferred_start: date
-    duration_hours: float
-    within_days: int = 30
 
 
 @router.post(
@@ -480,14 +454,17 @@ async def set_weekly_schedule(
     contractor_id: uuid.UUID,
     day_of_week: int,
     schedule_data: WeeklyScheduleCreate,
+    current_user: CurrentUser = Depends(get_current_user),
     svc: SchedulingService = Depends(get_scheduling_service),
 ) -> list[dict]:
     """Replace all weekly schedule blocks for a contractor's day.
 
+    Requires admin role.
     day_of_week: 0=Monday, 1=Tuesday, ..., 6=Sunday.
     An empty blocks list clears the contractor's schedule for that day.
     Atomically replaces all existing blocks for (contractor_id, day_of_week).
     """
+    _require_admin(current_user)
     created = await svc.set_weekly_schedule(
         contractor_id=contractor_id,
         day_of_week=day_of_week,
@@ -515,16 +492,19 @@ async def set_date_override(
     contractor_id: uuid.UUID,
     override_date: date,
     override_data: DateOverrideCreate,
+    current_user: CurrentUser = Depends(get_current_user),
     svc: SchedulingService = Depends(get_scheduling_service),
 ) -> list[dict]:
     """Replace all schedule overrides for a contractor's specific date.
 
+    Requires admin role.
     Two modes:
     - is_unavailable=True: marks the entire day as unavailable
     - is_unavailable=False with blocks: custom working hours for the date
 
     Atomically replaces all existing overrides for (contractor_id, override_date).
     """
+    _require_admin(current_user)
     created = await svc.set_date_override(
         contractor_id=contractor_id,
         override_date=override_date,
@@ -552,44 +532,14 @@ async def set_date_override(
 )
 async def get_weekly_schedule(
     contractor_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user),
+    svc: SchedulingService = Depends(get_scheduling_service),
 ) -> dict:
     """Return the contractor's full weekly schedule grouped by day_of_week.
 
     Returns a dict mapping day_of_week (0-6) to a list of time blocks.
     Days with no schedule entries are omitted from the response.
     """
-    from sqlalchemy import select
-
-    from app.features.scheduling.models import ContractorWeeklySchedule
-
-    stmt = (
-        select(ContractorWeeklySchedule)
-        .where(
-            ContractorWeeklySchedule.contractor_id == contractor_id,
-            ContractorWeeklySchedule.deleted_at.is_(None),
-        )
-        .order_by(ContractorWeeklySchedule.day_of_week, ContractorWeeklySchedule.block_index)
-    )
-    result = await db.execute(stmt)
-    blocks = list(result.scalars().all())
-
-    schedule: dict[int, list[dict]] = {}
-    for block in blocks:
-        day = block.day_of_week
-        if day not in schedule:
-            schedule[day] = []
-        schedule[day].append(
-            {
-                "id": str(block.id),
-                "block_index": block.block_index,
-                "start_time": block.start_time.isoformat(),
-                "end_time": block.end_time.isoformat(),
-            }
-        )
-
-    return schedule
+    return await svc.get_contractor_weekly_schedule(contractor_id)
 
 
 @router.get(
@@ -601,39 +551,14 @@ async def get_date_overrides(
     contractor_id: uuid.UUID,
     date_from: date,
     date_to: date,
-    db: AsyncSession = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user),
+    svc: SchedulingService = Depends(get_scheduling_service),
 ) -> list[dict]:
     """Return date-specific schedule overrides for a contractor within [date_from, date_to].
 
     Ordered by override_date then block_index.
     """
-    from sqlalchemy import select
-
-    from app.features.scheduling.models import ContractorDateOverride
-
-    stmt = (
-        select(ContractorDateOverride)
-        .where(
-            ContractorDateOverride.contractor_id == contractor_id,
-            ContractorDateOverride.deleted_at.is_(None),
-            ContractorDateOverride.override_date >= date_from,
-            ContractorDateOverride.override_date <= date_to,
-        )
-        .order_by(ContractorDateOverride.override_date, ContractorDateOverride.block_index)
+    return await svc.get_contractor_date_overrides(
+        contractor_id=contractor_id,
+        date_from=date_from,
+        date_to=date_to,
     )
-    result = await db.execute(stmt)
-    overrides = list(result.scalars().all())
-
-    return [
-        {
-            "id": str(o.id),
-            "contractor_id": str(o.contractor_id),
-            "override_date": o.override_date.isoformat(),
-            "is_unavailable": o.is_unavailable,
-            "block_index": o.block_index,
-            "start_time": o.start_time.isoformat() if o.start_time else None,
-            "end_time": o.end_time.isoformat() if o.end_time else None,
-        }
-        for o in overrides
-    ]

@@ -23,7 +23,7 @@ CLAUDE.md convention. Input schemas inherit from pydantic BaseModel directly.
 import uuid
 from datetime import date, datetime, time
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.core.base_schemas import TenantResponseSchema
 
@@ -67,6 +67,12 @@ class TimeBlock(BaseModel):
 
     start_time: time
     end_time: time
+
+    @model_validator(mode="after")
+    def validate_end_after_start(self) -> "TimeBlock":
+        if self.end_time <= self.start_time:
+            raise ValueError("end_time must be after start_time")
+        return self
 
 
 class FreeWindow(BaseModel):
@@ -165,6 +171,12 @@ class BookingCreate(BaseModel):
     end: datetime
     notes: str | None = None
 
+    @model_validator(mode="after")
+    def validate_end_after_start(self) -> "BookingCreate":
+        if self.end <= self.start:
+            raise ValueError("end must be after start")
+        return self
+
 
 class MultiDayBookingCreate(BaseModel):
     """Payload for creating a multi-day booking (all-or-nothing).
@@ -257,3 +269,41 @@ class DateOverrideCreate(BaseModel):
     override_date: date
     is_unavailable: bool = False
     blocks: list[TimeBlock] | None = None
+
+
+class RescheduleRequest(BaseModel):
+    """Payload for rescheduling a booking to a new time slot."""
+
+    start: datetime
+    end: datetime
+    contractor_id: uuid.UUID | None = None  # Optional: for cross-lane reassignment
+
+    @model_validator(mode="after")
+    def validate_end_after_start(self) -> "RescheduleRequest":
+        if self.end <= self.start:
+            raise ValueError("end must be after start")
+        return self
+
+
+class ConflictCheckRequest(BaseModel):
+    """Payload for a read-only conflict check."""
+
+    contractor_id: uuid.UUID
+    start: datetime
+    end: datetime
+
+
+class SuggestDatesRequest(BaseModel):
+    """Payload for multi-day date suggestion."""
+
+    contractor_id: uuid.UUID
+    num_days: int = Field(ge=1, le=7)
+    preferred_start: date
+    duration_hours: float = Field(gt=0)
+    within_days: int = Field(default=30, ge=1, le=90)
+
+    @model_validator(mode="after")
+    def validate_caps(self) -> "SuggestDatesRequest":
+        if self.num_days < 1:
+            raise ValueError("num_days must be at least 1")
+        return self

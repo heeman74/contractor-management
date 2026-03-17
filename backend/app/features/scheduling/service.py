@@ -90,6 +90,14 @@ class BookingTooShortError(Exception):
         self.minimum_minutes = minimum_minutes
 
 
+class BookingNotFoundError(Exception):
+    """Raised when a booking cannot be found or is already deleted."""
+
+    def __init__(self, booking_id: uuid.UUID) -> None:
+        super().__init__(f"Booking {booking_id} not found")
+        self.booking_id = booking_id
+
+
 # ---------------------------------------------------------------------------
 # SchedulingService
 # ---------------------------------------------------------------------------
@@ -976,11 +984,15 @@ class SchedulingService(TenantScopedService[Booking]):
                 if len(suggestions) >= 5:
                     break
 
-        # If fewer than 5 consecutive found, add non-consecutive combinations
+        # If fewer than 5 consecutive found, add non-consecutive combinations.
+        # Cap iterations to prevent combinatorial explosion with large eligible_dates.
         if len(suggestions) < 5:
             from itertools import combinations
 
-            for combo in combinations(eligible_dates, num_days):
+            max_iterations = 1000
+            for iterations, combo in enumerate(combinations(eligible_dates, num_days)):
+                if iterations >= max_iterations:
+                    break
                 combo_dates = list(combo)
                 is_consecutive = all(
                     (combo_dates[j + 1] - combo_dates[j]).days == 1
@@ -1023,12 +1035,12 @@ class SchedulingService(TenantScopedService[Booking]):
         # Fetch existing booking
         existing = await self.repository.get_by_id(booking_id)
         if existing is None:
-            raise ValueError(f"Booking {booking_id} not found")
+            raise BookingNotFoundError(booking_id)
 
         # Soft-delete the existing booking to free the slot for conflict checking
         deleted = await self.repository.soft_delete(booking_id)
         if not deleted:
-            raise ValueError(f"Failed to soft-delete booking {booking_id}")
+            raise BookingNotFoundError(booking_id)
 
         # Attempt to create the new booking
         try:
@@ -1142,3 +1154,97 @@ class SchedulingService(TenantScopedService[Booking]):
                     created.append(new_override)
 
         return created
+
+    # -------------------------------------------------------------------------
+    # Public methods — read queries (delegated from router)
+    # -------------------------------------------------------------------------
+
+    async def list_bookings(
+        self,
+        contractor_id: uuid.UUID | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[Booking]:
+        """List bookings with optional contractor and date range filters.
+
+        Supports pagination via limit/offset. Returns bookings ordered by time_range.
+        """
+        from sqlalchemy import func
+
+        company_id = self._require_tenant_id()
+
+        stmt = sa_select(Booking).where(
+            Booking.deleted_at.is_(None),
+            Booking.company_id == company_id,
+        )
+
+        if contractor_id is not None:
+            stmt = stmt.where(Booking.contractor_id == contractor_id)
+
+        if date_from is not None:
+            range_start = datetime(date_from.year, date_from.month, date_from.day, tzinfo=UTC)
+            stmt = stmt.where(
+                Booking.time_range.op(">>")(func.tstzrange(None, range_start, "(]")).is_(False)
+            )
+
+        if date_to is not None:
+            range_end = datetime(date_to.year, date_to.month, date_to.day, tzinfo=UTC) + timedelta(
+                days=1
+            )
+            stmt = stmt.where(
+                Booking.time_range.op("<<")(func.tstzrange(range_end, None, "[)")).is_(False)
+            )
+
+        stmt = stmt.order_by(Booking.time_range).limit(limit).offset(offset)
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_contractor_weekly_schedule(
+        self,
+        contractor_id: uuid.UUID,
+    ) -> dict[int, list[dict]]:
+        """Return the contractor's full weekly schedule grouped by day_of_week.
+
+        Returns a dict mapping day_of_week (0-6) to a list of time block dicts.
+        """
+        blocks = await self.repository.get_weekly_schedule(contractor_id)
+
+        schedule: dict[int, list[dict]] = {}
+        for block in blocks:
+            day = block.day_of_week
+            if day not in schedule:
+                schedule[day] = []
+            schedule[day].append(
+                {
+                    "id": str(block.id),
+                    "block_index": block.block_index,
+                    "start_time": block.start_time.isoformat(),
+                    "end_time": block.end_time.isoformat(),
+                }
+            )
+
+        return schedule
+
+    async def get_contractor_date_overrides(
+        self,
+        contractor_id: uuid.UUID,
+        date_from: date,
+        date_to: date,
+    ) -> list[dict]:
+        """Return date-specific schedule overrides for a contractor within [date_from, date_to]."""
+        overrides = await self.repository.get_date_overrides(contractor_id, date_from, date_to)
+
+        return [
+            {
+                "id": str(o.id),
+                "contractor_id": str(o.contractor_id),
+                "override_date": o.override_date.isoformat(),
+                "is_unavailable": o.is_unavailable,
+                "block_index": o.block_index,
+                "start_time": o.start_time.isoformat() if o.start_time else None,
+                "end_time": o.end_time.isoformat() if o.end_time else None,
+            }
+            for o in overrides
+        ]
