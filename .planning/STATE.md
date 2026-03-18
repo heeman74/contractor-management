@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Web Admin Dashboard
 status: planning
-stopped_at: Completed 16-01-PLAN.md
-last_updated: "2026-03-18T01:35:22.301Z"
+stopped_at: Completed 16-02-PLAN.md
+last_updated: "2026-03-18T01:41:08.932Z"
 last_activity: 2026-03-15 — v2.0 roadmap created, all 29 requirements mapped across 6 phases
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 15
-  completed_plans: 12
+  completed_plans: 14
   percent: 0
 ---
 
@@ -67,6 +67,8 @@ Progress: [░░░░░░░░░░] 0%
 - [Phase 15-scheduling-calendar]: client_name is additive-only on JobResponse — no existing fields renamed or removed (protects mobile Dart models)
 - [Phase 16-quotes-and-invoices]: GET /quotes/ inserts before for-job route to avoid FastAPI path parameter shadowing
 - [Phase 16-quotes-and-invoices]: apiFetchRaw mirrors apiClient retry/refresh pattern but returns raw Response for PDF blob downloads
+- [Phase 16-quotes-and-invoices]: Quotes list fetches all quotes once + filters client-side; jobs lookup map resolves client_name without N+1 requests
+- [Phase 16-quotes-and-invoices]: Generate Invoice button gated on job.status === complete; extend expiry uses POST /quotes/{id}/extend with { new_expiry_date } body
 
 ### Pending Todos
 
@@ -80,6 +82,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-18T01:35:22.297Z
-Stopped at: Completed 16-01-PLAN.md
+Last session: 2026-03-18T01:41:08.925Z
+Stopped at: Completed 16-02-PLAN.md
 Resume file: None
