@@ -44,7 +44,7 @@ Declared values (must be multiples of 4):
 Exceptions:
 - Tab bar underline offset: `-mb-px` (1px) — preserved from Phase 14 pattern
 - Table cell: `py-3 px-4` (12px/16px) — matches existing DataTable
-- Status badge: `px-2.5 py-0.5` (10px/2px) for md; `px-2 py-0.5` for sm
+- Status badge: `px-2.5 py-0.5` (10px/2px) for md; `px-2 py-0.5` for sm — shadcn Badge component default, component-internal, not a custom spacing decision — exempt from scale review
 - Touch targets: 44px minimum for interactive row areas (cursor-pointer rows)
 - Two-column main/sidebar gap: `gap-8` (32px) — matches Phase 14 job detail exactly
 
@@ -57,7 +57,7 @@ Exceptions:
 | Body | 14px (text-sm) | 400 (normal) | 1.5 (leading-relaxed) | Geist Sans | Table cells, card text, notes, descriptions |
 | Label | 12px (text-xs) | 600 (semibold) | 1.25 | Geist Sans | Column headers (uppercase + tracking-wide), sidebar section labels |
 | Heading | 20px (text-xl) | 600 (semibold) | 1.3 | Geist Sans | Page title (h1), e.g. "Quotes", "Invoices" |
-| Display | 14px (text-sm) | 500 (medium) | 1.4 | Geist Mono | Financial figures — quote totals, invoice amounts, balance (font-mono class) |
+| Display | 14px (text-sm) | 600 (semibold) | 1.4 | Geist Mono | Financial figures — quote totals, invoice amounts, balance (font-mono class) |
 
 Notes:
 - Financial values (subtotal, tax, total, paid, balance) use `font-mono` for alignment in tables and summary footers
@@ -199,7 +199,7 @@ No "New Quote" button in header — creation only from job detail page.
 │ [Textarea — resize-none, placeholder "Internal notes..."]      │
 └────────────────────────────────────────────────────────────────┘
 ┌─ Form footer ──────────────────────────────────────────────────┐
-│                                    [Cancel] [Save Draft]       │
+│                          [Discard Changes] [Save Draft]        │
 └────────────────────────────────────────────────────────────────┘
 ```
 
@@ -211,7 +211,7 @@ No "New Quote" button in header — creation only from job detail page.
 - Unit: `Input` — 80px wide (e.g., "hr", "sqft", "each")
 - Unit Price: `Input type="number"` — 96px wide, right-aligned, `$` prefix label
 - Total: `text-sm font-mono text-gray-900` — computed read-only, 96px wide, right-aligned
-- Delete (×): `Button variant="ghost" size="icon"` — `X` icon (h-4 w-4), 32px wide
+- Delete (×): `Button variant="ghost" size="icon" aria-label="Delete row"` — `X` icon (h-4 w-4), 32px wide
 
 **Preview mode:** Renders a styled read-only view with company letterhead area, quote metadata, line items as a clean table, and financial summary — matches PDF layout visually. `bg-white p-8 shadow-sm rounded-xl max-w-3xl mx-auto`
 
@@ -220,7 +220,7 @@ No "New Quote" button in header — creation only from job detail page.
 - Layout: `flex items-center justify-end gap-6`
 - Labels: `text-xs text-gray-500 uppercase tracking-wide`
 - Values: `text-sm font-mono font-semibold text-gray-900`
-- Total value: `text-base font-mono font-bold text-gray-900`
+- Total value: `text-sm font-mono font-semibold text-gray-900`
 
 ### 16-03: Quote Detail Page (`/quotes/[id]`)
 
@@ -333,7 +333,7 @@ Use `font-mono` for all three amounts. Label column: `text-xs text-gray-500 uppe
 
 **Record Payment inline form (inside Payment Section Card, collapsible):**
 - Trigger: `[Record Payment]` button opens inline form below (no dialog — stays in page)
-- Form: `Input type="number"` with `$` prefix (96px) + `[Save Payment]` (primary) + `[Cancel]` (ghost)
+- Form: `Input type="number"` with `$` prefix (96px) + `[Save Payment]` (primary) + `[Close Form]` (ghost)
 - After save: form collapses, Paid amount updates via TanStack Query mutation
 
 **Mark Fully Paid:** Button in sidebar Status Card. No dialog needed — single click fires `PATCH /invoices/{id}/payment_status` with `{ status: "paid", amount_paid: total }`.
@@ -471,11 +471,11 @@ No third-party shadcn registries declared. Registry vetting gate: not applicable
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** approved
