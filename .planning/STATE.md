@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Web Admin Dashboard
 status: planning
-stopped_at: Completed 16-03-PLAN.md
-last_updated: "2026-03-18T01:41:27.143Z"
+stopped_at: Completed 16-04-PLAN.md
+last_updated: "2026-03-18T01:49:21.206Z"
 last_activity: 2026-03-15 — v2.0 roadmap created, all 29 requirements mapped across 6 phases
 progress:
   total_phases: 6
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 15
-  completed_plans: 14
+  completed_plans: 15
   percent: 0
 ---
 
@@ -71,6 +71,8 @@ Progress: [░░░░░░░░░░] 0%
 - [Phase 16-quotes-and-invoices]: Generate Invoice button gated on job.status === complete; extend expiry uses POST /quotes/{id}/extend with { new_expiry_date } body
 - [Phase 16-quotes-and-invoices]: Draft tab maps to finalized_at === null invoices since InvoiceStatus has no draft backend value
 - [Phase 16-quotes-and-invoices]: Jobs fetched separately at /invoices list to resolve client_name and description (no join on invoices endpoint)
+- [Phase 16-quotes-and-invoices]: Select<string> generic annotation required for template loader to handle null from base-ui Select onValueChange
+- [Phase 16-quotes-and-invoices]: Documents card in job detail shown for quote/complete/invoiced statuses to cover full document lifecycle
 
 ### Pending Todos
 
@@ -84,6 +86,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-18T01:41:27.138Z
-Stopped at: Completed 16-03-PLAN.md
+Last session: 2026-03-18T01:49:21.200Z
+Stopped at: Completed 16-04-PLAN.md
 Resume file: None

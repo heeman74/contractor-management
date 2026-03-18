@@ -34,7 +34,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 - [x] **Phase 13: Web Foundation and Auth** — Next.js scaffold, httpOnly cookie auth, session management, global navigation shell (completed 2026-03-16)
 - [x] **Phase 14: Job Management** — Filterable jobs list, job detail, status transitions, job request review queue (completed 2026-03-16)
 - [x] **Phase 15: Scheduling Calendar** — Weekly calendar with contractor lanes, drag-and-drop rescheduling, conflict detection (completed 2026-03-17)
-- [ ] **Phase 16: Quotes and Invoices** — Quote create/edit/send with line items, invoice payment recording, PDF downloads
+- [x] **Phase 16: Quotes and Invoices** — Quote create/edit/send with line items, invoice payment recording, PDF downloads (completed 2026-03-18)
 - [ ] **Phase 17: CRM — Clients and Contractors** — Client list and job history, contractor profiles, weekly schedule editor, date overrides
 - [ ] **Phase 18: Reporting Dashboard** — Revenue, utilization, and conversion charts with date range filtering
 
@@ -100,7 +100,7 @@ Plans:
   3. Admin can download any quote as a PDF
   4. Admin can view all invoices with payment status and record a full or partial payment on any invoice
   5. Admin can download any invoice as a PDF
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
 - [ ] 16-01-PLAN.md — Backend list endpoints, amount_paid migration, TypeScript types, StatusBadge extensions, apiFetchRaw, dnd-kit install, E2E stubs
@@ -165,6 +165,6 @@ Note: Phase 16 (Quotes/Invoices) depends only on Phase 13 and may be parallelize
 | 13. Web Foundation and Auth | 4/4 | Complete   | 2026-03-16 | - |
 | 14. Job Management | 3/3 | Complete    | 2026-03-16 | - |
 | 15. Scheduling Calendar | 4/4 | Complete    | 2026-03-17 | - |
-| 16. Quotes and Invoices | 3/4 | In Progress|  | - |
+| 16. Quotes and Invoices | 4/4 | Complete   | 2026-03-18 | - |
 | 17. CRM — Clients and Contractors | v2.0 | 0/5 | Not started | - |
 | 18. Reporting Dashboard | v2.0 | 0/3 | Not started | - |
