@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ChevronDown } from "lucide-react";
@@ -13,6 +14,8 @@ import type {
   TimeEntryResponse,
   AttachmentResponse,
   JobStatus,
+  Quote,
+  Invoice,
 } from "@/types/api";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { useAppDispatch } from "@/store/hooks";
@@ -138,6 +141,7 @@ export default function JobDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id: jobId } = use(params);
+  const router = useRouter();
   const dispatch = useAppDispatch();
   const queryClient = useQueryClient();
 
@@ -173,6 +177,20 @@ export default function JobDetailPage({
     retry: false,
   });
 
+  const { data: existingQuote } = useQuery<Quote | null>({
+    queryKey: ["quote-for-job", jobId],
+    queryFn: () =>
+      apiGet<Quote>(`/api/v1/quotes/for-job/${jobId}`).catch(() => null),
+    enabled: !!job && (job.status === "quote" || job.status === "complete" || job.status === "invoiced"),
+  });
+
+  const { data: existingInvoice } = useQuery<Invoice | null>({
+    queryKey: ["invoice-for-job", jobId],
+    queryFn: () =>
+      apiGet<Invoice>(`/api/v1/invoices/for-job/${jobId}`).catch(() => null),
+    enabled: !!job && (job.status === "complete" || job.status === "invoiced"),
+  });
+
   // --- Breadcrumb title ---
   useEffect(() => {
     if (job) {
@@ -202,6 +220,19 @@ export default function JobDetailPage({
       } else {
         setTransitionError(apiErr.detail ?? "Transition failed");
       }
+    },
+  });
+
+  const generateInvoiceMutation = useMutation<Invoice, Error, void>({
+    mutationFn: () => apiPost<Invoice>(`/api/v1/invoices/generate/${jobId}`, {}),
+    onSuccess: (inv) => {
+      queryClient.invalidateQueries({ queryKey: ["invoice-for-job", jobId] });
+      toast.success(`Invoice #${inv.invoice_number} generated`);
+      router.push(`/invoices/${inv.id}`);
+    },
+    onError: (err: Error) => {
+      const detail = err instanceof ApiError ? err.detail : "Try again.";
+      toast.error(`Failed to generate invoice. ${detail}`, { duration: Infinity });
     },
   });
 
@@ -539,6 +570,103 @@ export default function JobDetailPage({
               )}
             </CardContent>
           </Card>
+
+          {/* Documents card — Create Quote and Generate Invoice */}
+          {(job.status === "quote" ||
+            job.status === "complete" ||
+            job.status === "invoiced") && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Documents</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {/* Quote section */}
+                {job.status === "quote" && (
+                  existingQuote ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => router.push(`/quotes/${existingQuote.id}`)}
+                    >
+                      View Quote
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      onClick={() =>
+                        router.push(`/quotes/new/edit?job_id=${jobId}`)
+                      }
+                    >
+                      Create Quote
+                    </Button>
+                  )
+                )}
+
+                {/* Generate Invoice section */}
+                {job.status === "complete" && (
+                  existingInvoice ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() =>
+                        router.push(`/invoices/${existingInvoice.id}`)
+                      }
+                    >
+                      View Invoice
+                    </Button>
+                  ) : existingQuote?.status === "approved" ? (
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      onClick={() => generateInvoiceMutation.mutate()}
+                      disabled={generateInvoiceMutation.isPending}
+                    >
+                      {generateInvoiceMutation.isPending
+                        ? "Generating..."
+                        : "Generate Invoice"}
+                    </Button>
+                  ) : (
+                    <p className="text-xs text-gray-400">
+                      An approved quote is required to generate an invoice.
+                    </p>
+                  )
+                )}
+
+                {/* Invoiced state — show links to both */}
+                {job.status === "invoiced" && (
+                  <div className="space-y-2">
+                    {existingQuote && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() =>
+                          router.push(`/quotes/${existingQuote.id}`)
+                        }
+                      >
+                        View Quote
+                      </Button>
+                    )}
+                    {existingInvoice && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() =>
+                          router.push(`/invoices/${existingInvoice.id}`)
+                        }
+                      >
+                        View Invoice
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Job info card */}
           <Card>
