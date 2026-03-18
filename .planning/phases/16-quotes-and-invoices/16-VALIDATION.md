@@ -38,14 +38,13 @@ created: 2026-03-17
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 16-01-01 | 01 | 1 | QUOTE-01 | E2E (Playwright) | `npm run test-e2e:chromium -- --grep "quotes list"` | ❌ W0 | ⬜ pending |
-| 16-02-01 | 02 | 1 | QUOTE-02 | E2E (Playwright) | `npm run test-e2e:chromium -- --grep "quote builder"` | ❌ W0 | ⬜ pending |
-| 16-02-02 | 02 | 1 | QUOTE-03 | E2E (Playwright) | `npm run test-e2e:chromium -- --grep "send quote"` | ❌ W0 | ⬜ pending |
-| 16-03-01 | 03 | 2 | QUOTE-04 | E2E (Playwright) | `npm run test-e2e:chromium -- --grep "quote pdf"` | ❌ W0 | ⬜ pending |
-| 16-04-01 | 04 | 2 | INV-01 | E2E (Playwright) | `npm run test-e2e:chromium -- --grep "invoices list"` | ❌ W0 | ⬜ pending |
-| 16-05-01 | 05 | 2 | INV-02 | E2E (Playwright) | `npm run test-e2e:chromium -- --grep "invoice payment"` | ❌ W0 | ⬜ pending |
-| 16-05-02 | 05 | 2 | INV-03 | E2E (Playwright) | `npm run test-e2e:chromium -- --grep "invoice pdf"` | ❌ W0 | ⬜ pending |
-| 16-BE-01 | 01 | 1 | Backend | Integration (pytest) | `uv run python -m pytest tests/test_phase_16_e2e.py -x` | ❌ W0 | ⬜ pending |
+| 16-01-01 | 01 | 1 | QUOTE-01, INV-01, INV-02 | Integration (pytest) | `uv run python -m pytest tests/test_phase_16_e2e.py -x` | Will be created (real tests, not stubs) | ⬜ pending |
+| 16-02-01 | 02 | 2 | QUOTE-01 | E2E (Playwright) | `npm run test-e2e:chromium -- --grep "quotes list"` | ❌ W0 | ⬜ pending |
+| 16-02-02 | 02 | 2 | QUOTE-03, QUOTE-04 | E2E (Playwright) | `npm run test-e2e:chromium -- --grep "quote detail"` | ❌ W0 | ⬜ pending |
+| 16-03-01 | 03 | 2 | INV-01 | E2E (Playwright) | `npm run test-e2e:chromium -- --grep "invoices list"` | ❌ W0 | ⬜ pending |
+| 16-03-02 | 03 | 2 | INV-02, INV-03 | E2E (Playwright) | `npm run test-e2e:chromium -- --grep "invoice detail"` | ❌ W0 | ⬜ pending |
+| 16-04-01 | 04 | 3 | QUOTE-02 | E2E (Playwright) | `npm run test-e2e:chromium -- --grep "quote builder"` | ❌ W0 | ⬜ pending |
+| 16-BE-01 | 01 | 1 | Backend | Integration (pytest) | `uv run python -m pytest tests/test_phase_16_e2e.py -x` | Will be created (real tests) | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -55,7 +54,7 @@ created: 2026-03-17
 
 - [ ] `web/tests/phase-16-quotes.spec.ts` — stubs for QUOTE-01 through QUOTE-04
 - [ ] `web/tests/phase-16-invoices.spec.ts` — stubs for INV-01 through INV-03
-- [ ] `backend/tests/test_phase_16_e2e.py` — stubs for list endpoints, amount_paid migration, payment recording
+- [ ] `backend/tests/test_phase_16_e2e.py` — real integration tests (NOT stubs) for list endpoints, amount_paid migration, payment recording
 
 *Existing infrastructure covers test framework setup.*
 
