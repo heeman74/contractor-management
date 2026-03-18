@@ -100,7 +100,7 @@ Plans:
   3. Admin can download any quote as a PDF
   4. Admin can view all invoices with payment status and record a full or partial payment on any invoice
   5. Admin can download any invoice as a PDF
-**Plans:** 4 plans
+**Plans:** 1/4 plans executed
 
 Plans:
 - [ ] 16-01-PLAN.md — Backend list endpoints, amount_paid migration, TypeScript types, StatusBadge extensions, apiFetchRaw, dnd-kit install, E2E stubs
@@ -165,6 +165,6 @@ Note: Phase 16 (Quotes/Invoices) depends only on Phase 13 and may be parallelize
 | 13. Web Foundation and Auth | 4/4 | Complete   | 2026-03-16 | - |
 | 14. Job Management | 3/3 | Complete    | 2026-03-16 | - |
 | 15. Scheduling Calendar | 4/4 | Complete    | 2026-03-17 | - |
-| 16. Quotes and Invoices | v2.0 | 0/4 | Not started | - |
+| 16. Quotes and Invoices | 1/4 | In Progress|  | - |
 | 17. CRM — Clients and Contractors | v2.0 | 0/5 | Not started | - |
 | 18. Reporting Dashboard | v2.0 | 0/3 | Not started | - |

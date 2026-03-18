@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Web Admin Dashboard
 status: planning
-stopped_at: Phase 16 context gathered
-last_updated: "2026-03-18T00:16:20.034Z"
+stopped_at: Completed 16-01-PLAN.md
+last_updated: "2026-03-18T01:35:22.301Z"
 last_activity: 2026-03-15 — v2.0 roadmap created, all 29 requirements mapped across 6 phases
 progress:
   total_phases: 6
   completed_phases: 3
-  total_plans: 11
-  completed_plans: 11
+  total_plans: 15
+  completed_plans: 12
   percent: 0
 ---
 
@@ -65,6 +65,8 @@ Progress: [░░░░░░░░░░] 0%
 - [Phase Phase 15-scheduling-calendar]: SlotInfo.resourceId coerced with String() before contractor lookup — react-big-calendar types it as string|number|undefined
 - [Phase 15-scheduling-calendar]: sa_inspect guard in _job_with_client_name() prevents lazy-raise MissingGreenlet after db.refresh() while still populating client_name from already-loaded relationships
 - [Phase 15-scheduling-calendar]: client_name is additive-only on JobResponse — no existing fields renamed or removed (protects mobile Dart models)
+- [Phase 16-quotes-and-invoices]: GET /quotes/ inserts before for-job route to avoid FastAPI path parameter shadowing
+- [Phase 16-quotes-and-invoices]: apiFetchRaw mirrors apiClient retry/refresh pattern but returns raw Response for PDF blob downloads
 
 ### Pending Todos
 
@@ -78,6 +80,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-18T00:16:20.029Z
-Stopped at: Phase 16 context gathered
-Resume file: .planning/phases/16-quotes-and-invoices/16-CONTEXT.md
+Last session: 2026-03-18T01:35:22.297Z
+Stopped at: Completed 16-01-PLAN.md
+Resume file: None

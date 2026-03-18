@@ -31,15 +31,15 @@ Requirements for web admin dashboard. Each maps to roadmap phases.
 
 ### Quoting
 
-- [ ] **QUOTE-01**: Admin can view all quotes in a list with status indicators (draft, sent, approved, declined)
+- [x] **QUOTE-01**: Admin can view all quotes in a list with status indicators (draft, sent, approved, declined)
 - [ ] **QUOTE-02**: Admin can create and edit quotes with line items, taxes, and descriptions
 - [ ] **QUOTE-03**: Admin can send a quote to the client and track approval status
 - [ ] **QUOTE-04**: Admin can download a quote as PDF
 
 ### Invoicing
 
-- [ ] **INV-01**: Admin can view all invoices in a list with payment status indicators
-- [ ] **INV-02**: Admin can record full or partial payments on an invoice
+- [x] **INV-01**: Admin can view all invoices in a list with payment status indicators
+- [x] **INV-02**: Admin can record full or partial payments on an invoice
 - [ ] **INV-03**: Admin can download an invoice as PDF
 
 ### Client/CRM
@@ -115,12 +115,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SCHED-01 | Phase 15 | Complete |
 | SCHED-02 | Phase 15 | Complete |
 | SCHED-03 | Phase 15 | Complete |
-| QUOTE-01 | Phase 16 | Pending |
+| QUOTE-01 | Phase 16 | Complete |
 | QUOTE-02 | Phase 16 | Pending |
 | QUOTE-03 | Phase 16 | Pending |
 | QUOTE-04 | Phase 16 | Pending |
-| INV-01 | Phase 16 | Pending |
-| INV-02 | Phase 16 | Pending |
+| INV-01 | Phase 16 | Complete |
+| INV-02 | Phase 16 | Complete |
 | INV-03 | Phase 16 | Pending |
 | CRM-01 | Phase 17 | Pending |
 | CRM-02 | Phase 17 | Pending |
