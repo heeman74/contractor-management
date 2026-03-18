@@ -100,13 +100,15 @@ Plans:
   3. Admin can download any quote as a PDF
   4. Admin can view all invoices with payment status and record a full or partial payment on any invoice
   5. Admin can download any invoice as a PDF
-**Plans:** 4/4 plans complete
+**Plans:** 6 plans (4 complete + 2 gap closure)
 
 Plans:
-- [ ] 16-01-PLAN.md — Backend list endpoints, amount_paid migration, TypeScript types, StatusBadge extensions, apiFetchRaw, dnd-kit install, E2E stubs
-- [ ] 16-02-PLAN.md — Quotes list page (DataTable + status tabs) + Quote detail page (two-column layout, lifecycle actions, PDF download)
-- [ ] 16-03-PLAN.md — Invoices list page (DataTable + payment tabs, overdue highlighting) + Invoice detail (payment recording, PDF download)
-- [ ] 16-04-PLAN.md — Quote builder (react-hook-form + dnd-kit inline editing, template loading, preview mode) + Job detail integration (Create Quote, Generate Invoice buttons)
+- [x] 16-01-PLAN.md — Backend list endpoints, amount_paid migration, TypeScript types, StatusBadge extensions, apiFetchRaw, dnd-kit install, E2E stubs
+- [x] 16-02-PLAN.md — Quotes list page (DataTable + status tabs) + Quote detail page (two-column layout, lifecycle actions, PDF download)
+- [x] 16-03-PLAN.md — Invoices list page (DataTable + payment tabs, overdue highlighting) + Invoice detail (payment recording, PDF download)
+- [x] 16-04-PLAN.md — Quote builder (react-hook-form + dnd-kit inline editing, template loading, preview mode) + Job detail integration (Create Quote, Generate Invoice buttons)
+- [ ] 16-05-PLAN.md — Gap closure: Implement 12 Playwright E2E tests for quotes (list, detail, builder, send, PDF)
+- [ ] 16-06-PLAN.md — Gap closure: Implement 8 Playwright E2E tests for invoices (list, detail, payments, PDF)
 
 ### Phase 17: CRM — Clients and Contractors
 **Goal**: Admins can look up any client or contractor, see their full history and schedule, and edit contractor availability directly from the web
@@ -165,6 +167,6 @@ Note: Phase 16 (Quotes/Invoices) depends only on Phase 13 and may be parallelize
 | 13. Web Foundation and Auth | 4/4 | Complete   | 2026-03-16 | - |
 | 14. Job Management | 3/3 | Complete    | 2026-03-16 | - |
 | 15. Scheduling Calendar | 4/4 | Complete    | 2026-03-17 | - |
-| 16. Quotes and Invoices | 4/4 | Complete   | 2026-03-18 | - |
+| 16. Quotes and Invoices | 4/6 | Gap closure | 2026-03-18 | - |
 | 17. CRM — Clients and Contractors | v2.0 | 0/5 | Not started | - |
 | 18. Reporting Dashboard | v2.0 | 0/3 | Not started | - |
