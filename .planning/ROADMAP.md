@@ -100,14 +100,13 @@ Plans:
   3. Admin can download any quote as a PDF
   4. Admin can view all invoices with payment status and record a full or partial payment on any invoice
   5. Admin can download any invoice as a PDF
-**Plans**: TBD
+**Plans:** 4 plans
 
 Plans:
-- [ ] 16-01: Quotes list page — DataTable with status filter tabs, status badge component
-- [ ] 16-02: Quote create/edit form — react-hook-form with useFieldArray for line items, client search-select, send action, approval status tracking
-- [ ] 16-03: Quote PDF download — fetch blob from backend, browser download trigger
-- [ ] 16-04: Invoices list page — DataTable with payment status indicators
-- [ ] 16-05: Invoice detail — payment recording form (full/partial), PDF download
+- [ ] 16-01-PLAN.md — Backend list endpoints, amount_paid migration, TypeScript types, StatusBadge extensions, apiFetchRaw, dnd-kit install, E2E stubs
+- [ ] 16-02-PLAN.md — Quotes list page (DataTable + status tabs) + Quote detail page (two-column layout, lifecycle actions, PDF download)
+- [ ] 16-03-PLAN.md — Invoices list page (DataTable + payment tabs, overdue highlighting) + Invoice detail (payment recording, PDF download)
+- [ ] 16-04-PLAN.md — Quote builder (react-hook-form + dnd-kit inline editing, template loading, preview mode) + Job detail integration (Create Quote, Generate Invoice buttons)
 
 ### Phase 17: CRM — Clients and Contractors
 **Goal**: Admins can look up any client or contractor, see their full history and schedule, and edit contractor availability directly from the web
@@ -166,6 +165,6 @@ Note: Phase 16 (Quotes/Invoices) depends only on Phase 13 and may be parallelize
 | 13. Web Foundation and Auth | 4/4 | Complete   | 2026-03-16 | - |
 | 14. Job Management | 3/3 | Complete    | 2026-03-16 | - |
 | 15. Scheduling Calendar | 4/4 | Complete    | 2026-03-17 | - |
-| 16. Quotes and Invoices | v2.0 | 0/5 | Not started | - |
+| 16. Quotes and Invoices | v2.0 | 0/4 | Not started | - |
 | 17. CRM — Clients and Contractors | v2.0 | 0/5 | Not started | - |
 | 18. Reporting Dashboard | v2.0 | 0/3 | Not started | - |
