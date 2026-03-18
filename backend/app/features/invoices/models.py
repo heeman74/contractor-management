@@ -75,6 +75,7 @@ class Invoice(TenantScopedModel):
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    amount_paid: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, server_default="0")
 
     __table_args__ = (
         CheckConstraint(

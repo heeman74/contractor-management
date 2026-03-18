@@ -362,5 +362,7 @@ class InvoiceService(TenantScopedService[Invoice]):
             )
 
         invoice.status = data.status
+        if data.amount_paid is not None:
+            invoice.amount_paid = data.amount_paid
         await self.db.flush()
         return await self.repository.get_with_line_items(invoice_id)  # type: ignore[return-value]

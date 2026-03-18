@@ -56,6 +56,7 @@ class ExtendExpiryRequest(BaseModel):
 
     new_expiry_date: date
 
+
 # isort: split
 # Side-effect import: ensure all referenced mappers are registered before
 # configure_mappers() triggers on Quote relationship resolution.
@@ -139,6 +140,24 @@ async def delete_template(
     deleted = await svc.delete_template(template_id)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
+
+
+@router.get("/", response_model=list[QuoteResponse])
+async def list_quotes(
+    status: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> list[QuoteResponse]:
+    """List all active (non-deleted, non-revised) quotes for the tenant (admin only).
+
+    Optional `status` query param filters by quote status (e.g. draft, sent, approved).
+    """
+    _require_admin(current_user)
+    svc = QuoteService(db)
+    quotes = await svc.repository.get_active_quotes()
+    if status is not None:
+        quotes = [q for q in quotes if q.status == status]
+    return [QuoteResponse.from_orm_with_totals(q) for q in quotes]
 
 
 @router.get("/for-job/{job_id}", response_model=QuoteResponse)

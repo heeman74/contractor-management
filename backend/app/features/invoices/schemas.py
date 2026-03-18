@@ -113,6 +113,7 @@ class MarkPaidRequest(BaseModel):
     """Schema for marking an invoice as paid."""
 
     status: Literal["unpaid", "partially_paid", "paid"]
+    amount_paid: Decimal | None = None
 
 
 class InvoiceResponse(BaseResponseSchema):
@@ -129,6 +130,7 @@ class InvoiceResponse(BaseResponseSchema):
     due_date: date | None
     issued_at: datetime
     finalized_at: datetime | None
+    amount_paid: Decimal = Decimal("0")
     line_items: list[InvoiceLineItemResponse] = Field(default_factory=list)
 
     # Computed financial totals
@@ -137,7 +139,9 @@ class InvoiceResponse(BaseResponseSchema):
     tax_amount: Decimal = Decimal("0")
     total: Decimal = Decimal("0")
 
-    @field_validator("subtotal", "discount_amount", "tax_amount", "total", mode="before")
+    @field_validator(
+        "subtotal", "discount_amount", "tax_amount", "total", "amount_paid", mode="before"
+    )
     @classmethod
     def coerce_decimal(cls, v: object) -> Decimal:
         """Ensure computed totals are Decimal."""

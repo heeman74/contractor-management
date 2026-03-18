@@ -78,6 +78,26 @@ async def generate_invoice_from_quote(
     return InvoiceResponse.from_orm_with_totals(invoice)
 
 
+@router.get("/", response_model=list[InvoiceResponse])
+async def list_invoices(
+    status: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> list[InvoiceResponse]:
+    """List all invoices for the tenant (admin only).
+
+    Optional `status` query param filters by payment status (unpaid, partially_paid, paid).
+    Soft-deleted invoices are excluded.
+    """
+    _require_admin(current_user)
+    svc = InvoiceService(db)
+    invoices = await svc.repository.list_all()
+    invoices = [i for i in invoices if i.deleted_at is None]
+    if status is not None:
+        invoices = [i for i in invoices if i.status == status]
+    return [InvoiceResponse.from_orm_with_totals(i) for i in invoices]
+
+
 @router.get("/for-job/{job_id}", response_model=InvoiceResponse)
 async def get_invoice_for_job(
     job_id: uuid.UUID,
