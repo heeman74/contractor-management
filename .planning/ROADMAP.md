@@ -120,14 +120,14 @@ Plans:
   3. Admin can view all contractors with an availability summary, then open a contractor's profile to see assigned jobs and weekly schedule
   4. Admin can edit a contractor's weekly working hours and the change is reflected immediately
   5. Admin can set date-specific overrides (mark a date unavailable or assign custom hours) for any contractor
-**Plans**: TBD
+**Plans:** 5 plans
 
 Plans:
-- [ ] 17-01: Client list page — searchable DataTable with server-side pagination
-- [ ] 17-02: Client detail page — job history list via GET /jobs?client_id=
-- [ ] 17-03: Contractor list page — availability summary badges
-- [ ] 17-04: Contractor profile page — assigned jobs, weekly schedule summary display
-- [ ] 17-05: Weekly schedule editor — custom grid component, PUT /scheduling/schedules/{id}/weekly/{dow}, date overrides (POST /scheduling/overrides)
+- [ ] 17-01-PLAN.md — Backend CRM router, TypeScript types, StatusBadge availability colors, E2E test stubs
+- [ ] 17-02-PLAN.md — Client list page (search, pagination, sorting) + Client detail page (job history, properties, sidebar)
+- [ ] 17-03-PLAN.md — Contractor list page (availability badges, batch fetch) + Contractor profile (schedule summary, assigned jobs)
+- [ ] 17-04-PLAN.md — Schedule editor: ScheduleGrid component (drag-to-paint CSS grid) + date overrides (calendar picker, save/remove)
+- [ ] 17-05-PLAN.md — Cross-page links (job/quote/invoice/schedule to CRM pages) + Playwright E2E tests
 
 ### Phase 18: Reporting Dashboard
 **Goal**: Admins can review business performance at a glance with charts covering revenue, job status, contractor utilization, and quote conversion, filtered by any date range
@@ -168,5 +168,5 @@ Note: Phase 16 (Quotes/Invoices) depends only on Phase 13 and may be parallelize
 | 14. Job Management | 3/3 | Complete    | 2026-03-16 | - |
 | 15. Scheduling Calendar | 4/4 | Complete    | 2026-03-17 | - |
 | 16. Quotes and Invoices | 6/6 | Complete    | 2026-03-18 | - |
-| 17. CRM — Clients and Contractors | v2.0 | 0/5 | Not started | - |
+| 17. CRM — Clients and Contractors | v2.0 | 0/5 | Planning | - |
 | 18. Reporting Dashboard | v2.0 | 0/3 | Not started | - |
