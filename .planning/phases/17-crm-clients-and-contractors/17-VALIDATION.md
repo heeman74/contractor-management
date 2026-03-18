@@ -19,7 +19,7 @@ created: 2026-03-17
 |----------|-------|
 | **Framework** | Playwright (web E2E) + pytest 7.x (backend) |
 | **Config file** | `web/playwright.config.ts` / `backend/pyproject.toml` |
-| **Quick run command** | `cd web && npx playwright test --grep "phase-17"` |
+| **Quick run command** | `cd web && npx playwright test tests/phase-17-crm.spec.ts` |
 | **Full suite command** | `cd web && npx playwright test && cd ../backend && uv run python -m pytest tests/` |
 | **Estimated runtime** | ~45 seconds |
 
@@ -27,7 +27,7 @@ created: 2026-03-17
 
 ## Sampling Rate
 
-- **After every task commit:** Run `cd web && npx playwright test --grep "phase-17"`
+- **After every task commit:** Run `cd web && npx playwright test tests/phase-17-crm.spec.ts`
 - **After every plan wave:** Run full suite command
 - **Before `/gsd:verify-work`:** Full suite must be green
 - **Max feedback latency:** 45 seconds
@@ -38,24 +38,26 @@ created: 2026-03-17
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 17-01-01 | 01 | 1 | CRM-01 | E2E | `npx playwright test clients-list` | ❌ W0 | ⬜ pending |
-| 17-02-01 | 02 | 2 | CRM-02 | E2E | `npx playwright test clients-detail` | ❌ W0 | ⬜ pending |
-| 17-03-01 | 03 | 1 | CONTR-01 | E2E | `npx playwright test contractors-list` | ❌ W0 | ⬜ pending |
-| 17-04-01 | 04 | 2 | CONTR-02 | E2E | `npx playwright test contractors-profile` | ❌ W0 | ⬜ pending |
-| 17-05-01 | 05 | 3 | CONTR-03, CONTR-04 | E2E | `npx playwright test schedule-editor` | ❌ W0 | ⬜ pending |
+| 17-01-01 | 01 | 1 | CRM-01 | pytest | `cd backend && uv run python -m pytest tests/test_crm_router.py -x` | W0 (stubs) | pending |
+| 17-01-02 | 01 | 1 | CRM-01, CONTR-01 | E2E | `cd web && npx playwright test tests/phase-17-crm.spec.ts --grep "client list"` | W0 (stubs) | pending |
+| 17-02-01 | 02 | 2 | CRM-01 | E2E | `cd web && npx playwright test tests/phase-17-crm.spec.ts --grep "client list"` | W0 | pending |
+| 17-02-02 | 02 | 2 | CRM-02 | E2E | `cd web && npx playwright test tests/phase-17-crm.spec.ts --grep "client detail"` | W0 | pending |
+| 17-03-01 | 03 | 2 | CONTR-01 | E2E | `cd web && npx playwright test tests/phase-17-crm.spec.ts --grep "contractor list"` | W0 | pending |
+| 17-03-02 | 03 | 2 | CONTR-02 | E2E | `cd web && npx playwright test tests/phase-17-crm.spec.ts --grep "contractor profile"` | W0 | pending |
+| 17-04-01 | 04 | 3 | CONTR-03 | E2E | `cd web && npx playwright test tests/phase-17-crm.spec.ts --grep "schedule editor"` | W0 | pending |
+| 17-04-02 | 04 | 3 | CONTR-04 | E2E | `cd web && npx playwright test tests/phase-17-crm.spec.ts --grep "date override"` | W0 | pending |
+| 17-05-01 | 05 | 4 | CRM-01, CRM-02, CONTR-01 | pytest | `cd backend && uv run python -m pytest tests/test_phase_17_e2e.py -x` | W0 (Plan 05 creates) | pending |
+| 17-05-02 | 05 | 4 | ALL | E2E | `cd web && npx playwright test tests/phase-17-crm.spec.ts` | W0 | pending |
 
-*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+*Status: pending / green / red / flaky*
 
 ---
 
 ## Wave 0 Requirements
 
-- [ ] `web/e2e/phase-17-clients-list.spec.ts` — stubs for CRM-01
-- [ ] `web/e2e/phase-17-clients-detail.spec.ts` — stubs for CRM-02
-- [ ] `web/e2e/phase-17-contractors-list.spec.ts` — stubs for CONTR-01
-- [ ] `web/e2e/phase-17-contractors-profile.spec.ts` — stubs for CONTR-02
-- [ ] `web/e2e/phase-17-schedule-editor.spec.ts` — stubs for CONTR-03, CONTR-04
-- [ ] `backend/tests/test_crm_router.py` — stubs for CRM router endpoints
+- [ ] `web/tests/phase-17-crm.spec.ts` — stubs for all CRM/CONTR requirements (single combined file)
+- [ ] `backend/tests/test_crm_router.py` — stubs for CRM router unit tests
+- [ ] `backend/tests/test_phase_17_e2e.py` — real integration tests for CRM endpoints (created in Plan 05)
 
 *Existing infrastructure covers Playwright and pytest — no new framework install needed.*
 
