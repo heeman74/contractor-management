@@ -32,7 +32,7 @@ Requirements for web admin dashboard. Each maps to roadmap phases.
 ### Quoting
 
 - [x] **QUOTE-01**: Admin can view all quotes in a list with status indicators (draft, sent, approved, declined)
-- [ ] **QUOTE-02**: Admin can create and edit quotes with line items, taxes, and descriptions
+- [x] **QUOTE-02**: Admin can create and edit quotes with line items, taxes, and descriptions
 - [x] **QUOTE-03**: Admin can send a quote to the client and track approval status
 - [x] **QUOTE-04**: Admin can download a quote as PDF
 
@@ -40,7 +40,7 @@ Requirements for web admin dashboard. Each maps to roadmap phases.
 
 - [x] **INV-01**: Admin can view all invoices in a list with payment status indicators
 - [x] **INV-02**: Admin can record full or partial payments on an invoice
-- [ ] **INV-03**: Admin can download an invoice as PDF
+- [x] **INV-03**: Admin can download an invoice as PDF
 
 ### Client/CRM
 
@@ -116,12 +116,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SCHED-02 | Phase 15 | Complete |
 | SCHED-03 | Phase 15 | Complete |
 | QUOTE-01 | Phase 16 | Complete |
-| QUOTE-02 | Phase 16 | Pending |
+| QUOTE-02 | Phase 16 | Complete |
 | QUOTE-03 | Phase 16 | Complete |
 | QUOTE-04 | Phase 16 | Complete |
 | INV-01 | Phase 16 | Complete |
 | INV-02 | Phase 16 | Complete |
-| INV-03 | Phase 16 | Pending |
+| INV-03 | Phase 16 | Complete |
 | CRM-01 | Phase 17 | Pending |
 | CRM-02 | Phase 17 | Pending |
 | CONTR-01 | Phase 17 | Pending |
