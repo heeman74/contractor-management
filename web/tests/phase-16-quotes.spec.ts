@@ -533,9 +533,17 @@ test.describe("Phase 16 -- Quotes", () => {
     await page.goto("/quotes/new/edit?job_id=job-1");
     await page.waitForLoadState("networkidle");
 
-    // Add a second row
+    // Add a second row so we have 2 rows to reorder
     await page.getByRole("button", { name: "Add Row" }).click();
     await expect(page.locator("tbody tr")).toHaveCount(2);
+
+    // Fill first row description so we can track reorder
+    const firstDesc = page.locator('input[name="line_items.0.description"]');
+    await firstDesc.fill("First Item");
+
+    // Fill second row description
+    const secondDesc = page.locator('input[name="line_items.1.description"]');
+    await secondDesc.fill("Second Item");
 
     // Verify drag handles exist with proper aria-label
     const dragHandles = page.getByRole("button", {
@@ -543,9 +551,21 @@ test.describe("Phase 16 -- Quotes", () => {
     });
     await expect(dragHandles).toHaveCount(2);
 
-    // Each row has a drag handle
-    await expect(dragHandles.first()).toBeVisible();
-    await expect(dragHandles.nth(1)).toBeVisible();
+    // Perform the drag: move second row's handle to first row's handle position
+    // dnd-kit PointerSensor requires distance: 5 activation
+    const sourceHandle = dragHandles.nth(1);
+    const targetHandle = dragHandles.first();
+
+    await sourceHandle.dragTo(targetHandle);
+
+    // After drag, the descriptions should be swapped:
+    // line_items.0 should now be "Second Item", line_items.1 should be "First Item"
+    await expect(
+      page.locator('input[name="line_items.0.description"]')
+    ).toHaveValue("Second Item");
+    await expect(
+      page.locator('input[name="line_items.1.description"]')
+    ).toHaveValue("First Item");
   });
 
   test("quote builder: load from template populates fields", async ({
@@ -632,33 +652,69 @@ test.describe("Phase 16 -- Quotes", () => {
   });
 
   test("quote pdf: download triggers file save", async ({ page }) => {
+    let pdfEndpointCalled = false;
+
     const routes = setupProxyRoutes(page, {
       singleQuote: MOCK_QUOTE_DRAFT,
       pdfResponse: true,
     });
     await routes.setup();
 
+    // Add a secondary route to track the PDF fetch specifically
+    await page.route("**/api/proxy**", async (route) => {
+      const url = new URL(route.request().url());
+      const path = url.searchParams.get("path") || "";
+      if (path.includes("/pdf")) {
+        pdfEndpointCalled = true;
+      }
+      await route.fallback();
+    });
+
     await page.goto("/quotes/aabbcc-1111-2222-3333-444455556666");
     await page.waitForLoadState("networkidle");
 
-    // Set up download event listener before clicking
-    const downloadPromise = page.waitForEvent("download", { timeout: 5000 }).catch(() => null);
+    // Inject spy to capture the anchor element download attribute.
+    // The implementation does: a = document.createElement("a"); a.download = "quote-{id}.pdf"; a.click()
+    await page.evaluate(() => {
+      const origCreate = document.createElement.bind(document);
+      (window as unknown as Record<string, unknown>).__pdfDownloadFilename = null;
+      document.createElement = function (tag: string, options?: ElementCreationOptions) {
+        const el = origCreate(tag, options);
+        if (tag === "a") {
+          const origClick = el.click.bind(el);
+          el.click = function () {
+            (window as unknown as Record<string, unknown>).__pdfDownloadFilename =
+              (el as HTMLAnchorElement).download;
+            origClick();
+          };
+        }
+        return el;
+      } as typeof document.createElement;
+    });
 
     // Click "Download PDF" button
     await page.getByRole("button", { name: "Download PDF" }).click();
 
-    // The implementation creates an <a> element and clicks it — this triggers a download.
-    // In Playwright, blob URL downloads may or may not fire the download event
-    // depending on browser handling. We verify the PDF endpoint was called.
-    // Wait a short time for the fetch to complete
-    await page.waitForTimeout(1000);
+    // Wait for the fetch + blob + anchor click sequence to complete
+    await page.waitForTimeout(1500);
 
-    // Verify the page did not navigate away (PDF download should be in-page)
+    // 1. Verify the PDF API endpoint was called
+    expect(pdfEndpointCalled).toBe(true);
+
+    // 2. Verify the download filename was set correctly
+    const downloadFilename = await page.evaluate(
+      () => (window as unknown as Record<string, unknown>).__pdfDownloadFilename
+    );
+    expect(downloadFilename).toBe(
+      "quote-aabbcc-1111-2222-3333-444455556666.pdf"
+    );
+
+    // 3. Verify page did not navigate away
     await expect(page).toHaveURL(
       /\/quotes\/aabbcc-1111-2222-3333-444455556666/
     );
 
-    // Also verify the button is still visible (not stuck in loading state)
+    // 4. Button re-enabled after download completes
     await expect(
       page.getByRole("button", { name: "Download PDF" })
     ).toBeEnabled();

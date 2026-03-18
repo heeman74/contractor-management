@@ -374,18 +374,63 @@ test.describe("Phase 16 -- Invoices", () => {
   });
 
   test("invoice pdf: download triggers file save", async ({ page }) => {
+    let pdfEndpointCalled = false;
+
     await setupDetailRoutes(page, MOCK_INVOICE_UNPAID);
+
+    // Add a secondary route to track the PDF fetch specifically
+    await page.route("**/api/proxy**", async (route) => {
+      const url = new URL(route.request().url());
+      const path = url.searchParams.get("path") || "";
+      if (path.includes("/pdf")) {
+        pdfEndpointCalled = true;
+      }
+      await route.fallback();
+    });
+
     await page.goto("/invoices/inv-1");
     await expect(page.getByRole("heading", { name: /INV-0001/ })).toBeVisible({ timeout: 10000 });
 
-    // Set up download listener before clicking
-    const downloadPromise = page.waitForEvent("download");
+    // Inject spy to capture the anchor element download attribute.
+    // The implementation does: a = document.createElement("a"); a.download = "invoice-{number}.pdf"; a.click()
+    await page.evaluate(() => {
+      const origCreate = document.createElement.bind(document);
+      (window as unknown as Record<string, unknown>).__pdfDownloadFilename = null;
+      document.createElement = function (tag: string, options?: ElementCreationOptions) {
+        const el = origCreate(tag, options);
+        if (tag === "a") {
+          const origClick = el.click.bind(el);
+          el.click = function () {
+            (window as unknown as Record<string, unknown>).__pdfDownloadFilename =
+              (el as HTMLAnchorElement).download;
+            origClick();
+          };
+        }
+        return el;
+      } as typeof document.createElement;
+    });
 
     // Click "Download PDF" button
     await page.getByRole("button", { name: "Download PDF" }).click();
 
-    // The download event should fire (the page creates an <a> element and clicks it)
-    const download = await downloadPromise;
-    expect(download).toBeTruthy();
+    // Wait for the fetch + blob + anchor click sequence to complete
+    await page.waitForTimeout(1500);
+
+    // 1. Verify the PDF API endpoint was called
+    expect(pdfEndpointCalled).toBe(true);
+
+    // 2. Verify the download filename was set correctly
+    const downloadFilename = await page.evaluate(
+      () => (window as unknown as Record<string, unknown>).__pdfDownloadFilename
+    );
+    expect(downloadFilename).toBe("invoice-INV-0001.pdf");
+
+    // 3. Verify page did not navigate away
+    await expect(page).toHaveURL(/\/invoices\/inv-1/);
+
+    // 4. Button still enabled after download
+    await expect(
+      page.getByRole("button", { name: "Download PDF" })
+    ).toBeEnabled();
   });
 });
