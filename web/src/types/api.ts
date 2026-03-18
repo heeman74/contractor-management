@@ -130,3 +130,98 @@ export interface TimeEntryResponse {
   clock_out: string | null;
   duration_minutes: number | null;
 }
+
+// Quote types
+export type QuoteStatus =
+  | "draft"
+  | "sent"
+  | "viewed"
+  | "approved"
+  | "declined"
+  | "expired"
+  | "revised";
+export type InvoiceStatus = "unpaid" | "partially_paid" | "paid";
+export type ItemType = "labor" | "material";
+export type DiscountType = "percent" | "fixed";
+
+export interface QuoteLineItem {
+  id: string;
+  quote_id: string;
+  item_type: ItemType;
+  description: string;
+  quantity: string;
+  unit: string;
+  unit_price: string;
+  sort_order: number;
+}
+
+export interface Quote {
+  id: string;
+  company_id: string;
+  job_id: string;
+  status: QuoteStatus;
+  revision_number: number;
+  tax_rate: string;
+  discount_type: DiscountType | null;
+  discount_value: string;
+  expiry_date: string | null;
+  sent_at: string | null;
+  viewed_at: string | null;
+  approved_at: string | null;
+  declined_at: string | null;
+  decline_reason: string | null;
+  decline_detail: string | null;
+  admin_notes: string | null;
+  line_items: QuoteLineItem[];
+  subtotal: string;
+  discount_amount: string;
+  tax_amount: string;
+  total: string;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QuoteTemplate {
+  id: string;
+  company_id: string;
+  name: string;
+  description: string | null;
+  line_items_json: string;
+  tax_rate: string;
+}
+
+export interface InvoiceLineItem {
+  id: string;
+  invoice_id: string;
+  item_type: ItemType;
+  description: string;
+  quantity: string;
+  unit: string;
+  unit_price: string;
+  sort_order: number;
+}
+
+export interface Invoice {
+  id: string;
+  company_id: string;
+  job_id: string;
+  quote_id: string | null;
+  invoice_number: string;
+  status: InvoiceStatus;
+  tax_rate: string;
+  discount_type: DiscountType | null;
+  discount_value: string;
+  due_date: string | null;
+  issued_at: string;
+  finalized_at: string | null;
+  amount_paid: string;
+  line_items: InvoiceLineItem[];
+  subtotal: string;
+  discount_amount: string;
+  tax_amount: string;
+  total: string;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}

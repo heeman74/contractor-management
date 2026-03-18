@@ -87,3 +87,42 @@ export function apiPatch<T>(path: string, body: unknown): Promise<T> {
 export function apiDelete<T>(path: string): Promise<T> {
   return apiClient<T>(path, { method: "DELETE" });
 }
+
+/**
+ * Raw fetch through the proxy — returns the Response object directly.
+ * Use for binary downloads (PDF) where resp.json() would fail.
+ * Handles 401 refresh retry like apiClient.
+ */
+export async function apiFetchRaw(
+  path: string,
+  init?: RequestInit,
+  retry = true
+): Promise<Response> {
+  const proxyUrl = `/api/proxy?path=${encodeURIComponent(path)}`;
+  const resp = await fetch(proxyUrl, init);
+
+  if (resp.status === 401 && retry) {
+    const refreshResp = await fetch("/api/auth/refresh", { method: "POST" });
+    if (refreshResp.ok) {
+      return apiFetchRaw(path, init, false);
+    } else {
+      window.location.href = "/login?reason=session_expired";
+      throw new ApiError(401, "Session expired");
+    }
+  }
+
+  if (!resp.ok) {
+    let detail = "An unexpected error occurred";
+    try {
+      const errorBody = await resp.json();
+      if (typeof errorBody?.detail === "string") {
+        detail = errorBody.detail;
+      }
+    } catch {
+      // Non-JSON error body
+    }
+    throw new ApiError(resp.status, detail);
+  }
+
+  return resp;
+}

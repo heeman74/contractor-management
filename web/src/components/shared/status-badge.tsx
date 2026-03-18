@@ -30,6 +30,14 @@ const colorMap: Record<string, string> = {
   invoiced: "bg-teal-100 text-teal-800",
   // Gray — draft states
   draft: "bg-gray-100 text-gray-700",
+  // Quote statuses (new)
+  viewed: "bg-purple-100 text-purple-800",
+  expired: "bg-orange-100 text-orange-800",
+  revised: "bg-gray-100 text-gray-700",
+  // Invoice statuses (new)
+  unpaid: "bg-yellow-100 text-yellow-800",
+  partially_paid: "bg-blue-100 text-blue-800",
+  finalized: "bg-teal-100 text-teal-800",
 };
 
 export function StatusBadge({ status, size = "md" }: StatusBadgeProps) {
