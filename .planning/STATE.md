@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Web Admin Dashboard
 status: planning
-stopped_at: Completed 16-04-PLAN.md
-last_updated: "2026-03-18T01:49:21.206Z"
+stopped_at: Completed 16-06-PLAN.md
+last_updated: "2026-03-18T04:38:24.052Z"
 last_activity: 2026-03-15 — v2.0 roadmap created, all 29 requirements mapped across 6 phases
 progress:
   total_phases: 6
-  completed_phases: 4
-  total_plans: 15
-  completed_plans: 15
+  completed_phases: 3
+  total_plans: 17
+  completed_plans: 16
   percent: 0
 ---
 
@@ -73,6 +73,7 @@ Progress: [░░░░░░░░░░] 0%
 - [Phase 16-quotes-and-invoices]: Jobs fetched separately at /invoices list to resolve client_name and description (no join on invoices endpoint)
 - [Phase 16-quotes-and-invoices]: Select<string> generic annotation required for template loader to handle null from base-ui Select onValueChange
 - [Phase 16-quotes-and-invoices]: Documents card in job detail shown for quote/complete/invoiced statuses to cover full document lifecycle
+- [Phase 16]: Payment summary assertions use raw toFixed(2) values without comma formatting (matching actual page output)
 
 ### Pending Todos
 
@@ -86,6 +87,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-18T01:49:21.200Z
-Stopped at: Completed 16-04-PLAN.md
+Last session: 2026-03-18T04:38:24.047Z
+Stopped at: Completed 16-06-PLAN.md
 Resume file: None
