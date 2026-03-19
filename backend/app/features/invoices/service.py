@@ -206,6 +206,7 @@ class InvoiceService(TenantScopedService[Invoice]):
 
         # Transition job to invoiced
         job.status = "invoiced"
+        job.version = (job.version or 0) + 1  # Maintain optimistic locking consistency
         await self.db.flush()
         await self._append_status_history_event(job_id, "invoice_generated", user_id)
 
@@ -280,6 +281,7 @@ class InvoiceService(TenantScopedService[Invoice]):
             )
 
         job.status = "invoiced"
+        job.version = (job.version or 0) + 1  # Maintain optimistic locking consistency
         await self.db.flush()
         await self._append_status_history_event(data.job_id, "invoice_generated", user_id)
 
