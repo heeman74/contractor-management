@@ -19,11 +19,6 @@ export interface AuthUser {
   roles: string[];
 }
 
-// Error
-export interface ApiErrorResponse {
-  detail: string;
-}
-
 // Job statuses
 export type JobStatus =
   | "quote"
@@ -84,11 +79,6 @@ export interface JobTransitionRequest {
   new_status: JobStatus;
   reason?: string;
   version: number;
-}
-
-// Job notes
-export interface JobNoteCreate {
-  body: string;
 }
 
 export interface AttachmentResponse {
