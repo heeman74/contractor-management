@@ -225,3 +225,92 @@ export interface Invoice {
   created_at: string;
   updated_at: string;
 }
+
+// CRM types (Phase 17)
+export interface ClientListItem {
+  id: string;
+  user_id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string;
+  phone: string | null;
+  tags: string[];
+  preferred_contractor_id: string | null;
+  preferred_contractor_name: string | null;
+  jobs_count: number;
+}
+
+export interface ClientProperty {
+  id: string;
+  client_id: string;
+  job_site_id: string;
+  nickname: string | null;
+  is_default: boolean;
+  address_line1: string | null;
+  city: string | null;
+  state: string | null;
+  postal_code: string | null;
+}
+
+export interface ClientDetail {
+  id: string;
+  user_id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string;
+  phone: string | null;
+  tags: string[];
+  admin_notes: string | null;
+  referral_source: string | null;
+  preferred_contractor_id: string | null;
+  preferred_contractor_name: string | null;
+  preferred_contact_method: string | null;
+  billing_address: string | null;
+  average_rating: string | null;
+  jobs: Job[];
+  properties: ClientProperty[];
+}
+
+// Contractor types
+export interface ContractorListItem {
+  id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  roles: string[];
+}
+
+// Availability types
+export interface AvailabilityResponse {
+  contractor_id: string;
+  contractor_name: string;
+  date: string;
+  free_windows: { start: string; end: string; reason_before: string | null }[];
+  blocked_intervals: { start: string; end: string; reason: string }[];
+}
+
+// Schedule types
+export interface WeeklyBlock {
+  id: string;
+  contractor_id: string;
+  day_of_week: number;
+  block_index: number;
+  start_time: string;
+  end_time: string;
+}
+
+export interface DateOverride {
+  id: string;
+  contractor_id: string;
+  override_date: string;
+  is_unavailable: boolean;
+  block_index: number;
+  start_time: string | null;
+  end_time: string | null;
+}
+
+export interface TimeBlock {
+  start_time: string;
+  end_time: string;
+}

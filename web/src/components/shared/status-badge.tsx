@@ -38,6 +38,10 @@ const colorMap: Record<string, string> = {
   unpaid: "bg-yellow-100 text-yellow-800",
   partially_paid: "bg-blue-100 text-blue-800",
   finalized: "bg-teal-100 text-teal-800",
+  // Availability statuses (Phase 17)
+  available: "bg-green-100 text-green-800",
+  partially_booked: "bg-yellow-100 text-yellow-800",
+  fully_booked: "bg-red-100 text-red-800",
 };
 
 export function StatusBadge({ status, size = "md" }: StatusBadgeProps) {
