@@ -36,9 +36,7 @@ async def test_sync_future_cursor_returns_empty(
     tenant_a_client: AsyncClient, seed_two_tenants: dict
 ):
     """GET /sync with a future cursor returns empty lists."""
-    resp = await tenant_a_client.get(
-        "/api/v1/sync", params={"cursor": "2099-01-01T00:00:00+00:00"}
-    )
+    resp = await tenant_a_client.get("/api/v1/sync", params={"cursor": "2099-01-01T00:00:00+00:00"})
     assert resp.status_code == 200
     body = resp.json()
     assert body["companies"] == []
@@ -58,9 +56,7 @@ async def test_sync_server_timestamp_roundtrip(
     assert server_ts  # non-empty
 
     # Second sync — use server_timestamp as cursor
-    resp2 = await tenant_a_client.get(
-        "/api/v1/sync", params={"cursor": server_ts}
-    )
+    resp2 = await tenant_a_client.get("/api/v1/sync", params={"cursor": server_ts})
     assert resp2.status_code == 200
     # No changes since the first sync, so lists should be empty
     body2 = resp2.json()

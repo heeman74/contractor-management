@@ -12,7 +12,6 @@ from httpx import AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-
 # ---------------------------------------------------------------------------
 # Test 1: Full first sync — no cursor returns ALL entities
 # ---------------------------------------------------------------------------
@@ -113,9 +112,7 @@ async def test_delta_sync_includes_tombstones(
     await asyncio.sleep(0.01)
 
     # Soft-delete via direct DB update (no delete endpoint exists yet)
-    session_factory = async_sessionmaker(
-        test_engine, class_=AsyncSession, expire_on_commit=False
-    )
+    session_factory = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
     async with session_factory() as session:
         await session.execute(
             text("UPDATE companies SET deleted_at = NOW() WHERE id = :company_id"),
@@ -124,9 +121,7 @@ async def test_delta_sync_includes_tombstones(
         await session.commit()
 
     # Delta sync since before deletion — tombstone must appear
-    resp = await tenant_a_client.get(
-        f"/api/v1/sync?cursor={cursor_before_delete}"
-    )
+    resp = await tenant_a_client.get(f"/api/v1/sync?cursor={cursor_before_delete}")
     assert resp.status_code == 200
 
     data = resp.json()
@@ -220,9 +215,7 @@ async def test_delta_sync_updated_at_advances_on_update(
 
     assert new_updated_at != original_updated_at
 
-    resp = await tenant_a_client.get(
-        f"/api/v1/sync?cursor={original_updated_at}"
-    )
+    resp = await tenant_a_client.get(f"/api/v1/sync?cursor={original_updated_at}")
     assert resp.status_code == 200
     company_ids = [c["id"] for c in resp.json()["companies"]]
     assert company_id in company_ids

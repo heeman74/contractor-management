@@ -23,7 +23,6 @@ from datetime import UTC, datetime
 import pytest
 from httpx import AsyncClient
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -338,7 +337,6 @@ async def test_upload_file(tenant_a_client, seed_two_tenants):
 async def test_upload_file_without_auth(async_client, seed_two_tenants):
     """POST /api/v1/files/upload without auth token returns 401."""
     # seed_two_tenants ensures migrations ran; async_client has no auth header
-    job_id = "00000000-0000-0000-0000-000000000001"
     note_id = "00000000-0000-0000-0000-000000000002"
 
     files = {
@@ -387,9 +385,7 @@ async def test_upload_invalid_attachment_type(tenant_a_client, seed_two_tenants)
 
 
 @pytest.mark.asyncio
-async def test_rls_note_cross_tenant_isolation(
-    tenant_a_client, tenant_b_client, seed_two_tenants
-):
+async def test_rls_note_cross_tenant_isolation(tenant_a_client, tenant_b_client, seed_two_tenants):
     """Notes created by Tenant A are NOT visible to Tenant B (RLS enforced)."""
     # Tenant A creates a job and note
     job_a = await create_test_job(tenant_a_client, description="Tenant A's job")

@@ -82,9 +82,7 @@ async def test_multiday_booking_all_days_created(
 
 
 @pytest.mark.asyncio
-async def test_multiday_all_or_nothing(
-    scheduling_client, seed_contractor_weekly_schedule
-):
+async def test_multiday_all_or_nothing(scheduling_client, seed_contractor_weekly_schedule):
     """Book 3 days, middle day has conflict: entire booking fails (no day is created)."""
     contractor_id = seed_contractor_weekly_schedule["contractor_id"]
 
@@ -97,7 +95,7 @@ async def test_multiday_all_or_nothing(
             "contractor_id": str(contractor_id),
             "job_id": job_id,
             "start": make_utc(2026, 3, 10, 17, 0),  # Tue 09:00 PST
-            "end": make_utc(2026, 3, 10, 19, 0),    # Tue 11:00 PST
+            "end": make_utc(2026, 3, 10, 19, 0),  # Tue 11:00 PST
         },
     )
     assert preblock_resp.status_code == 201
@@ -131,9 +129,7 @@ async def test_multiday_all_or_nothing(
 
 
 @pytest.mark.asyncio
-async def test_multiday_non_consecutive_days(
-    scheduling_client, seed_contractor_weekly_schedule
-):
+async def test_multiday_non_consecutive_days(scheduling_client, seed_contractor_weekly_schedule):
     """Book Mon and Wed (skip Tue): both bookings created, Tue remains free."""
     contractor_id = seed_contractor_weekly_schedule["contractor_id"]
     job_id = str(seed_contractor_weekly_schedule["job_id"])
@@ -176,9 +172,7 @@ async def test_multiday_non_consecutive_days(
 
 
 @pytest.mark.asyncio
-async def test_multiday_per_day_different_times(
-    scheduling_client, seed_contractor_weekly_schedule
-):
+async def test_multiday_per_day_different_times(scheduling_client, seed_contractor_weekly_schedule):
     """Book 3 days with different time blocks: all created with correct time ranges.
 
     All times must stay within a single working block to avoid spanning the lunch break.
@@ -193,9 +187,21 @@ async def test_multiday_per_day_different_times(
             "contractor_id": str(contractor_id),
             "job_id": job_id,
             "day_blocks": [
-                {"date": "2026-03-09", "start_time": "08:00:00", "end_time": "11:00:00"},  # Mon: 3h (morning block)
-                {"date": "2026-03-10", "start_time": "13:00:00", "end_time": "15:30:00"},  # Tue: 2.5h (afternoon block)
-                {"date": "2026-03-11", "start_time": "07:00:00", "end_time": "09:30:00"},  # Wed: 2.5h (morning block)
+                {
+                    "date": "2026-03-09",
+                    "start_time": "08:00:00",
+                    "end_time": "11:00:00",
+                },  # Mon: 3h (morning block)
+                {
+                    "date": "2026-03-10",
+                    "start_time": "13:00:00",
+                    "end_time": "15:30:00",
+                },  # Tue: 2.5h (afternoon block)
+                {
+                    "date": "2026-03-11",
+                    "start_time": "07:00:00",
+                    "end_time": "09:30:00",
+                },  # Wed: 2.5h (morning block)
             ],
         },
     )
@@ -217,9 +223,7 @@ async def test_multiday_per_day_different_times(
 
 
 @pytest.mark.asyncio
-async def test_multiday_reschedule_single_day(
-    scheduling_client, seed_contractor_weekly_schedule
-):
+async def test_multiday_reschedule_single_day(scheduling_client, seed_contractor_weekly_schedule):
     """Cancel one day of multi-day booking, rebook that day at new time."""
     contractor_id = seed_contractor_weekly_schedule["contractor_id"]
     job_id = str(seed_contractor_weekly_schedule["job_id"])
@@ -241,9 +245,7 @@ async def test_multiday_reschedule_single_day(
 
     # Identify and cancel Monday's booking (day_index=0)
     monday_booking = next(b for b in bookings if b["day_index"] == 0)
-    del_resp = await scheduling_client.delete(
-        f"/api/v1/scheduling/bookings/{monday_booking['id']}"
-    )
+    del_resp = await scheduling_client.delete(f"/api/v1/scheduling/bookings/{monday_booking['id']}")
     assert del_resp.status_code == 204
 
     # Re-book Monday at a different time (afternoon working block: 13:00-16:00 PDT = 20:00-23:00 UTC)
@@ -254,7 +256,9 @@ async def test_multiday_reschedule_single_day(
             "contractor_id": str(contractor_id),
             "job_id": job_id,
             "start": make_utc(2026, 3, 9, 20, 0),  # 13:00 PDT (UTC-7): afternoon block start
-            "end": make_utc(2026, 3, 9, 22, 0),    # 15:00 PDT: within afternoon block (ends 16:00 PDT = 23:00 UTC)
+            "end": make_utc(
+                2026, 3, 9, 22, 0
+            ),  # 15:00 PDT: within afternoon block (ends 16:00 PDT = 23:00 UTC)
         },
     )
     assert rebook_resp.status_code == 201, (
@@ -285,9 +289,7 @@ async def test_suggest_dates_consecutive_preferred(
 
     # At least the first suggestion should be consecutive
     first = suggestions[0]
-    assert first["is_consecutive"] is True, (
-        f"First suggestion should be consecutive: {first}"
-    )
+    assert first["is_consecutive"] is True, f"First suggestion should be consecutive: {first}"
 
 
 @pytest.mark.asyncio

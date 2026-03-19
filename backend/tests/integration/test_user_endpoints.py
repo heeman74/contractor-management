@@ -4,11 +4,8 @@ Tests exercise the /api/v1/users endpoints through the full ASGI stack
 using JWT Bearer tokens from the seed_two_tenants fixture.
 """
 
-from uuid import uuid4
-
 import pytest
 from httpx import AsyncClient
-
 
 # ---------------------------------------------------------------------------
 # Create user
@@ -16,9 +13,7 @@ from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
-async def test_create_user_returns_all_fields(
-    tenant_a_client: AsyncClient, seed_two_tenants: dict
-):
+async def test_create_user_returns_all_fields(tenant_a_client: AsyncClient, seed_two_tenants: dict):
     """POST /users with full payload returns 201 with all UserResponse fields."""
     payload = {
         "email": "new@tenant-a.com",
@@ -43,9 +38,7 @@ async def test_create_user_returns_all_fields(
 @pytest.mark.asyncio
 async def test_create_user_minimal_fields(tenant_a_client: AsyncClient):
     """POST /users with email only returns 201, optional fields are null."""
-    resp = await tenant_a_client.post(
-        "/api/v1/users/", json={"email": "minimal@test.com"}
-    )
+    resp = await tenant_a_client.post("/api/v1/users/", json={"email": "minimal@test.com"})
     assert resp.status_code == 201
     body = resp.json()
     assert body["email"] == "minimal@test.com"
@@ -57,9 +50,7 @@ async def test_create_user_minimal_fields(tenant_a_client: AsyncClient):
 @pytest.mark.asyncio
 async def test_create_user_invalid_email_returns_422(tenant_a_client: AsyncClient):
     """POST /users with invalid email format returns 422."""
-    resp = await tenant_a_client.post(
-        "/api/v1/users/", json={"email": "not-an-email"}
-    )
+    resp = await tenant_a_client.post("/api/v1/users/", json={"email": "not-an-email"})
     assert resp.status_code == 422
 
 
@@ -94,9 +85,7 @@ async def test_list_users_includes_admin_from_registration(
 
 
 @pytest.mark.asyncio
-async def test_assign_duplicate_role_behavior(
-    tenant_a_client: AsyncClient, seed_two_tenants: dict
-):
+async def test_assign_duplicate_role_behavior(tenant_a_client: AsyncClient, seed_two_tenants: dict):
     """Assigning the same role twice creates a second UserRole row (no unique constraint)."""
     user_id = seed_two_tenants["tenant_a_user_id"]
 

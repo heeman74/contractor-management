@@ -15,9 +15,8 @@ clean_tables autouse fixture provides test isolation.
 import uuid
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx import AsyncClient
 from sqlalchemy import text
-
 
 # ---------------------------------------------------------------------------
 # Helper functions
@@ -31,9 +30,7 @@ async def create_user(client: AsyncClient, email: str) -> dict:
     return resp.json()
 
 
-async def create_client_profile(
-    client: AsyncClient, user_id: str, **overrides
-) -> dict:
+async def create_client_profile(client: AsyncClient, user_id: str, **overrides) -> dict:
     """Create or update a client profile and return JSON."""
     payload = {
         "user_id": user_id,
@@ -97,9 +94,7 @@ async def advance_job_to_complete(client: AsyncClient, job: dict) -> dict:
             f"/api/v1/jobs/{job_id}/transition",
             json={"new_status": new_status, "version": version},
         )
-        assert resp.status_code == 200, (
-            f"Transition to {new_status} failed: {resp.text}"
-        )
+        assert resp.status_code == 200, f"Transition to {new_status} failed: {resp.text}"
         version = resp.json()["version"]
 
     return resp.json()
@@ -290,15 +285,11 @@ async def test_remove_saved_property(tenant_a_client, test_engine, seed_two_tena
     property_id = add_resp.json()["id"]
 
     # Remove property
-    del_resp = await tenant_a_client.delete(
-        f"/api/v1/clients/properties/{property_id}"
-    )
+    del_resp = await tenant_a_client.delete(f"/api/v1/clients/properties/{property_id}")
     assert del_resp.status_code == 204
 
     # Verify it no longer appears in list
-    list_resp = await tenant_a_client.get(
-        f"/api/v1/clients/{user_id}/properties"
-    )
+    list_resp = await tenant_a_client.get(f"/api/v1/clients/{user_id}/properties")
     assert list_resp.status_code == 200
     remaining_ids = [p["id"] for p in list_resp.json()]
     assert property_id not in remaining_ids
@@ -346,9 +337,7 @@ async def test_set_default_property(tenant_a_client, test_engine, seed_two_tenan
     assert add2_resp.status_code == 201
 
     # List properties and verify only the second is default
-    list_resp = await tenant_a_client.get(
-        f"/api/v1/clients/{user_id}/properties"
-    )
+    list_resp = await tenant_a_client.get(f"/api/v1/clients/{user_id}/properties")
     assert list_resp.status_code == 200
     properties = {p["id"]: p for p in list_resp.json()}
 
@@ -495,6 +484,4 @@ async def test_average_rating_updated(tenant_a_client, seed_two_tenants):
 
     # average_rating should be 3.00 ((4 + 2) / 2)
     average = float(profile["average_rating"])
-    assert abs(average - 3.0) < 0.01, (
-        f"Expected average_rating ~3.00, got {average}"
-    )
+    assert abs(average - 3.0) < 0.01, f"Expected average_rating ~3.00, got {average}"

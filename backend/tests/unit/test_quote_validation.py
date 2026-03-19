@@ -10,13 +10,12 @@ Tests validate:
 from __future__ import annotations
 
 from datetime import date, timedelta
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 import pytest
 from pydantic import ValidationError
 
 from app.features.quotes.schemas import QuoteCreate, QuoteLineItemCreate
-
 
 # ---------------------------------------------------------------------------
 # Line item schema validation

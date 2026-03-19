@@ -170,13 +170,15 @@ async def seed_contractor(test_engine, scheduling_company_with_config):
         await conn.commit()
 
     # Create JWT for contractor (long-lived for tests)
-    contractor_token = create_test_token({
-        "sub": str(contractor_id),
-        "company_id": str(company_id),
-        "roles": ["contractor"],
-        "type": "access",
-        "exp": datetime(2099, 1, 1, tzinfo=UTC).timestamp(),
-    })
+    contractor_token = create_test_token(
+        {
+            "sub": str(contractor_id),
+            "company_id": str(company_id),
+            "roles": ["contractor"],
+            "type": "access",
+            "exp": datetime(2099, 1, 1, tzinfo=UTC).timestamp(),
+        }
+    )
 
     return {
         "contractor_id": contractor_id,

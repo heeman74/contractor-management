@@ -15,7 +15,7 @@ Strategy:
 from __future__ import annotations
 
 import uuid
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -27,7 +27,6 @@ from app.features.scheduling.travel.cache import CachedTravelTimeProvider
 # isort: split
 # Side-effect: register all scheduling mappers before tests run
 import app.features.scheduling.models  # noqa: F401
-
 
 # ---------------------------------------------------------------------------
 # SCHED-06: Travel provider injection tests
@@ -55,9 +54,7 @@ async def test_travel_provider_absent_when_no_ors_key(monkeypatch: pytest.Monkey
     svc = await get_scheduling_service(db=fake_db, current_user=fake_user)
 
     assert isinstance(svc, SchedulingService)
-    assert svc.travel_provider is None, (
-        "Expected travel_provider=None when ORS_API_KEY is absent"
-    )
+    assert svc.travel_provider is None, "Expected travel_provider=None when ORS_API_KEY is absent"
 
 
 @pytest.mark.asyncio

@@ -15,10 +15,7 @@ Coverage:
 """
 
 import pytest
-from httpx import ASGITransport, AsyncClient
-
-from app.main import app
-
+from httpx import AsyncClient
 
 # ---------------------------------------------------------------------------
 # Helper: register a fresh user and return tokens + ids
@@ -115,7 +112,7 @@ async def test_invalid_cookie_token_returns_401(async_client):
 async def test_login_returns_user_id_company_id_roles(async_client):
     """Login endpoint returns TokenResponse with user_id, company_id, roles."""
     # Register first
-    reg_data = await _register(async_client, "login-shape@phase13.com", "Login Shape Corp")
+    await _register(async_client, "login-shape@phase13.com", "Login Shape Corp")
 
     # Login
     resp = await async_client.post(

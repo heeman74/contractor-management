@@ -10,11 +10,8 @@ Design:
 - Tests must fail if ALLOWED_TRANSITIONS or BACKWARD_TRANSITIONS is incorrectly defined.
 """
 
-import pytest
-
 from app.features.jobs.schemas import JobStatus
-from app.features.jobs.service import ALLOWED_TRANSITIONS, BACKWARD_TRANSITIONS, is_backward
-
+from app.features.jobs.service import ALLOWED_TRANSITIONS, is_backward
 
 # ---------------------------------------------------------------------------
 # Test 1: All valid admin forward transitions
@@ -149,8 +146,7 @@ def test_client_cannot_perform_any_transition():
     for status in all_statuses:
         allowed = ALLOWED_TRANSITIONS.get((status, "client"), frozenset())
         assert len(allowed) == 0, (
-            f"Client should have NO allowed transitions from status '{status}', "
-            f"but got: {allowed}"
+            f"Client should have NO allowed transitions from status '{status}', but got: {allowed}"
         )
 
 
@@ -170,8 +166,7 @@ def test_cancelled_is_terminal():
     for role in roles:
         allowed = ALLOWED_TRANSITIONS.get((JobStatus.cancelled, role), frozenset())
         assert len(allowed) == 0, (
-            f"Role '{role}' should have NO transitions from 'cancelled', "
-            f"but got: {allowed}"
+            f"Role '{role}' should have NO transitions from 'cancelled', but got: {allowed}"
         )
 
 

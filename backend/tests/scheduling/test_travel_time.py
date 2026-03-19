@@ -71,12 +71,16 @@ class TestBidirectionalKeyNormalization:
         """Coordinates differing by < 0.001 produce the same normalized key."""
         # These have the SAME rounded lat (49.283 rounds to itself)
         key_a = _normalize_key(
-            _round_coord(49.2831), _round_coord(-123.1171),
-            _round_coord(49.2820), _round_coord(-123.1200),
+            _round_coord(49.2831),
+            _round_coord(-123.1171),
+            _round_coord(49.2820),
+            _round_coord(-123.1200),
         )
         key_b = _normalize_key(
-            _round_coord(49.2832), _round_coord(-123.1173),  # tiny diff < 0.001
-            _round_coord(49.2820), _round_coord(-123.1200),
+            _round_coord(49.2832),
+            _round_coord(-123.1173),  # tiny diff < 0.001
+            _round_coord(49.2820),
+            _round_coord(-123.1200),
         )
         # Both should round to the same key
         assert key_a == key_b
@@ -182,8 +186,10 @@ async def test_travel_cache_bidirectional(test_engine, scheduling_tenant):
 
         # Store A->B
         await cache_svc.get_travel_seconds(
-            origin_lat=49.283, origin_lng=-123.117,
-            dest_lat=49.282, dest_lng=-123.120,
+            origin_lat=49.283,
+            origin_lng=-123.117,
+            dest_lat=49.282,
+            dest_lng=-123.120,
             company_id=company_id,
         )
         await session.commit()
@@ -195,8 +201,10 @@ async def test_travel_cache_bidirectional(test_engine, scheduling_tenant):
         cache_svc2 = TravelTimeCacheService(db=session, provider=mock_provider2)
 
         result = await cache_svc2.get_travel_seconds(
-            origin_lat=49.282, origin_lng=-123.120,  # B->A (reversed)
-            dest_lat=49.283, dest_lng=-123.117,
+            origin_lat=49.282,
+            origin_lng=-123.120,  # B->A (reversed)
+            dest_lat=49.283,
+            dest_lng=-123.117,
             company_id=company_id,
         )
         assert result == 450, f"Expected 450 (cached A->B = B->A), got {result}"
@@ -226,7 +234,7 @@ async def test_travel_cache_ttl_expired_fallback(test_engine, scheduling_tenant)
             """),
             {
                 "company_id": str(company_id),
-                "lat1": 49.282,   # normalized: smaller lat first
+                "lat1": 49.282,  # normalized: smaller lat first
                 "lng1": -123.120,
                 "lat2": 49.283,
                 "lng2": -123.117,
@@ -239,15 +247,15 @@ async def test_travel_cache_ttl_expired_fallback(test_engine, scheduling_tenant)
     async with session_factory() as session:
         # Provider fails (API unavailable)
         failing_provider = AsyncMock()
-        failing_provider.get_travel_seconds = AsyncMock(
-            side_effect=Exception("API down")
-        )
+        failing_provider.get_travel_seconds = AsyncMock(side_effect=Exception("API down"))
         cache_svc = TravelTimeCacheService(db=session, provider=failing_provider)
 
         # Should return stale fallback value rather than raising
         result = await cache_svc.get_travel_seconds(
-            origin_lat=49.283, origin_lng=-123.117,
-            dest_lat=49.282, dest_lng=-123.120,
+            origin_lat=49.283,
+            origin_lng=-123.117,
+            dest_lat=49.282,
+            dest_lng=-123.120,
             company_id=company_id,
         )
         assert result == 550, f"Expected stale fallback 550, got {result}"
@@ -263,16 +271,16 @@ async def test_travel_time_unavailable_uses_default(test_engine, scheduling_tena
 
     async with session_factory() as session:
         failing_provider = AsyncMock()
-        failing_provider.get_travel_seconds = AsyncMock(
-            side_effect=Exception("No internet")
-        )
+        failing_provider.get_travel_seconds = AsyncMock(side_effect=Exception("No internet"))
         cache_svc = TravelTimeCacheService(db=session, provider=failing_provider)
 
         # No cached entry + API fails = TravelTimeUnavailableError
         with pytest.raises(TravelTimeUnavailableError):
             await cache_svc.get_travel_seconds(
-                origin_lat=10.0, origin_lng=20.0,  # coordinates with no cached entry
-                dest_lat=30.0, dest_lng=40.0,
+                origin_lat=10.0,
+                origin_lng=20.0,  # coordinates with no cached entry
+                dest_lat=30.0,
+                dest_lng=40.0,
                 company_id=company_id,
             )
 
@@ -297,13 +305,7 @@ class TestORSProviderCoordinateOrder:
                 pass
 
             def json(self):
-                return {
-                    "features": [{
-                        "properties": {
-                            "segments": [{"duration": 600.0}]
-                        }
-                    }]
-                }
+                return {"features": [{"properties": {"segments": [{"duration": 600.0}]}}]}
 
         async def fake_get(url, params=None, timeout=None):
             captured_params.update(params or {})
@@ -314,8 +316,10 @@ class TestORSProviderCoordinateOrder:
 
         provider = OpenRouteServiceProvider(api_key="test-key", client=mock_client)
         result = await provider.get_travel_seconds(
-            origin_lat=49.283, origin_lng=-123.117,
-            dest_lat=49.282, dest_lng=-123.120,
+            origin_lat=49.283,
+            origin_lng=-123.117,
+            dest_lat=49.282,
+            dest_lng=-123.120,
         )
 
         assert result == 600
@@ -345,11 +349,13 @@ class TestORSProviderCoordinateOrder:
 
             def json(self):
                 return {
-                    "features": [{
-                        "properties": {
-                            "segments": [{"duration": 612.7}]  # float from ORS
+                    "features": [
+                        {
+                            "properties": {
+                                "segments": [{"duration": 612.7}]  # float from ORS
+                            }
                         }
-                    }]
+                    ]
                 }
 
         mock_client = AsyncMock()
@@ -357,8 +363,10 @@ class TestORSProviderCoordinateOrder:
 
         provider = OpenRouteServiceProvider(api_key="test-key", client=mock_client)
         result = await provider.get_travel_seconds(
-            origin_lat=49.0, origin_lng=-123.0,
-            dest_lat=49.1, dest_lng=-123.1,
+            origin_lat=49.0,
+            origin_lng=-123.0,
+            dest_lat=49.1,
+            dest_lng=-123.1,
         )
         assert isinstance(result, int)
         assert result == 612  # truncated from 612.7
@@ -447,7 +455,7 @@ async def test_availability_with_travel_buffer(
             "job_id": job_id,
             "job_site_id": str(site1_id),
             "start": datetime(2026, 3, 9, 16, 0, tzinfo=UTC).isoformat(),  # 9am PDT
-            "end": datetime(2026, 3, 9, 17, 0, tzinfo=UTC).isoformat(),    # 10am PDT
+            "end": datetime(2026, 3, 9, 17, 0, tzinfo=UTC).isoformat(),  # 10am PDT
         },
     )
     assert resp1.status_code == 201
@@ -460,7 +468,7 @@ async def test_availability_with_travel_buffer(
             "job_id": job_id,
             "job_site_id": str(site2_id),
             "start": datetime(2026, 3, 9, 20, 0, tzinfo=UTC).isoformat(),  # 1pm PDT
-            "end": datetime(2026, 3, 9, 21, 0, tzinfo=UTC).isoformat(),    # 2pm PDT
+            "end": datetime(2026, 3, 9, 21, 0, tzinfo=UTC).isoformat(),  # 2pm PDT
         },
     )
     assert resp2.status_code == 201

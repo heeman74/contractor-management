@@ -27,9 +27,7 @@ async def test_assign_all_role_types(tenant_a_client, seed_two_tenants):
             f"/api/v1/users/{user_id}/roles",
             json={"user_id": user_id, "role": role},
         )
-        assert resp.status_code == 201, (
-            f"Failed to assign role '{role}': {resp.text}"
-        )
+        assert resp.status_code == 201, f"Failed to assign role '{role}': {resp.text}"
         assigned = resp.json()
         assert assigned["role"] == role
         assert assigned["user_id"] == user_id
@@ -90,9 +88,7 @@ async def test_assign_role_returns_correct_fields(tenant_a_client, seed_two_tena
 
 
 @pytest.mark.asyncio
-async def test_assign_role_to_nonexistent_user_returns_404(
-    tenant_a_client, seed_two_tenants
-):
+async def test_assign_role_to_nonexistent_user_returns_404(tenant_a_client, seed_two_tenants):
     """Assigning a role to a non-existent user returns HTTP 404."""
     import uuid
 
@@ -107,9 +103,7 @@ async def test_assign_role_to_nonexistent_user_returns_404(
 
 
 @pytest.mark.asyncio
-async def test_user_roles_are_tenant_scoped(
-    tenant_a_client, tenant_b_client, seed_two_tenants
-):
+async def test_user_roles_are_tenant_scoped(tenant_a_client, tenant_b_client, seed_two_tenants):
     """Roles assigned to Tenant A's users are not visible to Tenant B."""
     # Create user in Tenant A and assign admin role
     create_resp = await tenant_a_client.post(
@@ -130,10 +124,6 @@ async def test_user_roles_are_tenant_scoped(
     # Either 404 (user not found) or empty list (RLS hides the roles)
     # Both are acceptable isolation behaviors
     if resp.status_code == 200:
-        assert len(resp.json()) == 0, (
-            "ISOLATION FAILURE: Tenant B can see Tenant A's user roles"
-        )
+        assert len(resp.json()) == 0, "ISOLATION FAILURE: Tenant B can see Tenant A's user roles"
     else:
-        assert resp.status_code == 404, (
-            f"Unexpected status code {resp.status_code}: {resp.text}"
-        )
+        assert resp.status_code == 404, f"Unexpected status code {resp.status_code}: {resp.text}"

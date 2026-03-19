@@ -12,7 +12,6 @@ import uuid
 import pytest
 from httpx import AsyncClient
 
-
 # ---------------------------------------------------------------------------
 # Test 1: Duplicate company UUID returns existing record (200 not 409)
 # ---------------------------------------------------------------------------
@@ -141,9 +140,7 @@ async def test_idempotency_preserves_original_data(
 
 
 @pytest.mark.asyncio
-async def test_concurrent_duplicate_creates(
-    tenant_a_client: AsyncClient, test_engine
-) -> None:
+async def test_concurrent_duplicate_creates(tenant_a_client: AsyncClient, test_engine) -> None:
     """Concurrent POSTs with same UUID -> exactly 1 company in DB."""
     from sqlalchemy import text
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -163,9 +160,7 @@ async def test_concurrent_duplicate_creates(
     assert results[0]["id"] == company_uuid
     assert results[1]["id"] == company_uuid
 
-    session_factory = async_sessionmaker(
-        test_engine, class_=AsyncSession, expire_on_commit=False
-    )
+    session_factory = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
     async with session_factory() as session:
         result = await session.execute(
             text("SELECT COUNT(*) FROM companies WHERE id = :cid"),

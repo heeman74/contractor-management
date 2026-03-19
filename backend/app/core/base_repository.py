@@ -8,7 +8,6 @@ import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import select
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import Base
@@ -57,16 +56,6 @@ class BaseRepository[T: Base]:
         entity.deleted_at = datetime.now(UTC)  # type: ignore[attr-defined]
         await self.db.flush()
         return True
-
-    async def upsert_idempotent(self, entity_id: uuid.UUID, values: dict) -> T:
-        """INSERT ON CONFLICT DO NOTHING — for sync retry deduplication."""
-        stmt = (
-            insert(self.model)
-            .values(id=entity_id, **values)
-            .on_conflict_do_nothing(index_elements=["id"])
-        )
-        await self.db.execute(stmt)
-        return await self.db.get(self.model, entity_id)  # type: ignore[return-value]
 
 
 class TenantScopedRepository[T: Base](BaseRepository[T]):

@@ -240,12 +240,9 @@ async def test_sync_quote_line_items_are_flat_arrays(seed_two_tenants: dict) -> 
     )
 
     # Filter line items belonging to our test quote
-    test_quote_items = [
-        li for li in data["quote_line_items"] if li.get("quote_id") == quote_id
-    ]
+    test_quote_items = [li for li in data["quote_line_items"] if li.get("quote_id") == quote_id]
     assert len(test_quote_items) >= 2, (
-        f"Expected at least 2 line items for quote {quote_id}, "
-        f"got {len(test_quote_items)}"
+        f"Expected at least 2 line items for quote {quote_id}, got {len(test_quote_items)}"
     )
 
     # Each line item must have quote_id as a field

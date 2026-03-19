@@ -36,7 +36,7 @@ def make_utc(y: int, mo: int, d: int, h: int, mi: int = 0) -> str:
 # Monday 2026-03-09, within working hours (07:00-16:00 PST = 15:00-24:00 UTC)
 # PST = UTC-8, so 09:00 PST = 17:00 UTC
 BOOKING_START = make_utc(2026, 3, 9, 17, 0)  # 09:00 PST
-BOOKING_END = make_utc(2026, 3, 9, 19, 0)    # 11:00 PST
+BOOKING_END = make_utc(2026, 3, 9, 19, 0)  # 11:00 PST
 
 
 # ---------------------------------------------------------------------------
@@ -45,9 +45,7 @@ BOOKING_END = make_utc(2026, 3, 9, 19, 0)    # 11:00 PST
 
 
 @pytest.mark.asyncio
-async def test_booking_creates_successfully(
-    scheduling_client, seed_contractor_weekly_schedule
-):
+async def test_booking_creates_successfully(scheduling_client, seed_contractor_weekly_schedule):
     """Simple booking within working hours: returns 201."""
     contractor_id = seed_contractor_weekly_schedule["contractor_id"]
     job_id = seed_contractor_weekly_schedule["job_id"]
@@ -68,9 +66,7 @@ async def test_booking_creates_successfully(
 
 
 @pytest.mark.asyncio
-async def test_booking_conflict_returns_409(
-    scheduling_client, seed_contractor_weekly_schedule
-):
+async def test_booking_conflict_returns_409(scheduling_client, seed_contractor_weekly_schedule):
     """Book a slot, then book overlapping slot: second returns 409 with ConflictDetail."""
     contractor_id = seed_contractor_weekly_schedule["contractor_id"]
     job_id = seed_contractor_weekly_schedule["job_id"]
@@ -94,7 +90,7 @@ async def test_booking_conflict_returns_409(
             "contractor_id": str(contractor_id),
             "job_id": str(job_id),
             "start": make_utc(2026, 3, 9, 18, 0),  # 10:00 PST
-            "end": make_utc(2026, 3, 9, 20, 0),    # 12:00 PST
+            "end": make_utc(2026, 3, 9, 20, 0),  # 12:00 PST
         },
     )
     assert resp2.status_code == 409, f"Expected 409, got {resp2.status_code}: {resp2.text}"
@@ -104,9 +100,7 @@ async def test_booking_conflict_returns_409(
 
 
 @pytest.mark.asyncio
-async def test_booking_adjacent_no_conflict(
-    scheduling_client, seed_contractor_weekly_schedule
-):
+async def test_booking_adjacent_no_conflict(scheduling_client, seed_contractor_weekly_schedule):
     """Booking [9am, 10am) then [10am, 11am): both succeed — half-open interval, no overlap.
 
     Adjacent = end of first booking == start of second booking (no gap, no overlap).
@@ -124,7 +118,7 @@ async def test_booking_adjacent_no_conflict(
             "contractor_id": str(contractor_id),
             "job_id": str(job_id),
             "start": make_utc(2026, 3, 9, 17, 0),  # 09:00 PST
-            "end": make_utc(2026, 3, 9, 18, 0),    # 10:00 PST
+            "end": make_utc(2026, 3, 9, 18, 0),  # 10:00 PST
         },
     )
     assert resp1.status_code == 201
@@ -136,16 +130,14 @@ async def test_booking_adjacent_no_conflict(
             "contractor_id": str(contractor_id),
             "job_id": str(job_id),
             "start": make_utc(2026, 3, 9, 18, 0),  # 10:00 PST
-            "end": make_utc(2026, 3, 9, 19, 0),    # 11:00 PST
+            "end": make_utc(2026, 3, 9, 19, 0),  # 11:00 PST
         },
     )
     assert resp2.status_code == 201, f"Adjacent booking should succeed, got: {resp2.text}"
 
 
 @pytest.mark.asyncio
-async def test_soft_deleted_booking_no_conflict(
-    scheduling_client, seed_contractor_weekly_schedule
-):
+async def test_soft_deleted_booking_no_conflict(scheduling_client, seed_contractor_weekly_schedule):
     """Soft-delete a booking, then book same slot: succeeds (GIST WHERE deleted_at IS NULL)."""
     contractor_id = seed_contractor_weekly_schedule["contractor_id"]
     job_id = seed_contractor_weekly_schedule["job_id"]
@@ -197,7 +189,7 @@ async def test_booking_outside_working_hours_rejected(
             "contractor_id": str(contractor_id),
             "job_id": str(job_id),
             "start": make_utc(2026, 3, 10, 7, 0),  # 11pm PST Monday -> 7am UTC Tuesday
-            "end": make_utc(2026, 3, 10, 8, 0),    # midnight PST Monday -> 8am UTC Tuesday
+            "end": make_utc(2026, 3, 10, 8, 0),  # midnight PST Monday -> 8am UTC Tuesday
         },
     )
     assert resp.status_code == 422, f"Expected 422, got {resp.status_code}: {resp.text}"
@@ -216,8 +208,8 @@ async def test_booking_below_minimum_duration_rejected(
         json={
             "contractor_id": str(contractor_id),
             "job_id": str(job_id),
-            "start": make_utc(2026, 3, 9, 17, 0),   # 09:00 PST
-            "end": make_utc(2026, 3, 9, 17, 15),    # 09:15 PST — 15 minutes
+            "start": make_utc(2026, 3, 9, 17, 0),  # 09:00 PST
+            "end": make_utc(2026, 3, 9, 17, 15),  # 09:15 PST — 15 minutes
         },
     )
     assert resp.status_code == 422, f"Expected 422, got {resp.status_code}: {resp.text}"
@@ -229,9 +221,7 @@ async def test_booking_below_minimum_duration_rejected(
 
 
 @pytest.mark.asyncio
-async def test_concurrent_booking_exactly_one_succeeds(
-    seed_contractor_weekly_schedule
-):
+async def test_concurrent_booking_exactly_one_succeeds(seed_contractor_weekly_schedule):
     """Critical: two concurrent booking attempts — exactly one 201, exactly one 409.
 
     Uses asyncio.gather with separate AsyncClient instances so each request
@@ -272,9 +262,7 @@ async def test_concurrent_booking_exactly_one_succeeds(
     assert conflicts == 1, (
         f"Expected exactly 1 conflict, got {conflicts}. Status codes: {status_codes}"
     )
-    assert errors == 0, (
-        f"Expected 0 server errors, got {errors}. Status codes: {status_codes}"
-    )
+    assert errors == 0, f"Expected 0 server errors, got {errors}. Status codes: {status_codes}"
 
 
 @pytest.mark.slow
@@ -296,8 +284,8 @@ async def test_concurrent_booking_load(seed_contractor_weekly_schedule):
     booking_payload = {
         "contractor_id": str(contractor_id),
         "job_id": str(job_id),
-        "start": make_utc(2026, 3, 9, 17, 0),   # 09:00 PST
-        "end": make_utc(2026, 3, 9, 19, 0),     # 11:00 PST
+        "start": make_utc(2026, 3, 9, 17, 0),  # 09:00 PST
+        "end": make_utc(2026, 3, 9, 19, 0),  # 11:00 PST
     }
 
     async def attempt_booking():
@@ -322,8 +310,7 @@ async def test_concurrent_booking_load(seed_contractor_weekly_schedule):
         f"Codes: {sorted(status_codes)}"
     )
     assert conflicts == num_clients - 1, (
-        f"Expected {num_clients - 1} conflicts, got {conflicts}. "
-        f"Codes: {sorted(status_codes)}"
+        f"Expected {num_clients - 1} conflicts, got {conflicts}. Codes: {sorted(status_codes)}"
     )
     assert errors == 0, (
         f"Expected 0 server errors (lock + GIST must handle all contention gracefully), "
@@ -363,7 +350,7 @@ async def test_conflict_check_endpoint_read_only(
         json={
             "contractor_id": str(contractor_id),
             "start": make_utc(2026, 3, 9, 17, 30),  # 9:30 PST — inside booked slot
-            "end": make_utc(2026, 3, 9, 18, 30),    # 10:30 PST
+            "end": make_utc(2026, 3, 9, 18, 30),  # 10:30 PST
         },
     )
     assert resp2.status_code == 200

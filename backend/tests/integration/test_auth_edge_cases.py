@@ -16,7 +16,6 @@ from httpx import AsyncClient
 from app.core.security import create_test_token
 from tests.conftest import register_user
 
-
 # ---------------------------------------------------------------------------
 # Login edge cases
 # ---------------------------------------------------------------------------
@@ -95,13 +94,15 @@ async def test_malformed_bearer_token_returns_401(async_client: AsyncClient):
 @pytest.mark.asyncio
 async def test_expired_jwt_returns_401(async_client: AsyncClient):
     """A JWT with exp in the past is rejected."""
-    token = create_test_token({
-        "sub": str(uuid4()),
-        "company_id": str(uuid4()),
-        "roles": ["admin"],
-        "type": "access",
-        "exp": datetime.now(UTC) - timedelta(hours=1),
-    })
+    token = create_test_token(
+        {
+            "sub": str(uuid4()),
+            "company_id": str(uuid4()),
+            "roles": ["admin"],
+            "type": "access",
+            "exp": datetime.now(UTC) - timedelta(hours=1),
+        }
+    )
     resp = await async_client.get(
         "/api/v1/users/",
         headers={"Authorization": f"Bearer {token}"},
@@ -112,12 +113,14 @@ async def test_expired_jwt_returns_401(async_client: AsyncClient):
 @pytest.mark.asyncio
 async def test_jwt_missing_sub_claim_returns_401(async_client: AsyncClient):
     """A JWT without 'sub' claim is rejected."""
-    token = create_test_token({
-        "company_id": str(uuid4()),
-        "roles": ["admin"],
-        "type": "access",
-        "exp": datetime.now(UTC) + timedelta(hours=1),
-    })
+    token = create_test_token(
+        {
+            "company_id": str(uuid4()),
+            "roles": ["admin"],
+            "type": "access",
+            "exp": datetime.now(UTC) + timedelta(hours=1),
+        }
+    )
     resp = await async_client.get(
         "/api/v1/users/",
         headers={"Authorization": f"Bearer {token}"},
@@ -128,12 +131,14 @@ async def test_jwt_missing_sub_claim_returns_401(async_client: AsyncClient):
 @pytest.mark.asyncio
 async def test_jwt_missing_company_id_claim_returns_401(async_client: AsyncClient):
     """A JWT without 'company_id' claim is rejected."""
-    token = create_test_token({
-        "sub": str(uuid4()),
-        "roles": ["admin"],
-        "type": "access",
-        "exp": datetime.now(UTC) + timedelta(hours=1),
-    })
+    token = create_test_token(
+        {
+            "sub": str(uuid4()),
+            "roles": ["admin"],
+            "type": "access",
+            "exp": datetime.now(UTC) + timedelta(hours=1),
+        }
+    )
     resp = await async_client.get(
         "/api/v1/users/",
         headers={"Authorization": f"Bearer {token}"},

@@ -22,7 +22,6 @@ from httpx import AsyncClient
 # Side-effect: register all mappers before tests run.
 import app.features.scheduling.models  # noqa: F401
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -90,7 +89,8 @@ async def _setup_invoice(client: AsyncClient, user_id: str) -> dict:
     Returns the generated invoice dict.
     Re-logins after adding client role to get a token that includes it.
     """
-    from httpx import ASGITransport, AsyncClient as _AsyncClient
+    from httpx import ASGITransport
+    from httpx import AsyncClient as _AsyncClient
 
     from app.main import app as _fastapi_app
 
@@ -217,9 +217,7 @@ async def test_amount_paid_in_invoice_response(
 
 
 @pytest.mark.anyio
-async def test_mark_paid_with_amount(
-    tenant_a_client: AsyncClient, seed_two_tenants: dict
-) -> None:
+async def test_mark_paid_with_amount(tenant_a_client: AsyncClient, seed_two_tenants: dict) -> None:
     """PATCH /invoices/{id}/payment with amount_paid stores value in response."""
     user_id = seed_two_tenants["tenant_a_user_id"]
     invoice = await _setup_invoice(tenant_a_client, user_id)

@@ -54,9 +54,7 @@ async def test_tenant_b_cannot_read_tenant_a_users(
 
 
 @pytest.mark.asyncio
-async def test_each_tenant_sees_only_own_users(
-    tenant_a_client, tenant_b_client, seed_two_tenants
-):
+async def test_each_tenant_sees_only_own_users(tenant_a_client, tenant_b_client, seed_two_tenants):
     """Each tenant sees ONLY their own users — no cross-tenant leakage."""
     await tenant_a_client.post("/api/v1/users/", json={"email": "a1@tenant-a.com"})
     await tenant_a_client.post("/api/v1/users/", json={"email": "a2@tenant-a.com"})
@@ -90,9 +88,7 @@ async def test_tenant_a_cannot_write_to_tenant_b_data(
     tenant_a_client, tenant_b_client, seed_two_tenants
 ):
     """Tenant A cannot write (assign roles) to Tenant B's users."""
-    resp = await tenant_b_client.post(
-        "/api/v1/users/", json={"email": "target@tenant-b.com"}
-    )
+    resp = await tenant_b_client.post("/api/v1/users/", json={"email": "target@tenant-b.com"})
     assert resp.status_code == 201
     tenant_b_user_id = resp.json()["id"]
 

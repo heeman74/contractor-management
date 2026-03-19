@@ -23,7 +23,6 @@ import uuid
 import pytest
 from httpx import AsyncClient
 
-
 # ---------------------------------------------------------------------------
 # Helper functions
 # ---------------------------------------------------------------------------
@@ -85,7 +84,7 @@ async def advance_job_to_status(
     job = resp.json()
 
     for i in range(start_idx, end_idx):
-        from_status = progression[i]
+        progression[i]
         to_status = progression[i + 1]
         job = await transition_job(client, job_id, to_status, job["version"])
 
@@ -175,9 +174,7 @@ async def test_list_jobs_with_filters(tenant_a_client, seed_two_tenants):
     # Create 3 jobs: 2 at quote (default), 1 at scheduled
     job1 = await create_test_job(tenant_a_client, description="Job 1 plumbing")
     job2 = await create_test_job(tenant_a_client, description="Job 2 electrical")
-    job3 = await create_test_job(
-        tenant_a_client, description="Job 3 scheduled", status="scheduled"
-    )
+    job3 = await create_test_job(tenant_a_client, description="Job 3 scheduled", status="scheduled")
 
     resp = await tenant_a_client.get("/api/v1/jobs/?status=quote")
     assert resp.status_code == 200
@@ -297,13 +294,15 @@ async def test_transition_invalid_rejected(async_client, seed_two_tenants):
     # Create contractor JWT for tenant A
     company_id = seed_two_tenants["tenant_a_id"]
     contractor_id = str(uuid.uuid4())
-    contractor_token = create_test_token({
-        "sub": contractor_id,
-        "company_id": str(company_id),
-        "roles": ["contractor"],
-        "type": "access",
-        "exp": datetime(2099, 1, 1, tzinfo=UTC).timestamp(),
-    })
+    contractor_token = create_test_token(
+        {
+            "sub": contractor_id,
+            "company_id": str(company_id),
+            "roles": ["contractor"],
+            "type": "access",
+            "exp": datetime(2099, 1, 1, tzinfo=UTC).timestamp(),
+        }
+    )
 
     async with AsyncClient(
         transport=async_client._transport,
@@ -351,17 +350,16 @@ async def test_transition_version_mismatch(tenant_a_client, seed_two_tenants):
 @pytest.mark.asyncio
 async def test_cancel_job_frees_bookings(tenant_a_client, seed_two_tenants):
     """Cancelling a scheduled job sets associated bookings' deleted_at."""
-    from sqlalchemy import text
-    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-    from sqlalchemy.pool import NullPool
-
     import os
+
+    from sqlalchemy.ext.asyncio import create_async_engine
+    from sqlalchemy.pool import NullPool
 
     DATABASE_URL = os.environ["DATABASE_URL"]
     engine = create_async_engine(DATABASE_URL, echo=False, poolclass=NullPool)
 
-    company_id = seed_two_tenants["tenant_a_id"]
-    admin_user_id = seed_two_tenants["tenant_a_user_id"]
+    seed_two_tenants["tenant_a_id"]
+    seed_two_tenants["tenant_a_user_id"]
 
     # Create a job
     job = await create_test_job(tenant_a_client)
@@ -435,12 +433,8 @@ async def test_soft_delete_job(tenant_a_client, seed_two_tenants):
 async def test_search_jobs(tenant_a_client, seed_two_tenants):
     """GET /api/v1/jobs/search?q=keyword returns matching jobs."""
     # Create jobs with distinctive keywords
-    await create_test_job(
-        tenant_a_client, description="Fix broken electrical wiring in garage"
-    )
-    await create_test_job(
-        tenant_a_client, description="Replace kitchen faucet and sink drain"
-    )
+    await create_test_job(tenant_a_client, description="Fix broken electrical wiring in garage")
+    await create_test_job(tenant_a_client, description="Replace kitchen faucet and sink drain")
 
     resp = await tenant_a_client.get("/api/v1/jobs/search?q=electrical")
     assert resp.status_code == 200
@@ -464,11 +458,10 @@ async def test_contractor_sees_own_jobs_only(async_client, test_engine, seed_two
     """
     from datetime import UTC, datetime
 
-    from sqlalchemy import text
+    from httpx import ASGITransport
 
     from app.core.security import create_test_token
     from app.main import app
-    from httpx import ASGITransport
 
     company_id = seed_two_tenants["tenant_a_id"]
     admin_token = seed_two_tenants["tenant_a_token"]
@@ -515,13 +508,15 @@ async def test_contractor_sees_own_jobs_only(async_client, test_engine, seed_two
         assert job_b_resp.status_code == 201, f"Failed to create job B: {job_b_resp.text}"
 
     # Create JWT tokens for contractor A (long-lived, test-only)
-    token_a = create_test_token({
-        "sub": contractor_a_id,
-        "company_id": str(company_id),
-        "roles": ["contractor"],
-        "type": "access",
-        "exp": datetime(2099, 1, 1, tzinfo=UTC).timestamp(),
-    })
+    token_a = create_test_token(
+        {
+            "sub": contractor_a_id,
+            "company_id": str(company_id),
+            "roles": ["contractor"],
+            "type": "access",
+            "exp": datetime(2099, 1, 1, tzinfo=UTC).timestamp(),
+        }
+    )
 
     # Contractor A checks their own jobs
     async with AsyncClient(

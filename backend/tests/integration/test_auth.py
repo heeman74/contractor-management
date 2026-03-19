@@ -1,9 +1,6 @@
 """Integration tests: Authentication — register, login, refresh, revocation, 401 enforcement."""
 
 import pytest
-from httpx import ASGITransport, AsyncClient
-
-from app.main import app
 
 
 @pytest.mark.asyncio
@@ -147,7 +144,7 @@ async def test_tenant_from_jwt_overrides_header(async_client):
         },
     )
     token_a = reg_a.json()["access_token"]
-    company_a_id = reg_a.json()["company_id"]
+    reg_a.json()["company_id"]
 
     reg_b = await async_client.post(
         "/api/v1/auth/register",

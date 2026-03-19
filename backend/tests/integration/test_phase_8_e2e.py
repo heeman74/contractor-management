@@ -199,7 +199,7 @@ async def test_update_draft_quote(seed_two_tenants):
 async def test_cannot_update_sent_quote(seed_two_tenants):
     """Send a quote, then try to PATCH it — should return 400/422."""
     token = seed_two_tenants["tenant_a_token"]
-    user_id = seed_two_tenants["tenant_a_user_id"]
+    seed_two_tenants["tenant_a_user_id"]
     async with AsyncClient(
         transport=TRANSPORT,
         base_url="http://test",
@@ -764,7 +764,7 @@ async def test_dashboard_role_scoping(seed_two_tenants):
         )
         assert contractor_resp.status_code == 201, contractor_resp.text
         contractor_id = contractor_resp.json()["id"]
-        contractor_email = contractor_resp.json()["email"]
+        contractor_resp.json()["email"]
 
         # Assign contractor role
         await ac.post(

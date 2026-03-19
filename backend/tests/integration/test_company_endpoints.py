@@ -10,7 +10,6 @@ from uuid import uuid4
 import pytest
 from httpx import AsyncClient
 
-
 # ---------------------------------------------------------------------------
 # Create
 # ---------------------------------------------------------------------------
@@ -62,9 +61,7 @@ async def test_create_company_empty_name_returns_422(tenant_a_client: AsyncClien
 
 
 @pytest.mark.asyncio
-async def test_get_company_by_id(
-    tenant_a_client: AsyncClient, seed_two_tenants: dict
-):
+async def test_get_company_by_id(tenant_a_client: AsyncClient, seed_two_tenants: dict):
     """GET /companies/{id} returns correct company data."""
     company_id = seed_two_tenants["tenant_a_id"]
     resp = await tenant_a_client.get(f"/api/v1/companies/{company_id}")
@@ -87,9 +84,7 @@ async def test_get_nonexistent_company_returns_404(tenant_a_client: AsyncClient)
 
 
 @pytest.mark.asyncio
-async def test_patch_company_partial_update(
-    tenant_a_client: AsyncClient, seed_two_tenants: dict
-):
+async def test_patch_company_partial_update(tenant_a_client: AsyncClient, seed_two_tenants: dict):
     """PATCH /companies/{id} updates only provided fields."""
     company_id = seed_two_tenants["tenant_a_id"]
 
@@ -159,9 +154,7 @@ async def test_patch_company_updated_at_advances(
 async def test_company_requires_auth(async_client: AsyncClient):
     """POST/GET/PATCH company endpoints require Bearer token."""
     # POST
-    resp = await async_client.post(
-        "/api/v1/companies/", json={"name": "NoAuth"}
-    )
+    resp = await async_client.post("/api/v1/companies/", json={"name": "NoAuth"})
     assert resp.status_code == 401
 
     # GET
@@ -169,7 +162,5 @@ async def test_company_requires_auth(async_client: AsyncClient):
     assert resp.status_code == 401
 
     # PATCH
-    resp = await async_client.patch(
-        f"/api/v1/companies/{uuid4()}", json={"name": "Nope"}
-    )
+    resp = await async_client.patch(f"/api/v1/companies/{uuid4()}", json={"name": "Nope"})
     assert resp.status_code == 401

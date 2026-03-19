@@ -20,7 +20,6 @@ clean_tables autouse fixture provides test isolation.
 import pytest
 from httpx import AsyncClient
 
-
 # ---------------------------------------------------------------------------
 # Helper functions
 # ---------------------------------------------------------------------------
@@ -123,8 +122,7 @@ async def test_web_form_creates_new_client(async_client, tenant_a_client, seed_t
     assert users_resp.status_code == 200
     emails = [u["email"] for u in users_resp.json()]
     assert new_email in emails, (
-        f"Expected new user {new_email} to be created in tenant, "
-        f"but found only: {emails}"
+        f"Expected new user {new_email} to be created in tenant, but found only: {emails}"
     )
 
 
@@ -213,9 +211,7 @@ async def test_accept_request(tenant_a_client, seed_two_tenants):
     assert body["converted_job_id"] is not None
 
     # Verify the created job exists at quote stage
-    job_resp = await tenant_a_client.get(
-        f"/api/v1/jobs/{body['converted_job_id']}"
-    )
+    job_resp = await tenant_a_client.get(f"/api/v1/jobs/{body['converted_job_id']}")
     assert job_resp.status_code == 200
     job = job_resp.json()
     assert job["status"] == "quote"
@@ -341,9 +337,7 @@ async def test_dual_flow_e2e(tenant_a_client, seed_two_tenants):
             f"/api/v1/jobs/{job_id}/transition",
             json={"new_status": new_status, "version": version},
         )
-        assert resp.status_code == 200, (
-            f"Transition to {new_status} failed: {resp.text}"
-        )
+        assert resp.status_code == 200, f"Transition to {new_status} failed: {resp.text}"
         job = resp.json()
         version = job["version"]
 
