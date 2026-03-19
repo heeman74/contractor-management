@@ -17,6 +17,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { ClientListItem } from "@/types/api";
+import { CreateClientDialog } from "./_components/create-client-dialog";
 
 const PAGE_SIZE = 50;
 
@@ -104,16 +105,19 @@ export default function ClientsPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-bold leading-tight">Clients</h1>
-        <div className="relative max-w-sm w-full">
-          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none" />
-          <Input
-            className="pl-8"
-            placeholder="Search by name or email..."
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-          />
+        <div className="flex items-center gap-3">
+          <div className="relative max-w-sm w-full">
+            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <Input
+              className="pl-8"
+              placeholder="Search by name or email..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+            />
+          </div>
+          <CreateClientDialog />
         </div>
       </div>
 
