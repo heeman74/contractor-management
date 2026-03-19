@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Web Admin Dashboard
 status: unknown
-stopped_at: "Completed 17-03-PLAN.md"
-last_updated: "2026-03-19T05:35:47.000Z"
+stopped_at: Completed 17-04-PLAN.md
+last_updated: "2026-03-19T05:43:24.493Z"
 progress:
   total_phases: 6
   completed_phases: 4
   total_plans: 22
-  completed_plans: 20
+  completed_plans: 21
 ---
 
 # Project State
@@ -77,6 +77,8 @@ Plan: 4 of 5
 - [Phase 17-crm]: Batch availability POST uses paged contractor IDs only (not all contractors) to limit request payload
 - [Phase 17-crm]: Active Jobs count on contractor list shows "—" to avoid N+1; actual count on profile page from query data
 - [Phase 17-crm]: Contractor profile Quick Stats uses inline cards (not KpiCard) — KpiCard requires mandatory href navigation target
+- [Phase 17-04]: Select<string> generic annotation on base-ui Select to handle null from onValueChange (consistent with Phase 16 pattern)
+- [Phase 17-04]: changedDays Set accumulates during drag; all per-day saves fire in single pointerUp handler to avoid mid-drag API churn
 
 ### Pending Todos
 
@@ -90,6 +92,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T05:35:47.000Z
-Stopped at: Completed 17-03-PLAN.md
-Resume file: .planning/phases/17-crm-clients-and-contractors/17-04-PLAN.md
+Last session: 2026-03-19T05:43:24.485Z
+Stopped at: Completed 17-04-PLAN.md
+Resume file: None
