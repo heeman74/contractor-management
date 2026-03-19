@@ -116,4 +116,4 @@ Tech stack: Flutter 3.32+ (Drift, Riverpod 3, GoRouter, GetIt) + FastAPI 0.115 (
 | Next.js + Redux for web admin | SSR performance, Redux for complex admin state, same API backend | — Pending |
 
 ---
-*Last updated: 2026-03-14 after v2.0 milestone start*
+*Last updated: 2026-03-19 after Phase 17 (CRM Clients & Contractors) complete — client/contractor list+detail pages, schedule editor, cross-page links, full E2E tests*
