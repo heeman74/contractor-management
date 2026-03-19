@@ -161,6 +161,14 @@ export default function QuoteDetailPage({
     };
   }, [quote, id, dispatch]);
 
+  useEffect(() => {
+    if (isError) {
+      toast.error("Failed to load quote. Check your connection and try again.", {
+        duration: Infinity,
+      });
+    }
+  }, [isError]);
+
   // --- Mutations ---
   const sendMutation = useMutation<Quote, Error, void>({
     mutationFn: () => apiPost<Quote>(`/api/v1/quotes/${id}/send`, {}),
@@ -239,10 +247,6 @@ export default function QuoteDetailPage({
   if (isLoading) return <PageSkeleton />;
 
   if (isError || !quote) {
-    toast.error(
-      "Failed to load quote. Check your connection and try again.",
-      { duration: Infinity }
-    );
     return (
       <div className="rounded-xl bg-white p-8 text-center ring-1 ring-foreground/10">
         <p className="text-sm text-gray-500">
