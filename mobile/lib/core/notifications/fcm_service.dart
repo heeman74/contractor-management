@@ -35,6 +35,12 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 /// Token registration failures are caught and logged — they MUST NOT block
 /// the auth flow. The user is authenticated regardless of FCM success.
 class FcmService {
+  FcmService({this.enabled = true});
+
+  /// Whether Firebase was successfully initialized. When false, all FCM
+  /// operations are no-ops (local dev without google-services.json).
+  final bool enabled;
+
   /// Registers the FCM token with the backend after successful authentication.
   ///
   /// Flow:
@@ -46,6 +52,10 @@ class FcmService {
   /// [dioClient]: The authenticated Dio client from GetIt. Must be called
   /// AFTER the user is authenticated (Bearer token set in AuthInterceptor).
   Future<void> registerToken(DioClient dioClient) async {
+    if (!enabled) {
+      debugPrint('[FCM] Firebase not available — skipping token registration');
+      return;
+    }
     try {
       // Request OS permission — on Android 13+ this shows the notification
       // permission dialog; on earlier Android versions it is always granted.
@@ -116,6 +126,7 @@ class FcmService {
   /// [router]: The GoRouter instance from routerProvider. Called after the
   /// router is created to enable navigation.
   void setupMessageHandlers(GoRouter router) {
+    if (!enabled) return;
     // Foreground: notification is delivered while the user is using the app.
     // The OS shows a heads-up notification via the job_updates channel.
     // No in-app UI per CONTEXT.md "Keep it simple" decision.
@@ -125,7 +136,7 @@ class FcmService {
     });
 
     // Background -> foreground: user tapped a notification in the system tray.
-    // Extract job_id from message data and deep-link to client job detail.
+    // Extract job_id from message data and deep-link to generic job detail.
     FirebaseMessaging.onMessageOpenedApp.listen((message) {
       debugPrint('[FCM] Notification tapped (background->foreground): ${message.messageId}');
       _navigateToJob(router, message);
@@ -137,17 +148,18 @@ class FcmService {
   /// When the app is fully terminated and the user taps a notification,
   /// [FirebaseMessaging.instance.getInitialMessage()] returns the message.
   /// This is called from main() before runApp() to set the router's
-  /// initialLocation to the specific job's client detail screen.
+  /// initialLocation to the specific job's detail screen.
   ///
   /// Returns null if the app was not launched from a notification.
   Future<String?> getInitialRoute() async {
+    if (!enabled) return null;
     try {
       final message = await FirebaseMessaging.instance.getInitialMessage();
       if (message != null) {
         debugPrint('[FCM] App launched from notification: ${message.messageId}');
         final jobId = message.data['job_id'] as String?;
         if (jobId != null && jobId.isNotEmpty) {
-          return RouteNames.clientJobDetailPath(jobId);
+          return RouteNames.jobDetailPath(jobId);
         }
       }
     } catch (e) {
@@ -157,14 +169,14 @@ class FcmService {
     return null;
   }
 
-  /// Extracts job_id from a [RemoteMessage] and navigates to the client job
-  /// detail screen. Silently skips navigation if job_id is missing or empty.
+  /// Extracts job_id from a [RemoteMessage] and navigates to the generic job
+  /// detail screen (works for all roles). Silently skips if job_id is missing.
   void _navigateToJob(GoRouter router, RemoteMessage message) {
     final jobId = message.data['job_id'] as String?;
     if (jobId == null || jobId.isEmpty) {
       debugPrint('[FCM] Notification missing job_id — skipping navigation');
       return;
     }
-    router.go(RouteNames.clientJobDetailPath(jobId));
+    router.go(RouteNames.jobDetailPath(jobId));
   }
 }
