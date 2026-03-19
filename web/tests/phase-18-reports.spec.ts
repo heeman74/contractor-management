@@ -57,11 +57,24 @@ const MOCK_HEATMAP = {
 };
 
 async function mockReportsApi(page: Page) {
-  await page.route("**/api/v1/reports/dashboard*", async (route: Route) => {
-    await route.fulfill({ json: MOCK_DASHBOARD });
+  // Intercept the Next.js proxy endpoint (all API calls go through /api/proxy?path=...)
+  await page.route("**/api/proxy*", async (route: Route) => {
+    const url = route.request().url();
+    const pathParam = new URL(url).searchParams.get("path") ?? "";
+
+    if (pathParam.includes("/reports/dashboard")) {
+      await route.fulfill({ json: MOCK_DASHBOARD });
+    } else if (pathParam.includes("/reports/utilization-heatmap")) {
+      await route.fulfill({ json: MOCK_HEATMAP });
+    } else {
+      // Other proxy calls — return empty success
+      await route.fulfill({ json: {} });
+    }
   });
-  await page.route("**/api/v1/reports/utilization-heatmap*", async (route: Route) => {
-    await route.fulfill({ json: MOCK_HEATMAP });
+
+  // Mock the refresh endpoint to prevent session_expired redirect
+  await page.route("**/api/auth/refresh", async (route: Route) => {
+    await route.fulfill({ status: 200, json: { ok: true } });
   });
 }
 
@@ -91,7 +104,7 @@ test.describe("Phase 18: Reports - Chart Rendering (RPT-01)", () => {
     await expect(jobsCard.locator(".text-3xl")).toContainText("32 total jobs");
 
     const quoteCard = page.locator('[aria-label="Quote Conversion chart"]');
-    await expect(quoteCard.locator(".text-3xl")).toContainText("60%");
+    await expect(quoteCard.locator(".text-3xl")).toContainText("60.0% approval rate");
   });
 
   test("revenue chart renders SVG with area elements", async ({ page }) => {
@@ -115,7 +128,9 @@ test.describe("Phase 18: Reports - Chart Rendering (RPT-01)", () => {
   test("quote conversion chart renders SVG pie", async ({ page }) => {
     await page.goto("/reports");
     const quoteCard = page.locator('[aria-label="Quote Conversion chart"]');
-    await expect(quoteCard.locator("svg.recharts-surface")).toBeVisible();
+    // PieChart has multiple svg.recharts-surface (legend icons + main chart)
+    // Main chart SVG has role="application"
+    await expect(quoteCard.locator('svg.recharts-surface[role="application"]')).toBeVisible();
     await expect(quoteCard.getByText("No data for this period")).not.toBeVisible();
   });
 
@@ -191,30 +206,38 @@ test.describe("Phase 18: Reports - Date Filtering (RPT-02)", () => {
   });
 
   test("date preset changes query parameters in API call", async ({ page }) => {
-    const apiCalls: string[] = [];
-    await page.route("**/api/v1/reports/dashboard*", async (route: Route) => {
-      apiCalls.push(route.request().url());
-      await route.fulfill({ json: MOCK_DASHBOARD });
+    const proxiedPaths: string[] = [];
+    await page.route("**/api/proxy*", async (route: Route) => {
+      const url = new URL(route.request().url());
+      const pathParam = url.searchParams.get("path") ?? "";
+      proxiedPaths.push(pathParam);
+
+      if (pathParam.includes("/reports/dashboard")) {
+        await route.fulfill({ json: MOCK_DASHBOARD });
+      } else if (pathParam.includes("/reports/utilization-heatmap")) {
+        await route.fulfill({ json: MOCK_HEATMAP });
+      } else {
+        await route.fulfill({ json: {} });
+      }
     });
-    await page.route("**/api/v1/reports/utilization-heatmap*", async (route: Route) => {
-      await route.fulfill({ json: MOCK_HEATMAP });
+    await page.route("**/api/auth/refresh", async (route: Route) => {
+      await route.fulfill({ status: 200, json: { ok: true } });
     });
 
     await page.goto("/reports");
     await expect(page.locator('[aria-label="Revenue by Month chart"]')).toBeVisible();
 
     // Click 7d preset
-    apiCalls.length = 0;
+    proxiedPaths.length = 0;
     await page.getByRole("button", { name: /7d/i }).click();
     // Wait for refetch
-    await page.waitForFunction(() => true, null, { timeout: 2000 });
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1000);
 
-    // At least one call should have been made with updated date params
-    expect(apiCalls.length).toBeGreaterThan(0);
-    const lastCall = apiCalls[apiCalls.length - 1];
-    expect(lastCall).toContain("start_date=");
-    expect(lastCall).toContain("end_date=");
+    // At least one dashboard call should have been made with date params
+    const dashboardCalls = proxiedPaths.filter((p) => p.includes("/reports/dashboard"));
+    expect(dashboardCalls.length).toBeGreaterThan(0);
+    expect(dashboardCalls[0]).toContain("start_date=");
+    expect(dashboardCalls[0]).toContain("end_date=");
   });
 });
 
@@ -419,7 +442,7 @@ test.describe("Phase 18: Reports - Drill-down Navigation", () => {
   test("clicking quote pie slice navigates to quotes with status param", async ({ page }) => {
     await page.goto("/reports");
     const quoteCard = page.locator('[aria-label="Quote Conversion chart"]');
-    const svg = quoteCard.locator("svg.recharts-surface");
+    const svg = quoteCard.locator('svg.recharts-surface[role="application"]');
     await expect(svg).toBeVisible();
 
     // Click on a pie sector
