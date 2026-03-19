@@ -772,16 +772,3 @@ class DayBlock {
   final DateTime startTime;
   final DateTime endTime;
 }
-
-// ────────────────────────────────────────────────────────────────────────────
-// JobDao provider
-// ────────────────────────────────────────────────────────────────────────────
-
-/// Provider exposing the [JobDao] singleton from GetIt.
-///
-/// Used by CalendarOperationsNotifier for job status auto-transition.
-/// Follows the same pattern as bookingDaoProvider.
-/// (CLAUDE.md: document GetIt<->Riverpod tradeoffs)
-final jobDaoProvider = Provider<JobDao>((ref) {
-  return getIt<JobDao>();
-});

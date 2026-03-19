@@ -5,7 +5,6 @@ import 'package:drift/drift.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/sync/sync_handler.dart';
-import '../../../core/sync/sync_queue_dao.dart';
 
 /// SyncHandler implementation for the JobRequest entity.
 ///

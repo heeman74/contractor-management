@@ -5,7 +5,6 @@ import 'package:drift/drift.dart' hide isNotNull, isNull;
 import '../../../core/database/app_database.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/sync/sync_handler.dart';
-import '../../../core/sync/sync_queue_dao.dart'; // SyncQueueData type
 
 /// Type-safe helpers for parsing API response data.
 ///

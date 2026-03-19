@@ -19,7 +19,6 @@ linter:
     - avoid_print
     - avoid_redundant_argument_values
     - avoid_relative_lib_imports
-    - avoid_returning_null_for_future
     - avoid_slow_async_io
     - avoid_type_to_string
     - avoid_unnecessary_containers
@@ -29,7 +28,6 @@ linter:
     - close_sinks
     - directives_ordering
     - empty_catches
-    - lines_longer_than_120
     - missing_whitespace_between_adjacent_strings
     - no_duplicate_case_values
     - no_logic_in_create_state

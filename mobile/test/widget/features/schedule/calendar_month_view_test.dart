@@ -39,6 +39,7 @@ Widget buildMonthView({
       home: Scaffold(
         body: CalendarMonthView(
           bookings: (bookings ?? []).cast(),
+          jobs: const {},
         ),
       ),
     ),

@@ -5,7 +5,6 @@ import 'package:drift/drift.dart';
 import '../../database/app_database.dart';
 import '../../network/dio_client.dart';
 import '../sync_handler.dart';
-import '../sync_queue_dao.dart';
 
 /// SyncHandler implementation for the Company entity.
 ///
