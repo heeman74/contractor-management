@@ -68,6 +68,17 @@ export interface Job {
   updated_at: string;
 }
 
+// Job create
+export interface JobCreateRequest {
+  description: string;
+  trade_type: string;
+  priority?: string;
+  client_id?: string;
+  contractor_id?: string;
+  estimated_duration_minutes?: number;
+  notes?: string;
+}
+
 // Job transition
 export interface JobTransitionRequest {
   new_status: JobStatus;
@@ -365,4 +376,24 @@ export interface UtilizationHeatmapContractor {
 export interface UtilizationHeatmapResponse {
   weeks: string[];
   contractors: UtilizationHeatmapContractor[];
+}
+
+// Create Client types
+export interface UserCreateRequest {
+  email: string;
+  first_name: string;
+  last_name: string;
+  phone?: string;
+}
+
+export interface ClientProfileCreateRequest {
+  user_id: string;
+  billing_address?: string;
+  tags?: string[];
+  admin_notes?: string;
+}
+
+export interface RoleAssignmentRequest {
+  user_id: string;
+  role: "admin" | "contractor" | "client";
 }

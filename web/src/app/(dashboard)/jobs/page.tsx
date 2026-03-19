@@ -3,7 +3,8 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery, useQueries } from "@tanstack/react-query";
-import { Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Search, ArrowUpDown, ArrowUp, ArrowDown, Plus } from "lucide-react";
+import { CreateJobDialog } from "./_components/create-job-dialog";
 import { toast } from "sonner";
 import { apiGet } from "@/lib/api-client";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -93,6 +94,7 @@ function JobsPageContent() {
 
   const [searchInput, setSearchInput] = useState(searchQuery);
   const [debouncedSearch, setDebouncedSearch] = useState(searchQuery);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Keep searchInput in sync with URL param on initial load / back-nav
@@ -248,19 +250,27 @@ function JobsPageContent() {
 
   return (
     <div className="space-y-4">
-      {/* Header row: page title + search bar */}
+      {/* Header row: page title + search bar + new job button */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-gray-900">Jobs</h1>
-        <div className="relative w-72">
-          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none" />
-          <Input
-            className="pl-8"
-            placeholder="Search jobs..."
-            value={searchInput}
-            onChange={handleSearchChange}
-          />
+        <div className="flex items-center gap-3">
+          <div className="relative w-72">
+            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <Input
+              className="pl-8"
+              placeholder="Search jobs..."
+              value={searchInput}
+              onChange={handleSearchChange}
+            />
+          </div>
+          <Button onClick={() => setCreateDialogOpen(true)} data-testid="new-job-button">
+            <Plus className="h-4 w-4" data-icon="inline-start" />
+            New Job
+          </Button>
         </div>
       </div>
+
+      <CreateJobDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen} />
 
       {/* Status tab bar */}
       <div className="flex items-center border-b border-gray-200">
