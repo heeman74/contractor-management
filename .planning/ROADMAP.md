@@ -137,7 +137,7 @@ Plans:
   1. Admin can view a dashboard with four charts: revenue by month, jobs by status breakdown, contractor utilization, and quote conversion rate
   2. Admin can change the date range and all charts update to reflect the selected period
   3. Admin can view a contractor utilization heatmap showing which contractors are overloaded or underutilized
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
 - [ ] 18-01-PLAN.md — Backend utilization-heatmap endpoint, TypeScript types, Recharts + shadcn chart install, E2E test stubs
@@ -169,4 +169,4 @@ Note: Phase 16 (Quotes/Invoices) depends only on Phase 13 and may be parallelize
 | 15. Scheduling Calendar | 4/4 | Complete    | 2026-03-17 | - |
 | 16. Quotes and Invoices | 6/6 | Complete    | 2026-03-18 | - |
 | 17. CRM — Clients and Contractors | 5/5 | Complete    | 2026-03-19 | - |
-| 18. Reporting Dashboard | v2.0 | 0/3 | Not started | - |
+| 18. Reporting Dashboard | 1/3 | In Progress|  | - |

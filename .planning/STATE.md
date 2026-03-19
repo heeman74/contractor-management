@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Web Admin Dashboard
-status: unknown
-stopped_at: Phase 18 context gathered
-last_updated: "2026-03-19T13:07:22.958Z"
+status: executing
+stopped_at: Completed 18-01-PLAN.md
+last_updated: "2026-03-19T13:45:00.000Z"
 progress:
   total_phases: 6
   completed_phases: 5
-  total_plans: 22
-  completed_plans: 22
+  total_plans: 25
+  completed_plans: 23
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-15)
 
 **Core value:** Clients always know exactly what's happening with their job — no more chasing contractors for updates, no more scheduling conflicts, no more missed appointments.
-**Current focus:** Phase 17 — crm-clients-and-contractors
+**Current focus:** Phase 18 — reporting-dashboard
 
 ## Current Position
 
-Phase: 17 (crm-clients-and-contractors) — COMPLETE
-Plan: 5 of 5
+Phase: 18 (reporting-dashboard) — EXECUTING
+Plan: 2 of 3
 
 ## Accumulated Context
 
@@ -82,6 +82,10 @@ Plan: 5 of 5
 - [Phase 17]: contractor_name added to Job TypeScript interface — additive field matching backend JobResponse (mirrors backend additive-only rule)
 - [Phase 17]: [Phase 17-05]: ContractorLaneHeader Link uses e.stopPropagation() to prevent react-big-calendar drag-start on link click
 - [Phase 17]: [Phase 17-05]: Backend CRM integration tests use tenant_a_client fixture; role assignment via /api/v1/users/{user_id}/roles with {user_id, role} body
+- [Phase 18-01]: recharts@3.8.0 forced after shadcn CLI resolved to 2.x — re-install after shadcn chart add
+- [Phase 18-01]: chart.tsx uses import * as RechartsPrimitive wildcard — compatible with recharts 3.x API
+- [Phase 18-01]: Backend Decimal fields serialize as strings — TypeScript uses string type for all Decimal-backed fields in reports
+- [Phase 18-01]: E2E stubs use test.skip() / @pytest.mark.skip — satisfy ship-with-feature rule without false failures during scaffold phase
 
 ### Pending Todos
 
@@ -95,6 +99,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T13:07:22.950Z
-Stopped at: Phase 18 context gathered
-Resume file: .planning/phases/18-reporting-dashboard/18-CONTEXT.md
+Last session: 2026-03-19T13:45:00.000Z
+Stopped at: Completed 18-01-PLAN.md
+Resume file: .planning/phases/18-reporting-dashboard/18-02-PLAN.md
