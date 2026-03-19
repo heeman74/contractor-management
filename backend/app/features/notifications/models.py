@@ -11,7 +11,7 @@ RLS is enforced at the DB level via user_isolation policy on device_tokens table
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, text
+from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -30,6 +30,10 @@ class DeviceToken(Base):
     """
 
     __tablename__ = "device_tokens"
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "token", name="uq_device_token_user_token"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True,

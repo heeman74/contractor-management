@@ -13,7 +13,7 @@ class User(TenantScopedModel):
 
     __tablename__ = "users"
 
-    email: Mapped[str] = mapped_column(String, nullable=False)
+    email: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     password_hash: Mapped[str | None] = mapped_column(String, nullable=True)
     first_name: Mapped[str | None] = mapped_column(String, nullable=True)
     last_name: Mapped[str | None] = mapped_column(String, nullable=True)
