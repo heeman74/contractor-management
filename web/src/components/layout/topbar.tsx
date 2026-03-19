@@ -10,6 +10,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -66,6 +67,8 @@ export function Topbar() {
   const companyName = useAppSelector((state) => state.auth.companyName);
   const pageTitle = useAppSelector((state) => state.ui.pageTitle);
 
+  const queryClient = useQueryClient();
+
   const breadcrumbs = buildBreadcrumbs(pathname);
 
   // Override the last breadcrumb label with pageTitle when the segment is a UUID
@@ -83,6 +86,7 @@ export function Topbar() {
     } catch {
       // best-effort
     }
+    queryClient.clear();
     dispatch(clearAuth());
     router.push("/login");
   };

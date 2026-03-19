@@ -17,6 +17,7 @@ import {
   Menu,
   LogOut,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { toggleSidebar, setSidebarCollapsed } from "@/store/slices/ui-slice";
@@ -148,6 +149,7 @@ export function MobileSidebar({ displayName }: MobileSidebarProps) {
   const [open, setOpen] = useState(false);
   const dispatch = useAppDispatch();
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const handleLogout = async () => {
     setOpen(false);
@@ -156,6 +158,7 @@ export function MobileSidebar({ displayName }: MobileSidebarProps) {
     } catch {
       // best-effort
     }
+    queryClient.clear();
     dispatch(clearAuth());
     router.push("/login");
   };
@@ -190,6 +193,7 @@ export function MobileSidebar({ displayName }: MobileSidebarProps) {
 export function Sidebar() {
   const dispatch = useAppDispatch();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const collapsed = useAppSelector((state) => state.ui.sidebarCollapsed);
   const displayName = useAppSelector((state) => state.auth.displayName);
 
@@ -215,6 +219,7 @@ export function Sidebar() {
     } catch {
       // best-effort
     }
+    queryClient.clear();
     dispatch(clearAuth());
     router.push("/login");
   };
