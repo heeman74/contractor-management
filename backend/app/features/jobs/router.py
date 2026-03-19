@@ -134,15 +134,15 @@ router = APIRouter(tags=["jobs"])
 
 
 def _job_with_client_name(job) -> JobResponse:  # type: ignore[type-arg]
-    """Serialize a Job ORM object to JobResponse, populating client_name.
+    """Serialize a Job ORM object to JobResponse, populating client_name and contractor_name.
 
-    Accesses job.client only when the relationship attribute is already
+    Accesses job.client / job.contractor only when the relationship attribute is already
     loaded in the SQLAlchemy instance state. If not loaded (e.g. after
-    db.refresh() on a newly-created or mutated job), client_name is left
+    db.refresh() on a newly-created or mutated job), those fields are left
     as None rather than triggering a lazy-load that would raise with
     lazy="raise".
 
-    Combines first_name + last_name; returns None when no client is
+    Combines first_name + last_name; returns None when no user is
     assigned or both name parts are empty.
     """
     from sqlalchemy import inspect as sa_inspect
@@ -153,6 +153,10 @@ def _job_with_client_name(job) -> JobResponse:  # type: ignore[type-arg]
     if "client" not in insp.unloaded and job.client is not None:
         parts = [job.client.first_name, job.client.last_name]
         resp.client_name = " ".join(p for p in parts if p) or None
+    # Phase 17: also populate contractor_name using the same sa_inspect guard
+    if "contractor" not in insp.unloaded and job.contractor is not None:
+        parts = [job.contractor.first_name, job.contractor.last_name]
+        resp.contractor_name = " ".join(p for p in parts if p) or None
     return resp
 
 

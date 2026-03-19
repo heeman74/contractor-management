@@ -15,6 +15,7 @@ from app.features.auth.router import router as auth_router
 from app.features.companies.router import router as companies_router
 from app.features.files.router import router as files_router
 from app.features.invoices.router import router as invoices_router
+from app.features.jobs.crm_router import router as crm_router
 from app.features.jobs.router import router as jobs_router
 from app.features.notifications.router import router as notifications_router
 from app.features.quotes.router import router as quotes_router
@@ -106,6 +107,8 @@ app.include_router(users_router, prefix="/api/v1")
 app.include_router(sync_router, prefix="/api/v1")
 app.include_router(scheduling_router, prefix="/api/v1")
 app.include_router(jobs_router, prefix="/api/v1")
+# Phase 17: CRM client list and detail
+app.include_router(crm_router, prefix="/api/v1")
 # Phase 6: file upload endpoint for job note attachments
 app.include_router(files_router, prefix="/api/v1")
 # Phase 7: FCM push notification token registration

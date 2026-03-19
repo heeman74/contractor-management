@@ -77,14 +77,27 @@ class CrmRepository(TenantScopedRepository[ClientProfile]):
         search_term: str | None = None,
         offset: int = 0,
         limit: int = 50,
-    ) -> list[ClientProfile]:
+    ) -> list[tuple[ClientProfile, int]]:
         """List profiles with optional name/email search (joins User for search).
 
         Search is case-insensitive and matches against user first_name, last_name,
         and email fields. Ordered by user.last_name then created_at.
+        Returns list of (ClientProfile, jobs_count) tuples.
         """
+        # Lazy import to avoid circular ORM mapper initialization (Job -> Booking)
+        from app.features.jobs.models import Job
+
+        jobs_count_sq = (
+            select(func.count(Job.id))
+            .where(Job.client_id == ClientProfile.user_id)
+            .where(Job.deleted_at.is_(None))
+            .correlate(ClientProfile)
+            .scalar_subquery()
+            .label("jobs_count")
+        )
+
         stmt = (
-            select(ClientProfile)
+            select(ClientProfile, jobs_count_sq)
             .join(User, ClientProfile.user_id == User.id)
             .where(ClientProfile.company_id == company_id)
             .where(ClientProfile.deleted_at.is_(None))
@@ -104,7 +117,8 @@ class CrmRepository(TenantScopedRepository[ClientProfile]):
 
         stmt = stmt.order_by(User.last_name, ClientProfile.created_at).offset(offset).limit(limit)
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        rows = result.all()
+        return [(row[0], row[1] or 0) for row in rows]
 
     async def get_client_properties(self, client_id: uuid.UUID) -> list[ClientProperty]:
         """List saved properties for a client, eager-load job_site relationship."""

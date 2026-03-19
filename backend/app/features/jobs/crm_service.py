@@ -72,8 +72,11 @@ class CrmService(TenantScopedService[ClientProfile]):
         search_term: str | None = None,
         offset: int = 0,
         limit: int = 50,
-    ) -> list[ClientProfile]:
-        """List client profiles with optional name/email search and pagination."""
+    ) -> list[tuple[ClientProfile, int]]:
+        """List client profiles with optional name/email search and pagination.
+
+        Returns list of (ClientProfile, jobs_count) tuples.
+        """
         return await self.crm_repo.list_client_profiles(
             company_id=company_id,
             search_term=search_term,

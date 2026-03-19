@@ -14,15 +14,20 @@ Design notes:
   records who transitioned to what status and why.
 """
 
+from __future__ import annotations
+
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 
 from app.core.base_schemas import BaseResponseSchema
+
+if TYPE_CHECKING:
+    from app.features.jobs.models import ClientProfile as ClientProfileModel
 
 # ---------------------------------------------------------------------------
 # Enums
@@ -138,6 +143,7 @@ class JobResponse(BaseResponseSchema):
     client_id: uuid.UUID | None = None
     client_name: str | None = None
     contractor_id: uuid.UUID | None = None
+    contractor_name: str | None = None
     purchase_order_number: str | None = None
     external_reference: str | None = None
     tags: list[Any] = Field(default_factory=list)
@@ -408,3 +414,64 @@ class TimeEntryResponse(BaseResponseSchema):
     duration_seconds: int | None = None
     session_status: str
     adjustment_log: list[Any] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Phase 17 — CRM list and detail schemas
+# ---------------------------------------------------------------------------
+
+
+class ClientListResponse(BaseModel):
+    """Flattened client list item with user fields and jobs count."""
+
+    id: uuid.UUID  # ClientProfile.id
+    user_id: uuid.UUID
+    first_name: str | None = None
+    last_name: str | None = None
+    email: str
+    phone: str | None = None
+    tags: list[Any] = Field(default_factory=list)
+    preferred_contractor_id: uuid.UUID | None = None
+    preferred_contractor_name: str | None = None
+    jobs_count: int = 0
+
+    @classmethod
+    def from_profile(cls, profile: ClientProfileModel, jobs_count: int = 0) -> ClientListResponse:
+        """Flatten ClientProfile + eager-loaded user and preferred_contractor."""
+        user = profile.user
+        pref = profile.preferred_contractor
+        return cls(
+            id=profile.id,
+            user_id=profile.user_id,
+            first_name=user.first_name if user else None,
+            last_name=user.last_name if user else None,
+            email=user.email if user else "",
+            phone=user.phone if user else None,
+            tags=profile.tags or [],
+            preferred_contractor_id=profile.preferred_contractor_id,
+            preferred_contractor_name=(
+                f"{pref.first_name or ''} {pref.last_name or ''}".strip() if pref else None
+            ),
+            jobs_count=jobs_count,
+        )
+
+
+class ClientDetailResponse(BaseModel):
+    """Full client detail with profile, jobs, and properties."""
+
+    id: uuid.UUID
+    user_id: uuid.UUID
+    first_name: str | None = None
+    last_name: str | None = None
+    email: str
+    phone: str | None = None
+    tags: list[Any] = Field(default_factory=list)
+    admin_notes: str | None = None
+    referral_source: str | None = None
+    preferred_contractor_id: uuid.UUID | None = None
+    preferred_contractor_name: str | None = None
+    preferred_contact_method: str | None = None
+    billing_address: str | None = None
+    average_rating: Decimal | None = None
+    jobs: list[JobResponse] = Field(default_factory=list)
+    properties: list[ClientPropertyResponse] = Field(default_factory=list)
