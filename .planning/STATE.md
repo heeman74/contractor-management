@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Web Admin Dashboard
 status: unknown
-stopped_at: "Completed 17-01-PLAN.md"
-last_updated: "2026-03-19T06:43:00.000Z"
+stopped_at: "Completed 17-02-PLAN.md"
+last_updated: "2026-03-19T07:00:00.000Z"
 progress:
   total_phases: 6
   completed_phases: 4
   total_plans: 22
-  completed_plans: 18
+  completed_plans: 19
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-15)
 ## Current Position
 
 Phase: 17 (crm-clients-and-contractors) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 
 ## Accumulated Context
 
@@ -71,6 +71,9 @@ Plan: 2 of 5
 - [Phase 17-crm]: Lazy import of Job model inside list_client_profiles to avoid circular ORM mapper init (Job -> Booking ref triggers before scheduling models loaded)
 - [Phase 17-crm]: contractor_name is additive-only on JobResponse — no existing fields renamed (protects mobile Dart models)
 - [Phase 17-crm]: TYPE_CHECKING guard for ClientProfileModel alias in schemas.py avoids circular import while satisfying ruff F821
+- [Phase 17-crm]: Client list sorts client-side after server fetch — jobs_count sort not supported server-side; row navigates via user_id (not profile id)
+- [Phase 17-crm]: Two-column detail layout grid-cols-1 lg:grid-cols-[1fr_360px] gap-8 established as CRM page pattern for client and contractor detail pages
+- [Phase 17-crm]: Per-property expand/collapse uses local useState — lightweight for read-only properties list, no accordion library needed
 
 ### Pending Todos
 
