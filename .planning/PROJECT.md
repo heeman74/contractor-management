@@ -43,7 +43,7 @@ Clients always know exactly what's happening with their job — no more chasing 
 - [ ] Web job management: lifecycle tracking, status updates
 - [ ] Web client/CRM management
 - [ ] Web invoicing and payment views
-- [ ] Web reporting dashboard with charts and data tables
+- ✓ Web reporting dashboard with charts and data tables — Validated in Phase 18
 
 #### Carried from v1.0
 - [ ] In-app payment processing (Stripe/Square)
@@ -116,4 +116,4 @@ Tech stack: Flutter 3.32+ (Drift, Riverpod 3, GoRouter, GetIt) + FastAPI 0.115 (
 | Next.js + Redux for web admin | SSR performance, Redux for complex admin state, same API backend | — Pending |
 
 ---
-*Last updated: 2026-03-19 after Phase 17 (CRM Clients & Contractors) complete — client/contractor list+detail pages, schedule editor, cross-page links, full E2E tests*
+*Last updated: 2026-03-19 after Phase 18 (Reporting Dashboard) complete — revenue/jobs/quote charts, date filters, CSV export, contractor utilization heatmap, full E2E tests*
