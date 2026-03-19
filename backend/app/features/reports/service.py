@@ -23,7 +23,7 @@ import uuid
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import case, cast, func, select
+from sqlalchemy import and_, case, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.types import Numeric
 
@@ -360,7 +360,7 @@ class ReportingService:
             )
             .join(
                 Booking,
-                (Booking.contractor_id == User.id) & func.and_(*booking_date_conditions),
+                and_(Booking.contractor_id == User.id, *booking_date_conditions),
                 isouter=True,
             )
             .where(
