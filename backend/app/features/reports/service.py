@@ -36,6 +36,9 @@ from app.features.reports.schemas import (
     JobsByStatusItem,
     QuoteConversionItem,
     RevenueByMonthItem,
+    UtilizationHeatmapContractor,
+    UtilizationHeatmapResponse,
+    UtilizationWeekItem,
 )
 from app.features.scheduling.models import Booking
 from app.features.users.models import User
@@ -296,6 +299,129 @@ class ReportingService:
             revenue_by_month=revenue_by_month,
             contractor_utilization=contractor_utilization,
             quote_conversion=quote_conversion,
+        )
+
+    async def get_utilization_heatmap(
+        self,
+        company_id: uuid.UUID,
+        start_date: date | None,
+        end_date: date | None,
+    ) -> UtilizationHeatmapResponse:
+        """Per-contractor-per-week utilization heatmap.
+
+        Returns a grid of ISO week columns and contractor rows.
+        Contractors with zero bookings in the period still appear with
+        zero-filled UtilizationWeekItem entries (from LEFT JOIN).
+
+        Available hours are fixed at 40h/week per contractor.
+        Utilization is capped at 100%.
+
+        All aggregate queries avoid N+1 — one query per call.
+        RLS automatically scopes to current tenant.
+        """
+        # --- ISO week expression (e.g. "2026-W10") ---
+        iso_week_expr = func.to_char(
+            func.date_trunc("week", func.lower(Booking.time_range)),
+            'IYYY-"W"IW',
+        ).label("iso_week")
+
+        # --- Duration in hours expression ---
+        duration_hours_expr = func.extract(
+            "epoch",
+            func.upper(Booking.time_range) - func.lower(Booking.time_range),
+        ) / cast(3600, Numeric)
+        booked_hours_expr = func.coalesce(
+            func.sum(duration_hours_expr),
+            cast(0, Numeric),
+        ).label("booked_hours")
+
+        # --- Contractor name expression ---
+        contractor_name_expr = (
+            func.coalesce(User.first_name, "") + " " + func.coalesce(User.last_name, "")
+        ).label("contractor_name")
+
+        # --- Booking date range WHERE conditions (applied to booking join, not user) ---
+        booking_date_conditions = [Booking.deleted_at.is_(None)]
+        if start_date is not None:
+            booking_date_conditions.append(func.date(func.lower(Booking.time_range)) >= start_date)
+        if end_date is not None:
+            booking_date_conditions.append(func.date(func.lower(Booking.time_range)) <= end_date)
+
+        result = await self.db.execute(
+            select(
+                User.id.label("contractor_id"),
+                contractor_name_expr,
+                iso_week_expr,
+                booked_hours_expr,
+            )
+            .join(
+                UserRoleModel,
+                (UserRoleModel.user_id == User.id) & (UserRoleModel.role == "contractor"),
+            )
+            .join(
+                Booking,
+                (Booking.contractor_id == User.id) & func.and_(*booking_date_conditions),
+                isouter=True,
+            )
+            .where(
+                User.deleted_at.is_(None),
+                UserRoleModel.deleted_at.is_(None),
+            )
+            .group_by(User.id, User.first_name, User.last_name, iso_week_expr)
+            .order_by(User.first_name, iso_week_expr)
+        )
+
+        rows = result.all()
+
+        # --- Post-process: build contractor dict and collect all ISO weeks ---
+        # contractor_id -> {"name": str, "weeks": {iso_week: booked_hours}}
+        contractor_map: dict[str, dict] = {}
+        all_weeks: set[str] = set()
+
+        for row in rows:
+            cid = str(row.contractor_id)
+            if cid not in contractor_map:
+                contractor_map[cid] = {
+                    "name": row.contractor_name,
+                    "weeks": {},
+                }
+            if row.iso_week is not None:
+                all_weeks.add(row.iso_week)
+                contractor_map[cid]["weeks"][row.iso_week] = Decimal(str(row.booked_hours or 0))
+
+        ordered_weeks = sorted(all_weeks)
+        available_hours_per_week = Decimal("40")
+
+        contractors_out: list[UtilizationHeatmapContractor] = []
+        for cid, data in contractor_map.items():
+            week_items: list[UtilizationWeekItem] = []
+            for iso_week in ordered_weeks:
+                booked = data["weeks"].get(iso_week, Decimal("0"))
+                util_pct = min(
+                    Decimal("100"),
+                    (booked / available_hours_per_week * Decimal("100")).quantize(Decimal("0.01"))
+                    if available_hours_per_week > 0
+                    else Decimal("0"),
+                )
+                week_items.append(
+                    UtilizationWeekItem(
+                        iso_week=iso_week,
+                        booked_hours=booked.quantize(Decimal("0.01")),
+                        available_hours=available_hours_per_week,
+                        utilization_percent=util_pct,
+                    )
+                )
+            contractors_out.append(
+                UtilizationHeatmapContractor(
+                    contractor_id=cid,
+                    contractor_name=data["name"],
+                    weeks=week_items,
+                )
+            )
+
+        return UtilizationHeatmapResponse(
+            weeks=ordered_weeks,
+            contractors=contractors_out,
         )
 
     async def get_contractor_stats(

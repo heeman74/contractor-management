@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import CurrentUser, get_current_user
-from app.features.reports.schemas import DashboardResponse
+from app.features.reports.schemas import DashboardResponse, UtilizationHeatmapResponse
 from app.features.reports.service import ReportingService
 
 # isort: split
@@ -56,6 +56,33 @@ async def get_dashboard(
 
     svc = ReportingService(db)
     return await svc.get_dashboard(
+        company_id=current_user.company_id,
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+
+@router.get("/utilization-heatmap", response_model=UtilizationHeatmapResponse)
+async def get_utilization_heatmap(
+    start_date: date | None = Query(default=None, description="Inclusive start date (YYYY-MM-DD)"),
+    end_date: date | None = Query(default=None, description="Inclusive end date (YYYY-MM-DD)"),
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> UtilizationHeatmapResponse:
+    """Return per-contractor-per-week utilization heatmap data (admin only).
+
+    Grid: ISO week column headers + one row per contractor.
+    Contractors with zero bookings still appear — zero-filled week items.
+    Available hours fixed at 40h/week. Utilization capped at 100%.
+    """
+    if "admin" not in current_user.roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin role required",
+        )
+
+    svc = ReportingService(db)
+    return await svc.get_utilization_heatmap(
         company_id=current_user.company_id,
         start_date=start_date,
         end_date=end_date,

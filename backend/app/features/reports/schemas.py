@@ -109,3 +109,32 @@ class DashboardResponse(BaseModel):
     revenue_by_month: list[RevenueByMonthItem] = Field(default_factory=list)
     contractor_utilization: list[ContractorUtilizationItem] = Field(default_factory=list)
     quote_conversion: QuoteConversionItem = Field(default_factory=QuoteConversionItem)
+
+
+# ---------------------------------------------------------------------------
+# Utilization heatmap (Phase 18 — per-contractor-per-week grid)
+# ---------------------------------------------------------------------------
+
+
+class UtilizationWeekItem(BaseModel):
+    """Single week of utilization data for one contractor."""
+
+    iso_week: str  # "2026-W10"
+    booked_hours: Decimal = Decimal("0")
+    available_hours: Decimal = Decimal("0")
+    utilization_percent: Decimal = Decimal("0")
+
+
+class UtilizationHeatmapContractor(BaseModel):
+    """One contractor's row in the heatmap grid."""
+
+    contractor_id: str
+    contractor_name: str
+    weeks: list[UtilizationWeekItem]
+
+
+class UtilizationHeatmapResponse(BaseModel):
+    """Full heatmap grid: column headers + contractor rows."""
+
+    weeks: list[str]  # ordered ISO week labels for column headers
+    contractors: list[UtilizationHeatmapContractor]
