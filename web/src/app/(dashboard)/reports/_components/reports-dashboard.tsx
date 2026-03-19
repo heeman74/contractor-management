@@ -3,11 +3,12 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, subDays } from "date-fns";
-import { TrendingUp, Briefcase, PieChart as PieChartIcon } from "lucide-react";
+import { TrendingUp, Briefcase, PieChart as PieChartIcon, Users } from "lucide-react";
 import { toast } from "sonner";
 
 import { apiGet } from "@/lib/api-client";
-import { type DashboardResponse } from "@/types/api";
+import { type DashboardResponse, type UtilizationHeatmapResponse } from "@/types/api";
+import { Skeleton } from "@/components/ui/skeleton";
 
 import { DateRangeFilter } from "./date-range-filter";
 import { ChartCard } from "./chart-card";
@@ -15,6 +16,7 @@ import { RevenueChart } from "./revenue-chart";
 import { JobsByStatusChart } from "./jobs-by-status-chart";
 import { QuoteConversionChart } from "./quote-conversion-chart";
 import { ReportsSkeleton } from "./reports-skeleton";
+import { UtilizationHeatmap } from "./utilization-heatmap";
 
 function EmptyState() {
   return (
@@ -41,6 +43,15 @@ export default function ReportsDashboard() {
     queryFn: () =>
       apiGet<DashboardResponse>(
         `/api/v1/reports/dashboard?start_date=${startDate}&end_date=${endDate}`
+      ),
+    retry: 1,
+  });
+
+  const { data: heatmapData, isLoading: heatmapLoading } = useQuery({
+    queryKey: ["reports", "heatmap", startDate, endDate],
+    queryFn: () =>
+      apiGet<UtilizationHeatmapResponse>(
+        `/api/v1/reports/utilization-heatmap?start_date=${startDate}&end_date=${endDate}`
       ),
     retry: 1,
   });
@@ -99,6 +110,22 @@ export default function ReportsDashboard() {
       ]
     : [["Category", "Count"]];
 
+  const heatmapCsvRows: string[][] = heatmapData
+    ? [
+        ["Contractor", ...heatmapData.weeks],
+        ...heatmapData.contractors.map((c) => {
+          const weekMap = new Map(c.weeks.map((w) => [w.iso_week, w]));
+          return [
+            c.contractor_name,
+            ...heatmapData.weeks.map((w) => {
+              const cell = weekMap.get(w);
+              return cell ? `${parseFloat(cell.utilization_percent).toFixed(0)}%` : "0%";
+            }),
+          ];
+        }),
+      ]
+    : [["No data"]];
+
   return (
     <div className="space-y-6">
       <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
@@ -127,8 +154,23 @@ export default function ReportsDashboard() {
           >
             {jobsEmpty ? <EmptyState /> : <JobsByStatusChart data={data!.jobs_by_status} />}
           </ChartCard>
-          {/* Bottom row — utilization heatmap placeholder + quote conversion */}
-          <div>{/* Placeholder for utilization heatmap — Plan 03 */}</div>
+          {/* Bottom row — utilization heatmap + quote conversion */}
+          <ChartCard
+            title="Contractor Utilization"
+            kpiValue={`${heatmapData?.contractors?.length ?? 0} contractors`}
+            icon={Users}
+            csvFilename={`utilization-${startDate}-to-${endDate}.csv`}
+            csvRows={heatmapCsvRows}
+            ariaLabel="Contractor Utilization chart"
+          >
+            {heatmapLoading ? (
+              <Skeleton className="h-[280px] w-full rounded-md" />
+            ) : !heatmapData?.contractors?.length ? (
+              <EmptyState />
+            ) : (
+              <UtilizationHeatmap data={heatmapData} />
+            )}
+          </ChartCard>
           <ChartCard
             title="Quote Conversion"
             kpiValue={quoteKpi}
