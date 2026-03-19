@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Web Admin Dashboard
-status: executing
-stopped_at: Completed 18-02-PLAN.md
-last_updated: "2026-03-19T13:55:20.854Z"
+status: unknown
+stopped_at: Completed 18-03-PLAN.md
+last_updated: "2026-03-19T14:06:30.387Z"
 progress:
   total_phases: 6
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 25
-  completed_plans: 24
+  completed_plans: 25
 ---
 
 # Project State
@@ -89,6 +89,8 @@ Plan: 3 of 3
 - [Phase 18-02]: Recharts 3.x Tooltip formatter requires any cast — ValueType | undefined not assignable to number; use eslint-disable comment to document intentional cast
 - [Phase 18-02]: Bar onClick in recharts 3.x types as BarMouseEvent which lacks domain record fields — cast to any then re-cast to known type internally
 - [Phase 18-02]: PopoverTrigger (base-ui) renders native button directly with no asChild prop — apply buttonVariants Tailwind classes directly on PopoverTrigger className
+- [Phase 18]: CSS Grid heatmap with dynamic gridTemplateColumns — flexible column count without fixed-width table
+- [Phase 18]: Heatmap has its own separate TanStack Query — independent loading state and separate cache key from main dashboard query
 
 ### Pending Todos
 
@@ -102,6 +104,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T13:55:20.847Z
-Stopped at: Completed 18-02-PLAN.md
+Last session: 2026-03-19T14:06:30.381Z
+Stopped at: Completed 18-03-PLAN.md
 Resume file: None

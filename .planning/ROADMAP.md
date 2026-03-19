@@ -36,7 +36,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 - [x] **Phase 15: Scheduling Calendar** — Weekly calendar with contractor lanes, drag-and-drop rescheduling, conflict detection (completed 2026-03-17)
 - [x] **Phase 16: Quotes and Invoices** — Quote create/edit/send with line items, invoice payment recording, PDF downloads (completed 2026-03-18)
 - [x] **Phase 17: CRM — Clients and Contractors** — Client list and job history, contractor profiles, weekly schedule editor, date overrides (completed 2026-03-19)
-- [ ] **Phase 18: Reporting Dashboard** — Revenue, utilization, and conversion charts with date range filtering
+- [x] **Phase 18: Reporting Dashboard** — Revenue, utilization, and conversion charts with date range filtering (completed 2026-03-19)
 
 ## Phase Details
 
@@ -137,7 +137,7 @@ Plans:
   1. Admin can view a dashboard with four charts: revenue by month, jobs by status breakdown, contractor utilization, and quote conversion rate
   2. Admin can change the date range and all charts update to reflect the selected period
   3. Admin can view a contractor utilization heatmap showing which contractors are overloaded or underutilized
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [ ] 18-01-PLAN.md — Backend utilization-heatmap endpoint, TypeScript types, Recharts + shadcn chart install, E2E test stubs
@@ -169,4 +169,4 @@ Note: Phase 16 (Quotes/Invoices) depends only on Phase 13 and may be parallelize
 | 15. Scheduling Calendar | 4/4 | Complete    | 2026-03-17 | - |
 | 16. Quotes and Invoices | 6/6 | Complete    | 2026-03-18 | - |
 | 17. CRM — Clients and Contractors | 5/5 | Complete    | 2026-03-19 | - |
-| 18. Reporting Dashboard | 2/3 | In Progress|  | - |
+| 18. Reporting Dashboard | 3/3 | Complete   | 2026-03-19 | - |
