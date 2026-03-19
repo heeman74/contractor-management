@@ -90,8 +90,9 @@ class TimerNotifier extends AsyncNotifier<TimerState> {
   Future<TimerState> build() async {
     ref.onDispose(_cancelTicker);
 
-    final authState = ref.read(authNotifierProvider);
+    final authState = ref.watch(authNotifierProvider);
     if (authState is! AuthAuthenticated) {
+      _cancelTicker();
       return const TimerState();
     }
 
