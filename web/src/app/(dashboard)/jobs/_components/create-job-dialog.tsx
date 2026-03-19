@@ -68,12 +68,13 @@ export function CreateJobDialog({ open, onOpenChange }: CreateJobDialogProps) {
     enabled: open,
   });
 
-  // Fetch contractors for dropdown
+  // Fetch all users and filter to contractors client-side
+  // (backend list endpoint doesn't support role query param)
   const { data: contractors } = useQuery({
-    queryKey: ["contractors-list"],
-    queryFn: () =>
-      apiGet<ContractorListItem[]>("/api/v1/users?role=contractor"),
+    queryKey: ["users"],
+    queryFn: () => apiGet<ContractorListItem[]>("/api/v1/users/"),
     enabled: open,
+    select: (users) => users.filter((u) => u.roles.includes("contractor")),
   });
 
   const resetForm = () => {
