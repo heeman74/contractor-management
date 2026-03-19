@@ -2,11 +2,11 @@
 
 ## What This Is
 
-A multi-company SaaS platform for contractor management — builders, electricians, plumbers, and other trade professionals. Company admins manage their contractor teams and job schedules via a web dashboard (Next.js) and mobile app (Flutter/Android), contractors track their work in the field with offline-capable mobile tools, and clients stay informed about their job progress through a dedicated portal. Shared Python backend API (FastAPI + PostgreSQL).
+An AI-driven multi-trade construction management platform. General contractors plan projects through AI-powered intake that breaks work into trade scopes (plumbing, electrical, carpentry, etc.), AI interviews each trade contractor to generate detailed task plans with daily checklists, and GCs monitor all trades through a unified dashboard with bidirectional chat, photo annotation, and inspection tools. Trade contractors execute AI-generated daily checklists in the field with progress notes, photos, and drawings. The platform handles the full business lifecycle: quoting per trade, scheduling with cross-trade dependencies, invoicing, and payments. Shared Python backend API (FastAPI + PostgreSQL), Flutter mobile app, and Next.js web dashboard.
 
 ## Core Value
 
-Clients always know exactly what's happening with their job — no more chasing contractors for updates, no more scheduling conflicts, no more missed appointments.
+AI eliminates the chaos of multi-trade coordination — GCs always know exactly where every trade stands, contractors always know exactly what to do today, and projects stay on track through intelligent dependency management and proactive schedule adaptation.
 
 ## Requirements
 
@@ -32,72 +32,77 @@ Clients always know exactly what's happening with their job — no more chasing 
 - ✓ Push notification infrastructure (FCM) — v1.0
 - ✓ Drag-and-drop calendar with overdue warnings — v1.0
 - ✓ Forced delay justification with reason + new ETA — v1.0
+- ✓ Web admin dashboard with auth, jobs, scheduling, quotes, invoices, CRM, reports — v2.0
+- ✓ Web reporting dashboard with charts and data tables — v2.0
 
 ### Active
 
-- [ ] Web admin dashboard (Next.js + React + Redux) — full admin capabilities on desktop
-- [ ] Web auth: JWT login, session management, token refresh for web
-- [ ] Web quoting: create, edit, send quotes with line items
-- [ ] Web contractor management: profiles, availability, assignments
-- [ ] Web job scheduling: calendar view, conflict detection, drag-and-drop
-- [ ] Web job management: lifecycle tracking, status updates
-- [ ] Web client/CRM management
-- [ ] Web invoicing and payment views
-- ✓ Web reporting dashboard with charts and data tables — Validated in Phase 18
+- [ ] AI project intake — describe project, AI breaks into trades with sequencing and dependencies
+- [ ] AI contractor interview — AI asks trade-specific questions to generate detailed task plans
+- [ ] AI daily checklists — morning push with tasks, materials needed, photo requirements
+- [ ] Project model — multi-trade hierarchy (Project → Trade Scopes → Tasks) with dependency graph
+- [ ] Task-level progress — notes, photos with annotation/drawing, PDF attachments per task
+- [ ] Photo annotation — draw on photos (arrows, circles, text, measurements) on mobile and web
+- [ ] GC ↔ contractor bidirectional chat with photo/file sharing
+- [ ] GC mobile inspection — approve/reject tasks, flag issues, create punch list items
+- [ ] GC cross-trade monitoring dashboard — timeline view, trade status, AI alerts, conflict detection
+- [ ] Per-trade quoting and invoicing — trade-specific quotes that aggregate to project level
+- [ ] AI schedule adaptation — adjust plans based on actual progress, flag delays, suggest rescheduling
+- [ ] Online-first architecture — AI requires connectivity, offline cache for field execution
 
-#### Carried from v1.0
+#### Carried from v1.0/v2.0
 - [ ] In-app payment processing (Stripe/Square)
 - [ ] iOS support
-- [ ] Edit invoice functionality (backend ready, UI stubbed)
-- [ ] Searchable client selector in job wizard (currently basic dropdown)
-- [ ] Contractor messaging (currently placeholder)
+- [ ] QuickBooks/Xero integration
 
 ### Out of Scope
 
-- ~~Web dashboard~~ — NOW IN SCOPE for v2.0 (admin-only web dashboard)
-- Real-time chat — job notes + notifications cover communication
-- Inventory/materials tracking — adds complexity, use line items instead
 - GPS live tracking — battery drain, privacy; job status updates accomplish same value
-- AI-powered scheduling — requires historical data; rule-based conflict detection delivers value
-- Route optimization — deferred to v2+
-- Recurring job automation — deferred to v2+
-- QuickBooks/Xero integration — deferred to v2+
+- Route optimization — not enough ROI for construction projects
+- Recurring job automation — construction projects are one-off by nature
+- Inventory/materials tracking — AI checklists cover materials needed per task; full inventory management adds complexity without proportional value
+- Local/on-device AI — Claude API provides superior quality; offline mode caches AI-generated plans
+- Video calling — chat with photo annotation covers communication needs
 
-## Current Milestone: v2.0 Web Admin Dashboard
+## Current Milestone: v3.0 AI-Driven Construction Management
 
-**Goal:** Give company admins a full-featured desktop web experience for managing their contracting business — quoting, contractor management, scheduling, jobs, clients, invoicing, and reporting — powered by the existing backend API.
+**Goal:** Transform ContractorHub from single-contractor job tracking into an AI-driven multi-trade project management platform where AI plans projects by trade, generates daily checklists, GCs coordinate all trades through chat and inspection tools, and the full quoting/invoicing lifecycle works per trade.
 
 **Target features:**
-- Next.js web app with React + Redux state management
-- JWT authentication with the existing FastAPI backend
-- Quoting workflow (create, edit, send, track approvals)
-- Contractor management (profiles, availability, team assignments)
-- Job scheduling with calendar and conflict detection
-- Job lifecycle management and status tracking
-- Client/CRM management
-- Invoicing and payment tracking
-- Reporting dashboard with charts
+- Claude API integration with tool use for structured project planning
+- Project → Trade Scope → Task data model with dependency graph
+- AI project intake chat (web + mobile)
+- AI contractor interview for trade-specific task planning
+- AI daily checklists with materials, photos, time estimates
+- Task progress tracking with notes, photos, annotations, PDFs
+- Bidirectional GC ↔ contractor chat with media sharing
+- GC inspection flow (approve/reject/flag) on mobile
+- Cross-trade monitoring dashboard with AI alerts
+- Per-trade quoting and invoicing (extending existing system)
+- Online-first architecture with offline cache for field work
 
 ## Context
 
 Shipped v1.0 MVP with 143,230 LOC across 609 files in 11 days.
-Tech stack: Flutter 3.32+ (Drift, Riverpod 3, GoRouter, GetIt) + FastAPI 0.115 (SQLAlchemy 2.0, asyncpg, PostgreSQL 13 with RLS).
-24 requirements satisfied across 12 phases (8 feature + 4 gap closure).
-12 items of non-blocking tech debt documented in milestone audit.
+Shipped v2.0 Web Admin Dashboard with 6 phases (13-18), adding Next.js web app with full admin capabilities.
+Tech stack: Flutter 3.32+ (Drift, Riverpod 3, GoRouter, GetIt) + FastAPI 0.115 (SQLAlchemy 2.0, asyncpg, PostgreSQL 13 with RLS) + Next.js (React, TanStack Query, Redux Toolkit).
+v3.0 shifts from offline-first to online-first (AI requires connectivity) with offline cache for field execution.
 
 ### Deployment Requirements
 - `ORS_API_KEY` for travel time computation (graceful degradation without)
 - `google-services.json` for FCM notifications
 - Server libpango/Cairo for PDF generation
+- `ANTHROPIC_API_KEY` for Claude API (AI features)
 
 ## Constraints
 
-- **Platform**: Flutter for mobile (Android priority, iOS second); Next.js for web (admin dashboard)
-- **Backend**: Python FastAPI — shared API serving mobile and web platforms
-- **Architecture**: Offline-first with local Drift DB and background sync (mobile); server-rendered + client hydration (web)
+- **Platform**: Flutter for mobile (Android priority, iOS second); Next.js for web (GC dashboard + admin)
+- **Backend**: Python FastAPI — shared API serving mobile, web, and Claude API
+- **Architecture**: Online-first with AI server-side; offline cache for daily tasks/checklists (mobile)
+- **AI**: Claude API with tool use — no local models, no fine-tuning
 - **Testing**: Every feature ships with unit and E2E tests
 - **Scalability**: Multi-tenant with PostgreSQL RLS from day one
-- **Performance**: Scheduling calculations fast with large teams
+- **Performance**: Scheduling calculations fast with large teams; AI responses streamed
 
 ## Key Decisions
 
@@ -105,15 +110,16 @@ Tech stack: Flutter 3.32+ (Drift, Riverpod 3, GoRouter, GetIt) + FastAPI 0.115 (
 |----------|-----------|---------|
 | Flutter for mobile | Cross-platform, offline support, built-in testing | ✓ Good — 143K LOC single codebase |
 | FastAPI for backend | Async-first, good for scheduling logic | ✓ Good — clean async with SQLAlchemy 2.0 |
-| Offline-first architecture | Job sites have poor connectivity | ✓ Good — 15-entity sync works reliably |
+| Offline-first architecture (v1-v2) | Job sites have poor connectivity | ✓ Good — 15-entity sync works reliably |
+| Online-first shift (v3) | AI features require server connectivity | — Pending |
 | PostgreSQL RLS for multi-tenancy | Enforces isolation at DB level, not app layer | ✓ Good — tenant isolation proven in tests |
-| Auth/Payment deferred | Focus on core scheduling value first | — Pending — needed before publish |
 | Drift for local DB | Type-safe SQLite, streams, migrations | ✓ Good — v1→v6 migrations smooth |
 | Riverpod 3 for state | Compile-safe, auto-dispose, testable | ✓ Good — some legacy StateNotifier usage |
 | Transactional outbox for sync | Reliable offline mutations, idempotent | ✓ Good — no data loss in testing |
 | GIST constraint for scheduling | DB-level conflict prevention, no app races | ✓ Good — concurrent booking tests pass |
-| WeasyPrint for PDF | Open source, server-side, no browser dependency | ⚠️ Revisit — requires system libs |
-| Next.js + Redux for web admin | SSR performance, Redux for complex admin state, same API backend | — Pending |
+| Next.js + TanStack Query for web | SSR performance, server state management | ✓ Good — clean API integration |
+| Claude API for AI features | Best-in-class reasoning, tool use for structured output | — Pending |
+| Same app for GC + contractor | Role-based views, single codebase | — Pending |
 
 ---
-*Last updated: 2026-03-19 after Phase 18 (Reporting Dashboard) complete — revenue/jobs/quote charts, date filters, CSV export, contractor utilization heatmap, full E2E tests*
+*Last updated: 2026-03-19 after starting milestone v3.0 AI-Driven Construction Management*
