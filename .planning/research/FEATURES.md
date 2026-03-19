@@ -1,293 +1,237 @@
-# Feature Research
+# Feature Landscape
 
-**Domain:** Web Admin Dashboard — Contractor / Field Service Management (Next.js, desktop-first)
-**Researched:** 2026-03-14
-**Confidence:** HIGH — cross-referenced Jobber, ServiceTitan, Housecall Pro, BuildOps, Fieldpulse, mHelpDesk; existing backend API audited directly
-
----
-
-## Context: What Already Exists
-
-ContractorHub v1.0 shipped a complete Flutter mobile app with a FastAPI + PostgreSQL backend. All business logic and API endpoints are live. This web admin dashboard is a **new frontend only** — not a new product. Every feature below maps to existing backend endpoints.
-
-### Existing API Surface (All Endpoints Available)
-
-| Domain | Key Endpoints | Notes |
-|--------|---------------|-------|
-| Auth | POST /auth/login, /refresh, /logout | JWT + refresh rotation; works for web |
-| Jobs | GET/POST/PATCH /jobs, /jobs/transition, /jobs/requests | Full lifecycle, search, notes, time tracking |
-| Scheduling | GET/POST /scheduling/bookings, /availability, /conflicts | GIST conflict detection, multi-day, reschedule |
-| Quotes | GET/POST/PATCH /quotes, /quotes/{id}/send,approve,decline,revise | Full approval flow + PDF |
-| Invoices | GET/POST/PATCH /invoices, /invoices/{id}/finalize, /payment, /pdf | Payment tracking + PDF |
-| Users | GET/POST /users, /users/{id}/roles | List and manage all users |
-| Reports | GET /reports/dashboard, /reports/contractor | Jobs by status, revenue, utilization, conversion |
-| Files | POST /files | Photo/document upload |
-| Companies | (company context from JWT) | RLS scoping per company_id |
+**Domain:** AI-Driven Multi-Trade Construction Management (v3.0 Milestone)
+**Researched:** 2026-03-19
+**Confidence:** HIGH — cross-referenced Procore, Fieldwire, Buildertrend, Fieldwire/Hilti, Knowify, Siteline, Bluebeam, ConstructionOnline, academic research (MDPI 2025), and existing PROJECT.md requirements
 
 ---
 
-## Feature Landscape
+## Context: What v3.0 Adds
 
-### Table Stakes (Users Expect These)
+ContractorHub v1.0 and v2.0 delivered single-contractor job tracking (mobile) and a full web admin dashboard. Everything in that foundation (job lifecycle, quoting, invoicing, scheduling, CRM, reporting) is already built and working.
 
-Features that any admin web dashboard for field service must have. Missing any of these means the web app feels incomplete versus the mobile app or competitors.
+v3.0 transforms the product into an AI-driven multi-trade platform. The goal is not to rebuild what exists but to add a new data model layer (Project → Trade Scope → Task), AI-generated plans, coordination tooling (chat, inspection), and per-trade billing on top of the existing infrastructure.
 
-| Feature | Why Expected | Complexity | Backend Dependency |
-|---------|--------------|------------|--------------------|
-| JWT login with session persistence | Every web app needs auth; admins expect to stay logged in across browser sessions | LOW | POST /auth/login, /refresh — token refresh via interceptor |
-| Global navigation sidebar | Standard admin dashboard pattern; persistent access to all modules | LOW | None — UI only |
-| Jobs list with status filter tabs | Admins need at-a-glance view of all jobs by lifecycle stage | LOW | GET /jobs (query params for status) |
-| Job detail page with full lifecycle | View job info, status, notes, assigned contractor, client — all in one place | MEDIUM | GET /jobs/{id}, /jobs/{id}/notes |
-| Job status transitions | Admin must be able to move jobs between lifecycle stages from web | LOW | PATCH /jobs/{id}/transition |
-| Calendar scheduling view (week/month) | Drag-and-drop calendar is table stakes for any FSM platform — all 7 competitors have it | HIGH | GET /scheduling/bookings (date range filter) |
-| Contractor column view on calendar | Side-by-side contractor lanes showing who is working when | HIGH | GET /scheduling/bookings + GET /users (contractors) |
-| Drag-and-drop booking management | Reassign or reschedule bookings by dragging on calendar | HIGH | PATCH /scheduling/bookings/{id}/reschedule |
-| Quotes list with status indicators | Admin needs to see which quotes are pending, sent, approved, declined | LOW | GET /quotes (list all) |
-| Quote create/edit form | Write quotes with line items, taxes, descriptions from desktop (better than mobile for long-form entry) | MEDIUM | POST /quotes, PATCH /quotes/{id} |
-| Send quote + track approval status | Admin sends to client, sees approval without leaving the platform | LOW | POST /quotes/{id}/send — status reflected in GET /quotes |
-| Invoice list with payment status | Track outstanding vs paid invoices | LOW | GET /invoices — status field |
-| Invoice detail + payment recording | View invoice, mark as paid, record partial payment | LOW | PATCH /invoices/{id}/payment |
-| Invoice PDF download | Generate and download the PDF from web | LOW | GET /invoices/{id}/pdf |
-| Client/CRM list with search | Search clients by name, see job history | LOW | GET /users (role=client filter) |
-| Client detail with job history | See all past and active jobs for a client | MEDIUM | GET /jobs?client_id= or GET /users/{id} |
-| Contractor list with availability summary | See all contractors and their current workload | LOW | GET /users (role=contractor) |
-| Contractor profile view | See contractor details, assigned jobs, weekly schedule | MEDIUM | GET /scheduling/schedules/{id}/weekly |
-| Reporting dashboard with charts | Revenue by month, jobs by status, utilization, quote conversion — all 4 exist in backend | MEDIUM | GET /reports/dashboard |
-| Date range filter on reports | Slice reporting data by time period | LOW | GET /reports/dashboard?start_date=&end_date= |
-| Loading states and empty states | Expected on every page — missing causes confusion | LOW | UI only — React Suspense + skeleton components |
-| Error handling with user-friendly messages | 401, 403, 409, 422, 5xx all need meaningful messages | LOW | UI only — Axios/fetch interceptors |
-| Responsive layout for large monitors | Admins use 1440px+ widescreen setups; layout must use the space | LOW | CSS/Tailwind layout — sidebar + content area |
+### Already Built (Do Not Rebuild)
 
-### Differentiators (Competitive Advantage)
+| Capability | What Exists |
+|-----------|-------------|
+| Job lifecycle | Quote → Scheduled → In Progress → Complete → Invoiced (single-trade job) |
+| Quoting | Line-item quote builder, PDF, approval flow |
+| Invoicing | Generated from completed jobs, PDF, payment tracking |
+| Scheduling | GIST conflict detection, multi-day, contractor availability |
+| Photos + notes | Photo capture, GPS, drawing pad per job |
+| Time tracking | Clock in/out per job |
+| Push notifications | FCM infrastructure live |
+| Client portal | Live status, progress photos |
+| Web admin | Full dashboard: jobs, scheduling, quotes, invoices, CRM, reports |
+| Reporting | Charts: jobs by status, revenue, utilization, quote conversion |
 
-Features that go beyond competitor web dashboards and leverage ContractorHub's existing backend capabilities.
+---
 
-| Feature | Value Proposition | Complexity | Backend Dependency |
-|---------|-------------------|------------|--------------------|
-| Conflict detection during scheduling | Most web calendars let you double-book; ContractorHub can show conflicts before confirming | MEDIUM | POST /scheduling/conflicts (read-only pre-check) |
-| Availability-aware date suggestions | When scheduling a multi-day job, suggest available date combinations automatically | MEDIUM | POST /scheduling/suggest-dates |
-| Multi-day job booking UI | Book a contractor for multiple days atomically — rare in web FSM tools | HIGH | POST /scheduling/bookings/multi-day |
-| Unassigned jobs queue panel | Sidebar or panel showing jobs without bookings — admins drag from queue onto calendar | MEDIUM | GET /jobs (no booking filter) + calendar drag |
-| Quote-to-job conversion flow | Approve a quote and immediately schedule the resulting job without leaving the screen | MEDIUM | POST /quotes/{id}/approve → POST /jobs → POST /scheduling/bookings |
-| Quote PDF preview inline | Preview the quote PDF in a browser panel before sending — no download needed | LOW | GET /quotes/{id}/pdf (rendered in iframe) |
-| Job request review queue | Dedicated inbox for client-submitted job requests with approve/decline actions | LOW | GET /jobs/requests, POST /jobs/requests/{id}/review |
-| Invoice generate from job | One-click invoice generation when job reaches "Complete" status | LOW | POST /invoices/generate/{job_id} |
-| Contractor utilization heatmap | Visual chart showing which contractors are overloaded vs underutilized | MEDIUM | GET /reports/dashboard → contractor_utilization data |
-| Revenue vs target comparison | Monthly revenue bar chart with paid vs unpaid breakdown — already in backend | LOW | GET /reports/dashboard → revenue_by_month |
-| Quote conversion funnel visualization | Visual funnel showing approved/declined/pending ratios | LOW | GET /reports/dashboard → quote_conversion |
-| Weekly schedule editor per contractor | Grid UI to set contractor working hours per day of week | MEDIUM | PUT /scheduling/schedules/{id}/weekly/{dow} |
-| Date override management | Mark specific dates as unavailable or custom hours | MEDIUM | PUT /scheduling/schedules/{id}/overrides/{date} |
+## Table Stakes
 
-### Anti-Features (Commonly Requested, Often Problematic)
+Features users expect in any construction management platform that handles multiple trades. Missing these means the product feels incomplete versus Procore, Fieldwire, or Buildertrend.
 
-Features that appear valuable but create significant complexity or strategic risk for this milestone.
+| Feature | Why Expected | Complexity | Depends On |
+|---------|--------------|------------|------------|
+| Project model with multi-trade hierarchy | GCs manage projects, not individual jobs; Project → Trade Scope → Task is industry standard (WBS decomposition) | HIGH | New DB schema; extend existing job model |
+| Per-trade task lists with daily breakdown | Every contractor platform (Fieldwire, Buildertrend) provides task-level work items; daily checklists are the field standard | MEDIUM | Project model must exist first |
+| Task-level progress (notes + photos) | Fieldwire, Procore: every task can have photos, notes, file attachments; GCs need evidence at task level, not just job level | MEDIUM | Task model + existing photo upload endpoint |
+| GC ↔ contractor messaging | Buildertrend, ConstructionOnline, Procore all have in-app chat; GCs expect to communicate without leaving the platform | HIGH | New messaging service; push notification infra is ready |
+| Photo annotation with markup tools | Fieldwire and Bluebeam: photo annotation (arrows, circles, text) is standard for defect documentation and inspection | HIGH | Mobile canvas rendering; server-side storage |
+| GC inspection workflow (approve/reject tasks) | Punch-list / task approval is a defined industry workflow; Fieldwire, Alpha Software, Bluebeam all support approve/reject/flag | HIGH | Task model; notification on status change |
+| Cross-trade progress monitoring for GC | GCs are accountable for the whole project; dashboard showing all trades' status simultaneously is expected | MEDIUM | Project model + all trade scope data |
+| Per-trade quoting | GC needs separate quotes per trade to manage subcontractor costs; Siteline and Procore have trade-specific billing | MEDIUM | Extend existing quote system with project/scope FK |
+| Per-trade invoicing | Knowify, Siteline: trade contractors bill separately; GC aggregates to project level | MEDIUM | Extend existing invoice system with scope FK |
 
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|-----------------|-------------|
-| Real-time push updates (WebSocket) | "Calendar should update live when contractor makes changes in mobile app" | Requires WebSocket server (not in current FastAPI setup), adds infra complexity, hard to test reliably; polling every 30-60s is invisible to users in practice | 30-second polling on schedule/jobs pages — users won't notice |
-| Offline mode on web | "What if internet goes down?" | Web admin is always connected; offline-first architecture is for field contractors on job sites; web offline adds Service Worker complexity with no real value | Display a connection error banner; no offline cache |
-| Inline PDF editor | "Edit the quote/invoice design from the browser" | WeasyPrint renders server-side from HTML templates; building a WYSIWYG PDF editor is a separate product | Offer template customization in settings (future v3) |
-| In-app payment collection | "Process payments from the web dashboard" | PCI compliance, Stripe integration, webhook handling — a separate compliance domain; already deferred in PROJECT.md | Record manual payment via PATCH /invoices/{id}/payment — existing endpoint supports this |
-| Multi-company admin console | "Super admin to manage all companies" | Different auth model, different RLS bypass logic, different UX context — a separate product (super admin panel) | Company admins only; super admin is an ops tool, not a product feature |
-| GPS map view of contractors | "See where everyone is on a map" | No GPS tracking data in current backend; would require mobile changes; invasive to contractors | Calendar view + job status is sufficient for dispatch decisions |
-| Chat / messaging | "Message contractors from web" | Push notifications to mobile exist; adding chat means building a messaging system; job notes cover most communication | Job notes already exist and sync to mobile; no chat needed |
-| Dark mode | "Standard feature now" | Increases CSS complexity, testing surface doubles; adds no business value for an admin tool | Single light theme for v2.0; defer dark mode to v3 |
-| CSV/Excel export for all tables | "I need to export my data" | Each table needs export logic; file format handling; accounting integration more useful | Invoice PDF covers the main export need; raw data export deferred |
-| Bulk job status changes | "Select 20 jobs and mark complete" | Complex UI state, risk of accidental bulk transitions, hard to undo | Individual job management sufficient; bulk operations deferred |
+---
+
+## Differentiators
+
+Features that go beyond what competitors offer, leveraging AI to eliminate construction coordination chaos.
+
+| Feature | Value Proposition | Complexity | Depends On |
+|---------|-------------------|------------|------------|
+| AI project intake (chat-based) | GC describes project in natural language; AI returns structured scope breakdown by trade with sequencing — no competitor does this end-to-end | HIGH | Claude API with tool use; project model to persist structured output |
+| AI contractor interview for task planning | AI asks trade-specific questions to generate detailed daily task plans — eliminates guesswork on scope definition | HIGH | Claude API; project model; task schema per trade type |
+| AI daily checklist push | Morning push notification with personalized daily tasks, materials needed, photo requirements — zero manual setup per day | MEDIUM | Task model with scheduling; FCM; Claude API for adaptation |
+| AI schedule adaptation on delays | When actual progress diverges from plan, AI recommends rescheduling, flags blocked dependencies, surfaces risks | HIGH | Progress tracking data; dependency graph; Claude API |
+| Cross-trade dependency graph | Finish-to-Start, Start-to-Start dependencies between trade scopes (e.g., rough plumbing must finish before framing closes) — automatic notification when upstream completes | HIGH | Graph data structure in DB; dependency tracking logic |
+| AI-generated conflict alerts | AI monitors all trade timelines and surfaces conflicts before they become delays | MEDIUM | Dependency graph; AI alerting logic |
+| GC unified timeline view (Gantt-style) | All trades in one horizontal timeline with dependencies drawn — GCs see the full project at a glance | HIGH | Project model + UI rendering (web); no backend blocker |
+| Punch list from inspection | GC inspection creates structured punch list items with photo evidence, assigned to trade, with due date — auto-fed back to AI planning | MEDIUM | Inspection model; link to task model |
+
+---
+
+## Anti-Features
+
+Features that appear valuable for a construction platform but create disproportionate complexity or strategic risk at this stage.
+
+| Anti-Feature | Why Avoid | What to Do Instead |
+|--------------|-----------|-------------------|
+| Real-time collaborative editing of AI plans | "Multiple GCs editing the project plan simultaneously" — requires CRDT/operational transform, complex merge conflict resolution | Single GC edits; optimistic UI with server-side lock |
+| On-device / local AI | "Work offline with AI" — local models (Llama, phi) lack construction domain quality; device requirements prohibit field tablet use | Cache AI-generated plans locally (Drift); AI requires connectivity |
+| Full BIM integration | "Import from AutoCAD/Revit" — BIM file parsing is a separate engineering domain; API surface is enormous | Photo annotation and task-based plans serve 90% of field needs |
+| Video calling / video RFI | "Live video walkthroughs with GC" — high bandwidth, requires WebRTC server, poor connectivity on job sites | Bidirectional chat with photo/file sharing covers 95% of field communication |
+| Inventory / materials management | "Track every nail and pipe" — full inventory is a separate ERP domain; AI checklists already list materials needed per task | AI checklists include materials per task; no stock ledger |
+| GPS live tracking of field workers | Already rejected in PROJECT.md — battery drain, privacy, no real dispatch value in construction | Job status + daily checklist completion surfaces location indirectly |
+| AI voice assistant | "Talk to AI on the job site" — voice UX requires significant mobile investment, adds noise/confusion on loud job sites | Push-based daily briefing achieves same goal passively |
+| Automated payment disbursement | "Pay subcontractors automatically when tasks complete" — PCI compliance, banking integrations, legal liability | Manual payment recording; Stripe integration is a future milestone |
+| Change order workflow | "Client requests scope change, triggers quote revision" — valid feature but large scope; extends quoting/invoicing model significantly | Defer to v3.1; single-project planning is the v3.0 focus |
 
 ---
 
 ## Feature Dependencies
 
 ```
-[JWT Auth + Session]
-    └──required-by──> [ALL web features]
+[AI Project Intake]
+    └──produces──> [Project Model]
+    └──requires──> [Claude API with tool use]
 
-[Jobs List]
-    └──requires──> [JWT Auth]
-    └──enhances──> [Job Status Transitions]
-    └──enhances──> [Job Detail]
+[Project Model: Project → Trade Scope → Task]
+    └──required-by──> ALL v3.0 features
+    └──extends──> [Existing Job Model] (trade scope maps to job or extends it)
 
-[Job Detail]
-    └──requires──> [Jobs List]
-    └──requires──> [Client CRM List] (show client info)
-    └──enhances──> [Invoice Generate from Job]
-    └──enhances──> [Quote-to-Job Flow]
+[AI Contractor Interview]
+    └──requires──> [Project Model] (scope must exist to interview against)
+    └──requires──> [Claude API]
+    └──produces──> [Task Plans per Trade]
 
-[Calendar View]
-    └──requires──> [JWT Auth]
-    └──requires──> [Contractor List] (populate lanes)
-    └──requires──> [Jobs List] (populate events)
-    └──enhances──> [Conflict Detection During Scheduling]
-    └──enhances──> [Unassigned Jobs Queue Panel]
-    └──enhances──> [Multi-Day Booking UI]
+[Task Plans per Trade]
+    └──required-by──> [AI Daily Checklist Push]
+    └──required-by──> [Task-Level Progress Tracking]
+    └──required-by──> [GC Inspection Workflow]
 
-[Conflict Detection During Scheduling]
-    └──requires──> [Calendar View]
-    └──requires──> POST /scheduling/conflicts API call
+[AI Daily Checklist Push]
+    └──requires──> [Task Plans per Trade]
+    └──requires──> [FCM infrastructure] (already built)
+    └──requires──> [Dependency Graph] (to know what is unblocked today)
 
-[Quote Create/Edit]
-    └──requires──> [Client CRM List] (select client)
-    └──enhances──> [Quote-to-Job Conversion]
+[Cross-Trade Dependency Graph]
+    └──requires──> [Project Model] (scopes must exist)
+    └──required-by──> [AI Daily Checklist Push] (only show tasks whose deps are met)
+    └──required-by──> [AI Schedule Adaptation]
+    └──required-by──> [AI Conflict Alerts]
 
-[Quote-to-Job Conversion]
-    └──requires──> [Quote Create/Edit]
-    └──requires──> [Calendar View] (schedule the resulting job)
+[Task-Level Progress (notes + photos)]
+    └──requires──> [Task Plans per Trade]
+    └──extends──> [Existing photo upload endpoint]
+    └──feeds──> [GC Inspection Workflow]
 
-[Invoice Generate from Job]
-    └──requires──> [Job Detail] (job must be Complete status)
+[Photo Annotation]
+    └──requires──> [Task-Level Progress Photos] (annotation on captured photos)
+    └──standalone tooling but integrated at task photo level
 
-[Reporting Dashboard]
-    └──requires──> [JWT Auth]
-    └──standalone (no dependency on other web pages)
+[GC ↔ Contractor Chat]
+    └──requires──> [Project Model] (chat is scoped to project/scope)
+    └──requires──> [FCM infrastructure] (already built)
+    └──standalone messaging service; no AI dependency
 
-[Weekly Schedule Editor]
-    └──requires──> [Contractor Profile]
-    └──enhances──> [Calendar View] (availability reflected on calendar)
+[GC Inspection Workflow]
+    └──requires──> [Task-Level Progress Photos + Notes]
+    └──produces──> [Punch List Items]
+    └──triggers──> [Notification to contractor] via FCM
+
+[GC Cross-Trade Monitoring Dashboard]
+    └──requires──> [Project Model]
+    └──requires──> [Task Plans per Trade]
+    └──requires──> [Dependency Graph]
+    └──web (Next.js) + mobile (Flutter) views
+
+[Per-Trade Quoting]
+    └──extends──> [Existing Quote System] (add project_id + scope_id FK)
+    └──requires──> [Project Model] (quote is attached to a trade scope)
+
+[Per-Trade Invoicing]
+    └──extends──> [Existing Invoice System] (add project_id + scope_id FK)
+    └──requires──> [Per-Trade Quoting] (invoice generated from completed scope)
+
+[AI Schedule Adaptation]
+    └──requires──> [Task-Level Progress Tracking] (actual vs planned data)
+    └──requires──> [Dependency Graph]
+    └──requires──> [Claude API]
 ```
 
-### Dependency Notes
+### Critical Dependency Chain
 
-- **Auth is a hard prerequisite for everything.** The JWT interceptor must handle token refresh transparently before any data-fetching page is built.
-- **Calendar view is the highest-complexity page** and depends on having both the contractor list and jobs list working. Build jobs list and contractor list first.
-- **Quote-to-job conversion is a cross-cutting flow.** It spans quotes, jobs, and scheduling — build it after all three pages exist individually.
-- **Reporting dashboard is fully standalone.** All 4 backend metrics exist. This is safe to build in parallel with other features.
+The entire v3.0 feature set is gated on the **Project Model** (Project → Trade Scope → Task with dependency graph). This must be designed and implemented first. Every other feature — AI intake, contractor interviews, daily checklists, chat, inspection, per-trade billing — either depends on it or extends it.
 
 ---
 
-## MVP Definition
+## MVP Recommendation
 
-### Launch With (v2.0 Web Dashboard)
+### Must Ship for v3.0 Core Value
 
-Minimum viable web admin experience — parity with mobile admin capabilities on a desktop interface.
+These features together deliver the AI coordination loop that is the v3.0 value proposition. Without all of them, the product reverts to a more complex version of v1.0.
 
-- [ ] JWT login + session management — without this, nothing else is accessible
-- [ ] Dashboard home with 4 reporting charts — first page after login, signals product quality
-- [ ] Jobs list with status filter + search — core admin daily workflow
-- [ ] Job detail page with status transitions — admin acts on jobs from web
-- [ ] Job request review queue — process inbound client requests
-- [ ] Calendar view (week) with contractor lanes — scheduling is the product's core differentiator
-- [ ] Drag-and-drop rescheduling — table stakes for any scheduling tool
-- [ ] Conflict detection on booking — leverage the existing GIST constraint infrastructure
-- [ ] Quotes list + create/edit/send — long-form data entry is better on desktop than mobile
-- [ ] Quote approval tracking — admin sees client approval status
-- [ ] Invoices list + payment recording — close the financial loop from web
-- [ ] Invoice PDF download — standard business document workflow
-- [ ] Client list with search + job history — CRM is foundational
-- [ ] Contractor list with profile view + schedule editor — manage team from desktop
-- [ ] Global sidebar navigation — expected structural pattern
+1. **Project model with trade scope + task hierarchy** — foundational; nothing else works without it
+2. **AI project intake via chat** — the GC's entry point; defines project scope by trade
+3. **AI contractor interview + task plan generation** — makes AI useful to field contractors
+4. **AI daily checklist push** — the field contractor's daily driver; primary retention mechanic
+5. **Task-level progress (notes + photos)** — contractors report back; GC can see progress
+6. **GC cross-trade monitoring dashboard (web)** — GC's primary value; see all trades at once
+7. **GC ↔ contractor bidirectional chat** — coordination without leaving the platform
+8. **GC inspection workflow (approve/reject/flag)** — closes the loop from task execution to GC sign-off
+9. **Photo annotation on mobile** — required for inspection documentation; expected by all GCs
+10. **Per-trade quoting and invoicing** — business lifecycle completion; extends existing system
 
-### Add After Validation (v2.x)
+### Defer to v3.1
 
-- [ ] Unassigned jobs queue panel on calendar — improves dispatch UX; non-blocking for launch
-- [ ] Multi-day booking UI — complex interaction; launch with single-day, add multi-day in v2.1
-- [ ] Date override management for contractors — edge case; weekly schedule editor is sufficient for launch
-- [ ] Quote-to-job conversion flow — cross-cutting; ship as polish after all three base pages are stable
-- [ ] Inline quote PDF preview — nice UX enhancement; download is sufficient for launch
-- [ ] Availability-aware date suggestions — leverages backend POST /suggest-dates; ship after calendar is stable
+- **AI schedule adaptation** — requires historical progress data to be meaningful; ship after projects run for several weeks
+- **Punch list auto-feed to AI** — sophisticated; requires mature inspection model
+- **Cross-trade dependency notifications** — useful enhancement; MVP can show blocked state without push notification
+- **GC Gantt timeline view** — valuable but high rendering complexity; table/list view sufficient for MVP
 
-### Future Consideration (v3+)
+### Specifically Do Not Build in v3.0
 
-- [ ] In-app payment processing — requires Stripe/PCI compliance work
-- [ ] Bulk job operations — needed only at scale
-- [ ] CSV export — needed when accounting integration is requested
-- [ ] Dark mode — cosmetic; defer
-- [ ] Super admin console — different product
-- [ ] QuickBooks / Xero integration — deferred explicitly in PROJECT.md
+- Change order workflow
+- In-app payment processing
+- QuickBooks/Xero integration
+- iOS support (Android priority per PROJECT.md)
+- BIM/CAD import
 
 ---
 
-## Feature Prioritization Matrix
+## Complexity Assessment by Feature Area
 
-| Feature | User Value | Implementation Cost | Priority |
-|---------|------------|---------------------|----------|
-| JWT login + session | HIGH | LOW | P1 |
-| Reporting dashboard (4 charts) | HIGH | LOW | P1 |
-| Jobs list + filters | HIGH | LOW | P1 |
-| Job detail + transitions | HIGH | LOW | P1 |
-| Job request review queue | HIGH | LOW | P1 |
-| Calendar week view (contractor lanes) | HIGH | HIGH | P1 |
-| Drag-and-drop reschedule | HIGH | HIGH | P1 |
-| Conflict detection on schedule | HIGH | MEDIUM | P1 |
-| Quotes list + create/edit/send | HIGH | MEDIUM | P1 |
-| Quote approval status tracking | MEDIUM | LOW | P1 |
-| Invoices list + payment recording | HIGH | LOW | P1 |
-| Invoice PDF download | MEDIUM | LOW | P1 |
-| Client list + search + history | HIGH | LOW | P1 |
-| Contractor list + profile + schedule | HIGH | MEDIUM | P1 |
-| Global sidebar navigation | HIGH | LOW | P1 |
-| Unassigned jobs queue panel | MEDIUM | MEDIUM | P2 |
-| Multi-day booking UI | MEDIUM | HIGH | P2 |
-| Date override management | MEDIUM | MEDIUM | P2 |
-| Quote-to-job conversion flow | MEDIUM | MEDIUM | P2 |
-| Inline PDF preview | LOW | LOW | P2 |
-| Date suggestion UI | LOW | MEDIUM | P2 |
-| In-app payment | HIGH | HIGH | P3 |
-| Bulk operations | MEDIUM | HIGH | P3 |
-| CSV export | MEDIUM | MEDIUM | P3 |
-| Dark mode | LOW | MEDIUM | P3 |
-
-**Priority key:**
-- P1: Must have for v2.0 launch — all exist in backend, new frontend only
-- P2: Add in v2.1 after core is stable
-- P3: Future milestone
-
----
-
-## Competitor Web Dashboard Feature Analysis
-
-| Feature | Jobber Web | ServiceTitan Web | Housecall Pro Web | ContractorHub Web Approach |
-|---------|------------|-----------------|-------------------|---------------------------|
-| Calendar view | Month/Week/Day/List/Map (5 views) | Dispatch board + month/week | Calendar + map view | Week + contractor lanes; map is deferred |
-| Unassigned jobs queue | Yes — sidebar panel | Yes — dispatch queue | Partial | P2 for v2.1 |
-| Drag-and-drop | Yes (all platforms) | Yes (advanced) | Yes | Yes — core requirement |
-| Conflict detection | Basic (no travel time) | Advanced | Basic | Advanced — GIST constraint already live |
-| Quoting from web | Yes — full form | Yes — complex configurator | Yes — templates | Yes — full form with line items |
-| Invoice PDF | Yes | Yes | Yes | Yes — existing endpoint |
-| Reporting | Basic (dashboard cards) | Advanced (30+ reports, custom) | Basic | 4 charts from existing backend; matches Jobber's level |
-| Client CRM | Full history | Full history | Basic | Client list + job history; matches Jobber |
-| Contractor availability editor | Admin-only, basic | Admin with dispatch view | Admin-only | Weekly schedule grid + date overrides |
-| Multi-day booking | Not first-class | Yes (construction module) | No | Yes (API is ready; UI is P2) |
-| Real-time updates | Polling | WebSocket dispatch board | Polling | Polling — sufficient, no infra change needed |
-| Role-based views | Admin vs tech separate apps | Admin vs tech separate | Admin vs tech separate | Admin-only web; contractors use mobile |
-
----
-
-## Web-Specific UX Patterns (Not on Mobile)
-
-These patterns are expected on desktop web but do not exist on the Flutter mobile app.
-
-| Pattern | Where It Applies | Why Important |
-|---------|-----------------|---------------|
-| Persistent sidebar navigation | All pages | Web users expect always-visible navigation; mobile uses bottom tabs |
-| Server-side pagination for tables | Jobs list, invoices list, clients list | Mobile loads pages lazily; web shows sortable, filterable data tables |
-| Column sort on data tables | All list pages | Standard desktop table UX — click header to sort ascending/descending |
-| Status filter tabs above tables | Jobs list, quotes list, invoices list | Fast switching between Active/Pending/Complete without a dropdown |
-| Inline status badges | All list pages | Color-coded chips showing lifecycle state at a glance |
-| Split-pane detail view (optional) | Jobs list + job detail | Click row → detail slides in on right; avoids page navigation for quick reads |
-| Keyboard shortcuts | Calendar (arrow keys to navigate weeks) | Power users expect keyboard navigation on desktop |
-| Browser tab title with page name | All pages | Bookmarkable states; multi-tab workflows |
-| Modal dialogs for destructive actions | Delete booking, cancel job | Web standard; mobile uses bottom sheets |
-| Form validation inline (not on submit) | Quote create, job create | Desktop forms have more fields; inline validation improves UX |
-| Breadcrumb navigation | Job detail, client detail | Desktop users navigate hierarchies differently than mobile |
-| Copy-to-clipboard on IDs / links | Quote links, invoice links | Admin sharing links to quotes with clients |
+| Feature Area | Implementation Complexity | Reasoning |
+|--------------|--------------------------|-----------|
+| Project data model (3-level hierarchy + deps) | HIGH | New DB schema; dependency graph storage; migration path from existing job model |
+| Claude API integration (tool use, streaming) | MEDIUM | Well-documented; tool use for structured output is proven pattern; streaming adds infra concern |
+| AI project intake chat UI | MEDIUM | Chat UI is well-understood; complexity is in Claude prompt design and tool schema |
+| AI contractor interview | HIGH | Trade-specific prompts; structured output per trade type; validation of AI output before persistence |
+| AI daily checklist generation and push | MEDIUM | Task selection logic (deps satisfied, today's schedule); FCM timing; offline cache for field |
+| Photo annotation (mobile Flutter) | HIGH | Canvas rendering, touch gesture handling, multiple annotation types; Flutter has limited mature libraries |
+| Photo annotation (web Next.js) | HIGH | Same complexity; browser canvas; coordinate normalization between views |
+| GC ↔ contractor chat | HIGH | New messaging service; real-time or polling; message threading; media sharing; DB schema |
+| GC inspection workflow | MEDIUM | Task state machine (pending → approved/rejected/flagged); punch list generation; notifications |
+| Cross-trade monitoring dashboard | MEDIUM | Aggregation queries; UI layout; real-time-ish refresh via polling |
+| Per-trade quoting/invoicing | LOW | Extend existing FK structure; re-use existing UI components; no new business logic |
+| AI schedule adaptation | HIGH | Requires progress data pipeline; AI reasoning over schedule graph; conflict detection integration |
 
 ---
 
 ## Sources
 
-- [HouseCall Pro vs Jobber vs ServiceTitan Comparison — Contractor+](https://contractorplus.app/blog/housecall-pro-vs-jobber-vs-servicetitan)
-- [Jobber Dashboard Help Center](https://help.getjobber.com/hc/en-us/articles/360033835353-Dashboard)
-- [ServiceTitan Dispatch Software Features](https://www.servicetitan.com/features/dispatch-software)
-- [Field Service Scheduling — mHelpDesk drag-and-drop calendar](https://www.mhelpdesk.com/features/drag-and-drop-calendar/)
-- [Jobber vs Housecall Pro Comparison 2026 — FieldPulse](https://www.fieldpulse.com/resources/blog/housecall-pro-vs-jobber)
-- [ServiceTitan Dashboard Overview](https://www-servicetitan.com/dashboard/)
-- [Common Mistakes in React Admin Dashboards — DEV Community](https://dev.to/vaibhavg/common-mistakes-in-react-admin-dashboards-and-how-to-avoid-them-1i70)
-- [Field Service Scheduling Multi-View UX — Dynamics 365](https://learn.microsoft.com/en-us/dynamics365/field-service/work-with-schedule-board)
-- [Construction KPIs Dashboard — Bold BI](https://www.boldbi.com/dashboard-examples/construction/)
-- Existing backend API audit: `/backend/app/features/*/router.py` (direct code review, HIGH confidence)
+- [Fieldwire vs Procore Comparison — Fieldwire by Hilti](https://www.fieldwire.com/blog/fieldwire-vs-procore-comparison/)
+- [Punch List Workflow — Fieldwire](https://www.fieldwire.com/punch-list-app/)
+- [Construction Punch List Software 2025 — Workyard](https://www.workyard.com/compare/punch-list-software)
+- [Construction Billing Software — Siteline](https://www.siteline.com/)
+- [Trade Contractor Invoicing — Knowify](https://knowify.com/construction-invoicing-software/)
+- [Construction RFI and Chat — Buildertrend](https://buildertrend.net/communication/)
+- [BIM Multi-Trade Coordination — United BIM](https://www.united-bim.com/bim-for-multi-trade-coordination/)
+- [AI Construction Tools 2026 — Mastt](https://www.mastt.com/software/ai-construction-tools)
+- [AI in Construction Management: Smarter Project Planning 2026 — Kwant.ai](https://www.kwant.ai/blog/ai-construction-management-project-planning-2026)
+- [Multi-LLM Construction Schedule Generation — ScienceDirect/MDPI 2025](https://www.sciencedirect.com/science/article/abs/pii/S1474034625007189)
+- [Work Breakdown Structure Guide 2026 — Monday.com](https://monday.com/blog/project-management/work-breakdown-structure/)
+- [Task Dependencies in Project Management — Teamhood](https://teamhood.com/project-management-resources/task-dependencies/)
+- [Procore Invoice Management](https://www.procore.com/invoice-management)
+- [Photo Annotation and Field Inspection — SafetyCulture](https://safetyculture.com/)
+- [Bluebeam Punch Workflow](https://www.bluebeam.com/workflows/punch/)
+- PROJECT.md — ContractorHub requirements (HIGH confidence, source of truth)
 
 ---
 
-*Feature research for: Web Admin Dashboard — ContractorHub v2.0*
-*Researched: 2026-03-14*
+*Feature research for: AI-Driven Construction Management — ContractorHub v3.0*
+*Researched: 2026-03-19*

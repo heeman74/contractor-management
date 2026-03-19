@@ -1,295 +1,421 @@
-# Pitfalls Research
+# Domain Pitfalls
 
-**Domain:** Adding Next.js web admin dashboard to existing FastAPI + Flutter mobile platform (ContractorHub v2.0)
-**Researched:** 2026-03-14
-**Confidence:** HIGH (security/auth pitfalls from official CVE disclosures and FastAPI docs; SSR/Redux from official RTK docs and GitHub issues; integration risks from existing codebase analysis)
+**Domain:** Adding AI planning, real-time chat, photo annotation, and multi-trade project management to an existing contractor management platform (ContractorHub v3.0)
+**Researched:** 2026-03-19
+**Confidence:** HIGH (architecture/integration risks from official FastAPI, Anthropic, PostgreSQL, Flutter docs and verified GitHub issues; MEDIUM for cost modeling based on published pricing data; specific patterns verified against existing codebase structure)
+
+---
+
+## Context: What Already Exists and What's Being Added
+
+**Existing (do not break):**
+- 15-entity offline-first sync via transactional outbox + Drift
+- Job/Quote/Invoice data models with established Flutter deserialization
+- PostgreSQL RLS with `SET LOCAL app.current_tenant_id` per session
+- JWT auth with refresh token family revocation (mobile Bearer tokens + web httpOnly cookies)
+- FastAPI `TenantScopedService` / `TenantScopedRepository` OOP hierarchy
+
+**Being added:**
+- Claude API tool-use integration for AI project intake and contractor interviews
+- Project → Trade Scope → Task data model hierarchy (new tables, new FK graph)
+- Real-time bidirectional chat via WebSockets
+- Photo annotation (drawing layer on existing photo infrastructure)
+- Architecture shift: offline-first → online-first with offline cache for field execution
+
+All pitfalls below are specific to the integration risk of adding these features to the working system above.
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1: Storing JWT Access Tokens in localStorage — XSS Attack Surface
-
-**What goes wrong:**
-The web dashboard stores the JWT access token in `localStorage` or `sessionStorage` for convenience. Any third-party script (analytics, a compromised npm dependency, a future XSS vulnerability) can read `localStorage` from JavaScript and exfiltrate the token. An attacker who obtains the access token can impersonate any admin with full company data access including all RLS-scoped records.
-
-**Why it happens:**
-localStorage is the first instinct — it persists across tabs, survives page refresh, and is trivial to read/write. Tutorials and quick-start examples almost universally use it. Secure storage (httpOnly cookies) requires server-side involvement that feels like overhead.
-
-**How to avoid:**
-Store the access token in a `httpOnly`, `Secure`, `SameSite=Lax` cookie, never in JavaScript-accessible storage. The FastAPI backend must expose a `/auth/web/login` endpoint (or extend existing `/auth/login`) that sets the cookie in the response. The refresh token similarly goes in a separate `httpOnly` cookie with a tighter path (e.g., `Path=/auth/refresh`). Since the mobile app uses Bearer tokens in headers, the backend must support BOTH patterns simultaneously — cookie-based for web, header-based for mobile — using a single auth verification function that checks the cookie first, then falls back to the `Authorization` header.
-
-**Warning signs:**
-- `localStorage.setItem('access_token', ...)` anywhere in the Next.js codebase
-- Redux auth slice persisted to `localStorage` via `redux-persist` without token exclusion
-- Login response stores token client-side in any JavaScript-accessible location
-
-**Phase to address:**
-Phase 1: Web Authentication — must be the foundational decision before any other feature code touches auth.
+Mistakes that cause rewrites or major data integrity issues.
 
 ---
 
-### Pitfall 2: CORS Wildcard + allow_credentials Breaks Mobile and Blocks Web
+### Pitfall 1: Offline-First Outbox Conflicts With Online-First AI State
 
 **What goes wrong:**
-A developer adds `CORSMiddleware` to FastAPI for the web dashboard and uses `allow_origins=["*"]` with `allow_credentials=True`. This configuration is invalid per the CORS spec and FastAPI will reject it — credentialed requests require explicit origin enumeration. Attempting to fix this by setting `allow_origins=["*"]` without credentials allows the web to work but silently breaks the mobile app's ability to send `Authorization` headers on preflight. Alternatively, over-restricting origins to only the web domain blocks mobile API calls.
+The existing transactional outbox queues all mutations locally for eventual server sync. The v3.0 AI checklist system generates server-side task plans that the app must display. When a contractor goes offline and completes checklist items locally (outbox mutations), then reconnects, the sync engine replays their outbox while simultaneously receiving a new AI-generated plan update. The outbox processes task completions against a task ID that has since been replaced or reordered by AI schedule adaptation. Result: phantom completions, wrong task status, or sync constraint violations.
 
 **Why it happens:**
-The existing FastAPI backend may have no CORS configuration (mobile apps are not browser clients and don't send CORS preflight). The developer adds CORS for the web without understanding that mobile clients using `Authorization: Bearer` headers are also affected by CORS validation if they ever reach a browser-mediated context, or without testing that the existing mobile app still functions correctly after the CORS change.
+The outbox pattern assumes the client is the source of truth for all mutations. AI planning violates this — the server is now also generating and modifying task state. There is no mechanism in the existing 15-entity sync to handle server-initiated entity mutations racing with client outbox replay.
 
-**How to avoid:**
-Configure `CORSMiddleware` with explicit, environment-specific allowed origins — never wildcards when credentials are involved. The `allow_origins` list must include the web dashboard origin (`https://admin.contractorhub.com` for production, `http://localhost:3000` for dev) but mobile apps do not send CORS preflights (they are native clients, not browsers). Set `allow_credentials=True`, enumerate `allow_headers` explicitly (`["Authorization", "Content-Type", "X-Request-ID"]`). Test the mobile app against the updated API before shipping.
+**Consequences:**
+Data loss or data corruption for task completion records. AI daily checklists show completed tasks as pending. Progress tracking is unreliable. Trust in the platform collapses.
 
-```python
-# CORRECT
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,   # ["https://admin.contractorhub.com"]
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
-)
+**Prevention:**
+Define explicit domain boundaries before writing any code:
+1. **AI-generated entities (read-only on client):** Project, TradeScope, Task — AI owns their structure; clients can never create or structurally modify these.
+2. **Client-owned entities (offline-writable):** TaskProgress, TaskNote, TaskPhoto, ChecklistItemCompletion — these are append-only records with stable IDs that do not conflict with AI plan revisions.
+3. Never put AI-generated task plan mutations through the outbox. AI plan updates come from server push only (FCM + refresh on reconnect), not from client mutations replayed.
+4. Add a `plan_version` field to Task. Client outbox mutations for progress carry the `plan_version` they were created against. Server rejects (409) completions referencing a superseded plan version, and the app prompts the user to review the updated plan.
 
-# WRONG — will be rejected by browsers
-allow_origins=["*"], allow_credentials=True
-```
+**Detection:**
+- Outbox entries with `entity_type = 'task'` for creation or structural updates (not progress/completion) — red flag, tasks are server-owned.
+- No `plan_version` field on task completion records.
+- Sync tests that don't exercise concurrent AI update + client outbox replay.
 
-**Warning signs:**
-- `allow_origins=["*"]` in any CORS configuration where `allow_credentials=True`
-- CORS origins hardcoded to a single environment's URL
-- No test that verifies the mobile app's auth flow still works after CORS changes
-
-**Phase to address:**
-Phase 1: Web Authentication — CORS must be configured correctly before any web feature calls the API.
+**Phase to address:** The first phase establishing the Project/Task data model (before any AI planning code ships).
 
 ---
 
-### Pitfall 3: Next.js Middleware Auth Bypass (CVE-2025-29927)
+### Pitfall 2: New Table Hierarchy Orphans Existing RLS Policies
 
 **What goes wrong:**
-The team implements authentication guards in Next.js middleware (`middleware.ts`) — the standard pattern for protecting routes in the App Router. An attacker sends requests with the `x-middleware-subrequest` header, bypassing all middleware logic. Every protected admin page is accessible without a valid token. All company data is exposed.
+The new Project → TradeScope → Task hierarchy adds tables (`projects`, `trade_scopes`, `tasks`) that reference existing company data. RLS policies on these new tables are written correctly, but the existing `jobs` table is left with an implicit FK to `trade_scopes` without an RLS policy update. A query joining `jobs` to `tasks` bypasses the project-level RLS because the join uses the job's existing RLS context, not the project's. A GC from Company A can, via a crafted join query, read Task records belonging to Company B's project.
 
 **Why it happens:**
-CVE-2025-29927 (CVSS 9.1) affects all Next.js versions below 12.3.5 / 13.5.9 / 14.2.25 / 15.2.3. Self-hosted deployments using `next start` or the `standalone` output are vulnerable. Developers rely on middleware as the single auth enforcement point, not realizing it can be bypassed at the infrastructure level.
+RLS policy authors focus on each new table in isolation. They validate that `SELECT * FROM tasks` is correctly filtered. They don't audit every query path that joins across the old and new table hierarchies. Foreign key constraints between RLS tables don't enforce tenant context — PostgreSQL foreign keys operate at the row level, not at the policy level.
 
-**How to avoid:**
-Two mitigations, both required:
-1. Use Next.js 15.2.3+ (patched). Pin the version in `package.json` with an exact version or `>=15.2.3`.
-2. Do not rely solely on Next.js middleware for auth enforcement. Every API call from server components and route handlers must independently verify the session by calling the FastAPI backend. Middleware is a UI redirect convenience layer, not a security boundary.
+Per the PostgreSQL wiki: "There is no sane and consistent model to make foreign keys make sense between tables with different labels / row security policies."
 
-If using a load balancer (nginx, Caddy), add a rule to strip any incoming `x-middleware-subrequest` header before it reaches Next.js.
+**Consequences:**
+Multi-tenant data isolation breach. Company A reads Company B's project plans. GDPR/SOC2 violation risk. Rewrite of all join queries required under time pressure.
 
-**Warning signs:**
-- Next.js version below 15.2.3 in `package.json`
-- Auth logic exists only in `middleware.ts` with no server-side token verification in individual route handlers
-- No Dependabot or automated security scanning on the `web/` directory
+**Prevention:**
+1. Every new table (`projects`, `trade_scopes`, `tasks`, `chat_messages`, `task_photos`, `annotations`) must have an explicit RLS policy before any data is inserted.
+2. RLS policies on child tables must validate tenant via a JOIN back to the parent's `company_id`, not via a stored `company_id` column that could be spoofed in application code.
+3. Write a cross-tenant isolation test for every new endpoint, specifically testing multi-table join queries (e.g., `GET /projects/{id}/tasks` with a Company B token while the project belongs to Company A).
+4. Add a CI step that lists all tables without RLS enabled and fails if any new table is missing a policy.
 
-**Phase to address:**
-Phase 1: Web Authentication — version pinning and defense-in-depth auth must be established before any routes are protected.
+**Detection:**
+- Any new table without `ALTER TABLE x ENABLE ROW LEVEL SECURITY`.
+- RLS policies that use `company_id = current_setting('app.current_tenant_id')` on a table where `company_id` is not a direct column (i.e., it requires a JOIN to get it) — these policies need verification.
+- Missing integration test: "Company B token + Company A project ID returns 404, not 200."
+
+**Phase to address:** Data model migration phase. No new table goes to production without its RLS policy and a cross-tenant test.
 
 ---
 
-### Pitfall 4: Redux Store as SSR Singleton — Cross-Request State Pollution
+### Pitfall 3: AI Context Window Grows Unbounded, Costs Explode
 
 **What goes wrong:**
-The Redux store is created as a module-level singleton (`const store = configureStore(...)`). On the server side, Next.js runs multiple requests concurrently in the same Node.js process. User A's auth state bleeds into User B's server-rendered page. In the best case, pages render with wrong data. In a multi-tenant SaaS, in the worst case, admin from Company A sees Company B's dashboard data in their server-rendered HTML.
+The AI project intake conversation starts with a system prompt (~2,000 tokens), adds the contractor interview exchange (~5,000 tokens), then appends the full project plan for adaptation queries, then adds task completion summaries. By week two of a project, every AI schedule adaptation call sends 40,000–80,000 tokens of context, costing $1–3 per single adaptation request. A company running 10 active projects generates $500–$1,500/week in AI costs with zero revenue uplift — all from a conversation history management design decision made in the first sprint.
+
+Published data: a production support bot handling 10,000 daily conversations can rack up $7,500+/month in token costs from naive conversation history appending.
 
 **Why it happens:**
-React apps in client-only mode use a single store per browser tab — the singleton pattern is correct there. The same pattern copy-pasted into a Next.js App Router setup shares that singleton across all server-side renders in the process.
+The first implementation sends the full message history to Claude on every request because it's the simplest pattern. No one thinks about cost until the first invoice. Claude's 200,000-token context window makes it feel like "there's plenty of room" — there is room, but cost scales with input tokens.
 
-**How to avoid:**
-Follow the RTK official Next.js pattern exactly: export a `makeStore` factory function, not a store instance. Use RTK's `createStoreRef` / React context approach for App Router, or `next-redux-wrapper` for Pages Router. Never import the store directly into server components — pass data as props from server to client components.
+**Consequences:**
+Unit economics collapse. Either AI features are throttled (degraded UX), costs are passed to customers at uncompetitive rates, or the conversation storage architecture is ripped out and rebuilt under urgency.
 
-```typescript
-// CORRECT — factory pattern
-export const makeStore = () => configureStore({ reducer: rootReducer });
-export type AppStore = ReturnType<typeof makeStore>;
+**Prevention:**
+Design conversation history management before writing the first AI endpoint:
+1. **Project intake**: One-time conversation. Store the raw exchange. Never re-send as history — only store the final structured output (JSON plan). The intake is a finite conversation, not an ongoing one.
+2. **Contractor interview**: Same — one-time per trade scope. Store structured output only.
+3. **AI schedule adaptation**: Does NOT need conversation history. Needs only: current task states + delays + weather/context snapshot. Structure as a stateless request with a compact summary, not a conversation thread.
+4. **Daily checklist generation**: Stateless. Input is the task plan + date. No history needed.
+5. Token budget per AI call: set `max_tokens` appropriately per use case. Log input + output tokens per call. Alert when a call exceeds 20,000 input tokens.
 
-// WRONG — singleton
-export const store = configureStore({ reducer: rootReducer }); // shared across all SSR requests
-```
+**Detection:**
+- Any AI service method that passes a `messages` array containing unbounded conversation history.
+- No `max_tokens` limit set on any Anthropic API call.
+- No token usage logging or cost tracking per AI operation type.
 
-**Warning signs:**
-- `export const store = configureStore(...)` at module level in `store.ts`
-- Server components that `import { store } from '@/store'` directly
-- No `makeStore` factory function in the codebase
-
-**Phase to address:**
-Phase 1: Web Foundation — store architecture must be set correctly from the first component, before any feature slices are added.
+**Phase to address:** AI integration phase (first one). Token budget strategy must be in the design doc before implementation begins.
 
 ---
 
-### Pitfall 5: Next.js Router Cache Serving Stale Auth Data After Logout
+### Pitfall 4: AI Structured Output Parsing Failures Silently Corrupt the Task Plan
 
 **What goes wrong:**
-Admin logs out. The Next.js App Router has cached the dashboard page in its Router Cache (30-second TTL for dynamic routes, 5 minutes for static). The next user on the same browser session navigates back and sees the previous admin's dashboard — including company-specific data — from the client-side cache, without making a new server request.
+Claude returns a JSON task plan via tool use. The parsing code assumes the tool call succeeds and the JSON is valid. In production, under model version updates or edge-case inputs (unusual trade descriptions, non-English input, very large projects), Claude occasionally returns malformed tool calls, partial JSON, or valid JSON with hallucinated fields (e.g., a `dependency_id` referencing a task ID that doesn't exist in the same response). The application stores the partial plan and the user sees a broken task list.
+
+Claude tool use returns valid schema responses 95–99% of the time — not 100%. Anthropic's own docs note that tool use schemas are "hints" unless using strict structured output modes.
 
 **Why it happens:**
-The Next.js App Router Router Cache is client-side and cannot be opted out of in older versions. It serves pages from memory without hitting the server during navigation. Developers test logout by redirecting to `/login` and assume the data is gone, but the back button or direct URL access can reveal cached content.
+Developers test the happy path. The LLM returns perfect JSON during development. Error handling is "I'll add that later." Later never comes before production.
 
-**How to avoid:**
-Three complementary approaches:
-1. Use Next.js 15+ where the Router Cache default staletime for dynamic routes is 0 (disabled by default). Set `staleTimes: { dynamic: 0 }` in `next.config.ts` for explicit control.
-2. Call `router.refresh()` on logout to invalidate the router cache immediately.
-3. Use cookie-based sessions — Next.js automatically invalidates Router Cache entries when cookies change (`cookies.delete()` on logout triggers cache invalidation).
-4. Add `Cache-Control: no-store` headers on API responses that return sensitive tenant data.
+**Consequences:**
+Corrupt project plans in the database. Tasks with non-existent dependency IDs cause cascade failures in the dependency graph resolution. AI planning loses user trust after two failures.
 
-**Warning signs:**
-- Logout handler only redirects to `/login` without calling `router.refresh()`
-- Next.js version below 15 with no `staleTimes` configuration
-- Admin dashboard pages without `no-store` cache headers on their data fetches
+**Prevention:**
+1. Use Claude tool use with explicit tool definitions. Parse the response with Pydantic validation — never `json.loads()` without schema validation.
+2. Validate referential integrity of AI output before persisting: every `dependency_id` in the task plan must reference a task ID that exists in the same response payload.
+3. On parse failure or validation failure: do NOT persist partial data. Return a structured error to the client. Queue a retry with a simplified prompt. Log the raw Claude response for debugging.
+4. Write a test that deliberately sends Claude responses with missing fields, null IDs, and circular dependencies — verify the application rejects and retries, not stores.
+5. Pin Claude model version (`claude-sonnet-4-5`) in the service layer. Update consciously, not by drifting to `claude-sonnet-latest`.
 
-**Phase to address:**
-Phase 1: Web Authentication — logout flow must include cache invalidation from the start.
+**Detection:**
+- `json.loads(response)` without Pydantic model validation in any AI response handler.
+- No test for malformed tool call responses.
+- `dependency_id` values not validated against the task list before persistence.
+
+**Phase to address:** AI planning phase. Robust parsing must be in the first implementation, not added after the first production failure.
 
 ---
 
-### Pitfall 6: Web Auth Flow Breaking Existing Mobile Refresh Token Family
+### Pitfall 5: WebSocket Auth Uses Initial Handshake Only, Sessions Stay Open Forever
 
 **What goes wrong:**
-The existing mobile app uses JWT refresh token rotation with family revocation (reuse detection). The web dashboard is added and uses the same `/auth/refresh` endpoint with `httpOnly` cookies instead of Bearer tokens. The refresh endpoint's family revocation logic, designed for a single active client, detects what looks like token reuse (two different clients holding refresh tokens from the same family) and invalidates all sessions — logging out all mobile users of that company when the web admin logs in, or vice versa.
+The chat WebSocket authenticates the user at connection establishment (JWT verified at `ws://...?token=...` or in the first message). The JWT expires 15 minutes later. The WebSocket connection remains open. The user's JWT is now invalid (refresh was needed), but the WebSocket has no mechanism to re-validate. The user continues to send and receive chat messages on an expired session. Worse: a revoked user (fired contractor) retains real-time chat access until their WebSocket disconnects.
 
 **Why it happens:**
-The backend refresh token model assumes one active refresh token per user (one active session). Adding a web client means the same user now has two legitimate sessions: one in the mobile app, one in the browser. If the token family logic uses a shared family ID per user (not per session), the second login triggers the reuse detection cascade.
+REST endpoints validate the JWT on every request automatically. WebSocket connections are stateful — authentication happens once at handshake. Developers don't realize they need a separate token refresh mechanism for the WebSocket layer.
 
-**How to avoid:**
-Extend the refresh token model before shipping web auth. Each session (mobile, web) must belong to an independent token family. Add a `session_id` or `client_type` field to the `refresh_tokens` table. Family revocation fires only within a family, not across all families for that user. Test the scenario: admin logs into web while contractor app is active — verify neither session is terminated.
+**Consequences:**
+Security gap: revoked users retain access. Compliance failure in a multi-tenant B2B system where employee offboarding requires immediate access termination.
 
-**Warning signs:**
-- `refresh_tokens` table without a `session_id` or `client_type` column
-- Family revocation query uses `WHERE user_id = $1` without filtering by `family_id`
-- No test that exercises simultaneous mobile + web active sessions for the same user
+**Prevention:**
+1. WebSocket connections must validate the JWT at the initial handshake (reject at HTTP 401 before upgrade if invalid).
+2. Server must re-validate the session periodically during the WebSocket lifecycle (every 5 minutes) using a server-side session store, not just the JWT expiry. When the JWT would be expired, close the connection with code 4401 and send a reconnect signal.
+3. The Flutter client must handle the 4401 close code: refresh the token via the standard auth flow, then reconnect the WebSocket with the new token.
+4. On user deactivation/logout: trigger a server-side WebSocket connection close for all active connections belonging to that user. Maintain a connection registry (in-memory or Redis keyed by `user_id`) to enable forced disconnect.
 
-**Phase to address:**
-Phase 1: Web Authentication — must audit and extend the refresh token model before the web login endpoint goes live.
+**Detection:**
+- WebSocket handler that only validates JWT in the connection event, not periodically.
+- No test for "JWT expires mid-session — verify connection is closed and client reconnects."
+- No test for "user revoked — verify WebSocket is force-closed server-side."
+
+**Phase to address:** Real-time chat phase, from the first WebSocket endpoint.
 
 ---
 
-### Pitfall 7: API Contract Changes Breaking Mobile Without Detection
+### Pitfall 6: AI Conversation State Leaks Across Tenants
 
 **What goes wrong:**
-The web admin dashboard requires richer responses from the API — more fields, different shapes, new relationships. A developer adds a new required field to a response schema, renames a field for web clarity, or changes a nullable field to required. The mobile app, which was not updated, silently receives null where it expects a string, causing crashes or data corruption in the Flutter Drift sync layer. The problem surfaces days or weeks later when a mobile user in the field experiences data loss.
+The AI project intake service stores conversation state (system prompt + message history) in a Python dict or in-memory cache keyed by `session_id`. Two concurrent project intake sessions from different companies share a server process. If the session state is accidentally keyed by `user_id` only (not `company_id + user_id`), or if a caching library returns state from a prior evicted session for a new user with a recycled ID, tenant A's project description contaminates tenant B's AI planning response.
 
 **Why it happens:**
-Web and mobile share the same FastAPI backend but are developed on different timelines. Without a shared contract test layer, changes to Pydantic response schemas are not validated against the mobile app's deserialization expectations. Flutter's `json_serializable` with `unknownEnumValue` / nullable handling may silently swallow missing fields rather than failing loudly.
+AI conversation state feels like a simple cache entry. RLS handles database isolation but has no concept of in-memory Python state. Developers who wrote the existing multi-tenant system are expert at RLS but haven't thought about where the AI conversation lives between API calls.
 
-**How to avoid:**
-Adopt additive-only API changes as a strict rule:
-- New response fields must be `Optional` with a default in Pydantic — never suddenly required
-- Never rename existing fields — add a new field with the new name, deprecate the old one
-- Never remove fields consumed by mobile (check Flutter models before removing)
-- Add a contract test in CI: serialize the current Flutter model classes against real API responses and assert no missing required fields
+**Consequences:**
+Tenant A reads tenant B's proprietary project details via the AI response. Multi-tenant SaaS trust failure. Potentially a GDPR breach.
 
-Create a shared OpenAPI schema validation step in CI that runs on every backend PR, generating and diffing the OpenAPI spec against the last committed version, flagging removals or type changes as breaking.
+**Prevention:**
+1. Never store AI conversation state in module-level Python variables or shared in-memory stores.
+2. Store conversation history in the database (a `ai_conversations` table with `company_id`, `user_id`, `session_id`, RLS policy enabled). Retrieve from DB on every continuation request.
+3. The `system_prompt` for every AI call must include the tenant's `company_id` as an identifier. This does not provide security (Claude has no enforcement) but does create an audit trail.
+4. AI service methods must be in `TenantScopedService` and receive `company_id` from the authenticated user's JWT, never from request body parameters.
+5. Add a test: start intake session as Company A, submit a second request as Company B using Company A's `session_id` — verify 403 or empty, not Company A's data.
 
-**Warning signs:**
-- Pydantic response schemas with new `required` fields added without `Optional` + default
-- Backend PRs that rename existing response fields
-- No OpenAPI spec diffing in CI
-- Flutter `fromJson` methods using `!` (non-null assertion) on fields that might become absent
+**Detection:**
+- AI conversation state stored in `app.state` or module-level Python dict.
+- `session_id` used as a cache key without `company_id` prefix.
+- AI service that accepts `company_id` from request body instead of JWT.
 
-**Phase to address:**
-Phase 1: Web Foundation — OpenAPI contract testing must be in CI before any web-driven API changes land.
+**Phase to address:** AI integration phase. Tenant isolation for AI state must be in the design, not retrofitted.
 
 ---
 
-### Pitfall 8: RTK Query SSR Data Fetching Causing Hydration Mismatches
+## Moderate Pitfalls
 
-**What goes wrong:**
-A Next.js server component fetches data using RTK Query (or Redux dispatch). The server renders HTML with the fetched data. The client hydrates but the Redux store is empty (client starts fresh) or initializes with different data. React throws a hydration error: "Text content does not match server-rendered HTML." The page flickers, or worse, the mismatch is suppressed with `suppressHydrationWarning` and stale server data is silently shown.
-
-**Why it happens:**
-RTK Query is designed for client-side data fetching and caching. Using it in server components without proper store hydration results in a server/client state mismatch. The official RTK docs explicitly state: "RTK Query is for data fetching on the client only" — server components should use plain `fetch` calls.
-
-**How to avoid:**
-Separate server-state fetching from client-state management explicitly:
-- Server components: use `fetch` directly against the FastAPI backend (with session cookie forwarded), never RTK Query dispatch
-- Client components: use RTK Query for interactive data that needs cache invalidation and real-time updates
-- Hydrate the Redux store from server-fetched data using the RTK `makeStore` + `PreloadedState` pattern, then let RTK Query take over for subsequent fetches
-
-**Warning signs:**
-- `store.dispatch(someApi.endpoints.getData.initiate())` inside a server component or `getServerSideProps`
-- Hydration error warnings in the browser console on initial load
-- `suppressHydrationWarning={true}` used anywhere in the app
-
-**Phase to address:**
-Phase 1: Web Foundation — data fetching architecture must be resolved before the first page component is built.
+Mistakes that cause significant rework but not data loss.
 
 ---
 
-### Pitfall 9: Multi-Tenant RLS Not Applied to Web-Specific Queries
+### Pitfall 7: Per-Trade Quote Extension Breaks Existing Quote Approval Flow
 
 **What goes wrong:**
-The web dashboard adds new query patterns not used by the mobile app — aggregate reporting, cross-entity search, bulk export. A developer writes a reporting query without realizing the `SET LOCAL app.current_tenant_id` context variable must be set for every database session that accesses RLS-protected tables. The reporting endpoint returns data from all tenants, or the RLS policy blocks the query entirely.
+The existing Quote model has a linear approval flow: GC creates quote, client approves/rejects. Extending to per-trade quotes means a project has N trade quotes that aggregate to a project total. The client approval flow is now ambiguous: does the client approve each trade quote individually, or the aggregate? The existing Pydantic `QuoteResponse` schema adds new fields (`trade_scope_id`, `project_id`) without making them `Optional` — the Flutter app deserializing the old schema crashes on the new response shape. The mobile outbox has pending quote-related mutations that process against a schema that no longer exists.
 
 **Why it happens:**
-Mobile-facing endpoints were all written with the tenant context middleware in place. The pattern is established but implicit — a new web-specific endpoint added by a developer unfamiliar with the tenant isolation mechanism may omit the dependency injection, or use a raw SQL query that bypasses the SQLAlchemy session that has the tenant context set.
+Developers extend the Quote model in-place to add multi-trade fields. They test the web dashboard (which they just updated). They don't test the Flutter app (which has the old deserialization code) or the outbox (which has pending mutations from the old schema).
 
-**How to avoid:**
-All new web endpoints must use `Depends(get_current_user)` + the tenant context middleware exactly as existing endpoints do. Any new service methods must inherit from `TenantScopedService`. Add a CI test for every new API endpoint that verifies: (a) a valid token from Company A cannot retrieve Company B's data, and (b) the endpoint returns 403/404 without a token.
+**Prevention:**
+1. New fields on existing Pydantic response schemas MUST be `Optional` with defaults. Never add required fields to an existing response schema — the Flutter app will crash on upgrade lag.
+2. Create a new `TradeQuote` model alongside the existing `Quote`, not instead of it. The project-level aggregate is a new concept; individual job quotes retain their existing structure. Existing jobs (non-project) continue using the existing `Quote` flow unchanged.
+3. Before shipping the Quote extension: run the mobile test suite against the new API response (response compatibility test). Confirm `QuoteResponse` deserialization in Flutter handles all optional new fields gracefully.
+4. Test: outbox with pending quote mutation from old schema replays against new API — verify it succeeds or fails gracefully, not with an unhandled 422.
 
-**Warning signs:**
-- New endpoints without `Depends(get_current_user)`
-- Raw `db.execute(text("SELECT ..."))` calls without session-level tenant context
-- No cross-tenant isolation tests for web-specific endpoints in the test suite
+**Detection:**
+- `QuoteResponse` with new non-Optional fields.
+- No Flutter deserialization test against the updated API schema.
+- No test that exercises the existing mobile quote flow after the per-trade extension.
 
-**Phase to address:**
-Every phase — each new web endpoint must include a cross-tenant isolation test. Establish as a PR checklist item.
+**Phase to address:** Per-trade quoting phase. Treat the existing Quote model as a public API — additive changes only.
 
 ---
 
-### Pitfall 10: Dual Auth Flow Complexity — Web Cookies vs Mobile Bearer Tokens
+### Pitfall 8: Photo Annotation Layer Blocks the Main Flutter UI Thread
 
 **What goes wrong:**
-The backend auth middleware is extended to handle both httpOnly cookie auth (web) and Bearer token auth (mobile). A subtle bug in the precedence logic causes mobile `Authorization` headers to be ignored when a cookie is present (or absent), breaking mobile auth for users who have ever used the web dashboard on the same device/browser. Worse, a web session cookie is inadvertently sent by the browser on mobile WebView requests, confusing the auth layer.
+The annotation canvas uses `CustomPaint` with a `List<Annotation>` that grows as the user draws. Each `notifyListeners()` call triggers a repaint of the entire canvas including the background photo. On a high-resolution construction photo (5MB+, 4000x3000px), the canvas repaints the full image on every pointer move event. At 60fps pointer events, this blocks the UI thread, causing jank and dropped frames. The annotation that "works fine in testing" (low-res simulator photos) is unusable in the field (high-res phone photos).
+
+Flutter 2025 best practice: use `PictureRecorder` caching for the static background layer, repaint only the annotation layer. This is not the default `CustomPaint` behavior.
 
 **Why it happens:**
-Supporting two auth mechanisms in one FastAPI dependency increases complexity. `get_current_user` must try the cookie first, then the header, without throwing on the absence of either until both are exhausted. Error messages that only reference "Bearer token" confuse web users, and vice versa.
+The photo is treated as a static widget behind the canvas. In practice, a `CustomPaint` with `foregroundPainter` still repaints when the parent rebuilds. Image decoding is not cached between paints. The test environment uses small images that hide the performance problem.
 
-**How to avoid:**
-Create a single `get_current_user` dependency that checks both sources explicitly:
+**Prevention:**
+1. Pre-decode the background photo to a `ui.Image` once (using `decodeImageFromList`). Cache this `ui.Image` and paint it directly with `canvas.drawImage()` — do not use an `Image` widget or rebuild from bytes on each paint.
+2. Separate the background layer (static, cached `RepaintBoundary`) from the annotation layer (dynamic `CustomPaint`). Only the annotation layer repaints on pointer events.
+3. Use `PointFilterMode` and simplify line paths with Douglas-Peucker algorithm or Bezier smoothing before adding to the `List<Annotation>` — reduce the point count that must be redrawn.
+4. Test with real device photos from a Pixel or Samsung (4000x3000px+). Simulator testing with network images is not representative.
 
-```python
-async def get_current_user(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-) -> User:
-    # 1. Check httpOnly cookie (web)
-    token = request.cookies.get("access_token")
-    # 2. Fall back to Bearer header (mobile)
-    if not token:
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]
-    if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    return await verify_token(token, db)
-```
+**Detection:**
+- `CustomPaint` that paints both the background image and annotations in the same painter.
+- No `RepaintBoundary` separating the static photo layer from the annotation layer.
+- Performance testing only done on simulator or with small test images.
 
-Write explicit tests: mobile client sends Bearer header → authenticated; web client sends cookie → authenticated; both present → cookie wins; neither present → 401.
-
-**Warning signs:**
-- Separate `get_current_user_web` and `get_current_user_mobile` dependencies that share no code
-- Auth middleware that only checks one auth mechanism
-- No test covering the Bearer-header path after adding cookie support
-
-**Phase to address:**
-Phase 1: Web Authentication — unified auth dependency design must precede any endpoint implementation.
+**Phase to address:** Photo annotation phase. Architecture decision must be made before first implementation — layered canvas is harder to retrofit.
 
 ---
 
-## Technical Debt Patterns
+### Pitfall 9: Chat Message Delivery Guarantees — WebSocket Is Not Reliable Enough Alone
 
-| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
-|----------|-------------------|----------------|-----------------|
-| Store JWT in localStorage | Trivial implementation | XSS can exfiltrate tokens; admin data exposed | Never for admin dashboard |
-| CORS wildcard `*` with credentials | No origin management | Invalid per spec; breaks browser credentialed requests | Never |
-| Redux singleton store | Simple setup | Cross-request state pollution in SSR; tenant data leakage risk | Never in Next.js SSR context |
-| Middleware-only auth guard | Simple route protection | CVE-2025-29927 bypass; not a security boundary | Never as sole auth mechanism |
-| Skip OpenAPI contract testing | Faster CI | Mobile app breaks silently on field removal | Never |
-| Shared refresh token family for web+mobile | No model changes | New web session revokes all mobile sessions | Never |
-| Copy mobile API endpoints for web without additive review | Faster feature delivery | Field changes break mobile | Never without regression tests |
-| RTK Query in server components | Unified data fetching | Hydration mismatches, SSR/client state desync | Never |
+**What goes wrong:**
+The chat implementation sends messages over WebSocket only. A contractor sends a site photo in a chat message. The GC's WebSocket connection drops (intermittent field site connectivity) at the exact moment of delivery. The message is lost — no persistence, no retry, no delivery confirmation. The contractor thinks the GC received it. The GC never sees it. A critical safety issue (e.g., photo of cracked foundation) is missed.
+
+**Why it happens:**
+WebSocket feels like a reliable channel. It is not — it is a transport layer with no built-in delivery guarantees. "Fire and forget" over WebSocket is fine for low-stakes real-time events, not for business-critical construction communication.
+
+**Prevention:**
+1. Chat messages must be persisted to the database (REST endpoint or within WebSocket handler) before they are considered sent. The client should not show "sent" status until server ACK.
+2. Use WebSocket for real-time delivery (low latency), but persist to DB on every send. Message recipients fetch chat history via REST on reconnect — they receive anything missed during disconnection.
+3. Implement a simple ACK protocol: server assigns `message_id` and sends back an ACK event over the WebSocket. Client tracks unacknowledged messages. After 10 seconds without ACK, client retries via REST POST.
+4. FCM push notification for every new chat message (background delivery when WebSocket is not connected). This already has infrastructure from v1.
+
+**Detection:**
+- Chat messages that are only sent via WebSocket with no database persistence.
+- No delivery ACK mechanism in the WebSocket protocol.
+- No FCM push for chat messages.
+
+**Phase to address:** Real-time chat phase. Delivery guarantee architecture must be in the design doc.
+
+---
+
+### Pitfall 10: Drift Schema Migration Required for New Entities — Outbox Schema Also Changes
+
+**What goes wrong:**
+The Project, TradeScope, Task, ChatMessage, and TaskAnnotation entities need Drift table definitions for offline caching. Each new Drift table increments the schema version and requires a `MigrationStrategy`. The existing outbox table has a fixed set of `entity_type` values. Adding new entity types to the outbox without a Drift migration causes schema validation errors on existing installs. Users who had the v1.0 app installed and upgrade directly to v3.0 encounter a migration path that must traverse from Drift version 6 to version X without data loss.
+
+**Why it happens:**
+The mobile team adds Drift tables alongside new features without coordinating the migration path across the full version range. A migration added for v3.0 phase 2 accidentally references a column added in v3.0 phase 4 — works on fresh installs, fails on upgrade from v1.0.
+
+**Prevention:**
+1. Maintain a single `migrations.dart` file with sequential schema version steps. Every step must be tested with the previous version's schema as the starting state.
+2. Before shipping any v3.0 phase: test the full migration path from Drift v6 (current production schema) to the new version on a device with production-like data.
+3. New outbox `entity_type` values must be added via a Drift migration that adds the value to an enum or removes the constraint, not assumed to exist.
+4. Use Drift's `destructiveFallback` only in development. Production migrations must be non-destructive.
+
+**Detection:**
+- No test that starts from a prior Drift schema version and validates migration success.
+- New entity types added to the outbox without updating the Drift schema.
+- `MigrationStrategy` with `destructiveFallback` outside of `kDebugMode`.
+
+**Phase to address:** First v3.0 mobile entity phase. Establish migration discipline before any new Drift table ships.
+
+---
+
+### Pitfall 11: Claude API Rate Limits Cause Cascading UX Failures During Project Intake
+
+**What goes wrong:**
+A GC creates three projects in the same hour. Each project intake sends 3–5 Claude API requests (intake conversation + contractor interviews per trade). 15 concurrent API requests hit Anthropic's rate limits (tokens-per-minute limit, not just requests-per-minute). Anthropic returns 429. The application has no retry logic. All three project intakes fail simultaneously, showing users a generic error. The GC tries again — hits rate limits again. Trust in AI planning collapses in the first week of production.
+
+**Why it happens:**
+Rate limits are not a problem during development (one developer, occasional requests). They surface under real production multi-user load. Anthropic's rate limits are tiered by account and reset in short windows — hitting them is not an exception condition in production, it's expected behavior that must be handled gracefully.
+
+**Prevention:**
+1. Implement exponential backoff with jitter for all Claude API calls. On 429: wait (2^retry_count * 1000ms) + random(0–1000ms), max 3 retries.
+2. Queue project intake requests per company (not globally). If Company A is already processing an intake, queue the second intake rather than sending concurrently.
+3. Expose rate limit status to the user: "Your project is being planned — this takes 30–60 seconds" rather than a silent spinner or instant failure.
+4. Track token usage per company per hour. Alert operators when a company is approaching limits. Future: implement per-company token budget.
+5. Structure Claude calls to minimize token usage: short system prompts, focused tool definitions, no unnecessary conversation history (see Pitfall 3).
+
+**Detection:**
+- No retry logic on Anthropic API calls.
+- Multiple concurrent Claude API requests per user session.
+- No user-facing progress indication during AI processing (users retry on slow responses, multiplying the load).
+
+**Phase to address:** AI integration phase. Rate limit handling must be in the first Claude API service, not added after the first production incident.
+
+---
+
+## Minor Pitfalls
+
+Mistakes that cause rework in one area but don't cascade.
+
+---
+
+### Pitfall 12: Dependency Graph Circular Dependency Not Detected at Creation Time
+
+**What goes wrong:**
+The task dependency model allows Trade A's final task to depend on Trade B's final task, which depends on Trade A's final task. The AI creates this correctly (it doesn't make circular dependencies). But the human override flow — where a GC manually adjusts dependencies on the web dashboard — has no cycle detection. The DAG becomes a graph with cycles. Schedule calculation hangs or recurses infinitely.
+
+**Prevention:**
+On every dependency edge creation (via API or AI generation), run a DFS cycle detection on the task graph before persisting. This is O(V+E) and fast for construction project sizes (rarely >200 tasks). Return 400 with "This dependency creates a circular chain: Task A → Task B → Task A" before saving.
+
+**Detection:**
+No cycle detection in the `POST /tasks/{id}/dependencies` endpoint or AI plan persistence service.
+
+**Phase to address:** Task dependency model phase.
+
+---
+
+### Pitfall 13: AI-Generated Task Plans Are Too Granular for Real Field Use
+
+**What goes wrong:**
+Claude is given a trade scope description ("install all electrical in a 3-bed house") and generates 47 tasks with 15 subtasks each, 8 material line items per subtask, and photo requirements every 20 minutes. A contractor in the field opens the AI checklist and sees a wall of text. Adoption is zero — contractors ignore the checklist and use their own judgment. The "AI-powered productivity" feature becomes a liability.
+
+**Why it happens:**
+The AI is optimized to be thorough, not practical. The system prompt doesn't constrain output to what a field contractor actually needs. No user research with real contractors was done before the prompt was written.
+
+**Prevention:**
+1. Prompt engineering test: show the AI output to 2–3 real tradespeople before shipping. Adjust based on their feedback.
+2. Constrain task count in the tool definition: `max_tasks_per_trade: 15`, `max_checklist_items_per_task: 5`, `photo_requirements: ["start", "end", "issue_only"]`.
+3. Allow contractors to collapse/skip AI subtasks. The AI plan is a suggestion, not a mandate.
+4. Add a "plan density" setting that GCs can configure: "detailed" (AI default) vs. "lightweight" (fewer tasks, morning summary only).
+
+**Detection:**
+AI plans with >20 tasks per trade scope in test output. No user review of AI output before feature ships.
+
+**Phase to address:** AI contractor interview phase. Prompt constraints must be defined with input from real users.
+
+---
+
+### Pitfall 14: Chat File Sharing Uses the Existing Photo Endpoint, Causing Storage Mix-Up
+
+**What goes wrong:**
+The chat feature reuses the existing `/jobs/{id}/photos` endpoint for file sharing in chat. Photos sent in chat are stored alongside job progress photos. The mobile sync layer pulls all job photos — now it also pulls chat photos. Storage costs increase, sync time increases, and the Drift photo cache fills with chat images that the user never requested. Photo annotation (designed for job/task photos) appears on chat photos when the user taps them.
+
+**Why it happens:**
+Reusing the existing endpoint feels efficient. The storage infrastructure is already there. Nobody audited what "pulling all job photos" means when chat photos are also in that bucket.
+
+**Prevention:**
+Chat file attachments are a separate entity. Create a `chat_attachments` table and a `/chat/{conversation_id}/attachments` upload endpoint. Chat attachments: no Drift sync (online-only), no photo annotation, separate S3 prefix. Task/job photos: existing path, Drift sync, annotation enabled.
+
+**Detection:**
+Chat file upload calling `/jobs/{id}/photos` or any endpoint that writes to the job photos entity.
+
+**Phase to address:** Real-time chat phase. Storage separation must be in the design before implementation.
+
+---
+
+## Phase-Specific Warnings
+
+| Phase Topic | Likely Pitfall | Mitigation |
+|-------------|---------------|------------|
+| Data model migration (Project/Task) | RLS policies missing on new tables | CI check: all tables have RLS; cross-tenant isolation test per endpoint |
+| AI project intake | Unbounded token cost | Design token budget before first implementation; stateless adaptation calls |
+| AI project intake | Structured output parsing failures | Pydantic validation + referential integrity check on every AI response |
+| AI contractor interview | Over-granular task plans | Constrain tool definition; user research before shipping |
+| Real-time chat | WebSocket-only delivery (messages lost) | Persist to DB first; ACK protocol; FCM fallback |
+| Real-time chat | JWT expiry mid-session | Periodic server-side re-validation; 4401 close code + client reconnect |
+| Real-time chat | Chat attachments mixed with job photos | Separate `chat_attachments` entity and storage path |
+| Photo annotation | UI thread blocking on large photos | Cache `ui.Image`; separate static/dynamic layers; test with real device photos |
+| Per-trade quoting | Breaking existing Quote schema | Additive-only changes; `TradeQuote` alongside existing `Quote`; mobile compat test |
+| Offline → online-first shift | Outbox conflicts with AI state | Domain boundary: AI-owned vs client-owned entities; `plan_version` for conflict detection |
+| Drift schema migration | Migration path gaps from v1 → v3 | Test full migration chain from Drift v6; no destructiveFallback in production |
+| Any new AI endpoint | Tenant context leak in conversation state | Store conversation state in DB with RLS; `TenantScopedService` for all AI services |
+| Any new AI endpoint | Rate limit cascades | Exponential backoff; per-company request queue; user-facing progress indication |
+| Task dependency model | Circular dependency graph | DFS cycle detection on every edge creation before persisting |
+
+---
+
+## Technical Debt Patterns to Avoid
+
+| Shortcut | Why Teams Take It | Long-term Cost | Decision |
+|----------|-------------------|----------------|----------|
+| Send full conversation history to Claude on every call | Simplest pattern; works in dev | Cost explosion at production scale | Never — design token budgets from day one |
+| Validate AI JSON with `json.loads()` only | Fast to write | Hallucinated fields corrupt the data model | Never — always Pydantic schema validation + referential integrity |
+| WebSocket-only chat (no persistence) | Simpler server code | Messages lost on disconnect; no history on reconnect | Never — persist first, deliver second |
+| Reuse job photos endpoint for chat | Less code | Storage mix-up; sync overhead; annotation on chat photos | Never — separate entities for separate concerns |
+| Add per-trade fields to existing Quote schema as required | Faster than new model | Flutter crash on response deserialization | Never — Optional fields only, or new model alongside old |
+| Store AI conversation in Python dict / app.state | Fast prototype | Tenant context leak across companies | Never — DB-backed with RLS |
+| Test photo annotation only on simulator | Convenient | Performance cliff on real device photos | Never — always test with 4K+ real photos |
+| Validate WebSocket JWT at handshake only | Standard WebSocket tutorial pattern | Revoked users retain access until disconnect | Never — periodic re-validation required |
 
 ---
 
@@ -297,67 +423,33 @@ Phase 1: Web Authentication — unified auth dependency design must precede any 
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| FastAPI + Next.js CORS | `allow_origins=["*"]` with `allow_credentials=True` | Enumerate origins explicitly; wildcard is invalid with credentials |
-| FastAPI refresh tokens + web client | Existing single-family-per-user model conflicts with multi-session | Add `session_id` column; revoke by family, not user |
-| FastAPI + httpOnly cookies | Cookie `SameSite=Strict` blocks browser cross-origin API calls during redirects | Use `SameSite=Lax` for auth cookies; `Strict` only for CSRF tokens |
-| Redux + Next.js App Router | Module-level store singleton shared across SSR requests | Use `makeStore` factory; never `export const store = ...` at module level |
-| RTK Query + server components | Dispatching RTK queries in server components causes hydration mismatch | Server components use `fetch`; RTK Query client components only |
-| Next.js Router Cache + logout | Post-logout navigation shows cached authenticated pages | Call `router.refresh()` on logout; use Next.js 15 with `dynamic: 0` staletime |
-| OpenAPI schema + Flutter | New required Pydantic fields break Flutter deserialization silently | All new fields `Optional` with defaults; diff OpenAPI spec in CI |
-| Playwright E2E + MSW | MSW only intercepts client-side fetch by default; SSR requests bypass it | Use MSW server-side handler integration for Next.js SSR test coverage |
-
----
-
-## Performance Traps
-
-| Trap | Symptoms | Prevention | When It Breaks |
-|------|----------|------------|----------------|
-| RTK Query over-fetching on every route change | Dashboard feels slow; excessive API calls visible in network tab | Use RTK Query `keepUnusedDataFor` and cache tags; normalize entity state | Immediately at scale with large data sets |
-| Non-normalized Redux state with large contractor/job lists | UI re-renders entire job list on single record update | Use `createEntityAdapter` for all list data; update by ID not by position | 50+ contractors, 200+ jobs per company |
-| Unoptimized Next.js bundle including admin-only chart libraries | Initial page load >3s for admin dashboard | Dynamic import heavy charting libs: `dynamic(() => import('recharts'), { ssr: false })` | First page load on slower connections |
-| Server component fetches without caching headers | Reporting dashboard refetches on every navigation | Use `fetch` with `{ next: { revalidate: 60 } }` for stable reporting data | Any non-trivial admin data load |
-| Polling for real-time dashboard updates | Excessive API load; backend overwhelmed by web dashboard polling | Use polling intervals >30s for non-critical data; long-polling or WebSocket for live scheduling | 10+ simultaneous admin users |
-
----
-
-## Security Mistakes
-
-| Mistake | Risk | Prevention |
-|---------|------|------------|
-| Access token in localStorage or sessionStorage | XSS exfiltration of admin JWT; full tenant data access | httpOnly cookie only; never JavaScript-accessible storage |
-| Middleware-only auth (CVE-2025-29927) | Authentication bypass via `x-middleware-subrequest` header | Use Next.js ≥15.2.3; verify session in every server component independently |
-| CSRF with cookie-based auth | Malicious site triggers state-changing requests using admin's session cookie | Add `SameSite=Lax` to cookies; use double-submit CSRF token for state-changing requests; FastAPI `Depends` on CSRF header check |
-| Trusting `company_id` from the web request body | Web admin could submit another company's ID to access their data | Derive `company_id` from authenticated JWT claims only; never from request body or query params |
-| Exposing internal error details in web API responses | Stack traces reveal table names, tenant IDs, internal architecture | All errors caught at API boundary; return generic `{"detail": "..."}` only; full errors logged server-side |
-| Missing rate limiting on web auth endpoints | Brute-force of admin credentials; credential stuffing | `slowapi` rate limits on `/auth/web/login` and `/auth/refresh` (same limits as mobile); web login additionally protected by CAPTCHA in production |
-
----
-
-## UX Pitfalls
-
-| Pitfall | User Impact | Better Approach |
-|---------|-------------|-----------------|
-| No loading skeleton on RTK Query data fetches | Dashboard feels broken / blank on first load | Use RTK Query `isLoading` with Shadcn/Tailwind skeleton components on every data table |
-| Web calendar shows all jobs (no company filter) | Admin confused seeing data from wrong context | Derive `company_id` from auth context at page load; never show cross-company data |
-| Form submission with stale RTK Query cache | Admin submits quote update; list still shows old status | Invalidate RTK Query tags on mutation; `invalidatesTags: ['Quote']` on every write mutation |
-| No optimistic updates on status changes | Job status change feels slow; admin clicks again | Use RTK Query `optimisticUpdate` for job lifecycle transitions; roll back on error |
-| Web dashboard mobile-unusable | Admin on tablet gets broken layout | Use responsive Tailwind breakpoints from the start; test at 768px viewport |
-| Logout doesn't clear all tabs | Other open browser tabs still show authenticated content | Use `BroadcastChannel` API to signal logout across tabs; each tab subscribes and redirects |
+| Anthropic API + multi-tenant | Conversation state in shared in-memory cache | DB-backed `ai_conversations` table with `company_id` + RLS |
+| Anthropic API + FastAPI async | Synchronous `anthropic.messages.create()` blocking event loop | Use `AsyncAnthropic` client; all Claude calls must be awaitable |
+| WebSocket + JWT (15-min TTL) | Auth at handshake only; sessions stay open post-expiry | Periodic server-side session check; 4401 close + client reconnect flow |
+| Drift + new v3 entity types | Adding entity types without Drift migration | `MigrationStrategy` with sequential steps; test from v6 → vN |
+| Existing outbox + AI-owned entities | Queuing AI plan mutations in the outbox | AI-owned entities are read-only on client; no outbox for plan structure changes |
+| Flutter `CustomPaint` + large photos | Repainting background image on every annotation event | Cache `ui.Image`; separate layers with `RepaintBoundary` |
+| Per-trade quotes + existing Quote model | Adding required fields to existing `QuoteResponse` | `Optional` fields only; separate `TradeQuote` model for new behavior |
+| New tables + existing RLS | FK relationships between tables with different RLS labels | Explicit RLS policy on every new table; CI check for unprotected tables |
 
 ---
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **Auth security:** Token stored in httpOnly cookie — verify `document.cookie` in browser console cannot read the access token
-- [ ] **CORS:** Mobile app's existing auth flow still works after CORS middleware is added — run the mobile app against the dev backend and verify login + token refresh
-- [ ] **Middleware bypass:** Next.js version is ≥15.2.3 — verify `package.json` and confirm with `next --version` in CI
-- [ ] **SSR store isolation:** Two concurrent server requests render with independent Redux stores — write a test that simulates two requests and asserts no state leak
-- [ ] **Logout cache:** Post-logout navigation does not show cached authenticated pages — manually test browser Back button after logout
-- [ ] **Token family isolation:** Mobile app session survives web dashboard login — test both sessions remain active simultaneously
-- [ ] **API contract:** All new Pydantic response fields are `Optional` with defaults — diff the OpenAPI spec before/after each backend PR
-- [ ] **Cross-tenant web:** Web admin endpoints deny cross-company access — automated test with Company A token accessing Company B's resources
-- [ ] **CSRF protection:** State-changing web requests rejected without CSRF token — test from a different origin using fetch with credentials
-- [ ] **Hydration:** No hydration mismatch warnings in browser console on first load of any dashboard page
+- [ ] **AI cost:** Token usage is logged per AI call type. No call sends more than 20,000 input tokens without an explicit design reason.
+- [ ] **AI parsing:** Every AI response goes through Pydantic validation + referential integrity check before database write.
+- [ ] **Tenant isolation:** AI conversation state is in the database with RLS. No Python dict or `app.state` cache for conversation history.
+- [ ] **WebSocket auth:** JWT re-validated server-side every 5 minutes. Test: JWT expires mid-session → connection closed → client reconnects.
+- [ ] **WebSocket delivery:** Chat message persisted to DB before "sent" status shown to user. ACK protocol implemented.
+- [ ] **RLS coverage:** Every new table has an explicit RLS policy. CI fails if a new table without RLS is added.
+- [ ] **Cross-tenant isolation:** Integration test for every new endpoint: Company B token + Company A resource ID returns 404.
+- [ ] **Mobile schema compatibility:** `QuoteResponse`, `JobResponse`, and all extended schemas — new fields are `Optional` with defaults. Flutter deserialization test passes.
+- [ ] **Drift migration:** Full migration chain from Drift v6 tested on a device with real data. No `destructiveFallback` in production builds.
+- [ ] **Domain boundary:** No outbox entry has `entity_type` for `Project`, `TradeScope`, or `Task` creation/update (these are server-owned). Client outbox only for progress/completion records.
+- [ ] **Photo performance:** Annotation tested with a real 4000x3000px photo on a physical Android device. No frame drops during drawing.
+- [ ] **Dependency graph:** Cycle detection runs on every dependency edge creation. Test: circular dependency returns 400.
+- [ ] **Chat attachments:** Chat file uploads go to `chat_attachments`, not `job_photos`. Drift sync does not pull chat attachments.
+- [ ] **Rate limits:** Anthropic API calls have exponential backoff. Test: mock 429 → verify retry behavior, not crash.
 
 ---
 
@@ -365,51 +457,33 @@ Phase 1: Web Authentication — unified auth dependency design must precede any 
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| JWT stored in localStorage exposed | CRITICAL | Force logout all sessions (invalidate all refresh tokens in DB); rotate JWT secret; audit access logs for anomalous access; notify affected admins |
-| CORS wildcard breaks mobile auth | MEDIUM | Update CORS config to explicit origins; deploy backend hotfix; verify mobile app auth flow in staging before production deploy |
-| Redux SSR singleton leaks tenant data | HIGH | Audit server logs for cross-user renders; refactor to makeStore factory; regression test all SSR paths before redeploy |
-| Next.js middleware bypass exploited | CRITICAL | Immediately upgrade Next.js to ≥15.2.3; add load balancer header strip rule; audit server logs for `x-middleware-subrequest` header presence; rotate all admin tokens |
-| API contract change breaks mobile | MEDIUM | Revert field change on backend; deploy hotfix; add optional field with default; coordinate mobile client update |
-| Web session invalidates all mobile sessions | MEDIUM | Hotfix: add session_id to token family scope; invalidate all current tokens (force re-login); redeploy backend |
-| Router cache serving stale data | LOW | Ship Next.js config with `staleTimes: { dynamic: 0 }`; add `router.refresh()` to logout; cache is client-side and self-heals on hard refresh |
-
----
-
-## Pitfall-to-Phase Mapping
-
-| Pitfall | Prevention Phase | Verification |
-|---------|------------------|--------------|
-| JWT in localStorage (XSS) | Phase 1: Web Auth | `document.cookie` test; no `localStorage` token writes in codebase search |
-| CORS wildcard breaks mobile | Phase 1: Web Auth | Mobile app regression test in CI against backend with CORS enabled |
-| Middleware bypass CVE-2025-29927 | Phase 1: Web Auth | `package.json` version check; server-side token verification in every route handler |
-| Redux SSR singleton | Phase 1: Web Foundation | Two-request concurrency test; `makeStore` factory confirmed in code review |
-| Router cache stale auth data | Phase 1: Web Auth | Manual logout + back button test; `staleTimes` config verified |
-| Refresh token family conflict | Phase 1: Web Auth | Simultaneous mobile + web session test; neither session revoked |
-| API contract breaking mobile | Phase 1: Web Foundation + every backend-change phase | OpenAPI spec diff in CI; mobile deserialization test on every schema change |
-| RTK Query SSR hydration mismatch | Phase 1: Web Foundation | No hydration warnings in CI build output; server component data fetching via `fetch` only |
-| RLS not applied to web queries | Every phase adding new endpoints | Cross-tenant isolation test for every new endpoint |
-| Dual auth flow complexity | Phase 1: Web Auth | Bearer-header path test + cookie path test + "both present" test |
+| AI cost explosion discovered after launch | HIGH — architecture rework under time pressure | Immediate: add `max_tokens` hard limit to all calls. Short-term: move to stateless adaptation requests. Medium-term: rearchitect conversation storage to avoid history replay. |
+| Tenant context leak in AI conversations | CRITICAL — potential GDPR breach | Immediately disable AI features. Audit all `ai_conversations` rows for cross-tenant contamination. Migrate conversation state to DB with RLS. Notify affected companies if contamination confirmed. |
+| Corrupt task plans from unparsed AI output | HIGH | Identify affected plans via `plan_version` audit. Re-run intake for affected projects. Add Pydantic validation retroactively and backfill integrity checks. |
+| Missing RLS on new table discovered post-launch | CRITICAL | Immediately add RLS policy. Audit query logs for cross-tenant access patterns. If breach confirmed, treat as security incident. |
+| Outbox conflicts corrupt task completions | HIGH | Identify affected completion records via `plan_version` mismatch audit. Re-sync affected devices. Add domain boundary enforcement retroactively. |
+| WebSocket auth gap (revoked user retains access) | MEDIUM | Deploy server-side forced disconnect for known revoked users. Add periodic re-validation. Audit WebSocket logs for access after revocation. |
+| Mobile crash from schema change | MEDIUM | Revert breaking field change on backend. Deploy hotfix within one deploy cycle. Add mobile deserialization test to CI before re-shipping. |
 
 ---
 
 ## Sources
 
-- Next.js Official Docs: Authentication — https://nextjs.org/docs/pages/guides/authentication
-- Redux Toolkit: Next.js Setup (store per request) — https://redux-toolkit.js.org/usage/nextjs
-- RTK Query: Server-Side Rendering — https://redux-toolkit.js.org/rtk-query/usage/server-side-rendering
-- FastAPI Official Docs: CORS — https://fastapi.tiangolo.com/tutorial/cors/
-- CVE-2025-29927 (Datadog Analysis) — https://securitylabs.datadoghq.com/articles/nextjs-middleware-auth-bypass/
-- CVE-2025-29927 (NVD) — https://nvd.nist.gov/vuln/detail/CVE-2025-29927
-- Next.js GitHub Discussion: Router Cache Stale Data — https://github.com/vercel/next.js/issues/69979
-- Next.js GitHub Discussion: Redux + localStorage Hydration — https://github.com/vercel/next.js/discussions/54350
-- RTK GitHub Discussion: App Router + RSC compatibility — https://github.com/reduxjs/redux-toolkit/discussions/4251
-- RTK GitHub Issue: SSR memory leak — https://github.com/reduxjs/redux-toolkit/issues/3988
-- OWASP: JWT Storage Best Practices (localStorage vs cookies)
-- TurboStarter: Complete Next.js Security Guide 2025 — https://www.turbostarter.dev/blog/complete-nextjs-security-guide-2025-authentication-api-protection-and-best-practices
-- FastAPI GitHub Issue: CORS wildcard with credentials — https://github.com/fastapi/fastapi/issues/4530
-- Next.js Official: Caching Guide — https://nextjs.org/docs/app/guides/caching
-- TheWidlarzGroup: Next.js SSR JWT with external backend — https://thewidlarzgroup.com/nextjs-auth/
+- Anthropic Streaming Docs (tool use, fine-grained streaming) — https://platform.claude.com/docs/en/build-with-claude/streaming
+- Mem0: LLM Chat History Summarization Guide 2025 (cost explosion data) — https://mem0.ai/blog/llm-chat-history-summarization-guide-2025
+- AWS Prescriptive Guidance: Implementing tenant isolation for AI agents — https://docs.aws.amazon.com/prescriptive-guidance/latest/agentic-ai-multitenant/enforcing-tenant-isolation.html
+- PostgreSQL Wiki: Row-Level Security (foreign key side channel) — https://wiki.postgresql.org/wiki/Row-security
+- Permit.io: Postgres RLS Implementation Guide — https://www.permit.io/blog/postgres-rls-implementation-guide
+- Ably: WebSocket Architecture Best Practices — https://ably.com/topic/websocket-architecture-best-practices
+- Flutter Drawing Board package (canvas performance data) — https://pub.dev/packages/flutter_drawing_board
+- Flutter 2025 Performance Best Practices — https://flutterexperts.com/flutter-2025-performance-best-practices-what-has-changed-what-still-works/
+- DEV Community: Offline-First App Architecture — https://dev.to/odunayo_dada/offline-first-mobile-app-architecture-syncing-caching-and-conflict-resolution-1j58
+- Transactional Outbox Pattern (microservices.io) — https://microservices.io/patterns/data/transactional-outbox.html
+- Riverpod GitHub Issue: WebSocket connection detection — https://github.com/rrousselGit/riverpod/issues/182
+- Medium: WebSocket Reconnection in Flutter — https://medium.com/@punithsuppar7795/websocket-reconnection-in-flutter-keep-your-real-time-app-alive-be289cff46b8
+- DEV Community: LLM Structured Output 2026 — https://dev.to/pockit_tools/llm-structured-output-in-2026-stop-parsing-json-with-regex-and-do-it-right-34pk
+- Agenta.ai: Guide to structured outputs and function calling — https://agenta.ai/blog/the-guide-to-structured-outputs-and-function-calling-with-llms
 
 ---
-*Pitfalls research for: Adding Next.js web admin dashboard to existing FastAPI + Flutter mobile platform*
-*Researched: 2026-03-14*
+*Pitfalls research for: ContractorHub v3.0 — Adding AI planning, real-time chat, photo annotation, and multi-trade project management to existing system*
+*Researched: 2026-03-19*
