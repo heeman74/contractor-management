@@ -682,12 +682,12 @@ export default function JobDetailPage({
                 {job.contractor_id ? (
                   <Link
                     href={`/contractors/${job.contractor_id}`}
-                    className="text-sm text-indigo-600 hover:underline"
+                    className="text-sm text-indigo-600 hover:text-indigo-800 hover:underline"
                   >
-                    {job.contractor_id.slice(0, 8)}
+                    {job.contractor_name ?? job.contractor_id.slice(0, 8)}
                   </Link>
                 ) : (
-                  <p className="text-sm font-normal text-gray-900">Unassigned</p>
+                  <p className="text-sm font-normal text-gray-900">Not assigned</p>
                 )}
               </div>
 
@@ -699,12 +699,12 @@ export default function JobDetailPage({
                 {job.client_id ? (
                   <Link
                     href={`/clients/${job.client_id}`}
-                    className="text-sm text-indigo-600 hover:underline"
+                    className="text-sm text-indigo-600 hover:text-indigo-800 hover:underline"
                   >
-                    {job.client_id.slice(0, 8)}
+                    {job.client_name ?? job.client_id.slice(0, 8)}
                   </Link>
                 ) : (
-                  <p className="text-sm font-normal text-gray-900">No client</p>
+                  <p className="text-sm font-normal text-gray-900">Not assigned</p>
                 )}
               </div>
 

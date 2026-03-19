@@ -53,6 +53,7 @@ export interface Job {
   client_id: string | null;
   client_name: string | null;
   contractor_id: string | null;
+  contractor_name: string | null;
   purchase_order_number: string | null;
   external_reference: string | null;
   tags: string[];

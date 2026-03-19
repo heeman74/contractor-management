@@ -672,7 +672,7 @@ export default function QuoteDetailPage({
                 {job?.client_id ? (
                   <Link
                     href={`/clients/${job.client_id}`}
-                    className="text-sm text-indigo-600 hover:underline"
+                    className="text-sm text-indigo-600 hover:text-indigo-800 hover:underline"
                   >
                     {job.client_name ?? job.client_id.slice(0, 8)}
                   </Link>

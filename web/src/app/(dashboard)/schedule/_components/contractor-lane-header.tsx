@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { ContractorResource } from "@/types/schedule";
 
@@ -18,9 +19,13 @@ export function ContractorLaneHeader({ resource }: ContractorLaneHeaderProps) {
         ) : null}
         <AvatarFallback>{initials}</AvatarFallback>
       </Avatar>
-      <span className="text-sm font-medium text-gray-900 truncate max-w-[140px]">
+      <Link
+        href={`/contractors/${resource.id}`}
+        className="text-sm font-medium text-indigo-600 hover:text-indigo-800 hover:underline truncate max-w-[140px]"
+        onClick={(e) => e.stopPropagation()}
+      >
         {resource.name}
-      </span>
+      </Link>
       {resource.tradeType && (
         <span className="text-xs text-gray-500">{resource.tradeType}</span>
       )}
