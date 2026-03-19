@@ -11,6 +11,20 @@
  * original request. If refresh fails, redirects to /login.
  */
 
+// Singleton refresh promise to prevent concurrent refresh requests
+let refreshPromise: Promise<boolean> | null = null;
+
+async function ensureRefreshed(): Promise<boolean> {
+  if (!refreshPromise) {
+    refreshPromise = fetch("/api/auth/refresh", { method: "POST" })
+      .then((resp) => resp.ok)
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+}
+
 export class ApiError extends Error {
   status: number;
   detail: string;
@@ -33,10 +47,10 @@ export async function apiClient<T>(
   const resp = await fetch(proxyUrl, init);
 
   if (resp.status === 401 && retry) {
-    // Attempt token refresh
-    const refreshResp = await fetch("/api/auth/refresh", { method: "POST" });
+    // Attempt token refresh (coalesced across concurrent 401s)
+    const refreshed = await ensureRefreshed();
 
-    if (refreshResp.ok) {
+    if (refreshed) {
       // Retry original request once (no further retries)
       return apiClient<T>(path, init, false);
     } else {
@@ -110,8 +124,8 @@ export async function apiFetchRaw(
   const resp = await fetch(proxyUrl, init);
 
   if (resp.status === 401 && retry) {
-    const refreshResp = await fetch("/api/auth/refresh", { method: "POST" });
-    if (refreshResp.ok) {
+    const refreshed = await ensureRefreshed();
+    if (refreshed) {
       return apiFetchRaw(path, init, false);
     } else {
       window.location.href = "/login?reason=session_expired";
