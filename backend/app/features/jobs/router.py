@@ -129,6 +129,20 @@ router = APIRouter(tags=["jobs"])
 
 
 # ---------------------------------------------------------------------------
+# Helper — admin role guard
+# ---------------------------------------------------------------------------
+
+
+def _require_admin(current_user: CurrentUser) -> None:
+    """Raise 403 if the current user is not an admin."""
+    if "admin" not in current_user.roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin role required",
+        )
+
+
+# ---------------------------------------------------------------------------
 # Helper — build JobResponse with client_name from eager-loaded relationship
 # ---------------------------------------------------------------------------
 
@@ -667,6 +681,7 @@ async def adjust_time_entry(
     and recalculates duration_seconds.
     Raises 404 if not found.
     """
+    _require_admin(current_user)
     svc = JobService(db)
     entry = await svc.adjust_time_entry(
         entry_id=entry_id,
@@ -716,6 +731,7 @@ async def update_job(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> JobResponse:
     """Partial update of non-lifecycle fields (PATCH semantics). Returns 404 if not found."""
+    _require_admin(current_user)
     svc = JobService(db)
     job = await svc.update_job(job_id, data)
     return _job_with_client_name(job)
@@ -851,6 +867,7 @@ async def delete_job(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> None:
     """Admin hard-removal: sets deleted_at (distinct from cancellation). Returns 204."""
+    _require_admin(current_user)
     svc = JobService(db)
     await svc.soft_delete_job(job_id, current_user.user_id)
 
