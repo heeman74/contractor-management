@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
@@ -124,11 +124,13 @@ export default function ContractorsPage() {
     setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
   }, []);
 
-  if (usersError) {
-    toast.error("Failed to load contractors. Please refresh the page.", {
-      duration: Infinity,
-    });
-  }
+  useEffect(() => {
+    if (usersError) {
+      toast.error("Failed to load contractors. Please refresh the page.", {
+        duration: Infinity,
+      });
+    }
+  }, [usersError]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">

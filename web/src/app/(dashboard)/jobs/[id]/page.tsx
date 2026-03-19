@@ -314,10 +314,15 @@ export default function JobDetailPage({
   // --- Loading / error states ---
   if (jobLoading) return <PageSkeleton />;
 
+  useEffect(() => {
+    if (jobError) {
+      toast.error("Failed to load job details. Check your connection and try again.", {
+        duration: Infinity,
+      });
+    }
+  }, [jobError]);
+
   if (jobError || !job) {
-    toast.error("Failed to load job details. Check your connection and try again.", {
-      duration: Infinity,
-    });
     return (
       <div className="rounded-xl bg-white p-8 text-center ring-1 ring-foreground/10">
         <p className="text-sm text-gray-500">

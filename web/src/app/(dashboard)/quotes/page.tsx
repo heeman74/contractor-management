@@ -171,11 +171,13 @@ function QuotesPageContent() {
   });
 
   // Error handling
-  if (isError) {
-    toast.error("Failed to load quotes. Check your connection and try again.", {
-      duration: Infinity,
-    });
-  }
+  useEffect(() => {
+    if (isError) {
+      toast.error("Failed to load quotes. Check your connection and try again.", {
+        duration: Infinity,
+      });
+    }
+  }, [isError]);
 
   // Build jobs lookup map
   const jobsMap: Record<string, Job> = {};

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Briefcase, FileText, Receipt, Calendar } from "lucide-react";
 import { toast } from "sonner";
@@ -73,9 +74,11 @@ export default function DashboardPage() {
   });
 
   // Show persistent error toasts if queries fail
-  if (activeJobsQuery.isError) {
-    toast.error("Failed to load dashboard data", { duration: Infinity });
-  }
+  useEffect(() => {
+    if (activeJobsQuery.isError) {
+      toast.error("Failed to load dashboard data", { duration: Infinity });
+    }
+  }, [activeJobsQuery.isError]);
 
   // Helpers to extract counts from various response shapes
   function extractCount(data: unknown): number {

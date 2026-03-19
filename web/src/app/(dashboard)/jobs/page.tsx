@@ -218,11 +218,13 @@ function JobsPageContent() {
   }, 0);
 
   // Error handling
-  if (isError) {
-    toast.error("Failed to load jobs. Check your connection and try again.", {
-      duration: Infinity,
-    });
-  }
+  useEffect(() => {
+    if (isError) {
+      toast.error("Failed to load jobs. Check your connection and try again.", {
+        duration: Infinity,
+      });
+    }
+  }, [isError]);
 
   // Client-side sort
   const sortedJobs = jobs ? sortJobs(jobs, sortCol, sortDir) : [];

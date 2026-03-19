@@ -172,20 +172,39 @@ class AppShell extends ConsumerWidget {
     ];
   }
 
+  /// All branches in order, matching the StatefulShellRoute definition in
+  /// app_router.dart. Used to map between branch indices and visible tab indices.
+  static const _allBranchRoutes = [
+    RouteNames.home,       // Branch 0
+    RouteNames.jobs,       // Branch 1
+    RouteNames.schedule,   // Branch 2
+    RouteNames.profile,    // Branch 3
+    RouteNames.adminTeam,  // Branch 4 (admin only)
+    RouteNames.contractorAvailability, // Branch 5 (hidden)
+    RouteNames.clientPortal,           // Branch 6 (hidden)
+    RouteNames.reports,    // Branch 7 (admin + contractor)
+  ];
+
   int _getCurrentIndex(List<_TabItem> tabs) {
-    // StatefulNavigationShell.currentIndex reflects the active branch index.
-    // For the Team tab (admin-only, branch index 4), we clamp to the visible
-    // tab count in case the user is non-admin and tabs has fewer entries.
+    // StatefulNavigationShell.currentIndex is the branch index (0–7), but
+    // `tabs` is a filtered list of visible tabs. Map branch route → tab index.
     final branchIndex = navigationShell.currentIndex;
-    return branchIndex < tabs.length ? branchIndex : 0;
+    if (branchIndex < 0 || branchIndex >= _allBranchRoutes.length) return 0;
+
+    final branchRoute = _allBranchRoutes[branchIndex];
+    final tabIndex = tabs.indexWhere((t) => t.route == branchRoute);
+    return tabIndex >= 0 ? tabIndex : 0;
   }
 
   void _onTabSelected(List<_TabItem> tabs, int index) {
-    // Use goBranch to properly switch between StatefulShellRoute branches.
-    // initialLocation: true restores the branch's saved navigation state.
+    // Map visible tab index back to the branch index for goBranch.
+    final route = tabs[index].route;
+    final branchIndex = _allBranchRoutes.indexOf(route);
+    if (branchIndex < 0) return;
+
     navigationShell.goBranch(
-      index,
-      initialLocation: index == navigationShell.currentIndex,
+      branchIndex,
+      initialLocation: branchIndex == navigationShell.currentIndex,
     );
   }
 }

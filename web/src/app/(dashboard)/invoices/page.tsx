@@ -190,11 +190,13 @@ function InvoicesPageContent() {
   }
 
   // Error handling
-  if (isError) {
-    toast.error("Failed to load invoices. Check your connection and try again.", {
-      duration: Infinity,
-    });
-  }
+  useEffect(() => {
+    if (isError) {
+      toast.error("Failed to load invoices. Check your connection and try again.", {
+        duration: Infinity,
+      });
+    }
+  }, [isError]);
 
   // Client-side filtering by tab
   const allInvoices = invoices ?? [];

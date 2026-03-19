@@ -38,13 +38,12 @@ export default function LoginPage() {
   });
 
   // Clear login error banner when user starts typing
-  const watchedFields = watch();
   useEffect(() => {
-    if (loginError) {
+    const subscription = watch(() => {
       setLoginError(null);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watchedFields.email, watchedFields.password]);
+    });
+    return () => subscription.unsubscribe();
+  }, [watch]);
 
   // Check for session_expired reason on mount
   useEffect(() => {
