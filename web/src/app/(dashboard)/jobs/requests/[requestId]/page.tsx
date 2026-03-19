@@ -108,23 +108,25 @@ export default function RequestDetailPage({
 
   return (
     <div className="space-y-6">
-      {/* Action bar */}
-      <div className="flex items-center gap-3">
-        <Button
-          onClick={handleApprove}
-          disabled={reviewMutation.isPending}
-        >
-          Approve Request
-        </Button>
-        <Button
-          variant="outline"
-          className="text-destructive border-destructive hover:bg-destructive/10"
-          onClick={() => setDeclineDialogOpen(true)}
-          disabled={reviewMutation.isPending}
-        >
-          Decline
-        </Button>
-      </div>
+      {/* Action bar — only show for pending requests */}
+      {request.status === "pending" && (
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={handleApprove}
+            disabled={reviewMutation.isPending}
+          >
+            Approve Request
+          </Button>
+          <Button
+            variant="outline"
+            className="text-destructive border-destructive hover:bg-destructive/10"
+            onClick={() => setDeclineDialogOpen(true)}
+            disabled={reviewMutation.isPending}
+          >
+            Decline
+          </Button>
+        </div>
+      )}
 
       {/* Two-column layout */}
       <div className="grid grid-cols-[1fr_360px] gap-8">
