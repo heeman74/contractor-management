@@ -315,3 +315,54 @@ export interface TimeBlock {
   start_time: string;
   end_time: string;
 }
+
+// Reports types (Phase 18)
+export interface JobsByStatusItem {
+  status: string;
+  count: number;
+}
+
+export interface RevenueByMonthItem {
+  month: string; // YYYY-MM
+  paid: string; // Decimal as string from backend
+  unpaid: string;
+}
+
+export interface ContractorUtilizationItem {
+  contractor_name: string;
+  booked_hours: string;
+  available_hours: string;
+  utilization_percent: string;
+}
+
+export interface QuoteConversionItem {
+  approved: number;
+  declined: number;
+  pending: number;
+  conversion_rate: string;
+}
+
+export interface DashboardResponse {
+  jobs_by_status: JobsByStatusItem[];
+  revenue_by_month: RevenueByMonthItem[];
+  contractor_utilization: ContractorUtilizationItem[];
+  quote_conversion: QuoteConversionItem;
+}
+
+export interface UtilizationWeekItem {
+  iso_week: string;
+  booked_hours: string;
+  available_hours: string;
+  utilization_percent: string;
+}
+
+export interface UtilizationHeatmapContractor {
+  contractor_id: string;
+  contractor_name: string;
+  weeks: UtilizationWeekItem[];
+}
+
+export interface UtilizationHeatmapResponse {
+  weeks: string[];
+  contractors: UtilizationHeatmapContractor[];
+}
