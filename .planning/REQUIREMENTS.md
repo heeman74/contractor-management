@@ -44,12 +44,12 @@ Requirements for web admin dashboard. Each maps to roadmap phases.
 
 ### Client/CRM
 
-- [ ] **CRM-01**: Admin can view a searchable list of all clients
-- [ ] **CRM-02**: Admin can view client detail with all past and active job history
+- [x] **CRM-01**: Admin can view a searchable list of all clients
+- [x] **CRM-02**: Admin can view client detail with all past and active job history
 
 ### Contractor Management
 
-- [ ] **CONTR-01**: Admin can view all contractors in a list with availability summary
+- [x] **CONTR-01**: Admin can view all contractors in a list with availability summary
 - [ ] **CONTR-02**: Admin can view contractor profile with assigned jobs and weekly schedule
 - [ ] **CONTR-03**: Admin can edit a contractor's weekly working hours
 - [ ] **CONTR-04**: Admin can set date overrides (mark dates unavailable or custom hours)
@@ -122,9 +122,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INV-01 | Phase 16 | Complete |
 | INV-02 | Phase 16 | Complete |
 | INV-03 | Phase 16 | Complete |
-| CRM-01 | Phase 17 | Pending |
-| CRM-02 | Phase 17 | Pending |
-| CONTR-01 | Phase 17 | Pending |
+| CRM-01 | Phase 17 | Complete |
+| CRM-02 | Phase 17 | Complete |
+| CONTR-01 | Phase 17 | Complete |
 | CONTR-02 | Phase 17 | Pending |
 | CONTR-03 | Phase 17 | Pending |
 | CONTR-04 | Phase 17 | Pending |

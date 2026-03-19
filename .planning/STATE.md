@@ -2,16 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Web Admin Dashboard
-status: executing
-stopped_at: Phase 17 context gathered
-last_updated: "2026-03-18T05:46:39.361Z"
-last_activity: 2026-03-18 — Completed 16-05 quote E2E tests (12 Playwright tests passing)
+status: unknown
+stopped_at: "Completed 17-01-PLAN.md"
+last_updated: "2026-03-19T06:43:00.000Z"
 progress:
   total_phases: 6
   completed_phases: 4
-  total_plans: 17
-  completed_plans: 17
-  percent: 100
+  total_plans: 22
+  completed_plans: 18
 ---
 
 # Project State
@@ -21,16 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-15)
 
 **Core value:** Clients always know exactly what's happening with their job — no more chasing contractors for updates, no more scheduling conflicts, no more missed appointments.
-**Current focus:** Phase 13 — Web Foundation and Auth
+**Current focus:** Phase 17 — crm-clients-and-contractors
 
 ## Current Position
 
-Phase: 16 of 18 (Quotes and Invoices)
-Plan: 5 of 5 in current phase
-Status: Executing
-Last activity: 2026-03-18 — Completed 16-05 quote E2E tests (12 Playwright tests passing)
-
-Progress: [██████████] 100%
+Phase: 17 (crm-clients-and-contractors) — EXECUTING
+Plan: 2 of 5
 
 ## Accumulated Context
 
@@ -74,6 +68,9 @@ Progress: [██████████] 100%
 - [Phase 16-quotes-and-invoices]: Select<string> generic annotation required for template loader to handle null from base-ui Select onValueChange
 - [Phase 16-quotes-and-invoices]: Documents card in job detail shown for quote/complete/invoiced statuses to cover full document lifecycle
 - [Phase 16]: Payment summary assertions use raw toFixed(2) values without comma formatting (matching actual page output)
+- [Phase 17-crm]: Lazy import of Job model inside list_client_profiles to avoid circular ORM mapper init (Job -> Booking ref triggers before scheduling models loaded)
+- [Phase 17-crm]: contractor_name is additive-only on JobResponse — no existing fields renamed (protects mobile Dart models)
+- [Phase 17-crm]: TYPE_CHECKING guard for ClientProfileModel alias in schemas.py avoids circular import while satisfying ruff F821
 
 ### Pending Todos
 
@@ -87,6 +84,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-18T05:46:39.352Z
-Stopped at: Phase 17 context gathered
-Resume file: .planning/phases/17-crm-clients-and-contractors/17-CONTEXT.md
+Last session: 2026-03-19T06:43:00.000Z
+Stopped at: Completed 17-01-PLAN.md
+Resume file: .planning/phases/17-crm-clients-and-contractors/17-02-PLAN.md
