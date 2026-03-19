@@ -182,8 +182,9 @@ class AuthService:
                 .where(RefreshToken.family_id == stored_token.family_id)
                 .values(revoked=True)
             )
-            # Commit family revocation BEFORE raising so rollback doesn't undo it
-            await self.db.commit()
+            # Flush (not commit) to persist family revocation within the transaction.
+            # get_db handles the final commit/rollback per CLAUDE.md rules.
+            await self.db.flush()
             raise ValueError("Token reuse detected — family revoked")
 
         # Check expiration
