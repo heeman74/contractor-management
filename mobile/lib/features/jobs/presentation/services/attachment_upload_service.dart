@@ -102,6 +102,7 @@ class AttachmentUploadService {
             '$statusCode — skipping',
           );
           await _attachmentDao.incrementRetry(attachment.id);
+          await _attachmentDao.setUploadStatus(attachment.id, 'failed');
           return false;
         }
 
@@ -113,6 +114,7 @@ class AttachmentUploadService {
             '${attachment.id}',
           );
           await _attachmentDao.incrementRetry(attachment.id);
+          await _attachmentDao.setUploadStatus(attachment.id, 'failed');
           return false;
         }
 
@@ -128,6 +130,7 @@ class AttachmentUploadService {
           '${attachment.id}: $e',
         );
         await _attachmentDao.incrementRetry(attachment.id);
+        await _attachmentDao.setUploadStatus(attachment.id, 'failed');
         return false;
       }
     }
