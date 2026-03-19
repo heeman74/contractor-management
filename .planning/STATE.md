@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Web Admin Dashboard
-status: unknown
-stopped_at: Completed 17-04-PLAN.md
-last_updated: "2026-03-19T05:43:24.493Z"
+status: complete
+stopped_at: Completed 17-05-PLAN.md
+last_updated: "2026-03-19T05:50:24.558Z"
 progress:
   total_phases: 6
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 22
-  completed_plans: 21
+  completed_plans: 22
 ---
 
 # Project State
@@ -23,8 +23,8 @@ See: .planning/PROJECT.md (updated 2026-03-15)
 
 ## Current Position
 
-Phase: 17 (crm-clients-and-contractors) — EXECUTING
-Plan: 4 of 5
+Phase: 17 (crm-clients-and-contractors) — COMPLETE
+Plan: 5 of 5
 
 ## Accumulated Context
 
@@ -79,6 +79,9 @@ Plan: 4 of 5
 - [Phase 17-crm]: Contractor profile Quick Stats uses inline cards (not KpiCard) — KpiCard requires mandatory href navigation target
 - [Phase 17-04]: Select<string> generic annotation on base-ui Select to handle null from onValueChange (consistent with Phase 16 pattern)
 - [Phase 17-04]: changedDays Set accumulates during drag; all per-day saves fire in single pointerUp handler to avoid mid-drag API churn
+- [Phase 17]: contractor_name added to Job TypeScript interface — additive field matching backend JobResponse (mirrors backend additive-only rule)
+- [Phase 17]: [Phase 17-05]: ContractorLaneHeader Link uses e.stopPropagation() to prevent react-big-calendar drag-start on link click
+- [Phase 17]: [Phase 17-05]: Backend CRM integration tests use tenant_a_client fixture; role assignment via /api/v1/users/{user_id}/roles with {user_id, role} body
 
 ### Pending Todos
 
@@ -92,6 +95,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T05:43:24.485Z
-Stopped at: Completed 17-04-PLAN.md
+Last session: 2026-03-19T05:50:15.305Z
+Stopped at: Completed 17-05-PLAN.md
 Resume file: None

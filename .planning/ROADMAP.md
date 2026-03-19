@@ -35,7 +35,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 - [x] **Phase 14: Job Management** — Filterable jobs list, job detail, status transitions, job request review queue (completed 2026-03-16)
 - [x] **Phase 15: Scheduling Calendar** — Weekly calendar with contractor lanes, drag-and-drop rescheduling, conflict detection (completed 2026-03-17)
 - [x] **Phase 16: Quotes and Invoices** — Quote create/edit/send with line items, invoice payment recording, PDF downloads (completed 2026-03-18)
-- [ ] **Phase 17: CRM — Clients and Contractors** — Client list and job history, contractor profiles, weekly schedule editor, date overrides
+- [x] **Phase 17: CRM — Clients and Contractors** — Client list and job history, contractor profiles, weekly schedule editor, date overrides (completed 2026-03-19)
 - [ ] **Phase 18: Reporting Dashboard** — Revenue, utilization, and conversion charts with date range filtering
 
 ## Phase Details
@@ -120,7 +120,7 @@ Plans:
   3. Admin can view all contractors with an availability summary, then open a contractor's profile to see assigned jobs and weekly schedule
   4. Admin can edit a contractor's weekly working hours and the change is reflected immediately
   5. Admin can set date-specific overrides (mark a date unavailable or assign custom hours) for any contractor
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 - [ ] 17-01-PLAN.md — Backend CRM router, TypeScript types, StatusBadge availability colors, E2E test stubs
@@ -168,5 +168,5 @@ Note: Phase 16 (Quotes/Invoices) depends only on Phase 13 and may be parallelize
 | 14. Job Management | 3/3 | Complete    | 2026-03-16 | - |
 | 15. Scheduling Calendar | 4/4 | Complete    | 2026-03-17 | - |
 | 16. Quotes and Invoices | 6/6 | Complete    | 2026-03-18 | - |
-| 17. CRM — Clients and Contractors | 4/5 | In Progress|  | - |
+| 17. CRM — Clients and Contractors | 5/5 | Complete   | 2026-03-19 | - |
 | 18. Reporting Dashboard | v2.0 | 0/3 | Not started | - |
