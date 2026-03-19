@@ -201,6 +201,14 @@ export default function JobDetailPage({
     };
   }, [job, dispatch]);
 
+  useEffect(() => {
+    if (jobError) {
+      toast.error("Failed to load job details. Check your connection and try again.", {
+        duration: Infinity,
+      });
+    }
+  }, [jobError]);
+
   // --- Mutations ---
   const transitionMutation = useMutation<Job, Error, JobTransitionRequest>({
     mutationFn: (data: JobTransitionRequest) =>
@@ -313,14 +321,6 @@ export default function JobDetailPage({
 
   // --- Loading / error states ---
   if (jobLoading) return <PageSkeleton />;
-
-  useEffect(() => {
-    if (jobError) {
-      toast.error("Failed to load job details. Check your connection and try again.", {
-        duration: Infinity,
-      });
-    }
-  }, [jobError]);
 
   if (jobError || !job) {
     return (
