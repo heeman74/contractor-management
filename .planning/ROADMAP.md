@@ -120,7 +120,7 @@ Plans:
   3. Admin can view all contractors with an availability summary, then open a contractor's profile to see assigned jobs and weekly schedule
   4. Admin can edit a contractor's weekly working hours and the change is reflected immediately
   5. Admin can set date-specific overrides (mark a date unavailable or assign custom hours) for any contractor
-**Plans:** 2/5 plans executed
+**Plans:** 3/5 plans executed
 
 Plans:
 - [ ] 17-01-PLAN.md — Backend CRM router, TypeScript types, StatusBadge availability colors, E2E test stubs
@@ -168,5 +168,5 @@ Note: Phase 16 (Quotes/Invoices) depends only on Phase 13 and may be parallelize
 | 14. Job Management | 3/3 | Complete    | 2026-03-16 | - |
 | 15. Scheduling Calendar | 4/4 | Complete    | 2026-03-17 | - |
 | 16. Quotes and Invoices | 6/6 | Complete    | 2026-03-18 | - |
-| 17. CRM — Clients and Contractors | 2/5 | In Progress|  | - |
+| 17. CRM — Clients and Contractors | 3/5 | In Progress|  | - |
 | 18. Reporting Dashboard | v2.0 | 0/3 | Not started | - |

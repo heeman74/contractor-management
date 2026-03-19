@@ -50,7 +50,7 @@ Requirements for web admin dashboard. Each maps to roadmap phases.
 ### Contractor Management
 
 - [x] **CONTR-01**: Admin can view all contractors in a list with availability summary
-- [ ] **CONTR-02**: Admin can view contractor profile with assigned jobs and weekly schedule
+- [x] **CONTR-02**: Admin can view contractor profile with assigned jobs and weekly schedule
 - [ ] **CONTR-03**: Admin can edit a contractor's weekly working hours
 - [ ] **CONTR-04**: Admin can set date overrides (mark dates unavailable or custom hours)
 
@@ -125,7 +125,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CRM-01 | Phase 17 | Complete |
 | CRM-02 | Phase 17 | Complete |
 | CONTR-01 | Phase 17 | Complete |
-| CONTR-02 | Phase 17 | Pending |
+| CONTR-02 | Phase 17 | Complete |
 | CONTR-03 | Phase 17 | Pending |
 | CONTR-04 | Phase 17 | Pending |
 | RPT-01 | Phase 18 | Pending |

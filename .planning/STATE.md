@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Web Admin Dashboard
 status: unknown
-stopped_at: "Completed 17-02-PLAN.md"
-last_updated: "2026-03-19T07:00:00.000Z"
+stopped_at: "Completed 17-03-PLAN.md"
+last_updated: "2026-03-19T05:35:47.000Z"
 progress:
   total_phases: 6
   completed_phases: 4
   total_plans: 22
-  completed_plans: 19
+  completed_plans: 20
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-15)
 ## Current Position
 
 Phase: 17 (crm-clients-and-contractors) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 
 ## Accumulated Context
 
@@ -74,6 +74,9 @@ Plan: 3 of 5
 - [Phase 17-crm]: Client list sorts client-side after server fetch — jobs_count sort not supported server-side; row navigates via user_id (not profile id)
 - [Phase 17-crm]: Two-column detail layout grid-cols-1 lg:grid-cols-[1fr_360px] gap-8 established as CRM page pattern for client and contractor detail pages
 - [Phase 17-crm]: Per-property expand/collapse uses local useState — lightweight for read-only properties list, no accordion library needed
+- [Phase 17-crm]: Batch availability POST uses paged contractor IDs only (not all contractors) to limit request payload
+- [Phase 17-crm]: Active Jobs count on contractor list shows "—" to avoid N+1; actual count on profile page from query data
+- [Phase 17-crm]: Contractor profile Quick Stats uses inline cards (not KpiCard) — KpiCard requires mandatory href navigation target
 
 ### Pending Todos
 
@@ -87,6 +90,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T06:43:00.000Z
-Stopped at: Completed 17-01-PLAN.md
-Resume file: .planning/phases/17-crm-clients-and-contractors/17-02-PLAN.md
+Last session: 2026-03-19T05:35:47.000Z
+Stopped at: Completed 17-03-PLAN.md
+Resume file: .planning/phases/17-crm-clients-and-contractors/17-04-PLAN.md
