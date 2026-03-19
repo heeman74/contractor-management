@@ -88,31 +88,27 @@ Notable decisions documented in SUMMARY files (not anti-patterns):
 
 ### Human Verification Required
 
-The following items cannot be fully verified programmatically and require a running application:
+All 4 items previously flagged for manual testing have been automated as Playwright E2E tests in `web/tests/phase-18-reports.spec.ts` with mocked API responses:
 
-#### 1. Visual chart rendering and responsiveness
+#### 1. Visual chart rendering and responsiveness — `automated: true`
 
-**Test:** Navigate to `/reports` in a browser as an admin user
-**Expected:** All 4 chart cards visible in a 2-column grid; charts render with actual data or "No data for this period" empty states; date preset buttons highlighted in indigo when active
-**Why human:** Chart SVG rendering, Recharts animation, responsive layout breakpoints cannot be verified by static code analysis
+**Playwright tests:** "four chart cards visible with data-driven KPIs", "revenue/jobs/quote chart renders SVG", "responsive 2-column grid layout"
+**Coverage:** Verifies SVG rendering, KPI values from mock data, 2-column grid at desktop width
 
-#### 2. CSV export file integrity
+#### 2. CSV export file integrity — `automated: true`
 
-**Test:** Click "Export CSV" on the Revenue by Month chart
-**Expected:** Browser downloads a `.csv` file with correct filename (e.g., `revenue-YYYY-MM-DD-to-YYYY-MM-DD.csv`) and correct column headers/data rows
-**Why human:** Client-side Blob download requires a real browser environment
+**Playwright tests:** "revenue/jobs/quote/utilization CSV export" (4 tests)
+**Coverage:** Intercepts download event, validates filename format, reads file content, asserts correct headers, data rows, and row counts
 
-#### 3. Heatmap color accuracy at thresholds
+#### 3. Heatmap color accuracy at thresholds — `automated: true`
 
-**Test:** With real booking data that creates >85% utilization for a contractor, verify the heatmap cell shows red (`bg-red-500`); cells at 60-84% show yellow; cells at 30-59% show green
-**Expected:** Color-coded cells match the `cellColor()` thresholds defined in utilization-heatmap.tsx
-**Why human:** Requires real or seeded booking data in a running app
+**Playwright test:** "heatmap cells have correct color classes for utilization thresholds"
+**Coverage:** Mock data seeds cells at 90% (red), 70% (yellow), 35% (green-400), 20% (green-200), 0% (green-200), 100% (red), 85% (red) — asserts CSS classes via title attribute selectors
 
-#### 4. Click-through drill-down navigation
+#### 4. Click-through drill-down navigation — `automated: true`
 
-**Test:** Click a bar in "Jobs by Status" chart
-**Expected:** Navigates to `/jobs?status=<status>` with the correct status filter pre-applied in the jobs list
-**Why human:** URL parameter handling and list-page filter application requires a running app
+**Playwright tests:** "clicking revenue/jobs/quote chart navigates to correct URL"
+**Coverage:** Clicks chart elements (SVG areas, bar rectangles, pie sectors), asserts URL changes to `/invoices?month=`, `/jobs?status=`, `/quotes?status=`
 
 ---
 
