@@ -57,7 +57,7 @@ Requirements for web admin dashboard. Each maps to roadmap phases.
 ### Reporting
 
 - [x] **RPT-01**: Admin can view a dashboard with revenue, jobs by status, utilization, and quote conversion charts
-- [ ] **RPT-02**: Admin can filter reports by custom date range
+- [x] **RPT-02**: Admin can filter reports by custom date range
 - [x] **RPT-03**: Admin can view contractor utilization heatmap
 
 ## v2.1 Requirements
@@ -129,7 +129,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CONTR-03 | Phase 17 | Complete |
 | CONTR-04 | Phase 17 | Complete |
 | RPT-01 | Phase 18 | Complete |
-| RPT-02 | Phase 18 | Pending |
+| RPT-02 | Phase 18 | Complete |
 | RPT-03 | Phase 18 | Complete |
 
 **Coverage:**

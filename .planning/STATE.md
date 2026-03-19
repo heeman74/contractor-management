@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Web Admin Dashboard
 status: executing
-stopped_at: Completed 18-01-PLAN.md
-last_updated: "2026-03-19T13:45:00.000Z"
+stopped_at: Completed 18-02-PLAN.md
+last_updated: "2026-03-19T13:55:20.854Z"
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 25
-  completed_plans: 23
+  completed_plans: 24
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-15)
 ## Current Position
 
 Phase: 18 (reporting-dashboard) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 
 ## Accumulated Context
 
@@ -86,6 +86,9 @@ Plan: 2 of 3
 - [Phase 18-01]: chart.tsx uses import * as RechartsPrimitive wildcard — compatible with recharts 3.x API
 - [Phase 18-01]: Backend Decimal fields serialize as strings — TypeScript uses string type for all Decimal-backed fields in reports
 - [Phase 18-01]: E2E stubs use test.skip() / @pytest.mark.skip — satisfy ship-with-feature rule without false failures during scaffold phase
+- [Phase 18-02]: Recharts 3.x Tooltip formatter requires any cast — ValueType | undefined not assignable to number; use eslint-disable comment to document intentional cast
+- [Phase 18-02]: Bar onClick in recharts 3.x types as BarMouseEvent which lacks domain record fields — cast to any then re-cast to known type internally
+- [Phase 18-02]: PopoverTrigger (base-ui) renders native button directly with no asChild prop — apply buttonVariants Tailwind classes directly on PopoverTrigger className
 
 ### Pending Todos
 
@@ -99,6 +102,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T13:45:00.000Z
-Stopped at: Completed 18-01-PLAN.md
-Resume file: .planning/phases/18-reporting-dashboard/18-02-PLAN.md
+Last session: 2026-03-19T13:55:20.847Z
+Stopped at: Completed 18-02-PLAN.md
+Resume file: None
