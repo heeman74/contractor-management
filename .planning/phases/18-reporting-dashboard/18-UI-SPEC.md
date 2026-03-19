@@ -34,7 +34,7 @@ Declared values (must be multiples of 4):
 
 | Token | Value | Usage |
 |-------|-------|-------|
-| xs | 4px | Icon gaps, heatmap cell margin (`mx-0.5`) |
+| xs | 4px | Icon gaps, heatmap cell horizontal margin (`mx-1`) |
 | sm | 8px | Inner card padding, button icon gap |
 | md | 16px | Default element spacing, card content padding |
 | lg | 24px | Section padding, chart card internal spacing |
@@ -43,11 +43,11 @@ Declared values (must be multiples of 4):
 | 3xl | 64px | Not used in this phase |
 
 Exceptions:
-- Heatmap cells: fixed `h-8` (32px height) with `mx-0.5` (2px) horizontal margin — matches RESEARCH.md Pattern 4
+- Heatmap cells: fixed `h-8` (32px height) with `mx-1` (4px) horizontal margin — nearest valid spacing value to RESEARCH.md Pattern 4
 - Chart container height: 280px minimum (not a spacing token — a content sizing constraint for `ResponsiveContainer`)
 - Chart card container: `min-h-[300px]` to prevent ResponsiveContainer width-0 on initial render
 
-Source: 8-point grid established by shadcn/ui base. Exceptions noted from RESEARCH.md heatmap pattern.
+Source: 8-point grid established by shadcn/ui base. Heatmap cell margin uses `mx-1` (4px) — the nearest multiple-of-4 value.
 
 ---
 
@@ -55,14 +55,11 @@ Source: 8-point grid established by shadcn/ui base. Exceptions noted from RESEAR
 
 | Role | Size | Weight | Line Height | Tailwind class | Usage |
 |------|------|--------|-------------|----------------|-------|
-| Body | 14px (text-sm) | 400 (normal) | 1.5 | `text-sm` | Chart labels, table cells, tooltips, heatmap contractor names |
-| Label | 14px (text-sm) | 500 (medium) | 1.5 | `text-sm font-medium` | Card titles, filter button labels, chart axis tick labels |
-| Heading | 20px (text-xl) | 600 (semibold) | 1.2 | `text-xl font-semibold` | Page heading ("Reports") |
+| Body | 14px (text-sm) | 400 (normal) | 1.5 | `text-sm` | Chart labels, table cells, tooltips, heatmap contractor names, card titles, filter button labels, chart axis tick labels |
+| Heading | 20px (text-xl) | 400 (normal) | 1.2 | `text-xl` | Page heading ("Reports") |
 | KPI Display | 30px (text-3xl) | 700 (bold) | 1.0 | `text-3xl font-bold` | Headline KPI number per chart card (e.g., "$42,350 total revenue") |
 
-Source: Extracted from `web/src/app/(dashboard)/page.tsx` (line 120: `text-xl font-semibold text-gray-900`) and `web/src/components/shared/kpi-card.tsx` (line 39: `text-3xl font-bold text-gray-900`). Applied consistently to reporting page.
-
-Weights in use: 400 (normal) + 700 (bold) for KPI display. Labels use 500 (medium) — this is a third weight but limited to label/heading roles only. Executor: use exactly these three — do not introduce 600 (semibold) as a separate weight in this phase.
+Weights in use: 400 (normal) + 700 (bold). Executor: use exactly these two weights — do not introduce 500 (medium) or 600 (semibold) in this phase.
 
 Chart axis ticks: `fontSize: 11` (11px) via Recharts `tick={{ fontSize: 11 }}` prop — below the declared type scale. This is a chart-internal constraint, not a typography token. See RESEARCH.md Pattern 3.
 
@@ -123,12 +120,12 @@ New components to create (all in `web/src/app/(dashboard)/reports/_components/`)
 
 | Component | File | Description |
 |-----------|------|-------------|
-| `ChartCard` | `chart-card.tsx` | Wrapper: title (Label style) + KPI headline (KPI Display style) + icon container (indigo accent) + `{children}` chart area + CSV download button |
+| `ChartCard` | `chart-card.tsx` | Wrapper: title (Body style) + KPI headline (KPI Display style) + icon container (indigo accent) + `{children}` chart area + CSV download button |
 | `DateRangeFilter` | `date-range-filter.tsx` | Preset buttons row (Last 7d / 30d / 90d / YTD) + "Custom" trigger opening Calendar Popover |
 | `RevenueChart` | `revenue-chart.tsx` | Recharts `AreaChart` (paid vs unpaid stacked), wrapped in `ResponsiveContainer width="100%" height={280}` |
 | `JobsByStatusChart` | `jobs-by-status-chart.tsx` | Recharts `BarChart` (status → count), each bar colored via StatusBadge color map, click-to-drill to `/jobs?status={status}` |
 | `QuoteConversionChart` | `quote-conversion-chart.tsx` | Recharts `PieChart` (approved/declined/pending), click-to-drill to `/quotes?status={status}` |
-| `UtilizationHeatmap` | `utilization-heatmap.tsx` | CSS Grid, contractors × ISO weeks, cells colored by utilization threshold |
+| `UtilizationHeatmap` | `utilization-heatmap.tsx` | CSS Grid, contractors × ISO weeks, cells colored by utilization threshold, horizontal cell margin `mx-1` (4px) |
 | `ReportsDashboard` | `reports-dashboard.tsx` | Main layout: DateRangeFilter + 2×2 chart grid, holds TanStack Query state |
 | `ReportsSkeleton` | `reports-skeleton.tsx` | Loading fallback: 4 skeleton card placeholders in 2×2 grid layout |
 
@@ -164,7 +161,7 @@ Grid class: `grid grid-cols-1 md:grid-cols-2 gap-8`
 Card
 └── CardContent (pt-4)
     ├── Header row (flex items-center justify-between)
-    │   ├── Left: title (Label style) + KPI number (KPI Display style) stacked
+    │   ├── Left: title (Body style) + KPI number (KPI Display style) stacked
     │   └── Right: icon container (indigo-50 bg, indigo-600 icon, rounded-md p-2) + CSV button (outline sm)
     └── Chart area: min-h-[300px], ResponsiveContainer width="100%" height={280}
 ```
@@ -199,7 +196,7 @@ All clickable chart elements: `cursor="pointer"` on Recharts element.
 
 All 3 Recharts charts (AreaChart, BarChart, PieChart): custom `<Tooltip>` with:
 - Container: `bg-white border border-border rounded-md shadow-sm p-2`
-- Content: Label (14px medium) + Value (14px normal)
+- Content: Label (14px normal) + Value (14px normal)
 - Revenue: `$${value.toLocaleString('en-AU', { minimumFractionDigits: 2 })}` format
 - Jobs count: integer
 - Quote conversion: count + percentage of total (e.g., "12 (60%)")
