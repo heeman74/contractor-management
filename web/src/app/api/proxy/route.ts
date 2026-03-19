@@ -18,6 +18,18 @@ async function handleProxy(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ detail: "Missing path parameter" }, { status: 400 });
   }
 
+  // Validate path to prevent SSRF — must start with /api/v1/ and not contain traversal patterns
+  if (
+    !path.startsWith("/api/v1/") ||
+    path.includes("://") ||
+    path.includes("..")
+  ) {
+    return NextResponse.json(
+      { detail: "Invalid path" },
+      { status: 400 }
+    );
+  }
+
   const upstreamUrl = `${FASTAPI_URL}${path}`;
 
   const headers: HeadersInit = {
@@ -70,5 +82,9 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
 }
 
 export async function DELETE(request: NextRequest): Promise<NextResponse> {
+  return handleProxy(request);
+}
+
+export async function PUT(request: NextRequest): Promise<NextResponse> {
   return handleProxy(request);
 }
