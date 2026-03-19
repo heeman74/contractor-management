@@ -137,12 +137,12 @@ Plans:
   1. Admin can view a dashboard with four charts: revenue by month, jobs by status breakdown, contractor utilization, and quote conversion rate
   2. Admin can change the date range and all charts update to reflect the selected period
   3. Admin can view a contractor utilization heatmap showing which contractors are overloaded or underutilized
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 18-01: Reporting page — four Recharts charts (AreaChart, BarChart, BarChart, PieChart) via shadcn/ui Chart wrappers, dynamic import with ssr:false
-- [ ] 18-02: Date range filter — shadcn/ui DatePicker, TanStack Query-driven refetch on range change
-- [ ] 18-03: Contractor utilization heatmap — custom heatmap grid component
+- [ ] 18-01-PLAN.md — Backend utilization-heatmap endpoint, TypeScript types, Recharts + shadcn chart install, E2E test stubs
+- [ ] 18-02-PLAN.md — Reports page with DateRangeFilter, ChartCard wrapper, Revenue/Jobs/Quote charts with drill-down and CSV export
+- [ ] 18-03-PLAN.md — Utilization heatmap component, dashboard integration, Playwright E2E + backend integration tests
 
 ## Progress
 
