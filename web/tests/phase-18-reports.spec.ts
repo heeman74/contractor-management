@@ -57,6 +57,11 @@ const MOCK_HEATMAP = {
 };
 
 async function mockReportsApi(page: Page) {
+  // Set auth cookie so middleware doesn't redirect to login
+  await page.context().addCookies([
+    { name: "access_token", value: "mock-token", domain: "localhost", path: "/" },
+  ]);
+
   // Intercept the Next.js proxy endpoint (all API calls go through /api/proxy?path=...)
   await page.route("**/api/proxy*", async (route: Route) => {
     const url = route.request().url();

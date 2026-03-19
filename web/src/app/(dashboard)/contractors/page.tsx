@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Search, ArrowUpDown, ArrowUp, ArrowDown, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { apiGet, apiPost } from "@/lib/api-client";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -48,6 +48,7 @@ export default function ContractorsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [page, setPage] = useState(1);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Query 1: Fetch all users
@@ -148,7 +149,11 @@ export default function ContractorsPage() {
               onChange={handleSearchChange}
             />
           </div>
-          <CreateContractorDialog />
+          <Button onClick={() => setCreateDialogOpen(true)}>
+            <Plus className="h-4 w-4" data-icon="inline-start" />
+            Add Contractor
+          </Button>
+          <CreateContractorDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen} />
         </div>
       </div>
 

@@ -45,8 +45,12 @@ interface CreatedUser {
   phone: string | null;
 }
 
-export function CreateContractorDialog() {
-  const [open, setOpen] = useState(false);
+interface CreateContractorDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export function CreateContractorDialog({ open, onOpenChange }: CreateContractorDialogProps) {
   const [email, setEmail] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -90,7 +94,7 @@ export function CreateContractorDialog() {
     onSuccess: () => {
       toast.success("Contractor added");
       queryClient.invalidateQueries({ queryKey: ["users"] });
-      setOpen(false);
+      onOpenChange(false);
       resetForm();
     },
     onError: (error: Error) => {
@@ -124,15 +128,7 @@ export function CreateContractorDialog() {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <Button>
-            <Plus className="h-4 w-4" data-icon="inline-start" />
-            Add Contractor
-          </Button>
-        }
-      />
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <form onSubmit={handleSubmit}>
           <DialogHeader>

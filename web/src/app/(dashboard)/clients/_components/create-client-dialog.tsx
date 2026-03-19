@@ -44,8 +44,12 @@ const INITIAL_FORM: CreateClientFormData = {
   admin_notes: "",
 };
 
-export function CreateClientDialog() {
-  const [open, setOpen] = useState(false);
+interface CreateClientDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export function CreateClientDialog({ open, onOpenChange }: CreateClientDialogProps) {
   const [form, setForm] = useState<CreateClientFormData>(INITIAL_FORM);
   const [errors, setErrors] = useState<Partial<Record<keyof CreateClientFormData, string>>>({});
   const queryClient = useQueryClient();
@@ -100,7 +104,7 @@ export function CreateClientDialog() {
     onSuccess: () => {
       toast.success("Client created");
       queryClient.invalidateQueries({ queryKey: ["clients"] });
-      setOpen(false);
+      onOpenChange(false);
       setForm(INITIAL_FORM);
       setErrors({});
     },
@@ -131,7 +135,7 @@ export function CreateClientDialog() {
     <Dialog
       open={open}
       onOpenChange={(nextOpen) => {
-        setOpen(nextOpen);
+        onOpenChange(nextOpen);
         if (!nextOpen) {
           setForm(INITIAL_FORM);
           setErrors({});
@@ -139,14 +143,6 @@ export function CreateClientDialog() {
         }
       }}
     >
-      <DialogTrigger
-        render={
-          <Button>
-            <Plus data-icon="inline-start" />
-            New Client
-          </Button>
-        }
-      />
       <DialogContent className="sm:max-w-lg">
         <form onSubmit={handleSubmit}>
           <DialogHeader>

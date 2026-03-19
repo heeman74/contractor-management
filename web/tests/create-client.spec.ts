@@ -37,6 +37,11 @@ async function mockClientsApi(
     userCreateError?: { status: number; detail: string };
   }
 ) {
+  // Set auth cookie so middleware doesn't redirect to login
+  await page.context().addCookies([
+    { name: "access_token", value: "mock-token", domain: "localhost", path: "/" },
+  ]);
+
   await page.route("**/api/proxy**", async (route: Route) => {
     const url = route.request().url();
     const method = route.request().method();

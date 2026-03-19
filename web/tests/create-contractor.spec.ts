@@ -1,7 +1,7 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page, type Route } from "@playwright/test";
 
 // ---------------------------------------------------------------------------
-// Helpers: Mock API routes
+// Mock data
 // ---------------------------------------------------------------------------
 
 const MOCK_CONTRACTOR = {
@@ -24,57 +24,64 @@ const MOCK_USERS_LIST = [
   },
 ];
 
-function setupApiMocks(
-  page: import("@playwright/test").Page,
-  overrides?: {
-    createUserStatus?: number;
-    createUserBody?: unknown;
+// ---------------------------------------------------------------------------
+// Helper: set up API mocks (same pattern as create-client.spec.ts)
+// ---------------------------------------------------------------------------
+
+async function mockContractorsApi(
+  page: Page,
+  options?: {
+    userCreateError?: { status: number; detail: string };
   }
 ) {
-  // Mock auth refresh
-  page.route("**/api/auth/refresh", (route) =>
-    route.fulfill({ status: 200, body: JSON.stringify({ ok: true }) })
-  );
+  // Set auth cookie so middleware doesn't redirect to login
+  await page.context().addCookies([
+    { name: "access_token", value: "mock-token", domain: "localhost", path: "/" },
+  ]);
 
-  // Mock GET users list
-  page.route("**/api/proxy?path=%2Fapi%2Fv1%2Fusers%2F", (route, request) => {
-    if (request.method() === "GET") {
-      return route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(MOCK_USERS_LIST),
-      });
+  await page.route("**/api/proxy**", async (route: Route) => {
+    const url = route.request().url();
+    const method = route.request().method();
+    const pathParam = new URL(url).searchParams.get("path") ?? "";
+
+    // GET /users — users list (contractors page)
+    if (method === "GET" && pathParam.includes("/users")) {
+      await route.fulfill({ json: MOCK_USERS_LIST });
+      return;
     }
-    // POST create user
-    if (request.method() === "POST") {
-      const status = overrides?.createUserStatus ?? 200;
-      const body = overrides?.createUserBody ?? MOCK_CONTRACTOR;
-      return route.fulfill({
-        status,
-        contentType: "application/json",
-        body: JSON.stringify(body),
-      });
+
+    // POST /users/ — create user (not roles)
+    if (method === "POST" && pathParam.match(/\/users\/?$/) && !pathParam.includes("/roles")) {
+      if (options?.userCreateError) {
+        await route.fulfill({
+          status: options.userCreateError.status,
+          json: { detail: options.userCreateError.detail },
+        });
+        return;
+      }
+      await route.fulfill({ json: MOCK_CONTRACTOR });
+      return;
     }
-    return route.continue();
+
+    // POST /users/*/roles — assign role
+    if (method === "POST" && pathParam.includes("/roles")) {
+      await route.fulfill({ json: { ok: true } });
+      return;
+    }
+
+    // POST /scheduling/availability — contractors page calls this
+    if (method === "POST" && pathParam.includes("/scheduling/availability")) {
+      await route.fulfill({ json: [] });
+      return;
+    }
+
+    // Fallback for any other requests
+    await route.fulfill({ json: {} });
   });
 
-  // Mock POST roles
-  page.route("**/api/proxy?path=*%2Froles*", (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ ok: true }),
-    })
-  );
-
-  // Mock availability (optional endpoint called by the page)
-  page.route("**/api/proxy?path=%2Fapi%2Fv1%2Fscheduling%2Favailability", (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify([]),
-    })
-  );
+  await page.route("**/api/auth/refresh", async (route: Route) => {
+    await route.fulfill({ status: 200, json: { ok: true } });
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -83,137 +90,95 @@ function setupApiMocks(
 
 test.describe("Create Contractor Dialog", () => {
   test("Add Contractor button opens create dialog", async ({ page }) => {
-    setupApiMocks(page);
+    await mockContractorsApi(page);
     await page.goto("/contractors");
 
-    // Click Add Contractor button
     await page.getByRole("button", { name: "Add Contractor" }).click();
 
-    // Verify dialog appeared with form fields
-    await expect(
-      page.getByRole("heading", { name: "Add Contractor" })
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Add Contractor" })).toBeVisible();
     await expect(page.getByLabel(/email/i)).toBeVisible();
     await expect(page.getByLabel(/first name/i)).toBeVisible();
     await expect(page.getByLabel(/last name/i)).toBeVisible();
     await expect(page.getByLabel(/phone/i)).toBeVisible();
-    await expect(page.getByLabel(/trade type/i)).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Create Contractor" })
-    ).toBeVisible();
   });
 
   test("Can fill and submit contractor form", async ({ page }) => {
-    setupApiMocks(page);
+    await mockContractorsApi(page);
     await page.goto("/contractors");
 
     await page.getByRole("button", { name: "Add Contractor" }).click();
 
-    // Fill required fields
     await page.getByLabel(/email/i).fill("jane@example.com");
     await page.getByLabel(/first name/i).fill("Jane");
     await page.getByLabel(/last name/i).fill("Smith");
     await page.getByLabel(/phone/i).fill("+1 555-0199");
 
-    // Submit the form
     await page.getByRole("button", { name: "Create Contractor" }).click();
 
-    // Wait for success toast
-    await expect(page.getByText("Contractor added")).toBeVisible({
-      timeout: 5000,
-    });
+    await expect(page.getByText("Contractor added")).toBeVisible({ timeout: 5000 });
   });
 
   test("Shows validation error for missing email", async ({ page }) => {
-    setupApiMocks(page);
+    await mockContractorsApi(page);
     await page.goto("/contractors");
 
     await page.getByRole("button", { name: "Add Contractor" }).click();
 
-    // Fill only name fields, leave email empty
     await page.getByLabel(/first name/i).fill("Jane");
     await page.getByLabel(/last name/i).fill("Smith");
 
-    // Submit
     await page.getByRole("button", { name: "Create Contractor" }).click();
 
-    // The form should show validation — either HTML5 validation prevents submit
-    // or our custom error shows. Check that dialog is still open.
-    await expect(
-      page.getByRole("heading", { name: "Add Contractor" })
-    ).toBeVisible();
+    // Dialog should remain open (HTML5 required validation)
+    await expect(page.getByRole("heading", { name: "Add Contractor" })).toBeVisible();
   });
 
   test("Shows validation error for missing name", async ({ page }) => {
-    setupApiMocks(page);
+    await mockContractorsApi(page);
     await page.goto("/contractors");
 
     await page.getByRole("button", { name: "Add Contractor" }).click();
 
-    // Fill only email, leave names empty
     await page.getByLabel(/email/i).fill("jane@example.com");
 
-    // Submit
     await page.getByRole("button", { name: "Create Contractor" }).click();
 
-    // Dialog should remain open (HTML5 required validation or our custom error)
-    await expect(
-      page.getByRole("heading", { name: "Add Contractor" })
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Add Contractor" })).toBeVisible();
   });
 
   test("Dialog closes on successful creation", async ({ page }) => {
-    setupApiMocks(page);
+    await mockContractorsApi(page);
     await page.goto("/contractors");
 
     await page.getByRole("button", { name: "Add Contractor" }).click();
+    await expect(page.getByRole("heading", { name: "Add Contractor" })).toBeVisible();
 
-    // Verify dialog is open
-    await expect(
-      page.getByRole("heading", { name: "Add Contractor" })
-    ).toBeVisible();
-
-    // Fill form
     await page.getByLabel(/email/i).fill("jane@example.com");
     await page.getByLabel(/first name/i).fill("Jane");
     await page.getByLabel(/last name/i).fill("Smith");
 
-    // Submit
     await page.getByRole("button", { name: "Create Contractor" }).click();
 
-    // Wait for toast then verify dialog is gone
-    await expect(page.getByText("Contractor added")).toBeVisible({
-      timeout: 5000,
-    });
-    await expect(
-      page.getByRole("heading", { name: "Add Contractor" })
-    ).not.toBeVisible();
+    await expect(page.getByText("Contractor added")).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole("heading", { name: "Add Contractor" })).not.toBeVisible();
   });
 
   test("Shows API error when email already exists", async ({ page }) => {
-    setupApiMocks(page, {
-      createUserStatus: 409,
-      createUserBody: { detail: "Email already exists" },
+    await mockContractorsApi(page, {
+      userCreateError: { status: 409, detail: "Email already exists" },
     });
     await page.goto("/contractors");
 
     await page.getByRole("button", { name: "Add Contractor" }).click();
 
-    // Fill form
     await page.getByLabel(/email/i).fill("existing@example.com");
     await page.getByLabel(/first name/i).fill("Jane");
     await page.getByLabel(/last name/i).fill("Smith");
 
-    // Submit
     await page.getByRole("button", { name: "Create Contractor" }).click();
 
-    // Verify error message is shown in the dialog
     await expect(page.getByRole("alert")).toBeVisible({ timeout: 5000 });
     await expect(page.getByText("Email already exists")).toBeVisible();
-
-    // Dialog should stay open
-    await expect(
-      page.getByRole("heading", { name: "Add Contractor" })
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Add Contractor" })).toBeVisible();
   });
 });

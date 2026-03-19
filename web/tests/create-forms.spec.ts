@@ -69,6 +69,11 @@ const MOCK_CREATED_JOB = {
 };
 
 async function setupApiMocks(page: Page, options?: { postShouldFail?: boolean }) {
+  // Set auth cookie so middleware doesn't redirect to login
+  await page.context().addCookies([
+    { name: "access_token", value: "mock-token", domain: "localhost", path: "/" },
+  ]);
+
   // Mock auth refresh
   await page.route("**/api/auth/refresh", (route) =>
     route.fulfill({ status: 200, body: "{}" })

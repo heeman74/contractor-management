@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Search, ArrowUpDown, ArrowUp, ArrowDown, Plus } from "lucide-react";
 import { apiGet } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +55,7 @@ export default function ClientsPage() {
   const [page, setPage] = useState(1);
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -117,7 +118,11 @@ export default function ClientsPage() {
               onChange={(e) => setSearchInput(e.target.value)}
             />
           </div>
-          <CreateClientDialog />
+          <Button onClick={() => setCreateDialogOpen(true)}>
+            <Plus className="h-4 w-4" data-icon="inline-start" />
+            New Client
+          </Button>
+          <CreateClientDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen} />
         </div>
       </div>
 
