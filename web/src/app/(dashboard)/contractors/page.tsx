@@ -20,6 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { ContractorListItem, AvailabilityResponse } from "@/types/api";
+import { CreateContractorDialog } from "./_components/create-contractor-dialog";
 
 const PAGE_SIZE = 50;
 
@@ -134,17 +135,20 @@ export default function ContractorsPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-      {/* Header row: page title + search bar */}
+      {/* Header row: page title + search bar + add button */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-gray-900">Contractors</h1>
-        <div className="relative w-72">
-          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none" />
-          <Input
-            className="pl-8"
-            placeholder="Search by name or email..."
-            value={searchInput}
-            onChange={handleSearchChange}
-          />
+        <div className="flex items-center gap-3">
+          <div className="relative w-72">
+            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <Input
+              className="pl-8"
+              placeholder="Search by name or email..."
+              value={searchInput}
+              onChange={handleSearchChange}
+            />
+          </div>
+          <CreateContractorDialog />
         </div>
       </div>
 
