@@ -182,9 +182,11 @@ class AuthService:
                 .where(RefreshToken.family_id == stored_token.family_id)
                 .values(revoked=True)
             )
-            # Flush (not commit) to persist family revocation within the transaction.
-            # get_db handles the final commit/rollback per CLAUDE.md rules.
-            await self.db.flush()
+            # EXCEPTION to CLAUDE.md "no commit in services" rule:
+            # Family revocation MUST persist even though we raise an error afterward.
+            # Using flush() would be rolled back by get_db's exception handler,
+            # leaving the stolen token family active (OWASP token reuse vulnerability).
+            await self.db.commit()
             raise ValueError("Token reuse detected — family revoked")
 
         # Check expiration
