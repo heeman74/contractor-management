@@ -9,8 +9,8 @@ Requirements for AI-Driven Construction Management milestone. Each maps to roadm
 
 ### Project Model
 
-- [ ] **PROJ-01**: GC can create a project with description, address, client, and target timeline
-- [ ] **PROJ-02**: GC can add trade scopes to a project (plumbing, electrical, carpentry, etc.) with assigned contractors
+- [x] **PROJ-01**: GC can create a project with description, address, client, and target timeline
+- [x] **PROJ-02**: GC can add trade scopes to a project (plumbing, electrical, carpentry, etc.) with assigned contractors
 - [ ] **PROJ-03**: GC can view project hierarchy (Project → Trade Scopes → Tasks) in a tree view
 - [ ] **PROJ-04**: System enforces cross-trade task dependencies (Task A must finish before Task B starts)
 - [ ] **PROJ-05**: GC can view project timeline with all trades on a Gantt-style chart showing dependencies
@@ -99,8 +99,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PROJ-01 | Phase 19 | Pending |
-| PROJ-02 | Phase 19 | Pending |
+| PROJ-01 | Phase 19 | Complete |
+| PROJ-02 | Phase 19 | Complete |
 | PROJ-03 | Phase 19 | Pending |
 | PROJ-04 | Phase 20 | Pending |
 | PROJ-05 | Phase 20 | Pending |
