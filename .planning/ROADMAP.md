@@ -168,7 +168,14 @@ Plans:
   2. GC can add trade scopes (plumbing, electrical, carpentry, etc.) to a project and assign a contractor to each scope
   3. GC can navigate the project hierarchy (Project → Trade Scopes → Tasks) as a tree view on mobile and web
   4. Cross-tenant isolation holds: Company B's token cannot access Company A's project data — all new tables have RLS policies enforced
-**Plans**: TBD
+**Plans:** 5 plans
+
+Plans:
+- [ ] 19-01-PLAN.md — Backend SQLAlchemy models (6 entities) + Alembic migration 0015 with RLS, indexes, triggers, and data migration
+- [ ] 19-02-PLAN.md — Mobile Drift schema v7 (5 tables) + DAOs with reactive streams + sync handlers
+- [ ] 19-03-PLAN.md — Backend CRUD endpoints (repository, service, router) + 16 integration tests covering RLS and status transitions
+- [ ] 19-04-PLAN.md — Mobile UI: project list, detail, scope cards, task list + Riverpod providers + Projects bottom nav tab + 10 E2E tests
+- [ ] 19-05-PLAN.md — Web UI: project tree sidebar, detail panels, create dialog, trade scope sheet + 10 Playwright E2E tests
 
 ### Phase 20: Dependency Engine
 **Goal**: The system enforces cross-trade task dependencies with cycle prevention, and GCs can visualize the full project timeline with all trades and their dependency relationships
@@ -279,7 +286,7 @@ Note: Phase 25 (Billing) depends only on Phase 19 and may start in parallel with
 | 16. Quotes and Invoices | v2.0 | 6/6 | Complete | 2026-03-18 |
 | 17. CRM — Clients and Contractors | v2.0 | 5/5 | Complete | 2026-03-19 |
 | 18. Reporting Dashboard | v2.0 | 3/3 | Complete | 2026-03-19 |
-| 19. Project Data Model | v3.0 | 0/TBD | Not started | - |
+| 19. Project Data Model | v3.0 | 0/5 | Planning | - |
 | 20. Dependency Engine | v3.0 | 0/TBD | Not started | - |
 | 21. AI Project Intake and Contractor Interview | v3.0 | 0/TBD | Not started | - |
 | 22. Task Execution and Photo Annotation | v3.0 | 0/TBD | Not started | - |
