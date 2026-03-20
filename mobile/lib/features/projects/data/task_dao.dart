@@ -1,0 +1,166 @@
+import 'dart:convert';
+
+import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
+
+import '../../../core/database/app_database.dart';
+import '../../../core/database/tables/sync_queue.dart';
+import '../../../core/database/tables/tasks.dart';
+
+part 'task_dao.g.dart';
+
+/// Drift DAO for ProjectTask CRUD operations.
+///
+/// ProjectTasks are the atomic units of work within a trade scope.
+/// The DAO supports reactive streams, task completion counting
+/// (for progress indicators), and transactional sync queue writes.
+///
+/// [countTasksByScope] and [countCompletedTasksByScope] are used to
+/// compute scope-level progress percentages in the project detail view.
+@DriftAccessor(tables: [ProjectTasks, SyncQueue])
+class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
+  TaskDao(super.db);
+
+  /// Reactive stream of all active (non-deleted) tasks for a trade scope.
+  ///
+  /// Ordered by [sortOrder] for consistent task list display.
+  Stream<List<ProjectTask>> watchTasksByScope(String tradeScopeId) {
+    return (select(projectTasks)
+          ..where(
+            (tbl) =>
+                tbl.tradeScopeId.equals(tradeScopeId) &
+                tbl.deletedAt.isNull(),
+          )
+          ..orderBy([(tbl) => OrderingTerm.asc(tbl.sortOrder)]))
+        .watch();
+  }
+
+  /// Count total active (non-deleted) tasks for a trade scope.
+  ///
+  /// Used with [countCompletedTasksByScope] to compute progress percentage.
+  Future<int> countTasksByScope(String tradeScopeId) async {
+    final countExpr = projectTasks.id.count();
+    final query = selectOnly(projectTasks)
+      ..addColumns([countExpr])
+      ..where(
+        projectTasks.tradeScopeId.equals(tradeScopeId) &
+            projectTasks.deletedAt.isNull(),
+      );
+    final result = await query.getSingleOrNull();
+    return result?.read(countExpr) ?? 0;
+  }
+
+  /// Count completed active tasks for a trade scope.
+  ///
+  /// A task is complete when its [status] equals 'complete'.
+  Future<int> countCompletedTasksByScope(String tradeScopeId) async {
+    final countExpr = projectTasks.id.count();
+    final query = selectOnly(projectTasks)
+      ..addColumns([countExpr])
+      ..where(
+        projectTasks.tradeScopeId.equals(tradeScopeId) &
+            projectTasks.status.equals('complete') &
+            projectTasks.deletedAt.isNull(),
+      );
+    final result = await query.getSingleOrNull();
+    return result?.read(countExpr) ?? 0;
+  }
+
+  /// Insert a new task and atomically enqueue a CREATE sync item.
+  Future<void> insertTask(ProjectTasksCompanion entry) async {
+    await db.transaction(() async {
+      await into(projectTasks).insert(entry);
+      await into(syncQueue).insert(
+        _buildQueueEntry(
+          entityType: 'task',
+          entityId: entry.id.value,
+          operation: 'CREATE',
+          payload: _taskPayload(entry),
+        ),
+      );
+    });
+  }
+
+  /// Update a task and atomically enqueue an UPDATE sync item.
+  Future<void> updateTask(String id, ProjectTasksCompanion entry) async {
+    await db.transaction(() async {
+      await (update(projectTasks)..where((tbl) => tbl.id.equals(id)))
+          .write(entry);
+      await into(syncQueue).insert(
+        _buildQueueEntry(
+          entityType: 'task',
+          entityId: id,
+          operation: 'UPDATE',
+          payload: _taskPayload(entry),
+        ),
+      );
+    });
+  }
+
+  /// Soft-delete a task and atomically enqueue a DELETE sync item.
+  Future<void> softDeleteTask(String id) async {
+    await db.transaction(() async {
+      await (update(projectTasks)..where((tbl) => tbl.id.equals(id))).write(
+        ProjectTasksCompanion(deletedAt: Value(DateTime.now())),
+      );
+      await into(syncQueue).insert(
+        _buildQueueEntry(
+          entityType: 'task',
+          entityId: id,
+          operation: 'DELETE',
+          payload: {'id': id},
+        ),
+      );
+    });
+  }
+
+  /// Build a [SyncQueueCompanion] outbox entry for the given mutation.
+  SyncQueueCompanion _buildQueueEntry({
+    required String entityType,
+    required String entityId,
+    required String operation,
+    required Map<String, dynamic> payload,
+  }) {
+    return SyncQueueCompanion.insert(
+      id: Value(const Uuid().v4()),
+      entityType: entityType,
+      entityId: entityId,
+      operation: operation,
+      payload: jsonEncode(payload),
+      status: const Value('pending'),
+      attemptCount: const Value(0),
+      createdAt: DateTime.now(),
+    );
+  }
+
+  /// Build a JSON-serializable payload map from a [ProjectTasksCompanion].
+  Map<String, dynamic> _taskPayload(ProjectTasksCompanion entry) {
+    return {
+      if (entry.id.present) 'id': entry.id.value,
+      if (entry.companyId.present) 'companyId': entry.companyId.value,
+      if (entry.tradeScopeId.present) 'tradeScopeId': entry.tradeScopeId.value,
+      if (entry.title.present) 'title': entry.title.value,
+      if (entry.description.present) 'description': entry.description.value,
+      if (entry.status.present) 'status': entry.status.value,
+      if (entry.sortOrder.present) 'sortOrder': entry.sortOrder.value,
+      if (entry.priority.present) 'priority': entry.priority.value,
+      if (entry.estimatedHours.present)
+        'estimatedHours': entry.estimatedHours.value,
+      if (entry.estimatedCost.present)
+        'estimatedCost': entry.estimatedCost.value,
+      if (entry.dueDate.present)
+        'dueDate': entry.dueDate.value?.toIso8601String(),
+      if (entry.photoRequired.present)
+        'photoRequired': entry.photoRequired.value,
+      if (entry.assignedTo.present) 'assignedTo': entry.assignedTo.value,
+      if (entry.materialsNeeded.present)
+        'materialsNeeded': entry.materialsNeeded.value,
+      if (entry.dependsOn.present) 'dependsOn': entry.dependsOn.value,
+      if (entry.version.present) 'version': entry.version.value,
+      if (entry.createdAt.present)
+        'createdAt': entry.createdAt.value.toIso8601String(),
+      if (entry.updatedAt.present)
+        'updatedAt': entry.updatedAt.value.toIso8601String(),
+    };
+  }
+}

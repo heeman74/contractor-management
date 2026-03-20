@@ -9,6 +9,10 @@ import '../../features/jobs/data/attachment_dao.dart';
 import '../../features/jobs/data/job_dao.dart';
 import '../../features/jobs/data/note_dao.dart';
 import '../../features/jobs/data/time_entry_dao.dart';
+import '../../features/projects/data/project_dao.dart';
+import '../../features/projects/data/task_dao.dart';
+import '../../features/projects/data/trade_catalog_dao.dart';
+import '../../features/projects/data/trade_scope_dao.dart';
 import '../../features/quotes/data/quote_dao.dart';
 import '../../features/schedule/data/booking_dao.dart';
 import '../../features/users/data/user_dao.dart';
@@ -25,13 +29,19 @@ import 'tables/job_notes.dart';
 import 'tables/job_requests.dart';
 import 'tables/job_sites.dart';
 import 'tables/jobs.dart';
+import 'tables/projects.dart';
 import 'tables/quote_line_items.dart';
 import 'tables/quote_templates.dart';
 import 'tables/quotes.dart';
 import 'tables/sync_cursor.dart';
 import 'tables/sync_queue.dart';
+import 'tables/task_attachments.dart';
+import 'tables/tasks.dart';
 import 'tables/time_entries.dart';
+import 'tables/trade_catalog.dart';
+import 'tables/trade_scopes.dart';
 import 'tables/user_roles.dart';
+import 'tables/user_trade_specialties.dart';
 import 'tables/users.dart';
 
 export '../../features/company/data/company_dao.dart';
@@ -40,6 +50,10 @@ export '../../features/jobs/data/attachment_dao.dart';
 export '../../features/jobs/data/job_dao.dart';
 export '../../features/jobs/data/note_dao.dart';
 export '../../features/jobs/data/time_entry_dao.dart';
+export '../../features/projects/data/project_dao.dart';
+export '../../features/projects/data/task_dao.dart';
+export '../../features/projects/data/trade_catalog_dao.dart';
+export '../../features/projects/data/trade_scope_dao.dart';
 export '../../features/quotes/data/quote_dao.dart';
 export '../../features/schedule/data/booking_dao.dart';
 export '../../features/users/data/user_dao.dart';
@@ -67,6 +81,12 @@ part 'app_database.g.dart';
     QuoteTemplates,
     Invoices,
     InvoiceLineItems,
+    TradeCatalogEntries,
+    Projects,
+    TradeScopes,
+    ProjectTasks,
+    TaskAttachments,
+    UserTradeSpecialties,
   ],
   daos: [
     CompanyDao,
@@ -80,6 +100,10 @@ part 'app_database.g.dart';
     TimeEntryDao,
     QuoteDao,
     InvoiceDao,
+    ProjectDao,
+    TradeCatalogDao,
+    TradeScopeDao,
+    TaskDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -87,7 +111,7 @@ class AppDatabase extends _$AppDatabase {
       : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -128,6 +152,14 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(invoiceLineItems);
             await m.addColumn(jobs, jobs.quoteId);
             await m.addColumn(jobs, jobs.invoiceId);
+          }
+          if (from < 7) {
+            await m.createTable(tradeCatalogEntries);
+            await m.createTable(projects);
+            await m.createTable(tradeScopes);
+            await m.createTable(projectTasks);
+            await m.createTable(taskAttachments);
+            await m.createTable(userTradeSpecialties);
           }
         },
       );
