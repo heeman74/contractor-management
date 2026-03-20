@@ -44,7 +44,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 **Milestone Goal:** Transform ContractorHub from single-contractor job tracking into an AI-driven multi-trade project management platform where AI plans projects by trade, generates daily checklists, GCs coordinate all trades through chat and inspection tools, and the full quoting/invoicing lifecycle works per trade.
 
-- [ ] **Phase 19: Project Data Model** — Project → Trade Scope → Task hierarchy with RLS, Drift schema, and sync handlers
+- [x] **Phase 19: Project Data Model** — Project → Trade Scope → Task hierarchy with RLS, Drift schema, and sync handlers (completed 2026-03-20)
 - [ ] **Phase 20: Dependency Engine** — Cross-trade dependency graph with cycle detection, topological sort, and Gantt timeline view
 - [ ] **Phase 21: AI Project Intake and Contractor Interview** — Claude API integration: GC describes project, AI structures by trade, AI interviews each contractor
 - [ ] **Phase 22: Task Execution and Photo Annotation** — Contractor daily checklists, task progress on mobile, non-destructive photo annotation on mobile and web
@@ -168,7 +168,7 @@ Plans:
   2. GC can add trade scopes (plumbing, electrical, carpentry, etc.) to a project and assign a contractor to each scope
   3. GC can navigate the project hierarchy (Project → Trade Scopes → Tasks) as a tree view on mobile and web
   4. Cross-tenant isolation holds: Company B's token cannot access Company A's project data — all new tables have RLS policies enforced
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 - [ ] 19-01-PLAN.md — Backend SQLAlchemy models (6 entities) + Alembic migration 0015 with RLS, indexes, triggers, and data migration
@@ -286,7 +286,7 @@ Note: Phase 25 (Billing) depends only on Phase 19 and may start in parallel with
 | 16. Quotes and Invoices | v2.0 | 6/6 | Complete | 2026-03-18 |
 | 17. CRM — Clients and Contractors | v2.0 | 5/5 | Complete | 2026-03-19 |
 | 18. Reporting Dashboard | v2.0 | 3/3 | Complete | 2026-03-19 |
-| 19. Project Data Model | 4/5 | In Progress|  | - |
+| 19. Project Data Model | 5/5 | Complete   | 2026-03-20 | - |
 | 20. Dependency Engine | v3.0 | 0/TBD | Not started | - |
 | 21. AI Project Intake and Contractor Interview | v3.0 | 0/TBD | Not started | - |
 | 22. Task Execution and Photo Annotation | v3.0 | 0/TBD | Not started | - |
