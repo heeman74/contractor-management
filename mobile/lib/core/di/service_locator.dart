@@ -19,10 +19,18 @@ import '../../features/jobs/data/client_profile_sync_handler.dart';
 import '../../features/jobs/data/job_request_sync_handler.dart';
 import '../../features/jobs/data/job_sync_handler.dart';
 import '../../features/jobs/presentation/services/attachment_upload_service.dart';
+import '../../features/projects/data/project_dao.dart';
+import '../../features/projects/data/task_dao.dart';
+import '../../features/projects/data/trade_catalog_dao.dart';
+import '../../features/projects/data/trade_scope_dao.dart';
 import '../../features/quotes/data/quote_line_item_sync_handler.dart';
 import '../../features/quotes/data/quote_sync_handler.dart';
 import '../../features/schedule/data/booking_sync_handler.dart';
 import '../../features/schedule/data/job_site_sync_handler.dart';
+import '../sync/handlers/project_sync_handler.dart';
+import '../sync/handlers/task_sync_handler.dart';
+import '../sync/handlers/trade_catalog_sync_handler.dart';
+import '../sync/handlers/trade_scope_sync_handler.dart';
 
 final getIt = GetIt.instance;
 
@@ -73,6 +81,11 @@ Future<void> setupServiceLocator() async {
   registry.register(AttachmentSyncHandler(db));
   registry.register(QuoteLineItemSyncHandler(db));
   registry.register(InvoiceLineItemSyncHandler(db));
+  // Phase 19: Project data model sync handlers
+  registry.register(ProjectSyncHandler(dioClient, db));
+  registry.register(TradeCatalogSyncHandler(dioClient, db));
+  registry.register(TradeScopeSyncHandler(dioClient, db));
+  registry.register(TaskSyncHandler(dioClient, db));
 
   getIt.registerSingleton<SyncRegistry>(registry);
 
@@ -104,6 +117,12 @@ Future<void> setupServiceLocator() async {
   // Phase 8 DAOs — registered for direct injection in business operations features
   getIt.registerSingleton<QuoteDao>(db.quoteDao);
   getIt.registerSingleton<InvoiceDao>(db.invoiceDao);
+
+  // Phase 19 DAOs — registered for direct injection in project management features
+  getIt.registerSingleton<ProjectDao>(db.projectDao);
+  getIt.registerSingleton<TradeCatalogDao>(db.tradeCatalogDao);
+  getIt.registerSingleton<TradeScopeDao>(db.tradeScopeDao);
+  getIt.registerSingleton<TaskDao>(db.taskDao);
 
   // AttachmentUploadService — binary file uploader for field workflow attachments.
   // Registered AFTER SyncEngine to allow post-construction wiring via
