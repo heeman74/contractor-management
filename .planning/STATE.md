@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: AI-Driven Construction Management
 status: unknown
-stopped_at: Completed 19-03-PLAN.md
-last_updated: "2026-03-20T13:00:00Z"
+stopped_at: Completed 19-04-PLAN.md
+last_updated: "2026-03-20T12:22:00Z"
 progress:
   total_phases: 14
   completed_phases: 6
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-19)
 ## Current Position
 
 Phase: 19 (project-data-model) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 
 ## Performance Metrics
 
@@ -53,7 +53,10 @@ Plan: 4 of 5
 - v3.0: Annotation storage is non-destructive (base photo immutable; annotation JSON in separate JSONB column)
 - v3.0: WebSocket JWT re-validated server-side every 5 minutes; close with 4401 on expiry
 - v3.0: Task-level dependencies as JSONB array on Task; cross-trade dependencies as edge table
-- [Phase 19]: ProjectTasks named to avoid class conflict; UserTradeSpecialties uses plain text FKs to avoid cross-feature coupling; watchProjectsForContractor uses selectOnly+JOIN for contractor role filtering
+- [Phase 19]: ProjectTasks named to avoid class conflict; UserTradeSpecialties uses plain text FKs to avoid cross-feature coupling
+- [Phase 19 P04]: watchProjectsForContractor uses two-stream approach (watch scopes → filter projects) — Drift selectOnly+JOIN fails with readTable for joined queries
+- [Phase 19 P04]: Riverpod 3 forbids changing override count between pumpWidget calls; split drill-down navigation test into 3 separate testWidgets
+- [Phase 19 P04]: Stream.value() in widget tests avoids pending-timer assertion from Drift watch streams
 - [Phase 19 P01]: TradeCatalog UNIQUE(company_id,name) with ON CONFLICT DO NOTHING makes data migration idempotent
 - [Phase 19 P01]: unnest() in migrations uses lateral join form for PostgreSQL 13 compatibility
 - [Phase 19 P03]: ProjectService.create accepts user_id kwarg for status_history audit; routes pass current_user.user_id
@@ -73,6 +76,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T13:00:00Z
-Stopped at: Completed 19-03-PLAN.md
+Last session: 2026-03-20T12:22:00Z
+Stopped at: Completed 19-04-PLAN.md
 Resume file: None
