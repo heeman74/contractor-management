@@ -1,100 +1,97 @@
 # Requirements: ContractorHub
 
-**Defined:** 2026-03-15
-**Core Value:** Clients always know exactly what's happening with their job — no more chasing contractors for updates, no more scheduling conflicts, no more missed appointments.
+**Defined:** 2026-03-19
+**Core Value:** AI eliminates the chaos of multi-trade coordination — GCs always know where every trade stands, contractors always know what to do today, projects stay on track.
 
-## v2.0 Requirements
+## v3.0 Requirements
 
-Requirements for web admin dashboard. Each maps to roadmap phases.
+Requirements for AI-Driven Construction Management milestone. Each maps to roadmap phases.
 
-### Web Foundation & Auth
+### Project Model
 
-- [x] **AUTH-01**: Admin can log in with email and password via the web dashboard
-- [x] **AUTH-02**: Web session persists across browser refresh using httpOnly cookie tokens
-- [x] **AUTH-03**: Token refresh happens transparently without interrupting admin workflow
-- [x] **AUTH-04**: Admin can log out and session is fully invalidated
-- [x] **AUTH-05**: Global sidebar navigation provides persistent access to all modules
-- [x] **AUTH-06**: User-friendly error messages display for auth, validation, conflict, and server errors
+- [ ] **PROJ-01**: GC can create a project with description, address, client, and target timeline
+- [ ] **PROJ-02**: GC can add trade scopes to a project (plumbing, electrical, carpentry, etc.) with assigned contractors
+- [ ] **PROJ-03**: GC can view project hierarchy (Project → Trade Scopes → Tasks) in a tree view
+- [ ] **PROJ-04**: System enforces cross-trade task dependencies (Task A must finish before Task B starts)
+- [ ] **PROJ-05**: GC can view project timeline with all trades on a Gantt-style chart showing dependencies
 
-### Job Management
+### AI Planning
 
-- [x] **JOBS-01**: Admin can view all jobs in a filterable list with status tabs and search
-- [x] **JOBS-02**: Admin can view full job detail including notes, assigned contractor, client, and status
-- [x] **JOBS-03**: Admin can transition job status through the lifecycle (Quote→Scheduled→In Progress→Complete→Invoiced)
-- [x] **JOBS-04**: Admin can review client-submitted job requests and approve or decline them
+- [ ] **AI-01**: GC can describe a project in natural language and AI breaks it into trade scopes with suggested sequencing
+- [ ] **AI-02**: AI asks follow-up questions to clarify project scope before generating trade breakdown
+- [ ] **AI-03**: AI interviews each trade contractor with trade-specific questions to generate detailed task plans
+- [ ] **AI-04**: AI generates daily checklists per trade with tasks, materials needed, and photo requirements
+- [ ] **AI-05**: AI adapts schedules based on actual progress — flags delays and suggests rescheduling
+- [ ] **AI-06**: AI detects cross-trade conflicts (e.g., two trades needing same space on same day)
 
-### Scheduling
+### Task Execution
 
-- [x] **SCHED-01**: Admin can view a weekly calendar with side-by-side contractor lanes
-- [x] **SCHED-02**: Admin can drag-and-drop bookings to reschedule or reassign contractors
-- [x] **SCHED-03**: Calendar displays conflict warnings before confirming a booking
+- [ ] **TASK-01**: Contractor can view their daily AI-generated checklist on mobile
+- [ ] **TASK-02**: Contractor can check off checklist items as they complete tasks
+- [ ] **TASK-03**: Contractor can add progress notes (text) to any task
+- [ ] **TASK-04**: Contractor can capture and attach photos to tasks
+- [ ] **TASK-05**: Contractor can draw annotations on photos (arrows, circles, text, measurements)
+- [ ] **TASK-06**: Contractor can attach PDF documents to tasks
+- [ ] **TASK-07**: GC can view task progress across all trades from mobile
 
-### Quoting
+### GC Inspection
 
-- [x] **QUOTE-01**: Admin can view all quotes in a list with status indicators (draft, sent, approved, declined)
-- [x] **QUOTE-02**: Admin can create and edit quotes with line items, taxes, and descriptions
-- [x] **QUOTE-03**: Admin can send a quote to the client and track approval status
-- [x] **QUOTE-04**: Admin can download a quote as PDF
+- [ ] **INSP-01**: GC can inspect completed tasks and approve or reject them with comments
+- [ ] **INSP-02**: GC can flag issues discovered during site walks with photos and annotations
+- [ ] **INSP-03**: GC can create punch list items assigned to specific trades
+- [ ] **INSP-04**: Rejected tasks trigger notification to the trade contractor with GC's feedback
 
-### Invoicing
+### Chat
 
-- [x] **INV-01**: Admin can view all invoices in a list with payment status indicators
-- [x] **INV-02**: Admin can record full or partial payments on an invoice
-- [x] **INV-03**: Admin can download an invoice as PDF
+- [ ] **CHAT-01**: GC can send text messages to any trade contractor on a project
+- [ ] **CHAT-02**: Contractor can reply to GC messages in real-time
+- [ ] **CHAT-03**: Chat supports photo and file sharing (annotated photos, PDFs)
+- [ ] **CHAT-04**: Chat threads are organized per trade scope within a project
+- [ ] **CHAT-05**: New chat messages trigger push notifications via FCM
 
-### Client/CRM
+### Per-Trade Billing
 
-- [x] **CRM-01**: Admin can view a searchable list of all clients
-- [x] **CRM-02**: Admin can view client detail with all past and active job history
+- [ ] **BILL-01**: GC can create a quote per trade scope with line items
+- [ ] **BILL-02**: Trade quotes aggregate to a project-level quote for client approval
+- [ ] **BILL-03**: GC can generate invoices per trade scope from completed work
+- [ ] **BILL-04**: Trade invoices aggregate to a project-level invoice
+- [ ] **BILL-05**: GC can do progress billing — invoice at milestones within a trade scope
 
-### Contractor Management
+### Monitoring Dashboard
 
-- [x] **CONTR-01**: Admin can view all contractors in a list with availability summary
-- [x] **CONTR-02**: Admin can view contractor profile with assigned jobs and weekly schedule
-- [x] **CONTR-03**: Admin can edit a contractor's weekly working hours
-- [x] **CONTR-04**: Admin can set date overrides (mark dates unavailable or custom hours)
+- [ ] **DASH-01**: GC can view all active projects with trade status summary on web dashboard
+- [ ] **DASH-02**: GC can see cross-trade timeline with dependency arrows and progress indicators
+- [ ] **DASH-03**: AI generates alerts when trades fall behind schedule or dependencies are at risk
+- [ ] **DASH-04**: GC can drill down from project overview to individual trade tasks
 
-### Reporting
+## Future Requirements
 
-- [x] **RPT-01**: Admin can view a dashboard with revenue, jobs by status, utilization, and quote conversion charts
-- [x] **RPT-02**: Admin can filter reports by custom date range
-- [x] **RPT-03**: Admin can view contractor utilization heatmap
+Deferred to v3.1+. Tracked but not in current roadmap.
 
-## v2.1 Requirements
+### Payments
+- **PAY-01**: In-app payment processing (Stripe/Square) for invoices
+- **PAY-02**: Client can pay invoices online via payment link
 
-Deferred to next minor release. Tracked but not in current roadmap.
+### Platform
+- **PLAT-01**: iOS support for Flutter mobile app
+- **PLAT-02**: QuickBooks/Xero integration for accounting sync
 
-### Scheduling Enhancements
-
-- **SCHED-04**: Unassigned jobs queue panel on calendar for drag-to-assign
-- **SCHED-05**: Multi-day booking UI with date range picker
-- **SCHED-06**: Availability-aware date suggestions when scheduling
-
-### Quoting Enhancements
-
-- **QUOTE-05**: Quote-to-job conversion flow (approve → schedule in one step)
-- **QUOTE-06**: Inline PDF preview in browser panel
-
-### Contractor Enhancements
-
-- **CONTR-05**: Contractor utilization heatmap (visual overload/underutilization)
+### Advanced AI
+- **ADV-01**: AI learns from historical project data to improve estimates
+- **ADV-02**: AI suggests optimal trade sequencing based on contractor availability
+- **ADV-03**: AI-powered material cost estimation from task descriptions
 
 ## Out of Scope
 
-Explicitly excluded. Documented to prevent scope creep.
-
 | Feature | Reason |
 |---------|--------|
-| Real-time WebSocket updates | Polling every 30s is sufficient; avoids infra changes |
-| Offline mode on web | Web admin is always connected; offline-first is for field contractors |
-| In-app payment collection | PCI compliance; defer to v3+ |
-| Dark mode | Increases CSS/testing surface; no business value for admin tool |
-| CSV/Excel export | Invoice PDF covers main need; defer raw data export |
-| Bulk job operations | Complex UI state, risk of accidental transitions; defer |
-| Multi-company super-admin | Different auth model and UX; separate product |
-| GPS map view | No GPS tracking data in backend; calendar view sufficient |
-| Chat / messaging | Job notes + push notifications cover communication |
-| Inline PDF editor | WeasyPrint is server-side; WYSIWYG editor is a separate product |
+| GPS live tracking | Battery drain, privacy; task status updates accomplish same value |
+| Route optimization | Not enough ROI for construction projects |
+| Recurring job automation | Construction projects are one-off by nature |
+| Full inventory management | AI checklists cover materials per task; full inventory is a separate product |
+| On-device AI / local models | Claude API provides superior quality; offline caches AI-generated plans |
+| Video calling | Chat with photo annotation covers communication needs |
+| BIM integration | Separate engineering domain with enormous API surface |
 
 ## Traceability
 
@@ -102,41 +99,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | Phase 13 | Complete |
-| AUTH-02 | Phase 13 | Complete |
-| AUTH-03 | Phase 13 | Complete |
-| AUTH-04 | Phase 13 | Complete |
-| AUTH-05 | Phase 13 | Complete |
-| AUTH-06 | Phase 13 | Complete |
-| JOBS-01 | Phase 14 | Complete |
-| JOBS-02 | Phase 14 | Complete |
-| JOBS-03 | Phase 14 | Complete |
-| JOBS-04 | Phase 14 | Complete |
-| SCHED-01 | Phase 15 | Complete |
-| SCHED-02 | Phase 15 | Complete |
-| SCHED-03 | Phase 15 | Complete |
-| QUOTE-01 | Phase 16 | Complete |
-| QUOTE-02 | Phase 16 | Complete |
-| QUOTE-03 | Phase 16 | Complete |
-| QUOTE-04 | Phase 16 | Complete |
-| INV-01 | Phase 16 | Complete |
-| INV-02 | Phase 16 | Complete |
-| INV-03 | Phase 16 | Complete |
-| CRM-01 | Phase 17 | Complete |
-| CRM-02 | Phase 17 | Complete |
-| CONTR-01 | Phase 17 | Complete |
-| CONTR-02 | Phase 17 | Complete |
-| CONTR-03 | Phase 17 | Complete |
-| CONTR-04 | Phase 17 | Complete |
-| RPT-01 | Phase 18 | Complete |
-| RPT-02 | Phase 18 | Complete |
-| RPT-03 | Phase 18 | Complete |
+| (populated by roadmapper) | | |
 
 **Coverage:**
-- v2.0 requirements: 29 total
-- Mapped to phases: 29
-- Unmapped: 0 ✓
+- v3.0 requirements: 28 total
+- Mapped to phases: 0
+- Unmapped: 28 ⚠️
 
 ---
-*Requirements defined: 2026-03-15*
-*Last updated: 2026-03-15 after roadmap creation — all 29 requirements mapped*
+*Requirements defined: 2026-03-19*
+*Last updated: 2026-03-19 after initial definition*
