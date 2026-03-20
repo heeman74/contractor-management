@@ -8,6 +8,7 @@ import {
   Briefcase,
   Calendar,
   FileText,
+  FolderKanban,
   Receipt,
   Users,
   HardHat,
@@ -34,6 +35,7 @@ import {
 const navItems = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
   { label: "Jobs", href: "/jobs", icon: Briefcase },
+  { label: "Projects", href: "/projects", icon: FolderKanban },
   { label: "Schedule", href: "/schedule", icon: Calendar },
   { label: "Quotes", href: "/quotes", icon: FileText },
   { label: "Invoices", href: "/invoices", icon: Receipt },
