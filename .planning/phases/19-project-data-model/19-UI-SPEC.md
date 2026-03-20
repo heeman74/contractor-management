@@ -57,11 +57,11 @@ Matches the existing web app typographic pattern. Confirmed from sidebar (`text-
 | Role | Size | Weight | Line Height | Usage |
 |------|------|--------|-------------|-------|
 | Body | 14px (text-sm) | 400 (regular) | 1.5 | Table cells, card metadata, form helper text, task descriptions |
-| Label | 12px (text-xs) | 500 (medium) | 1.4 | Status badges, progress counts ("3/8 tasks"), field labels, breadcrumbs |
+| Label | 12px (text-xs) | 400 (regular) | 1.4 | Status badges, progress counts ("3/8 tasks"), field labels, breadcrumbs |
 | Heading | 20px (text-xl) | 600 (semibold) | 1.2 | Page titles ("Projects"), dialog titles, section headings |
-| Display | 28px (text-2xl) | 700 (bold) | 1.1 | Empty state heading only |
+| Display | 28px (text-2xl) | 600 (semibold) | 1.1 | Empty state heading only |
 
-Maximum 4 sizes, 3 weights in use. Font: Geist Sans throughout.
+Maximum 4 sizes, 2 weights in use (400 regular + 600 semibold). Font: Geist Sans throughout.
 
 ---
 
@@ -232,7 +232,7 @@ Each task row: priority indicator (left border 4px: urgent=red, high=orange, med
 
 ### Status Badge — GC Manual Override
 
-Trade scope status can be manually overridden by the GC. The status badge on the trade scope detail panel is clickable (GC role only). Clicking it opens a `Select` dropdown with the four valid states. Selecting a different state shows a brief confirmation inline ("Override status to {new status}? This will ignore task completion %.") with "Confirm" + "Cancel" inline buttons (no dialog needed — low-risk action).
+Trade scope status can be manually overridden by the GC. The status badge on the trade scope detail panel is clickable (GC role only). Clicking it opens a `Select` dropdown with the four valid states. Selecting a different state shows a brief confirmation inline ("Override status to {new status}? This will ignore task completion %.") with "Apply Override" + "Cancel" inline buttons (no dialog needed — low-risk action).
 
 ### Ad-Hoc Trade Entry Combobox
 
