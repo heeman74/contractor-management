@@ -18,6 +18,7 @@ from app.features.invoices.router import router as invoices_router
 from app.features.jobs.crm_router import router as crm_router
 from app.features.jobs.router import router as jobs_router
 from app.features.notifications.router import router as notifications_router
+from app.features.projects.router import router as projects_router
 from app.features.quotes.router import router as quotes_router
 from app.features.reports.router import router as reports_router
 from app.features.scheduling.router import router as scheduling_router
@@ -113,6 +114,8 @@ app.include_router(crm_router, prefix="/api/v1")
 app.include_router(files_router, prefix="/api/v1")
 # Phase 7: FCM push notification token registration
 app.include_router(notifications_router, prefix="/api/v1")
+# Phase 19: project data model — projects, trade catalog, trade scopes, tasks
+app.include_router(projects_router, prefix="/api/v1")
 # Phase 8: business operations — quotes, invoices, and reporting
 app.include_router(quotes_router, prefix="/api/v1")
 app.include_router(invoices_router, prefix="/api/v1")
