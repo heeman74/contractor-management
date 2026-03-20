@@ -99,13 +99,50 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (populated by roadmapper) | | |
+| PROJ-01 | Phase 19 | Pending |
+| PROJ-02 | Phase 19 | Pending |
+| PROJ-03 | Phase 19 | Pending |
+| PROJ-04 | Phase 20 | Pending |
+| PROJ-05 | Phase 20 | Pending |
+| AI-01 | Phase 21 | Pending |
+| AI-02 | Phase 21 | Pending |
+| AI-03 | Phase 21 | Pending |
+| AI-04 | Phase 26 | Pending |
+| AI-05 | Phase 26 | Pending |
+| AI-06 | Phase 20 | Pending |
+| TASK-01 | Phase 22 | Pending |
+| TASK-02 | Phase 22 | Pending |
+| TASK-03 | Phase 22 | Pending |
+| TASK-04 | Phase 22 | Pending |
+| TASK-05 | Phase 22 | Pending |
+| TASK-06 | Phase 22 | Pending |
+| TASK-07 | Phase 22 | Pending |
+| INSP-01 | Phase 24 | Pending |
+| INSP-02 | Phase 24 | Pending |
+| INSP-03 | Phase 24 | Pending |
+| INSP-04 | Phase 24 | Pending |
+| CHAT-01 | Phase 23 | Pending |
+| CHAT-02 | Phase 23 | Pending |
+| CHAT-03 | Phase 23 | Pending |
+| CHAT-04 | Phase 23 | Pending |
+| CHAT-05 | Phase 23 | Pending |
+| BILL-01 | Phase 25 | Pending |
+| BILL-02 | Phase 25 | Pending |
+| BILL-03 | Phase 25 | Pending |
+| BILL-04 | Phase 25 | Pending |
+| BILL-05 | Phase 25 | Pending |
+| DASH-01 | Phase 26 | Pending |
+| DASH-02 | Phase 26 | Pending |
+| DASH-03 | Phase 26 | Pending |
+| DASH-04 | Phase 26 | Pending |
 
 **Coverage:**
-- v3.0 requirements: 28 total
-- Mapped to phases: 0
-- Unmapped: 28 ⚠️
+- v3.0 requirements: 36 total (5 PROJ + 6 AI + 7 TASK + 4 INSP + 5 CHAT + 5 BILL + 4 DASH)
+- Mapped to phases: 36
+- Unmapped: 0
+
+**Note on count discrepancy:** The initial coverage comment said "28 total" but the actual requirement list contains 36 requirements (counted directly from the requirement entries above). All 36 are mapped.
 
 ---
 *Requirements defined: 2026-03-19*
-*Last updated: 2026-03-19 after initial definition*
+*Last updated: 2026-03-19 — traceability populated during roadmap creation*
