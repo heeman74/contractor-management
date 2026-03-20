@@ -45,30 +45,39 @@ class ProjectDao extends DatabaseAccessor<AppDatabase> with _$ProjectDaoMixin {
   /// contractors can only see projects where they have a [TradeScope] assigned
   /// to them (contractorId matches their userId).
   ///
-  /// Performs a JOIN between [projects] and [tradeScopes], returning DISTINCT
-  /// projects (a contractor may have multiple scopes in one project).
+  /// Uses a two-step approach: first finds distinct project IDs from TradeScopes
+  /// where the contractor is assigned, then watches those projects.
+  ///
+  /// The reactive stream uses [watchProjectsByCompany] and filters in-memory by
+  /// the set of project IDs from the contractor's assigned scopes. This avoids
+  /// the Drift selectOnly/join complexity while remaining reactive to DB changes.
   Stream<List<Project>> watchProjectsForContractor(
       String companyId, String userId) {
-    final query = selectOnly(projects, distinct: true)
-      ..join([
-        innerJoin(
-          tradeScopes,
-          tradeScopes.projectId.equalsExp(projects.id) &
-              tradeScopes.contractorId.equals(userId) &
-              tradeScopes.deletedAt.isNull(),
-        ),
-      ])
-      ..where(
-        projects.companyId.equals(companyId) & projects.deletedAt.isNull(),
-      )
-      ..orderBy([OrderingTerm.desc(projects.createdAt)]);
+    // Stream of scope projectIds assigned to this contractor
+    final scopeProjectIdsStream = (select(tradeScopes)
+          ..where(
+            (tbl) =>
+                tbl.companyId.equals(companyId) &
+                tbl.contractorId.equals(userId) &
+                tbl.deletedAt.isNull(),
+          ))
+        .watch()
+        .map((scopes) => scopes.map((s) => s.projectId).toSet());
 
-    // Add all project columns to selectOnly query
-    query.addColumns(projects.$columns);
+    // Stream of all company projects
+    final allProjectsStream = (select(projects)
+          ..where(
+            (tbl) =>
+                tbl.companyId.equals(companyId) & tbl.deletedAt.isNull(),
+          )
+          ..orderBy([(tbl) => OrderingTerm.desc(tbl.createdAt)]))
+        .watch();
 
-    return query.watch().map(
-          (rows) => rows.map((row) => row.readTable(projects)).toList(),
-        );
+    // Combine: return only projects that appear in contractor's scope set
+    return allProjectsStream.asyncExpand((allProjects) =>
+        scopeProjectIdsStream.map((projectIds) => allProjects
+            .where((p) => projectIds.contains(p.id))
+            .toList()));
   }
 
   /// Fetch a single project by ID. Returns null if not found.
