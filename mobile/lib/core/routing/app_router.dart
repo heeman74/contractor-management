@@ -33,6 +33,9 @@ import '../../features/quotes/presentation/screens/quote_detail_screen.dart';
 import '../../features/quotes/presentation/screens/quote_preview_screen.dart';
 import '../../features/jobs/presentation/screens/job_wizard_screen.dart';
 import '../../features/jobs/presentation/screens/jobs_pipeline_screen.dart';
+import '../../features/projects/presentation/screens/project_detail_screen.dart';
+import '../../features/projects/presentation/screens/project_list_screen.dart';
+import '../../features/projects/presentation/screens/trade_scope_detail_screen.dart';
 import '../../features/reports/presentation/screens/admin_reports_screen.dart';
 import '../../features/reports/presentation/screens/contractor_reports_screen.dart';
 import '../../features/schedule/presentation/screens/contractor_schedule_screen.dart';
@@ -383,6 +386,39 @@ final routerProvider = Provider.autoDispose<GoRouter>((ref) {
                       ? const AdminReportsScreen()
                       : const ContractorReportsScreen();
                 },
+              ),
+            ],
+          ),
+          // Branch 8: Projects — GC sees all projects; contractor sees assigned.
+          // Client role is excluded (projects tab is for GC and contractors only).
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: RouteNames.projects,
+                builder: (context, state) => const ProjectListScreen(),
+                routes: [
+                  GoRoute(
+                    path: ':projectId',
+                    builder: (context, state) {
+                      final projectId = state.pathParameters['projectId']!;
+                      return ProjectDetailScreen(projectId: projectId);
+                    },
+                    routes: [
+                      GoRoute(
+                        path: 'scopes/:scopeId',
+                        builder: (context, state) {
+                          final projectId =
+                              state.pathParameters['projectId']!;
+                          final scopeId = state.pathParameters['scopeId']!;
+                          return TradeScopeDetailScreen(
+                            projectId: projectId,
+                            scopeId: scopeId,
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ],
           ),

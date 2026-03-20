@@ -169,4 +169,24 @@ abstract final class RouteNames {
 
   /// Build the client-facing quote detail path for a specific quote.
   static String quoteDetailPath(String quoteId) => '/quotes/$quoteId';
+
+  // --- Project routes (Phase 19) ---
+
+  /// Project list — GC sees all projects; contractor sees assigned projects.
+  static const projects = '/projects';
+
+  /// Project detail — trade scope cards for a specific project.
+  static const projectDetail = '/projects/:projectId';
+
+  /// Trade scope detail — task list for a specific trade scope.
+  static const tradeScopeDetail = '/projects/:projectId/scopes/:scopeId';
+
+  // ─── Helpers ─────────────────────────────────────────────────────────────
+
+  /// Build the project detail path for a specific project ID.
+  static String projectDetailPath(String projectId) => '/projects/$projectId';
+
+  /// Build the trade scope detail path for a specific scope.
+  static String tradeScopeDetailPath(String projectId, String scopeId) =>
+      '/projects/$projectId/scopes/$scopeId';
 }

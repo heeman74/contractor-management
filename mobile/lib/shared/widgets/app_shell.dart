@@ -169,6 +169,15 @@ class AppShell extends ConsumerWidget {
           selectedIcon: Icons.bar_chart,
           route: RouteNames.reports,
         ),
+      // Projects tab — admin and contractor only (not client)
+      // Positioned after Jobs per UI-SPEC; v3.0 project hierarchy feature.
+      if (isAdmin || isContractor)
+        const _TabItem(
+          label: 'Projects',
+          icon: Icons.folder_outlined,
+          selectedIcon: Icons.folder,
+          route: RouteNames.projects,
+        ),
     ];
   }
 
@@ -183,6 +192,7 @@ class AppShell extends ConsumerWidget {
     RouteNames.contractorAvailability, // Branch 5 (hidden)
     RouteNames.clientPortal,           // Branch 6 (hidden)
     RouteNames.reports,    // Branch 7 (admin + contractor)
+    RouteNames.projects,   // Branch 8 (admin + contractor)
   ];
 
   int _getCurrentIndex(List<_TabItem> tabs) {
