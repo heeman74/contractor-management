@@ -168,7 +168,7 @@ Plans:
   2. GC can add trade scopes (plumbing, electrical, carpentry, etc.) to a project and assign a contractor to each scope
   3. GC can navigate the project hierarchy (Project → Trade Scopes → Tasks) as a tree view on mobile and web
   4. Cross-tenant isolation holds: Company B's token cannot access Company A's project data — all new tables have RLS policies enforced
-**Plans:** 1/5 plans executed
+**Plans:** 2/5 plans executed
 
 Plans:
 - [ ] 19-01-PLAN.md — Backend SQLAlchemy models (6 entities) + Alembic migration 0015 with RLS, indexes, triggers, and data migration
@@ -286,7 +286,7 @@ Note: Phase 25 (Billing) depends only on Phase 19 and may start in parallel with
 | 16. Quotes and Invoices | v2.0 | 6/6 | Complete | 2026-03-18 |
 | 17. CRM — Clients and Contractors | v2.0 | 5/5 | Complete | 2026-03-19 |
 | 18. Reporting Dashboard | v2.0 | 3/3 | Complete | 2026-03-19 |
-| 19. Project Data Model | 1/5 | In Progress|  | - |
+| 19. Project Data Model | 2/5 | In Progress|  | - |
 | 20. Dependency Engine | v3.0 | 0/TBD | Not started | - |
 | 21. AI Project Intake and Contractor Interview | v3.0 | 0/TBD | Not started | - |
 | 22. Task Execution and Photo Annotation | v3.0 | 0/TBD | Not started | - |

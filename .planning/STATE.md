@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: AI-Driven Construction Management
 status: unknown
-stopped_at: Completed 19-02-PLAN.md
-last_updated: "2026-03-20T11:41:41.629Z"
+stopped_at: Completed 19-01-PLAN.md
+last_updated: "2026-03-20T11:46:20Z"
 progress:
   total_phases: 14
   completed_phases: 6
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-19)
 ## Current Position
 
 Phase: 19 (project-data-model) — EXECUTING
-Plan: 1 of 5
+Plan: 2 of 5
 
 ## Performance Metrics
 
@@ -54,6 +54,8 @@ Plan: 1 of 5
 - v3.0: WebSocket JWT re-validated server-side every 5 minutes; close with 4401 on expiry
 - v3.0: Task-level dependencies as JSONB array on Task; cross-trade dependencies as edge table
 - [Phase 19]: ProjectTasks named to avoid class conflict; UserTradeSpecialties uses plain text FKs to avoid cross-feature coupling; watchProjectsForContractor uses selectOnly+JOIN for contractor role filtering
+- [Phase 19 P01]: TradeCatalog UNIQUE(company_id,name) with ON CONFLICT DO NOTHING makes data migration idempotent
+- [Phase 19 P01]: unnest() in migrations uses lateral join form for PostgreSQL 13 compatibility
 
 ### Pending Todos
 
@@ -67,6 +69,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T11:41:41.622Z
-Stopped at: Completed 19-02-PLAN.md
+Last session: 2026-03-20T11:46:20Z
+Stopped at: Completed 19-01-PLAN.md
 Resume file: None
