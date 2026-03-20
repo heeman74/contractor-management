@@ -141,6 +141,15 @@ async def clean_tables(test_engine):
                 "quotes, "
                 # Phase 7 notification tables
                 "device_tokens, "
+                # Phase 19 project data model tables (reference users/companies/trade_catalog)
+                # task_attachments -> tasks -> trade_scopes -> projects
+                # user_trade_specialties -> users, trade_catalog
+                "task_attachments, "
+                "tasks, "
+                "trade_scopes, "
+                "projects, "
+                "user_trade_specialties, "
+                "trade_catalog, "
                 # Auth + core tables
                 "refresh_tokens, "
                 "user_roles, "
