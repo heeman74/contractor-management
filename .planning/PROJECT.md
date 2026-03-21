@@ -122,4 +122,4 @@ v3.0 shifts from offline-first to online-first (AI requires connectivity) with o
 | Same app for GC + contractor | Role-based views, single codebase | — Pending |
 
 ---
-*Last updated: 2026-03-19 after starting milestone v3.0 AI-Driven Construction Management*
+*Last updated: 2026-03-20 after completing Phase 19: Project Data Model — backend models, mobile Drift schema, REST API, Flutter UI, and web project tree all shipped*
