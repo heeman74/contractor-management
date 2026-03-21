@@ -40,11 +40,11 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 </details>
 
-### 🚧 v3.0 AI-Driven Construction Management (In Progress)
+### v3.0 AI-Driven Construction Management (In Progress)
 
 **Milestone Goal:** Transform ContractorHub from single-contractor job tracking into an AI-driven multi-trade project management platform where AI plans projects by trade, generates daily checklists, GCs coordinate all trades through chat and inspection tools, and the full quoting/invoicing lifecycle works per trade.
 
-- [x] **Phase 19: Project Data Model** — Project → Trade Scope → Task hierarchy with RLS, Drift schema, and sync handlers (completed 2026-03-20)
+- [x] **Phase 19: Project Data Model** — Project -> Trade Scope -> Task hierarchy with RLS, Drift schema, and sync handlers (completed 2026-03-20)
 - [ ] **Phase 20: Dependency Engine** — Cross-trade dependency graph with cycle detection, topological sort, and Gantt timeline view
 - [ ] **Phase 21: AI Project Intake and Contractor Interview** — Claude API integration: GC describes project, AI structures by trade, AI interviews each contractor
 - [ ] **Phase 22: Task Execution and Photo Annotation** — Contractor daily checklists, task progress on mobile, non-destructive photo annotation on mobile and web
@@ -80,7 +80,7 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. Admin can view all jobs in a filterable list, switch between status tabs, and search by keyword
   2. Admin can open any job and see full detail — notes, contractor assignment, client info, current status, and time tracking
-  3. Admin can advance or revert a job's status through the full lifecycle (Quote → Scheduled → In Progress → Complete → Invoiced)
+  3. Admin can advance or revert a job's status through the full lifecycle (Quote -> Scheduled -> In Progress -> Complete -> Invoiced)
   4. Admin can view inbound client-submitted job requests and approve or decline each one
 **Plans:** 3/3 plans complete
 
@@ -166,16 +166,16 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. GC can create a project with description, address, client, and target timeline and see it in their project list
   2. GC can add trade scopes (plumbing, electrical, carpentry, etc.) to a project and assign a contractor to each scope
-  3. GC can navigate the project hierarchy (Project → Trade Scopes → Tasks) as a tree view on mobile and web
+  3. GC can navigate the project hierarchy (Project -> Trade Scopes -> Tasks) as a tree view on mobile and web
   4. Cross-tenant isolation holds: Company B's token cannot access Company A's project data — all new tables have RLS policies enforced
 **Plans:** 5/5 plans complete
 
 Plans:
-- [ ] 19-01-PLAN.md — Backend SQLAlchemy models (6 entities) + Alembic migration 0015 with RLS, indexes, triggers, and data migration
-- [ ] 19-02-PLAN.md — Mobile Drift schema v7 (5 tables) + DAOs with reactive streams + sync handlers
-- [ ] 19-03-PLAN.md — Backend CRUD endpoints (repository, service, router) + 16 integration tests covering RLS and status transitions
-- [ ] 19-04-PLAN.md — Mobile UI: project list, detail, scope cards, task list + Riverpod providers + Projects bottom nav tab + 10 E2E tests
-- [ ] 19-05-PLAN.md — Web UI: project tree sidebar, detail panels, create dialog, trade scope sheet + 10 Playwright E2E tests
+- [x] 19-01-PLAN.md — Backend SQLAlchemy models (6 entities) + Alembic migration 0015 with RLS, indexes, triggers, and data migration
+- [x] 19-02-PLAN.md — Mobile Drift schema v7 (5 tables) + DAOs with reactive streams + sync handlers
+- [x] 19-03-PLAN.md — Backend CRUD endpoints (repository, service, router) + 16 integration tests covering RLS and status transitions
+- [x] 19-04-PLAN.md — Mobile UI: project list, detail, scope cards, task list + Riverpod providers + Projects bottom nav tab + 10 E2E tests
+- [x] 19-05-PLAN.md — Web UI: project tree sidebar, detail panels, create dialog, trade scope sheet + 10 Playwright E2E tests
 
 ### Phase 20: Dependency Engine
 **Goal**: The system enforces cross-trade task dependencies with cycle prevention, and GCs can visualize the full project timeline with all trades and their dependency relationships
@@ -186,7 +186,13 @@ Plans:
   2. The dependency graph computes a valid execution order — tasks in a blocked trade scope cannot be started until their predecessor completes
   3. GC can view a Gantt-style timeline showing all trade scopes with dependency arrows and current progress indicators
   4. AI (and manual edits) that would create two trades needing the same space on the same day are flagged as a conflict before they are saved
-**Plans**: TBD
+**Plans:** 4 plans
+
+Plans:
+- [ ] 20-01-PLAN.md — Backend: TaskDependency + ProjectZone models, migration 0016, DFS cycle detection, blocked status, conflict detection, REST endpoints, integration tests
+- [ ] 20-02-PLAN.md — Mobile: Drift schema v8 (TaskDependencies + ProjectZones tables), DAOs, sync handlers
+- [ ] 20-03-PLAN.md — Web: SVAR Gantt timeline page, dependency/conflict/zone components, Playwright E2E tests
+- [ ] 20-04-PLAN.md — Mobile: CustomPainter Gantt chart, dependency arrows, drag-to-connect, blocked enforcement, Flutter E2E tests
 
 ### Phase 21: AI Project Intake and Contractor Interview
 **Goal**: GCs can describe a project in natural language and AI produces a structured trade breakdown with sequencing; each trade contractor is interviewed by AI to generate a detailed task plan
@@ -262,7 +268,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-v3.0 phases: 19 → 20 → 21 → 22 → 23 (parallel with 22) → 24 → 25 (parallel with 24) → 26
+v3.0 phases: 19 -> 20 -> 21 -> 22 -> 23 (parallel with 22) -> 24 -> 25 (parallel with 24) -> 26
 Note: Phase 23 (Chat) depends only on Phase 19 and may start in parallel with Phase 22.
 Note: Phase 25 (Billing) depends only on Phase 19 and may start in parallel with Phase 24.
 
@@ -286,8 +292,8 @@ Note: Phase 25 (Billing) depends only on Phase 19 and may start in parallel with
 | 16. Quotes and Invoices | v2.0 | 6/6 | Complete | 2026-03-18 |
 | 17. CRM — Clients and Contractors | v2.0 | 5/5 | Complete | 2026-03-19 |
 | 18. Reporting Dashboard | v2.0 | 3/3 | Complete | 2026-03-19 |
-| 19. Project Data Model | 5/5 | Complete    | 2026-03-21 | - |
-| 20. Dependency Engine | v3.0 | 0/TBD | Not started | - |
+| 19. Project Data Model | v3.0 | 5/5 | Complete | 2026-03-21 |
+| 20. Dependency Engine | v3.0 | 0/4 | Not started | - |
 | 21. AI Project Intake and Contractor Interview | v3.0 | 0/TBD | Not started | - |
 | 22. Task Execution and Photo Annotation | v3.0 | 0/TBD | Not started | - |
 | 23. Real-Time Chat | v3.0 | 0/TBD | Not started | - |
