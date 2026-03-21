@@ -5,6 +5,7 @@ status: draft
 shadcn_initialized: true
 preset: base-nova / neutral / css-variables
 created: 2026-03-21
+revised: 2026-03-21
 ---
 
 # Phase 20 — UI Design Contract
@@ -35,9 +36,9 @@ Declared values (all multiples of 4):
 | Token | Value | Usage |
 |-------|-------|-------|
 | xs | 4px | Icon gaps, dependency type badge internal padding, arrow stroke gap |
-| sm | 8px | Compact list item padding, Gantt lane header padding, conflict badge gap |
+| sm | 8px | Compact list item padding, Gantt lane header padding (8px per side), conflict badge gap |
 | md | 16px | Default element spacing, dialog body padding, form field gap |
-| lg | 24px | Section padding, Gantt lane height baseline (lane top/bottom padding = 12px each) |
+| lg | 24px | Section padding, Gantt lane height baseline |
 | xl | 32px | Layout gaps between Gantt and sidebar panels |
 | 2xl | 48px | Gantt lane row minimum height (header strip + task bar + breathing room) |
 | 3xl | 64px | Page-level spacing, Gantt page top padding |
@@ -47,6 +48,7 @@ Exceptions:
 - Today line: 2px vertical stroke — not a spacing token, a visual marker
 - Gantt task bar corner radius: 4px (xs token applied to border-radius)
 - Mobile drag-to-connect tap target: minimum 44x44px handle at task bar right edge
+- Gantt lane padding: 8px (sm token) per side top and bottom. Total vertical padding per lane = 16px (sm top + sm bottom). The former 12px value is replaced — 12px is not in the standard set.
 
 ---
 
@@ -55,11 +57,13 @@ Exceptions:
 | Role | Size | Weight | Line Height | Usage |
 |------|------|--------|-------------|-------|
 | Body | 14px | 400 (regular) | 1.5 | Gantt task bar labels, form field text, dialog body, zone list items |
-| Label | 12px | 500 (medium) | 1.4 | Status badges, dependency type chips (FS/SS/FF/SE), conflict badge text, today line label, Gantt time-axis tick labels |
+| Label | 12px | 400 (regular) | 1.4 | Status badges, dependency type chips (FS/SS/FF/SE), conflict badge text, today line label, Gantt time-axis tick labels |
 | Heading | 16px | 600 (semibold) | 1.3 | Gantt swim lane trade name headers, dialog titles, panel section headings |
 | Display | 20px | 600 (semibold) | 1.2 | Gantt page title ("Project Timeline"), project overview conflict count |
 
-Source: Extrapolated from existing ProjectTree.tsx (text-sm = 14px body, text-xs = 12px labels, font-medium/font-semibold weights) and shadcn base-nova defaults.
+Two weights only: 400 (regular) for Body and Label; 600 (semibold) for Heading and Display. Weight 500 (medium) is not used in this phase.
+
+Source: Extrapolated from existing ProjectTree.tsx (text-sm = 14px body, text-xs = 12px labels, font-semibold weight) and shadcn base-nova defaults.
 
 ---
 
@@ -178,9 +182,9 @@ Dark mode tokens are defined in globals.css and apply automatically. No separate
 | Blocked tooltip (web hover) | "Blocked by: [predecessor task name]" | On blocked status badge |
 | Lag field label | "Lag / Lead (days)" | Positive = delay, negative = overlap |
 | Lag field hint | "Positive = delay, negative = overlap" | Below the input in DependencyTypeSelect |
-| Remove dependency confirmation | "Remove this dependency?" | Inline popover below the right-click context menu item. Two buttons: "Remove" (destructive red) and "Cancel" |
+| Remove dependency confirmation | "Remove this dependency?" | Inline popover below the right-click context menu item. Two buttons: "Remove" (destructive red) and "Keep Dependency" (dismiss without action) |
 | Remove dependency destructive button | "Remove" | Red button; no further confirmation after this click |
-| Zone delete confirmation | "Delete [Zone Name]?" | "Tasks assigned to this zone will be unzoned. Conflicts using this zone will resolve." Buttons: "Delete Zone" (red) and "Cancel" |
+| Zone delete confirmation | "Delete [Zone Name]?" | "Tasks assigned to this zone will be unzoned. Conflicts using this zone will resolve." Buttons: "Delete Zone" (red) and "Keep Zone" (dismiss without action) |
 
 ---
 
@@ -215,10 +219,18 @@ Zone list is managed via a modal dialog (not inline on the Gantt). GC accesses i
 
 **ZoneManageModal layout:**
 - Header: "Project Zones"
-- Body: scrollable list of existing zones. Each row: zone name (text) + delete icon button (trash, red on hover)
+- Body: scrollable list of existing zones. Each row: zone name (text) + delete icon button (trash, red on hover, `aria-label="Delete [zone name]"`)
 - Footer: text input ("Zone name") + "Add Zone" button (accent indigo)
 - Zone names are display-only after creation — no inline rename to keep the interaction simple
 - Validation: duplicate zone names show inline error "A zone with this name already exists" below the input
+
+---
+
+## Focal Point Declaration
+
+**Gantt page primary visual anchor:** Task bars rendered within trade swim lanes are the focal point of the GanttPage. The swim lane grid (horizontal lanes colored by trade, with task bars as horizontal rectangles showing progress fill) is the dominant visual element. All other elements — the sidebar panel, the toolbar, the today line, the conflict badges — are secondary and must not compete visually with the task bars.
+
+Implementation note: Gantt task bars should have sufficient contrast against lane background (minimum 3:1 for non-text UI components per WCAG 1.4.11). Lane row alternating background (`#f7f7f7`) ensures task bars (`bg-amber-200`, `bg-green-200`, `bg-red-200`, `bg-gray-200`) are perceptually distinct.
 
 ---
 
@@ -244,6 +256,7 @@ No third-party shadcn registry blocks are used in this phase. @svar-ui/react-gan
 | Cycle error dialog | Focus traps inside dialog; Escape closes; `role="alertdialog"` |
 | Touch target minimum | 44x44px on all mobile interactive elements including drag handles |
 | Today line | Has `aria-label="Today"` on its SVG/Canvas element or adjacent DOM label |
+| ZoneManageModal trash icon | `aria-label="Delete [zone name]"` — label is dynamic, includes the zone name for screen reader context |
 
 ---
 
@@ -281,3 +294,14 @@ No third-party shadcn registry blocks are used in this phase. @svar-ui/react-gan
 | Gantt zoom levels (3 levels: day/week/month) | Claude's discretion |
 | Drag-to-connect mobile (long-press) | Claude's discretion — mobile Gantt interaction patterns |
 | ZoneManageModal layout | Claude's discretion — zone list UI design |
+
+## Revision Log
+
+| Date | Change | Reason |
+|------|--------|--------|
+| 2026-03-21 | "Cancel" → "Keep Dependency" in remove dependency confirmation | Checker Dim-1 BLOCK: generic cancel label |
+| 2026-03-21 | "Cancel" → "Keep Zone" in zone delete confirmation | Checker Dim-1 BLOCK: generic cancel label |
+| 2026-03-21 | Weight 500 (medium) dropped from Label; Label uses 400 (regular) | Checker Dim-4 BLOCK: three font weights declared, max is two |
+| 2026-03-21 | Gantt lane padding changed from 12px to 8px (sm token) per side | Checker Dim-5 BLOCK: 12px not in standard spacing set |
+| 2026-03-21 | Added Focal Point Declaration section for Gantt page | Checker Dim-2 FLAG: missing explicit focal point |
+| 2026-03-21 | Added `aria-label="Delete [zone name]"` to ZoneManageModal trash icon in accessibility table | Checker Dim-2 FLAG: trash icon missing aria-label spec |
