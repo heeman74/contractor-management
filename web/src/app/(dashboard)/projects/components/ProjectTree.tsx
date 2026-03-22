@@ -11,6 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useTradeScopes, useTasks } from "@/lib/api/projects";
 import type { ProjectResponse, TradeScopeResponse } from "@/types/projects";
+import { StatusBadge } from "@/components/shared/status-badge";
 
 export type SelectedNode = {
   type: "project" | "scope" | "task";
@@ -122,6 +123,9 @@ function ScopeNode({
               >
                 <CircleDot className="h-3 w-3 flex-shrink-0 text-gray-400" />
                 <span className="truncate">{task.title}</span>
+                {task.status === "blocked" && (
+                  <StatusBadge status="blocked" size="sm" />
+                )}
               </div>
             );
           })}
