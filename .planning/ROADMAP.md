@@ -45,7 +45,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 **Milestone Goal:** Transform ContractorHub from single-contractor job tracking into an AI-driven multi-trade project management platform where AI plans projects by trade, generates daily checklists, GCs coordinate all trades through chat and inspection tools, and the full quoting/invoicing lifecycle works per trade.
 
 - [x] **Phase 19: Project Data Model** — Project -> Trade Scope -> Task hierarchy with RLS, Drift schema, and sync handlers (completed 2026-03-20)
-- [x] **Phase 20: Dependency Engine** — Cross-trade dependency graph with cycle detection, topological sort, and Gantt timeline view (completed 2026-03-22)
+- [ ] **Phase 20: Dependency Engine** — Cross-trade dependency graph with cycle detection, topological sort, and Gantt timeline view (gap closure in progress)
 - [ ] **Phase 21: AI Project Intake and Contractor Interview** — Claude API integration: GC describes project, AI structures by trade, AI interviews each contractor
 - [ ] **Phase 22: Task Execution and Photo Annotation** — Contractor daily checklists, task progress on mobile, non-destructive photo annotation on mobile and web
 - [ ] **Phase 23: Real-Time Chat** — Bidirectional GC-contractor chat with WebSocket, Redis pub/sub, file sharing, and FCM offline delivery
@@ -186,13 +186,15 @@ Plans:
   2. The dependency graph computes a valid execution order — tasks in a blocked trade scope cannot be started until their predecessor completes
   3. GC can view a Gantt-style timeline showing all trade scopes with dependency arrows and current progress indicators
   4. AI (and manual edits) that would create two trades needing the same space on the same day are flagged as a conflict before they are saved
-**Plans:** 4/4 plans complete
+**Plans:** 6 plans (4 complete + 2 gap closure)
 
 Plans:
 - [ ] 20-01-PLAN.md — Backend: TaskDependency + ProjectZone models, migration 0016, DFS cycle detection, blocked status, conflict detection, REST endpoints, integration tests
 - [x] 20-02-PLAN.md — Mobile: Drift schema v8 (TaskDependencies + ProjectZones tables), DAOs, sync handlers
 - [ ] 20-03-PLAN.md — Web: SVAR Gantt timeline page, dependency/conflict/zone components, Playwright E2E tests
 - [ ] 20-04-PLAN.md — Mobile: CustomPainter Gantt chart, dependency arrows, drag-to-connect, blocked enforcement, Flutter E2E tests
+- [ ] 20-05-PLAN.md — Gap closure: Wire web Gantt dependency fetching so SVAR arrows render
+- [ ] 20-06-PLAN.md — Gap closure: Wire mobile drag-to-connect to persist via Drift + sync queue
 
 ### Phase 21: AI Project Intake and Contractor Interview
 **Goal**: GCs can describe a project in natural language and AI produces a structured trade breakdown with sequencing; each trade contractor is interviewed by AI to generate a detailed task plan
@@ -293,7 +295,7 @@ Note: Phase 25 (Billing) depends only on Phase 19 and may start in parallel with
 | 17. CRM — Clients and Contractors | v2.0 | 5/5 | Complete | 2026-03-19 |
 | 18. Reporting Dashboard | v2.0 | 3/3 | Complete | 2026-03-19 |
 | 19. Project Data Model | v3.0 | 5/5 | Complete | 2026-03-21 |
-| 20. Dependency Engine | 4/4 | Complete   | 2026-03-22 | - |
+| 20. Dependency Engine | v3.0 | 4/6 | Gap closure | - |
 | 21. AI Project Intake and Contractor Interview | v3.0 | 0/TBD | Not started | - |
 | 22. Task Execution and Photo Annotation | v3.0 | 0/TBD | Not started | - |
 | 23. Real-Time Chat | v3.0 | 0/TBD | Not started | - |
