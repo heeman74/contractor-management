@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: AI-Driven Construction Management
 status: unknown
-stopped_at: Completed 20-dependency-engine/20-04-PLAN.md
-last_updated: "2026-03-22T03:48:39.346Z"
+stopped_at: Completed 20-dependency-engine/20-03-PLAN.md
+last_updated: "2026-03-22T03:50:16.258Z"
 progress:
   total_phases: 14
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 34
-  completed_plans: 33
+  completed_plans: 34
 ---
 
 # Project State
@@ -43,6 +43,7 @@ Plan: 2 of 4
 | Phase 19 P05 | 25 | 3 tasks | 12 files |
 | Phase 20-dependency-engine P01 | 16m | 2 tasks | 8 files |
 | Phase 20-dependency-engine P04 | 15 | 2 tasks | 9 files |
+| Phase 20-dependency-engine P03 | 45 | 2 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -75,6 +76,8 @@ Plan: 2 of 4
 - [Phase 20-04]: Riverpod 3 AsyncNotifier.family uses factory (arg) => Notifier(arg) — no FamilyAsyncNotifier class exists
 - [Phase 20-04]: InteractiveViewer(constrained: false) must not be wrapped in SingleChildScrollView — causes unbounded height constraints; tests need SizedBox bounds wrapper
 - [Phase 20-04]: Phase 20 Gantt dependency creation deferred to Phase 21 — requires companyId from auth; local DFS cycle detection guards UI only
+- [Phase 20-dependency-engine]: SVAR Gantt loaded via next/dynamic (ssr:false) to avoid SSR hydration issues; ILink type cast via as ILink['type'] since TLinkType not re-exported
+- [Phase 20-dependency-engine]: Playwright route mocks ordered most-specific-first (conflicts/zones exact paths before general project ID substring match)
 
 ### Pending Todos
 
@@ -88,6 +91,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T03:48:39.337Z
-Stopped at: Completed 20-dependency-engine/20-04-PLAN.md
+Last session: 2026-03-22T03:50:16.251Z
+Stopped at: Completed 20-dependency-engine/20-03-PLAN.md
 Resume file: None
