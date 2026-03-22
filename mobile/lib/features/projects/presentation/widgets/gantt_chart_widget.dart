@@ -180,6 +180,7 @@ class _GanttChartWidgetState extends State<GanttChartWidget> {
       minScale: 0.5,
       maxScale: 3.0,
       constrained: false,
+      boundaryMargin: const EdgeInsets.all(double.infinity),
       child: GestureDetector(
         onTapUp: _handleTap,
         onLongPressStart: _handleLongPressStart,

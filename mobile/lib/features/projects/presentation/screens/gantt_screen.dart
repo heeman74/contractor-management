@@ -112,19 +112,17 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
                 ),
 
               Expanded(
-                child: SingleChildScrollView(
-                  // Horizontal and vertical scroll support for the Gantt
-                  child: GanttChartWidget(
-                    scopes: ganttData.scopes,
-                    tasksByScope: ganttData.tasksByScope,
-                    dependencies: ganttData.dependencies,
-                    conflictTaskIds: ganttData.conflictTaskIds,
-                    onDependencyCreated: (predecessorId, successorId) =>
-                        _handleDependencyCreated(
-                            context, predecessorId, successorId, ganttData),
-                    onTaskTapped: (taskId) =>
-                        _handleTaskTapped(context, taskId, ganttData),
-                  ),
+                // InteractiveViewer handles its own pan/zoom — no extra scroll wrapper.
+                child: GanttChartWidget(
+                  scopes: ganttData.scopes,
+                  tasksByScope: ganttData.tasksByScope,
+                  dependencies: ganttData.dependencies,
+                  conflictTaskIds: ganttData.conflictTaskIds,
+                  onDependencyCreated: (predecessorId, successorId) =>
+                      _handleDependencyCreated(
+                          context, predecessorId, successorId, ganttData),
+                  onTaskTapped: (taskId) =>
+                      _handleTaskTapped(context, taskId, ganttData),
                 ),
               ),
             ],
