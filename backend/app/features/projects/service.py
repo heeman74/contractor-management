@@ -277,10 +277,11 @@ class TaskService(TenantScopedService[Task]):
             estimated_hours=data.estimated_hours,
             estimated_cost=data.estimated_cost,
             due_date=data.due_date,
+            start_date=data.start_date,
+            zone_id=data.zone_id,
             photo_required=data.photo_required,
             assigned_to=data.assigned_to,
             materials_needed=data.materials_needed,
-            depends_on=data.depends_on,
             sort_order=sort_order,
         )
         return await self.repository.create(task)

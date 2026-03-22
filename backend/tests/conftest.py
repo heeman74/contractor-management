@@ -141,11 +141,16 @@ async def clean_tables(test_engine):
                 "quotes, "
                 # Phase 7 notification tables
                 "device_tokens, "
+                # Phase 20 dependency engine tables (reference tasks)
+                # task_dependencies FKs to tasks — must come before tasks
+                # project_zones is referenced by tasks.zone_id — must come after task_dependencies but before tasks
+                "task_dependencies, "
                 # Phase 19 project data model tables (reference users/companies/trade_catalog)
                 # task_attachments -> tasks -> trade_scopes -> projects
                 # user_trade_specialties -> users, trade_catalog
                 "task_attachments, "
                 "tasks, "
+                "project_zones, "
                 "trade_scopes, "
                 "projects, "
                 "user_trade_specialties, "

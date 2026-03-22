@@ -34,6 +34,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+
 from app.core.base_models import TenantScopedModel
 
 if TYPE_CHECKING:
@@ -187,18 +188,20 @@ class Task(TenantScopedModel):
 
     Full construction task fields: title, description, estimated_hours,
     estimated_cost, sort_order, status, materials_needed (structured JSONB),
-    photo_required, assigned_to, due_date, priority, depends_on (JSONB).
+    photo_required, assigned_to, due_date, start_date, zone_id, priority.
 
     Flat list within trade scope — no sub-tasks.
     Blocked status is auto-computed from unresolved dependencies (Phase 20).
 
-    depends_on: JSONB array of task IDs for intra-scope dependencies.
+    zone_id: FK to project_zones — for conflict detection (Phase 20).
+    start_date: task start date — used with due_date for conflict overlap detection.
     materials_needed: JSONB array [{name, quantity, unit}].
 
     Relationships:
     - trade_scope: many-to-one FK to trade_scopes
     - assignee: nullable FK to users
     - attachments: one-to-many — photos/videos/documents for this task
+    - zone: nullable FK to project_zones
     """
 
     __tablename__ = "tasks"
@@ -216,6 +219,12 @@ class Task(TenantScopedModel):
     estimated_hours: Mapped[Decimal | None] = mapped_column(Numeric(6, 2), nullable=True)
     estimated_cost: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    zone_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("project_zones.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     photo_required: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     assigned_to: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
@@ -225,7 +234,6 @@ class Task(TenantScopedModel):
     materials_needed: Mapped[list] = mapped_column(
         JSONB, nullable=False, server_default="'[]'::jsonb"
     )
-    depends_on: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="'[]'::jsonb")
 
     __table_args__ = (
         CheckConstraint(
@@ -252,6 +260,11 @@ class Task(TenantScopedModel):
     attachments: Mapped[list[TaskAttachment]] = relationship(
         "TaskAttachment",
         back_populates="task",
+        lazy="raise",
+    )
+    zone: Mapped[ProjectZone | None] = relationship(  # type: ignore[name-defined]
+        "ProjectZone",
+        foreign_keys=[zone_id],
         lazy="raise",
     )
 
@@ -298,6 +311,77 @@ class TaskAttachment(TenantScopedModel):
         "Task",
         back_populates="attachments",
         lazy="raise",
+    )
+
+
+class ProjectZone(TenantScopedModel):
+    """A named spatial zone within a project (Kitchen, Master Bath, Garage).
+
+    Used for conflict detection: two tasks with the same zone_id and
+    overlapping date ranges from different trade scopes = conflict.
+
+    Relationships:
+    - project: many-to-one FK to projects
+    """
+
+    __tablename__ = "project_zones"
+
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("project_id", "name", name="uq_project_zone_name"),
+    )
+
+    # Relationships
+    project: Mapped[Project] = relationship("Project", lazy="raise")
+
+
+class TaskDependency(TenantScopedModel):
+    """Edge table for task-to-task dependency links.
+
+    dependency_type: FS | SS | FF | SE
+    lag_days: positive = delay (lag), negative = overlap (lead). Days unit.
+
+    Relationships:
+    - predecessor: FK to tasks (the blocking task)
+    - successor: FK to tasks (the blocked task)
+    """
+
+    __tablename__ = "task_dependencies"
+
+    predecessor_task_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False
+    )
+    successor_task_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False
+    )
+    dependency_type: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default="'FS'"
+    )
+    lag_days: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+
+    __table_args__ = (
+        UniqueConstraint("predecessor_task_id", "successor_task_id",
+                         name="uq_task_dependency_edge"),
+        CheckConstraint(
+            "dependency_type IN ('FS','SS','FF','SE')",
+            name="task_dependencies_type_check"
+        ),
+        CheckConstraint(
+            "predecessor_task_id != successor_task_id",
+            name="task_dependencies_no_self_loop"
+        ),
+    )
+
+    # Relationships
+    predecessor: Mapped[Task] = relationship(
+        "Task", foreign_keys=[predecessor_task_id], lazy="raise"
+    )
+    successor: Mapped[Task] = relationship(
+        "Task", foreign_keys=[successor_task_id], lazy="raise"
     )
 
 

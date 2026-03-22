@@ -18,7 +18,7 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.core.base_schemas import TenantResponseSchema
 
@@ -194,10 +194,11 @@ class TaskCreate(BaseModel):
     estimated_hours: Decimal | None = None
     estimated_cost: Decimal | None = None
     due_date: date | None = None
+    start_date: date | None = None
+    zone_id: uuid.UUID | None = None
     photo_required: bool = False
     assigned_to: uuid.UUID | None = None
     materials_needed: list[dict[str, Any]] = []
-    depends_on: list[str] = []
 
 
 class TaskUpdate(BaseModel):
@@ -210,10 +211,11 @@ class TaskUpdate(BaseModel):
     estimated_hours: Decimal | None = None
     estimated_cost: Decimal | None = None
     due_date: date | None = None
+    start_date: date | None = None
+    zone_id: uuid.UUID | None = None
     photo_required: bool | None = None
     assigned_to: uuid.UUID | None = None
     materials_needed: list[dict[str, Any]] | None = None
-    depends_on: list[str] | None = None
     sort_order: int | None = None
 
 
@@ -229,10 +231,11 @@ class TaskResponse(TenantResponseSchema):
     estimated_hours: Decimal | None = None
     estimated_cost: Decimal | None = None
     due_date: date | None = None
+    start_date: date | None = None
+    zone_id: uuid.UUID | None = None
     photo_required: bool
     assigned_to: uuid.UUID | None = None
     materials_needed: list[Any] = []
-    depends_on: list[Any] = []
 
 
 # ---------------------------------------------------------------------------
@@ -285,3 +288,62 @@ class UserTradeSpecialtyResponse(TenantResponseSchema):
 
     user_id: uuid.UUID
     trade_catalog_id: uuid.UUID
+
+
+# ---------------------------------------------------------------------------
+# Phase 20: Dependency engine schemas
+# ---------------------------------------------------------------------------
+
+
+class TaskDependencyCreate(BaseModel):
+    """Schema for creating a dependency edge between tasks.
+
+    Caller provides the predecessor task ID (the blocking task).
+    The successor task ID is taken from the URL path parameter.
+    """
+
+    predecessor_task_id: uuid.UUID
+    dependency_type: str = "FS"
+    lag_days: int = 0
+
+    @field_validator("dependency_type")
+    @classmethod
+    def validate_type(cls, v: str) -> str:
+        if v not in ("FS", "SS", "FF", "SE"):
+            raise ValueError("dependency_type must be FS, SS, FF, or SE")
+        return v
+
+
+class TaskDependencyResponse(TenantResponseSchema):
+    """Response schema for TaskDependency entities."""
+
+    predecessor_task_id: uuid.UUID
+    successor_task_id: uuid.UUID
+    dependency_type: str
+    lag_days: int
+
+
+class ProjectZoneCreate(BaseModel):
+    """Schema for creating a project zone."""
+
+    name: str = Field(min_length=1, max_length=100)
+
+
+class ProjectZoneResponse(TenantResponseSchema):
+    """Response schema for ProjectZone entities."""
+
+    project_id: uuid.UUID
+    name: str
+
+
+class ConflictRecord(BaseModel):
+    """A detected scheduling conflict between two tasks in the same zone."""
+
+    task1_id: uuid.UUID
+    task1_title: str
+    task1_trade_name: str
+    task2_id: uuid.UUID
+    task2_title: str
+    task2_trade_name: str
+    zone_name: str
+    conflict_date: date
