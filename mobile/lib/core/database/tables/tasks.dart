@@ -12,8 +12,10 @@ import 'trade_scopes.dart';
 /// Tasks support offline creation, assignment, status tracking,
 /// cost/time estimation, and photo documentation.
 ///
-/// [materialsNeeded] and [dependsOn] are JSON-encoded lists stored as TEXT.
-/// [dependsOn] contains task IDs this task must wait for before starting.
+/// [materialsNeeded] is a JSON-encoded list stored as TEXT.
+/// Task dependencies are stored as edges in the [TaskDependencies] table (v8+).
+/// [zoneId] is a soft FK to [ProjectZones.id] — no hard FK to keep tables decoupled.
+/// [startDate] tracks the planned/scheduled start date for Gantt/CPM scheduling.
 class ProjectTasks extends Table {
   TextColumn get id => text().clientDefault(() => const Uuid().v4())();
   TextColumn get companyId => text().references(Companies, #id)();
@@ -54,9 +56,12 @@ class ProjectTasks extends Table {
   TextColumn get materialsNeeded =>
       text().withDefault(const Constant('[]'))();
 
-  /// JSON-encoded list of task IDs this task depends on.
-  TextColumn get dependsOn =>
-      text().withDefault(const Constant('[]'))();
+  /// Soft FK to ProjectZones.id — the zone this task is assigned to.
+  /// No hard FK reference to keep table definitions decoupled.
+  TextColumn get zoneId => text().nullable()();
+
+  /// Planned or scheduled start date for Gantt/CPM scheduling.
+  DateTimeColumn get startDate => dateTime().nullable()();
 
   IntColumn get version => integer().withDefault(const Constant(1))();
   DateTimeColumn get createdAt => dateTime()();

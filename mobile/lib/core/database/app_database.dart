@@ -10,7 +10,9 @@ import '../../features/jobs/data/job_dao.dart';
 import '../../features/jobs/data/note_dao.dart';
 import '../../features/jobs/data/time_entry_dao.dart';
 import '../../features/projects/data/project_dao.dart';
+import '../../features/projects/data/project_zone_dao.dart';
 import '../../features/projects/data/task_dao.dart';
+import '../../features/projects/data/task_dependency_dao.dart';
 import '../../features/projects/data/trade_catalog_dao.dart';
 import '../../features/projects/data/trade_scope_dao.dart';
 import '../../features/quotes/data/quote_dao.dart';
@@ -33,9 +35,11 @@ import 'tables/projects.dart';
 import 'tables/quote_line_items.dart';
 import 'tables/quote_templates.dart';
 import 'tables/quotes.dart';
+import 'tables/project_zones.dart';
 import 'tables/sync_cursor.dart';
 import 'tables/sync_queue.dart';
 import 'tables/task_attachments.dart';
+import 'tables/task_dependencies.dart';
 import 'tables/tasks.dart';
 import 'tables/time_entries.dart';
 import 'tables/trade_catalog.dart';
@@ -51,7 +55,9 @@ export '../../features/jobs/data/job_dao.dart';
 export '../../features/jobs/data/note_dao.dart';
 export '../../features/jobs/data/time_entry_dao.dart';
 export '../../features/projects/data/project_dao.dart';
+export '../../features/projects/data/project_zone_dao.dart';
 export '../../features/projects/data/task_dao.dart';
+export '../../features/projects/data/task_dependency_dao.dart';
 export '../../features/projects/data/trade_catalog_dao.dart';
 export '../../features/projects/data/trade_scope_dao.dart';
 export '../../features/quotes/data/quote_dao.dart';
@@ -87,6 +93,8 @@ part 'app_database.g.dart';
     ProjectTasks,
     TaskAttachments,
     UserTradeSpecialties,
+    TaskDependencies,
+    ProjectZones,
   ],
   daos: [
     CompanyDao,
@@ -104,6 +112,8 @@ part 'app_database.g.dart';
     TradeCatalogDao,
     TradeScopeDao,
     TaskDao,
+    TaskDependencyDao,
+    ProjectZoneDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -111,7 +121,7 @@ class AppDatabase extends _$AppDatabase {
       : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -160,6 +170,19 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(projectTasks);
             await m.createTable(taskAttachments);
             await m.createTable(userTradeSpecialties);
+          }
+          if (from < 8) {
+            // Create task_dependencies edge table for FS/SS/FF/SE dependency links
+            await m.createTable(taskDependencies);
+            // Create project_zones table for spatial conflict detection
+            await m.createTable(projectZones);
+            // Add zoneId soft-FK column to projectTasks
+            await m.addColumn(projectTasks, projectTasks.zoneId);
+            // Add startDate column for Gantt/CPM scheduling
+            await m.addColumn(projectTasks, projectTasks.startDate);
+            // Remove dependsOn column — dependencies now live in task_dependencies table.
+            // alterTable rewrites the table with current column definitions (dependsOn excluded).
+            await m.alterTable(TableMigration(projectTasks));
           }
         },
       );
