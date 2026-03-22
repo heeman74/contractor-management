@@ -27,10 +27,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.security import CurrentUser, get_current_user
 from app.features.projects.schemas import (
+    ConflictRecord,
     ProjectCreate,
     ProjectResponse,
     ProjectUpdate,
+    ProjectZoneCreate,
+    ProjectZoneResponse,
     TaskCreate,
+    TaskDependencyCreate,
+    TaskDependencyResponse,
     TaskResponse,
     TaskUpdate,
     TradeCatalogCreate,
@@ -41,7 +46,10 @@ from app.features.projects.schemas import (
     TradeScopeUpdate,
 )
 from app.features.projects.service import (
+    ConflictService,
+    DependencyService,
     ProjectService,
+    ProjectZoneService,
     TaskService,
     TradeCatalogService,
     TradeScopeService,
@@ -327,21 +335,27 @@ async def update_task(
     db: AsyncSession = Depends(get_db),
     _current_user: CurrentUser = Depends(get_current_user),
 ) -> TaskResponse:
-    """Update a task."""
+    """Update a task.
+
+    When status changes to 'complete', automatically recomputes blocked status
+    for all successor tasks (tasks that were blocked waiting for this task).
+    """
     svc = TaskService(db)
     update_data = data.model_dump(exclude_none=True)
+    new_status = update_data.get("status")
     task = await svc.update(task_id, update_data)
     if task is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Task {task_id} not found",
         )
+    # When task is completed, unblock successors that were waiting on it
+    if new_status == "complete":
+        await svc.recompute_successor_statuses(task_id)
     return TaskResponse.model_validate(task)
 
 
-@tasks_router.delete(
-    "/{task_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None
-)
+@tasks_router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_task(
     task_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
@@ -460,6 +474,147 @@ async def list_contractors_by_specialty(
 
 
 # ---------------------------------------------------------------------------
+# Phase 20: Dependency engine endpoints
+# ---------------------------------------------------------------------------
+
+dependencies_router = APIRouter(tags=["dependencies"])
+
+
+@dependencies_router.post(
+    "/tasks/{task_id}/dependencies",
+    response_model=TaskDependencyResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_dependency(
+    task_id: uuid.UUID,
+    data: TaskDependencyCreate,
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(get_current_user),
+) -> TaskDependencyResponse:
+    """Create a dependency edge: data.predecessor_task_id -> task_id (successor).
+
+    Returns 422 with cycle path if the new edge would create a cycle.
+    """
+    svc = DependencyService(db)
+    dep = await svc.create_dependency(task_id, data)
+    return TaskDependencyResponse.model_validate(dep)
+
+
+@dependencies_router.get(
+    "/tasks/{task_id}/dependencies",
+    response_model=list[TaskDependencyResponse],
+)
+async def list_dependencies(
+    task_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(get_current_user),
+) -> list[TaskDependencyResponse]:
+    """List all dependency edges where this task is a predecessor or successor."""
+    svc = DependencyService(db)
+    deps = await svc.list_by_task(task_id)
+    return [TaskDependencyResponse.model_validate(d) for d in deps]
+
+
+@dependencies_router.delete(
+    "/dependencies/{dependency_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
+async def delete_dependency(
+    dependency_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(get_current_user),
+) -> None:
+    """Soft-delete a dependency edge. Recomputes successor's blocked status."""
+    svc = DependencyService(db)
+    if not await svc.delete_dependency(dependency_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Dependency {dependency_id} not found",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Phase 20: Project zones endpoints
+# ---------------------------------------------------------------------------
+
+zones_router = APIRouter(tags=["zones"])
+
+
+@zones_router.post(
+    "/projects/{project_id}/zones",
+    response_model=ProjectZoneResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_zone(
+    project_id: uuid.UUID,
+    data: ProjectZoneCreate,
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(get_current_user),
+) -> ProjectZoneResponse:
+    """Create a named zone for a project."""
+    svc = ProjectZoneService(db)
+    zone = await svc.create(project_id, data)
+    return ProjectZoneResponse.model_validate(zone)
+
+
+@zones_router.get(
+    "/projects/{project_id}/zones",
+    response_model=list[ProjectZoneResponse],
+)
+async def list_zones(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(get_current_user),
+) -> list[ProjectZoneResponse]:
+    """List all zones for a project."""
+    svc = ProjectZoneService(db)
+    zones = await svc.list_by_project(project_id)
+    return [ProjectZoneResponse.model_validate(z) for z in zones]
+
+
+@zones_router.delete(
+    "/zones/{zone_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
+async def delete_zone(
+    zone_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(get_current_user),
+) -> None:
+    """Soft-delete a zone."""
+    svc = ProjectZoneService(db)
+    if not await svc.delete(zone_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Zone {zone_id} not found",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Phase 20: Conflict detection endpoint
+# ---------------------------------------------------------------------------
+
+conflicts_router = APIRouter(tags=["conflicts"])
+
+
+@conflicts_router.get(
+    "/projects/{project_id}/conflicts",
+    response_model=list[ConflictRecord],
+)
+async def get_conflicts(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(get_current_user),
+) -> list[ConflictRecord]:
+    """Detect cross-trade zone/date scheduling conflicts for a project."""
+    svc = ConflictService(db)
+    conflicts = await svc.detect_conflicts(project_id)
+    return [ConflictRecord(**c) for c in conflicts]
+
+
+# ---------------------------------------------------------------------------
 # Aggregate router — all project sub-routers under one include
 # ---------------------------------------------------------------------------
 router.include_router(projects_router)
@@ -467,3 +622,6 @@ router.include_router(trade_catalog_router)
 router.include_router(trade_scopes_router)
 router.include_router(tasks_router)
 router.include_router(contractors_router)
+router.include_router(dependencies_router)
+router.include_router(zones_router)
+router.include_router(conflicts_router)

@@ -16,14 +16,16 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import selectinload
 
 from app.core.base_repository import BaseRepository, TenantScopedRepository
 from app.features.projects.models import (
     Project,
+    ProjectZone,
     Task,
     TaskAttachment,
+    TaskDependency,
     TradeCatalog,
     TradeScope,
 )
@@ -123,3 +125,53 @@ class TaskAttachmentRepository(BaseRepository[TaskAttachment]):
     """Repository for TaskAttachment entities."""
 
     model = TaskAttachment
+
+
+class TaskDependencyRepository(TenantScopedRepository[TaskDependency]):
+    """Repository for TaskDependency edge entities."""
+
+    model = TaskDependency
+
+    async def list_by_project(self, project_id: uuid.UUID) -> list[TaskDependency]:
+        """Load ALL dependency edges for a project in a single query (join through Task -> TradeScope)."""
+        stmt = (
+            select(TaskDependency)
+            .join(Task, TaskDependency.predecessor_task_id == Task.id)
+            .join(TradeScope, Task.trade_scope_id == TradeScope.id)
+            .where(TradeScope.project_id == project_id)
+            .where(TaskDependency.deleted_at.is_(None))
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def list_by_task(self, task_id: uuid.UUID) -> list[TaskDependency]:
+        """Get all dependencies where task_id is either predecessor or successor."""
+        stmt = (
+            select(TaskDependency)
+            .where(
+                or_(
+                    TaskDependency.predecessor_task_id == task_id,
+                    TaskDependency.successor_task_id == task_id,
+                )
+            )
+            .where(TaskDependency.deleted_at.is_(None))
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+
+class ProjectZoneRepository(TenantScopedRepository[ProjectZone]):
+    """Repository for ProjectZone entities."""
+
+    model = ProjectZone
+
+    async def list_by_project(self, project_id: uuid.UUID) -> list[ProjectZone]:
+        """List non-deleted zones for a project ordered by name."""
+        stmt = (
+            select(ProjectZone)
+            .where(ProjectZone.project_id == project_id)
+            .where(ProjectZone.deleted_at.is_(None))
+            .order_by(ProjectZone.name)
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())

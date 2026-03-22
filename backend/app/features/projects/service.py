@@ -24,11 +24,24 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.core.base_service import TenantScopedService
-from app.features.projects.models import Project, Task, TradeCatalog, TradeScope
+from app.features.projects.models import (
+    Project,
+    ProjectZone,
+    Task,
+    TaskDependency,
+    TradeCatalog,
+    TradeScope,
+)
 from app.features.projects.repository import (
     ProjectRepository,
+    ProjectZoneRepository,
+    TaskDependencyRepository,
     TaskRepository,
     TradeCatalogRepository,
     TradeScopeRepository,
@@ -36,7 +49,9 @@ from app.features.projects.repository import (
 from app.features.projects.schemas import (
     ProjectCreate,
     ProjectStatus,
+    ProjectZoneCreate,
     TaskCreate,
+    TaskDependencyCreate,
     TradeCatalogCreate,
     TradeScopeCreate,
 )
@@ -290,3 +305,306 @@ class TaskService(TenantScopedService[Task]):
         """List tasks for a trade scope ordered by sort_order."""
         repo = TaskRepository(self.db)
         return await repo.list_by_scope(trade_scope_id)
+
+    async def recompute_successor_statuses(self, task_id: uuid.UUID) -> None:
+        """When a task is completed, unblock its successors if all their predecessors are complete.
+
+        Called from the update_task endpoint when status changes to 'complete'.
+        Loads all edges where task_id is a predecessor, then recomputes each successor.
+        """
+        dep_svc = DependencyService(self.db)
+        # Get all edges where this task is a predecessor
+        stmt = (
+            select(TaskDependency)
+            .where(TaskDependency.predecessor_task_id == task_id)
+            .where(TaskDependency.deleted_at.is_(None))
+        )
+        result = await self.db.execute(stmt)
+        edges = result.scalars().all()
+        for edge in edges:
+            await dep_svc._recompute_blocked_status(edge.successor_task_id)
+
+
+class DependencyService(TenantScopedService[TaskDependency]):
+    """Business logic for task dependency edges.
+
+    Responsibilities:
+    - Create dependency edges with DFS cycle detection
+    - Recompute blocked status when edges are created/deleted
+    - List edges for a task
+    - Delete edges (soft delete)
+    """
+
+    repository_class = TaskDependencyRepository
+
+    async def create_dependency(
+        self, successor_task_id: uuid.UUID, data: TaskDependencyCreate
+    ) -> TaskDependency:
+        """Create a dependency edge from predecessor to successor, rejecting cycles.
+
+        Steps:
+        1. Verify both tasks exist and belong to the same project.
+        2. Load all existing edges for the project.
+        3. Build adjacency graph + add proposed edge.
+        4. Run DFS cycle detection — raise 422 with cycle path if cycle found.
+        5. Persist the new edge.
+        6. Recompute successor's blocked status.
+        """
+        # 1. Verify both tasks exist
+        pred_task = await self.db.get(Task, data.predecessor_task_id)
+        succ_task = await self.db.get(Task, successor_task_id)
+        if not pred_task or not succ_task:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Task not found",
+            )
+
+        # Get project_id via trade_scope for each task
+        pred_scope = await self.db.get(TradeScope, pred_task.trade_scope_id)
+        succ_scope = await self.db.get(TradeScope, succ_task.trade_scope_id)
+        if not pred_scope or not succ_scope or pred_scope.project_id != succ_scope.project_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Tasks must belong to the same project",
+            )
+
+        # 2. Load all existing edges for this project
+        repo = TaskDependencyRepository(self.db)
+        existing_edges = await repo.list_by_project(pred_scope.project_id)
+
+        # 3. Build adjacency graph and add proposed edge
+        graph: dict[str, list[str]] = {}
+        all_nodes: set[str] = set()
+        for edge in existing_edges:
+            pred = str(edge.predecessor_task_id)
+            succ = str(edge.successor_task_id)
+            graph.setdefault(pred, []).append(succ)
+            all_nodes.update([pred, succ])
+        # Add proposed edge
+        new_pred = str(data.predecessor_task_id)
+        new_succ = str(successor_task_id)
+        graph.setdefault(new_pred, []).append(new_succ)
+        all_nodes.update([new_pred, new_succ])
+
+        # 4. Run DFS cycle detection
+        cycle = self._find_cycle(graph, all_nodes)
+        if cycle:
+            # Resolve task titles for display
+            cycle_names = []
+            for task_id_str in cycle:
+                task = await self.db.get(Task, uuid.UUID(task_id_str))
+                cycle_names.append(task.title if task else task_id_str)
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "message": "Dependency creates a cycle",
+                    "cycle": cycle_names,
+                    "cycle_ids": cycle,
+                },
+            )
+
+        # 5. Persist the new edge
+        company_id = self._require_tenant_id()
+        edge = TaskDependency(
+            company_id=company_id,
+            predecessor_task_id=data.predecessor_task_id,
+            successor_task_id=successor_task_id,
+            dependency_type=data.dependency_type,
+            lag_days=data.lag_days,
+        )
+        self.db.add(edge)
+        await self.db.flush()
+
+        # 6. Recompute blocked status for the successor
+        await self._recompute_blocked_status(successor_task_id)
+
+        return edge
+
+    def _find_cycle(self, graph: dict[str, list[str]], all_nodes: set[str]) -> list[str] | None:
+        """DFS cycle detection with white/gray/black coloring.
+
+        Returns the cycle path (list of node IDs) if a cycle is found, else None.
+        """
+        color: dict[str, int] = dict.fromkeys(all_nodes, 0)
+        path: list[str] = []
+
+        def dfs(node: str) -> list[str] | None:
+            color[node] = 1  # gray = in progress
+            path.append(node)
+            for neighbor in graph.get(node, []):
+                if color.get(neighbor, 0) == 1:
+                    # Back edge found — cycle detected
+                    cycle_start = path.index(neighbor)
+                    return path[cycle_start:] + [neighbor]
+                if color.get(neighbor, 0) == 0:
+                    result = dfs(neighbor)
+                    if result:
+                        return result
+            color[node] = 2  # black = fully explored
+            path.pop()
+            return None
+
+        for node in all_nodes:
+            if color[node] == 0:
+                result = dfs(node)
+                if result:
+                    return result
+        return None
+
+    async def _recompute_blocked_status(self, task_id: uuid.UUID) -> None:
+        """Set task.status='blocked' if any FS/SS/SE predecessor is not complete.
+
+        If no such predecessors exist or all are complete, restore status to
+        'not_started' (if it was previously blocked). Does not change status
+        if the task is already 'complete'.
+        """
+        stmt = (
+            select(TaskDependency)
+            .where(TaskDependency.successor_task_id == task_id)
+            .where(TaskDependency.deleted_at.is_(None))
+        )
+        result = await self.db.execute(stmt)
+        edges = result.scalars().all()
+
+        is_blocked = False
+        for edge in edges:
+            predecessor = await self.db.get(Task, edge.predecessor_task_id)
+            if (
+                predecessor
+                and predecessor.status != "complete"
+                and edge.dependency_type in ("FS", "SS", "SE")
+            ):
+                is_blocked = True
+                break
+
+        task = await self.db.get(Task, task_id)
+        if task and task.status != "complete":
+            new_status = (
+                "blocked"
+                if is_blocked
+                else ("not_started" if task.status == "blocked" else task.status)
+            )
+            if new_status != task.status:
+                task.status = new_status
+                await self.db.flush()
+
+    async def delete_dependency(self, dependency_id: uuid.UUID) -> bool:
+        """Soft-delete a dependency edge and recompute successor's blocked status."""
+        repo = TaskDependencyRepository(self.db)
+        edge = await repo.get_by_id(dependency_id)
+        if not edge:
+            return False
+        successor_id = edge.successor_task_id
+        result = await repo.soft_delete(dependency_id)
+        # Recompute after removal
+        await self._recompute_blocked_status(successor_id)
+        return result
+
+    async def list_by_task(self, task_id: uuid.UUID) -> list[TaskDependency]:
+        """List all dependency edges where task_id is predecessor or successor."""
+        repo = TaskDependencyRepository(self.db)
+        return await repo.list_by_task(task_id)
+
+
+class ConflictService:
+    """Detect zone-based scheduling conflicts for a project.
+
+    A conflict is two tasks from different trade scopes that share the same
+    zone_id and the same due_date. This is the minimum viable conflict
+    definition — Phase 21+ can extend to date-range overlap.
+    """
+
+    def __init__(self, db: AsyncSession) -> None:
+        self.db = db
+
+    async def detect_conflicts(self, project_id: uuid.UUID) -> list[dict]:
+        """Find cross-trade zone/date conflicts for a project.
+
+        Returns a list of dicts with task1/task2 info and the shared zone + date.
+        Only cross-trade conflicts are returned (tasks in the same trade scope
+        are not flagged — they are under one contractor's control).
+        """
+        t1 = aliased(Task, name="t1")
+        t2 = aliased(Task, name="t2")
+        s1 = aliased(TradeScope, name="s1")
+        s2 = aliased(TradeScope, name="s2")
+        z = aliased(ProjectZone, name="z")
+
+        stmt = (
+            select(
+                t1.id.label("task1_id"),
+                t1.title.label("task1_title"),
+                s1.trade_name.label("task1_trade"),
+                t2.id.label("task2_id"),
+                t2.title.label("task2_title"),
+                s2.trade_name.label("task2_trade"),
+                z.name.label("zone_name"),
+                t1.due_date.label("conflict_date"),
+            )
+            .select_from(t1)
+            .join(s1, t1.trade_scope_id == s1.id)
+            .join(z, t1.zone_id == z.id)
+            .join(t2, t1.zone_id == t2.zone_id)
+            .join(s2, t2.trade_scope_id == s2.id)
+            .where(t1.zone_id.is_not(None))
+            .where(t1.due_date == t2.due_date)
+            .where(t1.due_date.is_not(None))
+            .where(s1.project_id == project_id)
+            .where(s2.project_id == project_id)
+            .where(t1.trade_scope_id != t2.trade_scope_id)
+            .where(t1.id < t2.id)  # de-duplicate symmetric pairs
+            .where(t1.deleted_at.is_(None))
+            .where(t2.deleted_at.is_(None))
+        )
+        result = await self.db.execute(stmt)
+        rows = result.all()
+        return [
+            {
+                "task1_id": str(r.task1_id),
+                "task1_title": r.task1_title,
+                "task1_trade_name": r.task1_trade,
+                "task2_id": str(r.task2_id),
+                "task2_title": r.task2_title,
+                "task2_trade_name": r.task2_trade,
+                "zone_name": r.zone_name,
+                "conflict_date": str(r.conflict_date),
+            }
+            for r in rows
+        ]
+
+
+class ProjectZoneService(TenantScopedService[ProjectZone]):
+    """Business logic for ProjectZone entities."""
+
+    repository_class = ProjectZoneRepository
+
+    async def create(self, project_id: uuid.UUID, data: ProjectZoneCreate) -> ProjectZone:
+        """Create a named zone for a project.
+
+        Raises 409 if a zone with the same name already exists in this project.
+        """
+        company_id = self._require_tenant_id()
+        zone = ProjectZone(
+            company_id=company_id,
+            project_id=project_id,
+            name=data.name,
+        )
+        self.db.add(zone)
+        try:
+            await self.db.flush()
+        except IntegrityError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Zone '{data.name}' already exists in this project",
+            ) from exc
+        return zone
+
+    async def list_by_project(self, project_id: uuid.UUID) -> list[ProjectZone]:
+        """List non-deleted zones for a project ordered by name."""
+        repo = ProjectZoneRepository(self.db)
+        return await repo.list_by_project(project_id)
+
+    async def delete(self, zone_id: uuid.UUID) -> bool:
+        """Soft-delete a zone."""
+        repo = ProjectZoneRepository(self.db)
+        return await repo.soft_delete(zone_id)
