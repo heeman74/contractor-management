@@ -186,7 +186,7 @@ Plans:
   2. The dependency graph computes a valid execution order — tasks in a blocked trade scope cannot be started until their predecessor completes
   3. GC can view a Gantt-style timeline showing all trade scopes with dependency arrows and current progress indicators
   4. AI (and manual edits) that would create two trades needing the same space on the same day are flagged as a conflict before they are saved
-**Plans:** 6 plans (4 complete + 2 gap closure)
+**Plans:** 5/6 plans executed
 
 Plans:
 - [ ] 20-01-PLAN.md — Backend: TaskDependency + ProjectZone models, migration 0016, DFS cycle detection, blocked status, conflict detection, REST endpoints, integration tests
@@ -295,7 +295,7 @@ Note: Phase 25 (Billing) depends only on Phase 19 and may start in parallel with
 | 17. CRM — Clients and Contractors | v2.0 | 5/5 | Complete | 2026-03-19 |
 | 18. Reporting Dashboard | v2.0 | 3/3 | Complete | 2026-03-19 |
 | 19. Project Data Model | v3.0 | 5/5 | Complete | 2026-03-21 |
-| 20. Dependency Engine | v3.0 | 4/6 | Gap closure | - |
+| 20. Dependency Engine | 5/6 | In Progress|  | - |
 | 21. AI Project Intake and Contractor Interview | v3.0 | 0/TBD | Not started | - |
 | 22. Task Execution and Photo Annotation | v3.0 | 0/TBD | Not started | - |
 | 23. Real-Time Chat | v3.0 | 0/TBD | Not started | - |

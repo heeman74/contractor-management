@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: AI-Driven Construction Management
 status: unknown
-stopped_at: Completed 20-dependency-engine/20-03-PLAN.md
-last_updated: "2026-03-22T03:50:16.258Z"
+stopped_at: Completed 20-dependency-engine/20-05-PLAN.md
+last_updated: "2026-03-22T04:33:00Z"
 progress:
   total_phases: 14
-  completed_phases: 8
-  total_plans: 34
-  completed_plans: 34
+  completed_phases: 7
+  total_plans: 36
+  completed_plans: 35
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-19)
 ## Current Position
 
 Phase: 20 (dependency-engine) — EXECUTING
-Plan: 2 of 4
+Plan: 1 of 6
 
 ## Performance Metrics
 
@@ -44,6 +44,7 @@ Plan: 2 of 4
 | Phase 20-dependency-engine P01 | 16m | 2 tasks | 8 files |
 | Phase 20-dependency-engine P04 | 15 | 2 tasks | 9 files |
 | Phase 20-dependency-engine P03 | 45 | 2 tasks | 13 files |
+| Phase 20-dependency-engine P05 | 2m | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -78,6 +79,7 @@ Plan: 2 of 4
 - [Phase 20-04]: Phase 20 Gantt dependency creation deferred to Phase 21 — requires companyId from auth; local DFS cycle detection guards UI only
 - [Phase 20-dependency-engine]: SVAR Gantt loaded via next/dynamic (ssr:false) to avoid SSR hydration issues; ILink type cast via as ILink['type'] since TLinkType not re-exported
 - [Phase 20-dependency-engine]: Playwright route mocks ordered most-specific-first (conflicts/zones exact paths before general project ID substring match)
+- [Phase 20-05]: useProjectDependencies uses sorted task ID join as queryKey — ensures stable TanStack Query cache key across re-renders; project-dependencies invalidation uses prefix key (no projectId) to clear all task-ID-keyed entries after dependency creation
 
 ### Pending Todos
 
