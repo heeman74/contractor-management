@@ -239,7 +239,6 @@ ProjectTask _makeTask({
     photoRequired: false,
     assignedTo: null,
     materialsNeeded: '[]',
-    dependsOn: '[]',
     version: 1,
     createdAt: now,
     updatedAt: now,
