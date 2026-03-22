@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: AI-Driven Construction Management
 status: unknown
-stopped_at: Phase 20 UI-SPEC approved
-last_updated: "2026-03-22T03:21:57Z"
+stopped_at: Completed 20-dependency-engine/20-01-PLAN.md
+last_updated: "2026-03-22T03:30:29.195Z"
 progress:
   total_phases: 14
   completed_phases: 7
   total_plans: 34
-  completed_plans: 30
+  completed_plans: 32
 ---
 
 # Project State
@@ -41,6 +41,7 @@ Plan: 2 of 4
 | 19-26 | TBD | - | - |
 | Phase 19 P02 | 20 | 2 tasks | 16 files |
 | Phase 19 P05 | 25 | 3 tasks | 12 files |
+| Phase 20-dependency-engine P01 | 16m | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -67,6 +68,9 @@ Plan: 2 of 4
 - [Phase 19]: [Phase 19 P05]: AddTradeScopeSheet created in Task 2 alongside ProjectDetail to satisfy import dependencies; Playwright strict mode fixed with first()/getByRole precision
 - [Phase 20 P02]: TaskDependencies uses soft FK (no hard FK) from ProjectTasks.zoneId to ProjectZones — keeps table definitions decoupled
 - [Phase 20 P02]: TaskDependencyDao.watchByProject joins through ProjectTasks → TradeScopes to filter by projectId — avoids needing a direct project FK on task_dependencies
+- [Phase 20-dependency-engine]: ConflictService uses select_from(t1).join(t2, ...) — SQLAlchemy aliased() requires explicit FROM placement for self-joins
+- [Phase 20-dependency-engine]: FF dependency type does NOT block successors; only FS/SS/SE set status=blocked
+- [Phase 20-dependency-engine]: IntegrityError for duplicate zone names caught in ProjectZoneService → 409 Conflict
 
 ### Pending Todos
 
@@ -80,6 +84,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T03:13:09Z
-Stopped at: Completed 20-02-PLAN.md (Drift schema v8, TaskDependencyDao, ProjectZoneDao, sync handlers)
-Resume file: .planning/phases/20-dependency-engine/20-02-SUMMARY.md
+Last session: 2026-03-22T03:30:29.188Z
+Stopped at: Completed 20-dependency-engine/20-01-PLAN.md
+Resume file: None

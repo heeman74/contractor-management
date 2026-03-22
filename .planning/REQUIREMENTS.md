@@ -12,7 +12,7 @@ Requirements for AI-Driven Construction Management milestone. Each maps to roadm
 - [x] **PROJ-01**: GC can create a project with description, address, client, and target timeline
 - [x] **PROJ-02**: GC can add trade scopes to a project (plumbing, electrical, carpentry, etc.) with assigned contractors
 - [x] **PROJ-03**: GC can view project hierarchy (Project → Trade Scopes → Tasks) in a tree view
-- [ ] **PROJ-04**: System enforces cross-trade task dependencies (Task A must finish before Task B starts)
+- [x] **PROJ-04**: System enforces cross-trade task dependencies (Task A must finish before Task B starts)
 - [ ] **PROJ-05**: GC can view project timeline with all trades on a Gantt-style chart showing dependencies
 
 ### AI Planning
@@ -22,7 +22,7 @@ Requirements for AI-Driven Construction Management milestone. Each maps to roadm
 - [ ] **AI-03**: AI interviews each trade contractor with trade-specific questions to generate detailed task plans
 - [ ] **AI-04**: AI generates daily checklists per trade with tasks, materials needed, and photo requirements
 - [ ] **AI-05**: AI adapts schedules based on actual progress — flags delays and suggests rescheduling
-- [ ] **AI-06**: AI detects cross-trade conflicts (e.g., two trades needing same space on same day)
+- [x] **AI-06**: AI detects cross-trade conflicts (e.g., two trades needing same space on same day)
 
 ### Task Execution
 
@@ -102,14 +102,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PROJ-01 | Phase 19 | Complete |
 | PROJ-02 | Phase 19 | Complete |
 | PROJ-03 | Phase 19 | Complete |
-| PROJ-04 | Phase 20 | Pending |
+| PROJ-04 | Phase 20 | Complete |
 | PROJ-05 | Phase 20 | Pending |
 | AI-01 | Phase 21 | Pending |
 | AI-02 | Phase 21 | Pending |
 | AI-03 | Phase 21 | Pending |
 | AI-04 | Phase 26 | Pending |
 | AI-05 | Phase 26 | Pending |
-| AI-06 | Phase 20 | Pending |
+| AI-06 | Phase 20 | Complete |
 | TASK-01 | Phase 22 | Pending |
 | TASK-02 | Phase 22 | Pending |
 | TASK-03 | Phase 22 | Pending |
