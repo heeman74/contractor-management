@@ -1,7 +1,12 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
-import '../../../../core/database/app_database.dart' show TaskDependency;
+import '../../../../core/database/app_database.dart'
+    show TaskDependency, TaskDependenciesCompanion;
+import '../../../auth/domain/auth_state.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/gantt_provider.dart';
 import '../widgets/gantt_chart_widget.dart';
 
@@ -169,15 +174,59 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
       return;
     }
 
-    // Dependency creation deferred to Phase 21 (requires companyId from auth).
-    // Cycle check above prevents invalid local edges from being shown.
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Dependency created (pending sync)'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+    // Get companyId from auth state
+    final authState = ref.read(authNotifierProvider);
+    final companyId = authState is AuthAuthenticated ? authState.companyId : '';
+    if (companyId.isEmpty) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cannot create dependency: not authenticated'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    // Persist to Drift + sync queue
+    final depDao = ref.read(taskDependencyDaoProvider);
+    final now = DateTime.now();
+    final depId = const Uuid().v4();
+
+    try {
+      await depDao.insertWithSyncQueue(
+        TaskDependenciesCompanion(
+          id: Value(depId),
+          companyId: Value(companyId),
+          predecessorTaskId: Value(predecessorId),
+          successorTaskId: Value(successorId),
+          dependencyType: const Value('FS'),
+          lagDays: const Value(0),
+          version: const Value(1),
+          createdAt: Value(now),
+          updatedAt: Value(now),
+        ),
+      );
+
+      // Invalidate gantt data to refresh arrows
+      ref.invalidate(ganttDataProvider(widget.projectId));
+
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Dependency: $predecessorName \u2192 $successorName'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to create dependency: $e'),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
   /// Detect if adding edge (predecessor -> successor) would create a cycle
@@ -323,10 +372,8 @@ class CycleDependencyException implements Exception {
   });
 }
 
-// Note: Full dependency creation (with backend API call) is deferred to
-// Phase 21 (AI planning integration) where companyId from auth will be used.
-// The local cycle detection in _GanttScreenState._handleDependencyCreated
-// prevents invalid edges from being created in the meantime.
+// Dependency creation wired in Phase 20 gap closure (Plan 06).
+// CompanyId sourced from AuthNotifier; DAO write + sync queue enqueue.
 
 // ---------------------------------------------------------------------------
 // Conflict banner widget
