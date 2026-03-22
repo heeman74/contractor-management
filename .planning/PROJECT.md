@@ -45,7 +45,8 @@ AI eliminates the chaos of multi-trade coordination — GCs always know exactly 
 - [ ] Photo annotation — draw on photos (arrows, circles, text, measurements) on mobile and web
 - [ ] GC ↔ contractor bidirectional chat with photo/file sharing
 - [ ] GC mobile inspection — approve/reject tasks, flag issues, create punch list items
-- [ ] GC cross-trade monitoring dashboard — timeline view, trade status, AI alerts, conflict detection
+- [x] Cross-trade task dependencies with cycle prevention and Gantt timeline — Validated in Phase 20: Dependency Engine
+- [ ] GC cross-trade monitoring dashboard — trade status, AI alerts (Gantt timeline complete via Phase 20)
 - [ ] Per-trade quoting and invoicing — trade-specific quotes that aggregate to project level
 - [ ] AI schedule adaptation — adjust plans based on actual progress, flag delays, suggest rescheduling
 - [ ] Online-first architecture — AI requires connectivity, offline cache for field execution
@@ -85,6 +86,7 @@ AI eliminates the chaos of multi-trade coordination — GCs always know exactly 
 
 Shipped v1.0 MVP with 143,230 LOC across 609 files in 11 days.
 Shipped v2.0 Web Admin Dashboard with 6 phases (13-18), adding Next.js web app with full admin capabilities.
+Phase 20 complete — cross-trade dependency engine with Gantt timeline on web (SVAR) and mobile (CustomPainter), cycle detection, conflict detection, and zone management.
 Tech stack: Flutter 3.32+ (Drift, Riverpod 3, GoRouter, GetIt) + FastAPI 0.115 (SQLAlchemy 2.0, asyncpg, PostgreSQL 13 with RLS) + Next.js (React, TanStack Query, Redux Toolkit).
 v3.0 shifts from offline-first to online-first (AI requires connectivity) with offline cache for field execution.
 
