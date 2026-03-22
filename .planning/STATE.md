@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: AI-Driven Construction Management
 status: unknown
-stopped_at: Completed 20-dependency-engine/20-01-PLAN.md
-last_updated: "2026-03-22T03:30:29.195Z"
+stopped_at: Completed 20-dependency-engine/20-04-PLAN.md
+last_updated: "2026-03-22T03:48:39.346Z"
 progress:
   total_phases: 14
   completed_phases: 7
   total_plans: 34
-  completed_plans: 32
+  completed_plans: 33
 ---
 
 # Project State
@@ -42,6 +42,7 @@ Plan: 2 of 4
 | Phase 19 P02 | 20 | 2 tasks | 16 files |
 | Phase 19 P05 | 25 | 3 tasks | 12 files |
 | Phase 20-dependency-engine P01 | 16m | 2 tasks | 8 files |
+| Phase 20-dependency-engine P04 | 15 | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -71,6 +72,9 @@ Plan: 2 of 4
 - [Phase 20-dependency-engine]: ConflictService uses select_from(t1).join(t2, ...) — SQLAlchemy aliased() requires explicit FROM placement for self-joins
 - [Phase 20-dependency-engine]: FF dependency type does NOT block successors; only FS/SS/SE set status=blocked
 - [Phase 20-dependency-engine]: IntegrityError for duplicate zone names caught in ProjectZoneService → 409 Conflict
+- [Phase 20-04]: Riverpod 3 AsyncNotifier.family uses factory (arg) => Notifier(arg) — no FamilyAsyncNotifier class exists
+- [Phase 20-04]: InteractiveViewer(constrained: false) must not be wrapped in SingleChildScrollView — causes unbounded height constraints; tests need SizedBox bounds wrapper
+- [Phase 20-04]: Phase 20 Gantt dependency creation deferred to Phase 21 — requires companyId from auth; local DFS cycle detection guards UI only
 
 ### Pending Todos
 
@@ -84,6 +88,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T03:30:29.188Z
-Stopped at: Completed 20-dependency-engine/20-01-PLAN.md
+Last session: 2026-03-22T03:48:39.337Z
+Stopped at: Completed 20-dependency-engine/20-04-PLAN.md
 Resume file: None
