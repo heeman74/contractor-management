@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: AI-Driven Construction Management
 status: unknown
-stopped_at: Completed 20-dependency-engine/20-05-PLAN.md
-last_updated: "2026-03-22T04:33:00Z"
+stopped_at: Completed 20-dependency-engine/20-06-PLAN.md
+last_updated: "2026-03-22T04:34:52.543Z"
 progress:
   total_phases: 14
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 36
-  completed_plans: 35
+  completed_plans: 36
 ---
 
 # Project State
@@ -45,6 +45,7 @@ Plan: 1 of 6
 | Phase 20-dependency-engine P04 | 15 | 2 tasks | 9 files |
 | Phase 20-dependency-engine P03 | 45 | 2 tasks | 13 files |
 | Phase 20-dependency-engine P05 | 2m | 2 tasks | 3 files |
+| Phase 20-dependency-engine P06 | 8 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -80,6 +81,8 @@ Plan: 1 of 6
 - [Phase 20-dependency-engine]: SVAR Gantt loaded via next/dynamic (ssr:false) to avoid SSR hydration issues; ILink type cast via as ILink['type'] since TLinkType not re-exported
 - [Phase 20-dependency-engine]: Playwright route mocks ordered most-specific-first (conflicts/zones exact paths before general project ID substring match)
 - [Phase 20-05]: useProjectDependencies uses sorted task ID join as queryKey — ensures stable TanStack Query cache key across re-renders; project-dependencies invalidation uses prefix key (no projectId) to clear all task-ID-keyed entries after dependency creation
+- [Phase 20-06]: TaskDependenciesCompanion imported via app_database.dart show clause — Drift-generated companions only accessible via app_database barrel
+- [Phase 20-06]: registerFallbackValue required for TaskDependenciesCompanion in mocktail any() matcher — non-nullable custom type needs explicit fallback in setUpAll
 
 ### Pending Todos
 
@@ -93,6 +96,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T03:50:16.251Z
-Stopped at: Completed 20-dependency-engine/20-03-PLAN.md
+Last session: 2026-03-22T04:34:52.537Z
+Stopped at: Completed 20-dependency-engine/20-06-PLAN.md
 Resume file: None

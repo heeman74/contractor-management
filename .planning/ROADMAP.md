@@ -45,7 +45,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 **Milestone Goal:** Transform ContractorHub from single-contractor job tracking into an AI-driven multi-trade project management platform where AI plans projects by trade, generates daily checklists, GCs coordinate all trades through chat and inspection tools, and the full quoting/invoicing lifecycle works per trade.
 
 - [x] **Phase 19: Project Data Model** — Project -> Trade Scope -> Task hierarchy with RLS, Drift schema, and sync handlers (completed 2026-03-20)
-- [ ] **Phase 20: Dependency Engine** — Cross-trade dependency graph with cycle detection, topological sort, and Gantt timeline view (gap closure in progress)
+- [x] **Phase 20: Dependency Engine** — Cross-trade dependency graph with cycle detection, topological sort, and Gantt timeline view (gap closure in progress) (completed 2026-03-22)
 - [ ] **Phase 21: AI Project Intake and Contractor Interview** — Claude API integration: GC describes project, AI structures by trade, AI interviews each contractor
 - [ ] **Phase 22: Task Execution and Photo Annotation** — Contractor daily checklists, task progress on mobile, non-destructive photo annotation on mobile and web
 - [ ] **Phase 23: Real-Time Chat** — Bidirectional GC-contractor chat with WebSocket, Redis pub/sub, file sharing, and FCM offline delivery
@@ -186,7 +186,7 @@ Plans:
   2. The dependency graph computes a valid execution order — tasks in a blocked trade scope cannot be started until their predecessor completes
   3. GC can view a Gantt-style timeline showing all trade scopes with dependency arrows and current progress indicators
   4. AI (and manual edits) that would create two trades needing the same space on the same day are flagged as a conflict before they are saved
-**Plans:** 5/6 plans executed
+**Plans:** 6/6 plans complete
 
 Plans:
 - [ ] 20-01-PLAN.md — Backend: TaskDependency + ProjectZone models, migration 0016, DFS cycle detection, blocked status, conflict detection, REST endpoints, integration tests
@@ -295,7 +295,7 @@ Note: Phase 25 (Billing) depends only on Phase 19 and may start in parallel with
 | 17. CRM — Clients and Contractors | v2.0 | 5/5 | Complete | 2026-03-19 |
 | 18. Reporting Dashboard | v2.0 | 3/3 | Complete | 2026-03-19 |
 | 19. Project Data Model | v3.0 | 5/5 | Complete | 2026-03-21 |
-| 20. Dependency Engine | 5/6 | In Progress|  | - |
+| 20. Dependency Engine | 6/6 | Complete   | 2026-03-22 | - |
 | 21. AI Project Intake and Contractor Interview | v3.0 | 0/TBD | Not started | - |
 | 22. Task Execution and Photo Annotation | v3.0 | 0/TBD | Not started | - |
 | 23. Real-Time Chat | v3.0 | 0/TBD | Not started | - |
