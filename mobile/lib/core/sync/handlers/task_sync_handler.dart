@@ -68,9 +68,10 @@ class TaskSyncHandler extends SyncHandler {
       materialsNeeded: data['materials_needed'] != null
           ? Value(data['materials_needed'] as String)
           : const Value.absent(),
-      dependsOn: data['depends_on'] != null
-          ? Value(data['depends_on'] as String)
-          : const Value.absent(),
+      zoneId: Value(data['zone_id'] as String?),
+      startDate: data['start_date'] != null
+          ? Value(DateTime.parse(data['start_date'] as String))
+          : const Value(null),
       version: data['version'] != null
           ? Value(data['version'] as int)
           : const Value.absent(),

@@ -28,9 +28,13 @@ import '../../features/quotes/data/quote_sync_handler.dart';
 import '../../features/schedule/data/booking_sync_handler.dart';
 import '../../features/schedule/data/job_site_sync_handler.dart';
 import '../sync/handlers/project_sync_handler.dart';
+import '../sync/handlers/project_zone_sync_handler.dart';
+import '../sync/handlers/task_dependency_sync_handler.dart';
 import '../sync/handlers/task_sync_handler.dart';
 import '../sync/handlers/trade_catalog_sync_handler.dart';
 import '../sync/handlers/trade_scope_sync_handler.dart';
+import '../../features/projects/data/project_zone_dao.dart';
+import '../../features/projects/data/task_dependency_dao.dart';
 
 final getIt = GetIt.instance;
 
@@ -86,6 +90,11 @@ Future<void> setupServiceLocator() async {
   registry.register(TradeCatalogSyncHandler(dioClient, db));
   registry.register(TradeScopeSyncHandler(dioClient, db));
   registry.register(TaskSyncHandler(dioClient, db));
+  // Phase 20: Dependency engine sync handlers
+  final taskDepDao = TaskDependencyDao(db);
+  final projectZoneDao = ProjectZoneDao(db);
+  registry.register(TaskDependencySyncHandler(dioClient, taskDepDao));
+  registry.register(ProjectZoneSyncHandler(dioClient, projectZoneDao));
 
   getIt.registerSingleton<SyncRegistry>(registry);
 
@@ -123,6 +132,10 @@ Future<void> setupServiceLocator() async {
   getIt.registerSingleton<TradeCatalogDao>(db.tradeCatalogDao);
   getIt.registerSingleton<TradeScopeDao>(db.tradeScopeDao);
   getIt.registerSingleton<TaskDao>(db.taskDao);
+
+  // Phase 20 DAOs — registered for dependency engine features
+  getIt.registerSingleton<TaskDependencyDao>(taskDepDao);
+  getIt.registerSingleton<ProjectZoneDao>(projectZoneDao);
 
   // AttachmentUploadService — binary file uploader for field workflow attachments.
   // Registered AFTER SyncEngine to allow post-construction wiring via

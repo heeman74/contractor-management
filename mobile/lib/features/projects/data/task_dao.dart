@@ -155,7 +155,9 @@ class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
       if (entry.assignedTo.present) 'assignedTo': entry.assignedTo.value,
       if (entry.materialsNeeded.present)
         'materialsNeeded': entry.materialsNeeded.value,
-      if (entry.dependsOn.present) 'dependsOn': entry.dependsOn.value,
+      if (entry.zoneId.present) 'zoneId': entry.zoneId.value,
+      if (entry.startDate.present)
+        'startDate': entry.startDate.value?.toIso8601String(),
       if (entry.version.present) 'version': entry.version.value,
       if (entry.createdAt.present)
         'createdAt': entry.createdAt.value.toIso8601String(),
