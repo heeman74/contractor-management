@@ -190,7 +190,7 @@ Plans:
 
 Plans:
 - [ ] 20-01-PLAN.md — Backend: TaskDependency + ProjectZone models, migration 0016, DFS cycle detection, blocked status, conflict detection, REST endpoints, integration tests
-- [ ] 20-02-PLAN.md — Mobile: Drift schema v8 (TaskDependencies + ProjectZones tables), DAOs, sync handlers
+- [x] 20-02-PLAN.md — Mobile: Drift schema v8 (TaskDependencies + ProjectZones tables), DAOs, sync handlers
 - [ ] 20-03-PLAN.md — Web: SVAR Gantt timeline page, dependency/conflict/zone components, Playwright E2E tests
 - [ ] 20-04-PLAN.md — Mobile: CustomPainter Gantt chart, dependency arrows, drag-to-connect, blocked enforcement, Flutter E2E tests
 

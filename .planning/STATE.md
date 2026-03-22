@@ -4,11 +4,11 @@ milestone: v3.0
 milestone_name: AI-Driven Construction Management
 status: unknown
 stopped_at: Phase 20 UI-SPEC approved
-last_updated: "2026-03-21T18:38:33.048Z"
+last_updated: "2026-03-22T03:21:57Z"
 progress:
   total_phases: 14
   completed_phases: 7
-  total_plans: 30
+  total_plans: 34
   completed_plans: 30
 ---
 
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** AI eliminates the chaos of multi-trade coordination — GCs always know where every trade stands, contractors always know what to do today, projects stay on track.
-**Current focus:** Phase 19 — project-data-model
+**Current focus:** Phase 20 — dependency-engine
 
 ## Current Position
 
-Phase: 19 (project-data-model) — EXECUTING
-Plan: 5 of 5
+Phase: 20 (dependency-engine) — EXECUTING
+Plan: 2 of 4
 
 ## Performance Metrics
 
@@ -65,6 +65,8 @@ Plan: 5 of 5
 - [Phase 19 P03]: SET LOCAL in test DB seeding uses f-string UUID (PostgreSQL SET LOCAL rejects parameterized $1)
 - [Phase 19 P03]: Contractor specialty matching uses SQLAlchemy case() label .desc() ordering; non-filter queries return has_specialty_match=False
 - [Phase 19]: [Phase 19 P05]: AddTradeScopeSheet created in Task 2 alongside ProjectDetail to satisfy import dependencies; Playwright strict mode fixed with first()/getByRole precision
+- [Phase 20 P02]: TaskDependencies uses soft FK (no hard FK) from ProjectTasks.zoneId to ProjectZones — keeps table definitions decoupled
+- [Phase 20 P02]: TaskDependencyDao.watchByProject joins through ProjectTasks → TradeScopes to filter by projectId — avoids needing a direct project FK on task_dependencies
 
 ### Pending Todos
 
@@ -78,6 +80,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-21T18:38:33.041Z
-Stopped at: Phase 20 UI-SPEC approved
-Resume file: .planning/phases/20-dependency-engine/20-UI-SPEC.md
+Last session: 2026-03-22T03:13:09Z
+Stopped at: Completed 20-02-PLAN.md (Drift schema v8, TaskDependencyDao, ProjectZoneDao, sync handlers)
+Resume file: .planning/phases/20-dependency-engine/20-02-SUMMARY.md
