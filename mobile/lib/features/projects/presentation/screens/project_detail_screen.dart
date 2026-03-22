@@ -52,6 +52,17 @@ class ProjectDetailScreen extends ConsumerWidget {
             ProjectStatusBadge(status: projectStatus),
           ],
         ),
+        actions: [
+          // Timeline (Gantt chart) button — Phase 20 dependency engine
+          IconButton(
+            icon: const Icon(Icons.timeline),
+            tooltip: 'View Timeline',
+            onPressed: () => context.push(
+              RouteNames.projectGanttPath(projectId),
+              extra: projectName,
+            ),
+          ),
+        ],
       ),
       body: scopesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),

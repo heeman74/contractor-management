@@ -181,6 +181,9 @@ abstract final class RouteNames {
   /// Trade scope detail — task list for a specific trade scope.
   static const tradeScopeDetail = '/projects/:projectId/scopes/:scopeId';
 
+  /// Gantt chart / project timeline — trade swim lanes with dependency arrows.
+  static const projectGantt = '/projects/:projectId/gantt';
+
   // ─── Helpers ─────────────────────────────────────────────────────────────
 
   /// Build the project detail path for a specific project ID.
@@ -189,4 +192,8 @@ abstract final class RouteNames {
   /// Build the trade scope detail path for a specific scope.
   static String tradeScopeDetailPath(String projectId, String scopeId) =>
       '/projects/$projectId/scopes/$scopeId';
+
+  /// Build the Gantt chart path for a specific project.
+  static String projectGanttPath(String projectId) =>
+      '/projects/$projectId/gantt';
 }

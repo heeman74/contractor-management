@@ -33,6 +33,7 @@ import '../../features/quotes/presentation/screens/quote_detail_screen.dart';
 import '../../features/quotes/presentation/screens/quote_preview_screen.dart';
 import '../../features/jobs/presentation/screens/job_wizard_screen.dart';
 import '../../features/jobs/presentation/screens/jobs_pipeline_screen.dart';
+import '../../features/projects/presentation/screens/gantt_screen.dart';
 import '../../features/projects/presentation/screens/project_detail_screen.dart';
 import '../../features/projects/presentation/screens/project_list_screen.dart';
 import '../../features/projects/presentation/screens/trade_scope_detail_screen.dart';
@@ -413,6 +414,21 @@ final routerProvider = Provider.autoDispose<GoRouter>((ref) {
                           return TradeScopeDetailScreen(
                             projectId: projectId,
                             scopeId: scopeId,
+                          );
+                        },
+                      ),
+                      GoRoute(
+                        path: 'gantt',
+                        builder: (context, state) {
+                          final projectId =
+                              state.pathParameters['projectId']!;
+                          final projectName =
+                              state.extra is String
+                                  ? state.extra as String
+                                  : 'Timeline';
+                          return GanttScreen(
+                            projectId: projectId,
+                            projectName: projectName,
                           );
                         },
                       ),
