@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { apiGet, apiPost, apiPatch } from "@/lib/api-client";
+import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api-client";
 import type {
   ProjectResponse,
   TradeCatalogResponse,
@@ -12,6 +12,13 @@ import type {
   TradeScopeCreate,
   TaskCreate,
 } from "@/types/projects";
+import type {
+  TaskDependencyResponse,
+  TaskDependencyCreate,
+  ProjectZoneResponse,
+  ProjectZoneCreate,
+  ConflictRecord,
+} from "@/types/dependencies";
 
 // --- API client functions ---
 
@@ -129,5 +136,74 @@ export function useContractors(tradeCatalogId?: string) {
   return useQuery({
     queryKey: ["contractors", tradeCatalogId ?? "all"],
     queryFn: () => fetchContractors(tradeCatalogId),
+  });
+}
+
+// --- Dependencies API ---
+
+export function fetchTaskDependencies(taskId: string): Promise<TaskDependencyResponse[]> {
+  return apiGet<TaskDependencyResponse[]>(`/api/v1/tasks/${taskId}/dependencies`);
+}
+
+export function createTaskDependency(
+  successorTaskId: string,
+  data: TaskDependencyCreate
+): Promise<TaskDependencyResponse> {
+  return apiPost<TaskDependencyResponse>(
+    `/api/v1/tasks/${successorTaskId}/dependencies`,
+    data
+  );
+}
+
+export function deleteTaskDependency(dependencyId: string): Promise<void> {
+  return apiDelete<void>(`/api/v1/dependencies/${dependencyId}`);
+}
+
+// --- Zones API ---
+
+export function fetchProjectZones(projectId: string): Promise<ProjectZoneResponse[]> {
+  return apiGet<ProjectZoneResponse[]>(`/api/v1/projects/${projectId}/zones`);
+}
+
+export function createProjectZone(
+  projectId: string,
+  data: ProjectZoneCreate
+): Promise<ProjectZoneResponse> {
+  return apiPost<ProjectZoneResponse>(`/api/v1/projects/${projectId}/zones`, data);
+}
+
+export function deleteProjectZone(zoneId: string): Promise<void> {
+  return apiDelete<void>(`/api/v1/zones/${zoneId}`);
+}
+
+// --- Conflicts API ---
+
+export function fetchProjectConflicts(projectId: string): Promise<ConflictRecord[]> {
+  return apiGet<ConflictRecord[]>(`/api/v1/projects/${projectId}/conflicts`);
+}
+
+// --- TanStack Query hooks for dependencies / zones / conflicts ---
+
+export function useProjectZones(projectId: string) {
+  return useQuery({
+    queryKey: ["project-zones", projectId],
+    queryFn: () => fetchProjectZones(projectId),
+    enabled: !!projectId,
+  });
+}
+
+export function useProjectConflicts(projectId: string) {
+  return useQuery({
+    queryKey: ["project-conflicts", projectId],
+    queryFn: () => fetchProjectConflicts(projectId),
+    enabled: !!projectId,
+  });
+}
+
+export function useTaskDependencies(taskId: string) {
+  return useQuery({
+    queryKey: ["task-dependencies", taskId],
+    queryFn: () => fetchTaskDependencies(taskId),
+    enabled: !!taskId,
   });
 }

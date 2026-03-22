@@ -66,11 +66,12 @@ export interface TaskResponse {
   priority: string;
   estimated_hours: number | null;
   estimated_cost: number | null;
+  start_date: string | null;
   due_date: string | null;
+  zone_id: string | null;
   photo_required: boolean;
   assigned_to: string | null;
   materials_needed: MaterialItem[];
-  depends_on: string[];
   version: number;
   created_at: string;
   updated_at: string;
@@ -105,4 +106,6 @@ export interface TaskCreate {
   title: string;
   description?: string;
   priority?: string;
+  zone_id?: string;
+  start_date?: string;
 }

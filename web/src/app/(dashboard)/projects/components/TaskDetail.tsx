@@ -112,21 +112,7 @@ export function TaskDetail({ task }: TaskDetailProps) {
         <MaterialsList materials={task.materials_needed} />
       </div>
 
-      {/* Dependencies */}
-      {task.depends_on && task.depends_on.length > 0 && (
-        <div>
-          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-700">
-            Depends On
-          </h3>
-          <ul className="space-y-1">
-            {task.depends_on.map((depId) => (
-              <li key={depId} className="text-sm font-mono text-gray-500">
-                {depId.slice(0, 8).toUpperCase()}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {/* Dependencies are now managed via the Gantt timeline view */}
     </div>
   );
 }
