@@ -30,16 +30,24 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 
 import 'package:contractorhub/core/database/app_database.dart' hide UserRole;
 import 'package:contractorhub/features/auth/domain/auth_state.dart';
 import 'package:contractorhub/features/auth/presentation/providers/auth_provider.dart';
+import 'package:contractorhub/features/projects/data/task_dependency_dao.dart';
 import 'package:contractorhub/features/projects/presentation/providers/gantt_provider.dart';
 import 'package:contractorhub/features/projects/presentation/screens/gantt_screen.dart';
 import 'package:contractorhub/features/projects/presentation/widgets/dependency_arrow_painter.dart';
 import 'package:contractorhub/features/projects/presentation/widgets/gantt_chart_widget.dart';
 import 'package:contractorhub/features/projects/presentation/widgets/gantt_painter.dart';
 import 'package:contractorhub/shared/models/user_role.dart';
+
+// ---------------------------------------------------------------------------
+// Mock classes for dependency persistence test
+// ---------------------------------------------------------------------------
+
+class MockTaskDependencyDao extends Mock implements TaskDependencyDao {}
 
 // ---------------------------------------------------------------------------
 // Test constants
@@ -304,6 +312,21 @@ Widget _buildGanttWidget(
 // ---------------------------------------------------------------------------
 
 void main() {
+  setUpAll(() {
+    // Register fallback value for TaskDependenciesCompanion (required by mocktail
+    // when using any() matcher with non-nullable custom types).
+    registerFallbackValue(
+      TaskDependenciesCompanion(
+        id: const Value('fallback-id'),
+        companyId: const Value('fallback-company'),
+        predecessorTaskId: const Value('fallback-pred'),
+        successorTaskId: const Value('fallback-succ'),
+        createdAt: Value(DateTime.now()),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  });
+
   group('Phase 20 — Dependency Engine E2E Tests', () {
     // ── 1. Gantt screen renders trade swim lanes ───────────────────────────
     testWidgets('Gantt screen renders trade swim lanes', (tester) async {
@@ -812,6 +835,81 @@ void main() {
       expect(empty.zones, isEmpty);
       expect(empty.conflicts, isEmpty);
       expect(empty.conflictTaskIds, isEmpty);
+    });
+
+    // ── 15. Dependency creation persists to Drift via insertWithSyncQueue ─
+    testWidgets(
+        'dependency creation persists to Drift via insertWithSyncQueue',
+        (tester) async {
+      // This test verifies that _handleDependencyCreated in GanttScreen
+      // calls TaskDependencyDao.insertWithSyncQueue with correct companyId.
+      // The cycle detection test (test 7) covers the callback wiring.
+      // This test focuses on verifying the DAO write happens when a valid
+      // (non-cycle) dependency creation callback fires.
+
+      // Setup: mock DAO with insertWithSyncQueue stubbed to succeed
+      final mockDao = MockTaskDependencyDao();
+      when(() => mockDao.insertWithSyncQueue(any())).thenAnswer((_) async {});
+
+      // Setup: authenticated auth state with known companyId
+      final authState = AuthState.authenticated(
+        userId: _adminUserId,
+        companyId: _companyId,
+        roles: const {UserRole.admin},
+      );
+
+      // Build a gantt state with no existing dependencies (so new dep is valid)
+      final state = _makeGanttState(dependencies: []);
+
+      // Build GanttScreen with overridden providers
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authNotifierProvider.overrideWith(
+              () => _FakeAuthNotifier(authState),
+            ),
+            ganttDataProvider(_projectId).overrideWith(
+              () => _FakeGanttDataNotifier(state),
+            ),
+            taskDependencyDaoProvider.overrideWithValue(mockDao),
+          ],
+          child: const MaterialApp(
+            home: SizedBox(
+              width: 800,
+              height: 600,
+              child: GanttScreen(
+                projectId: _projectId,
+                projectName: 'Dep Persistence Test',
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(); // let providers resolve
+
+      // Trigger dependency creation callback directly via the GanttChartWidget
+      // (task1 -> task2, no cycle since no existing deps)
+      final ganttWidget = tester.widget<GanttChartWidget>(
+        find.byType(GanttChartWidget),
+      );
+      expect(ganttWidget.onDependencyCreated, isNotNull);
+
+      // Fire the callback with two valid task IDs
+      ganttWidget.onDependencyCreated!(_task1Id, _task2Id);
+      await tester.pump(); // let async callback complete
+
+      // Verify: insertWithSyncQueue was called once with correct companyId
+      final captured = verify(
+        () => mockDao.insertWithSyncQueue(captureAny()),
+      ).captured;
+      expect(captured.length, 1);
+
+      final companion = captured.first as TaskDependenciesCompanion;
+      expect(companion.companyId.value, _companyId);
+      expect(companion.predecessorTaskId.value, _task1Id);
+      expect(companion.successorTaskId.value, _task2Id);
+      expect(companion.dependencyType.value, 'FS');
+      expect(companion.lagDays.value, 0);
     });
   });
 }
