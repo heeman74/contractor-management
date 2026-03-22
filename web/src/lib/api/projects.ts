@@ -207,3 +207,35 @@ export function useTaskDependencies(taskId: string) {
     enabled: !!taskId,
   });
 }
+
+/**
+ * Fetch all dependencies for all tasks in a project by collecting unique task IDs
+ * from scopes and calling fetchTaskDependencies for each, then deduplicating.
+ */
+export function fetchProjectDependencies(scopes: TradeScopeResponse[]): Promise<TaskDependencyResponse[]> {
+  const taskIds = scopes.flatMap(s => (s.tasks ?? []).map(t => t.id));
+  if (taskIds.length === 0) return Promise.resolve([]);
+  return Promise.all(taskIds.map(id => fetchTaskDependencies(id)))
+    .then(results => {
+      const seen = new Set<string>();
+      const deduped: TaskDependencyResponse[] = [];
+      for (const deps of results) {
+        for (const dep of deps) {
+          if (!seen.has(dep.id)) {
+            seen.add(dep.id);
+            deduped.push(dep);
+          }
+        }
+      }
+      return deduped;
+    });
+}
+
+export function useProjectDependencies(scopes: TradeScopeResponse[] | undefined) {
+  const taskIds = (scopes ?? []).flatMap(s => (s.tasks ?? []).map(t => t.id)).sort().join(",");
+  return useQuery({
+    queryKey: ["project-dependencies", taskIds],
+    queryFn: () => fetchProjectDependencies(scopes ?? []),
+    enabled: !!scopes && scopes.length > 0,
+  });
+}

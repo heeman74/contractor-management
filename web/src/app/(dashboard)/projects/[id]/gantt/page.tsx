@@ -15,6 +15,7 @@ import {
   useTradeScopes,
   useProjectZones,
   useProjectConflicts,
+  useProjectDependencies,
   createTaskDependency,
   createProjectZone,
   deleteProjectZone,
@@ -35,6 +36,7 @@ export default function GanttPage() {
   const { data: scopes, isLoading: scopesLoading } = useTradeScopes(projectId);
   const { data: zonesRaw, refetch: refetchZones } = useProjectZones(projectId);
   const { data: conflictsRaw } = useProjectConflicts(projectId);
+  const { data: depsRaw } = useProjectDependencies(scopes);
 
   const zones = Array.isArray(zonesRaw) ? zonesRaw : [];
   const conflicts = Array.isArray(conflictsRaw) ? conflictsRaw : [];
@@ -44,17 +46,8 @@ export default function GanttPage() {
   const [cycleData, setCycleData] = useState<CycleErrorDetail | null>(null);
   const [zoneModalOpen, setZoneModalOpen] = useState(false);
 
-  // Collect all dependencies from scopes
-  const allDependencies: TaskDependencyResponse[] = [];
-  for (const scope of scopes ?? []) {
-    for (const task of scope.tasks ?? []) {
-      // Dependencies are fetched separately — we use the project-level dependency data
-      // from the `task.dependencies` field if available, or fetch individually.
-      // Since we don't have a project-level endpoint, we use empty array here
-      // and rely on per-task fetching in a more complete implementation.
-      void task; // tasks are used for rendering in GanttView via scopes
-    }
-  }
+  // Collect all dependencies fetched via useProjectDependencies
+  const allDependencies: TaskDependencyResponse[] = Array.isArray(depsRaw) ? depsRaw : [];
 
   const handleDependencyCreate = useCallback(
     async (
@@ -72,6 +65,7 @@ export default function GanttPage() {
         // Invalidate queries to refresh
         await queryClient.invalidateQueries({ queryKey: ["trade-scopes", projectId] });
         await queryClient.invalidateQueries({ queryKey: ["project-conflicts", projectId] });
+        await queryClient.invalidateQueries({ queryKey: ["project-dependencies"] });
       } catch (err) {
         if (err instanceof ApiError && err.status === 422) {
           // Parse cycle error detail from the error message
