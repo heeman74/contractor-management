@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: AI-Driven Construction Management
 status: Ready to execute
-stopped_at: Completed 21-01-PLAN.md
-last_updated: "2026-03-23T17:48:57.947Z"
+stopped_at: Completed 21-02-PLAN.md
+last_updated: "2026-03-23T18:03:12.398Z"
 progress:
   total_phases: 14
   completed_phases: 8
   total_plans: 42
-  completed_plans: 37
+  completed_plans: 38
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-19)
 ## Current Position
 
 Phase: 21 (ai-project-intake-and-contractor-interview) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 
 ## Performance Metrics
 
@@ -47,6 +47,7 @@ Plan: 2 of 6
 | Phase 20-dependency-engine P05 | 2m | 2 tasks | 3 files |
 | Phase 20-dependency-engine P06 | 8 | 2 tasks | 2 files |
 | Phase 21-ai-project-intake-and-contractor-interview P01 | 5m | 2 tasks | 11 files |
+| Phase 21 P02 | 11m | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -86,6 +87,8 @@ Plan: 2 of 6
 - [Phase 20-06]: registerFallbackValue required for TaskDependenciesCompanion in mocktail any() matcher — non-nullable custom type needs explicit fallback in setUpAll
 - [Phase 21]: anthropic SDK installed via uv pip into venv (pyproject.toml has no [project] section — requirements.txt is canonical)
 - [Phase 21]: stream_turn and _call_with_retry are async generators (yield) — callers iterate with async for; retry only on APITimeoutError and RateLimitError
+- [Phase 21]: StreamingResponse(text/event-stream) used instead of EventSourceResponse — fastapi.sse module not available in FastAPI 0.115
+- [Phase 21]: intake/complete creates placeholder tasks per scope + FS dependency edges to represent D-23 cross-trade sequencing before real tasks are added
 
 ### Pending Todos
 
@@ -99,6 +102,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T17:48:57.940Z
-Stopped at: Completed 21-01-PLAN.md
+Last session: 2026-03-23T18:03:12.390Z
+Stopped at: Completed 21-02-PLAN.md
 Resume file: None
