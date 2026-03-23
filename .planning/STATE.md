@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: AI-Driven Construction Management
 status: Ready to execute
-stopped_at: Completed 21-06-PLAN.md
-last_updated: "2026-03-23T18:14:04.622Z"
+stopped_at: "Checkpoint 21-03-T3: human-verify web AI chat streaming and UI"
+last_updated: "2026-03-23T18:16:17.965Z"
 progress:
   total_phases: 14
   completed_phases: 8
   total_plans: 42
-  completed_plans: 39
+  completed_plans: 40
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-19)
 ## Current Position
 
 Phase: 21 (ai-project-intake-and-contractor-interview) — EXECUTING
-Plan: 4 of 6
+Plan: 5 of 6
 
 ## Performance Metrics
 
@@ -49,6 +49,7 @@ Plan: 4 of 6
 | Phase 21-ai-project-intake-and-contractor-interview P01 | 5m | 2 tasks | 11 files |
 | Phase 21 P02 | 11m | 2 tasks | 5 files |
 | Phase 21 P06 | 7 | 2 tasks | 8 files |
+| Phase 21 P03 | 35m | 2 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -91,6 +92,9 @@ Plan: 4 of 6
 - [Phase 21]: StreamingResponse(text/event-stream) used instead of EventSourceResponse — fastapi.sse module not available in FastAPI 0.115
 - [Phase 21]: intake/complete creates placeholder tasks per scope + FS dependency edges to represent D-23 cross-trade sequencing before real tasks are added
 - [Phase 21]: AIImageUpload uses ON DELETE CASCADE from ai_conversations; JPEG normalization on upload; image_ref_id lookup returns None on missing image (chat degrades to text-only)
+- [Phase 21]: SSE proxy pipes ReadableStream directly via upstreamRes.body — never buffers with .text()
+- [Phase 21]: Pages at /projects/new/ai-intake placed outside (dashboard) route group for full-page layout without sidebar
+- [Phase 21]: parseSSELine exported as pure function for independent unit testing (9 tests covering token/tool_call/done/error/edge cases)
 
 ### Pending Todos
 
@@ -104,6 +108,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T18:14:04.615Z
-Stopped at: Completed 21-06-PLAN.md
+Last session: 2026-03-23T18:16:17.953Z
+Stopped at: Checkpoint 21-03-T3: human-verify web AI chat streaming and UI
 Resume file: None
