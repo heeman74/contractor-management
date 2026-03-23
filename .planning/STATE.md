@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: AI-Driven Construction Management
 status: Ready to execute
-stopped_at: "Checkpoint 21-03-T3: human-verify web AI chat streaming and UI"
-last_updated: "2026-03-23T18:16:17.965Z"
+stopped_at: "Checkpoint 21-04-T3: human-verify mobile AI chat streaming and UI"
+last_updated: "2026-03-23T18:27:29.637Z"
 progress:
   total_phases: 14
   completed_phases: 8
   total_plans: 42
-  completed_plans: 40
+  completed_plans: 41
 ---
 
 # Project State
@@ -50,6 +50,7 @@ Plan: 5 of 6
 | Phase 21 P02 | 11m | 2 tasks | 5 files |
 | Phase 21 P06 | 7 | 2 tasks | 8 files |
 | Phase 21 P03 | 35m | 2 tasks | 16 files |
+| Phase 21 P04 | 1195s | 2 tasks | 22 files |
 
 ## Accumulated Context
 
@@ -95,6 +96,8 @@ Plan: 5 of 6
 - [Phase 21]: SSE proxy pipes ReadableStream directly via upstreamRes.body — never buffers with .text()
 - [Phase 21]: Pages at /projects/new/ai-intake placed outside (dashboard) route group for full-page layout without sidebar
 - [Phase 21]: parseSSELine exported as pure function for independent unit testing (9 tests covering token/tool_call/done/error/edge cases)
+- [Phase 21]: [Phase 21 P04]: dart:io HttpClient used for SSE streaming — flutter_client_sse does not support POST body; Dio cannot handle text/event-stream
+- [Phase 21]: [Phase 21 P04]: parseSseEvent extracted as top-level function (not class method) to enable independent unit testing without AiSseClient instance
 
 ### Pending Todos
 
@@ -108,6 +111,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T18:16:17.953Z
-Stopped at: Checkpoint 21-03-T3: human-verify web AI chat streaming and UI
+Last session: 2026-03-23T18:27:26.140Z
+Stopped at: Checkpoint 21-04-T3: human-verify mobile AI chat streaming and UI
 Resume file: None

@@ -205,13 +205,13 @@ Plans:
   2. AI asks the GC clarifying questions before generating the trade breakdown when the project description is ambiguous
   3. Each trade contractor can complete an AI-guided interview with trade-specific questions and receive a generated task plan with per-task detail
   4. All AI-generated trade scopes and tasks are validated against the data model (referential integrity, no orphan tasks) before being written to the database
-**Plans:** 4/6 plans executed
+**Plans:** 5/6 plans executed
 
 Plans:
 - [x] 21-01-PLAN.md — Backend AI module: SQLAlchemy models (3 tables), Alembic migration 0017 with RLS, repository, AIService with Claude streaming + tool dispatch, system prompts
 - [x] 21-02-PLAN.md — Backend SSE endpoints: FastAPI router with intake/interview start/message/complete, EventSourceResponse streaming, backend unit + integration E2E tests
 - [x] 21-03-PLAN.md — Web chat UI: SSE proxy route, streaming hooks, chat components (bubbles, typing indicator, input), TradeScopePreviewCard, TaskPreviewList, intake + interview pages
-- [ ] 21-04-PLAN.md — Mobile chat UI: Drift schema v9, SSE client (bypasses Dio), Riverpod providers, chat screens, widgets, navigation routes
+- [x] 21-04-PLAN.md — Mobile chat UI: Drift schema v9, SSE client (bypasses Dio), Riverpod providers, chat screens, widgets, navigation routes
 - [ ] 21-05-PLAN.md — E2E tests: Flutter widget tests (16+ tests) + Playwright E2E tests (14+ tests) covering all three AI requirements on both platforms
 - [x] 21-06-PLAN.md — Image upload: backend endpoint with Pillow compression, Claude vision base64 wiring, image_ref_id flow, upload tests
 
@@ -304,7 +304,7 @@ Note: Phase 25 (Billing) depends only on Phase 19 and may start in parallel with
 | 18. Reporting Dashboard | v2.0 | 3/3 | Complete | 2026-03-19 |
 | 19. Project Data Model | v3.0 | 5/5 | Complete | 2026-03-21 |
 | 20. Dependency Engine | v3.0 | 6/6 | Complete | 2026-03-22 |
-| 21. AI Project Intake and Contractor Interview | v3.0 | 4/6 | In Progress|  |
+| 21. AI Project Intake and Contractor Interview | v3.0 | 5/6 | In Progress|  |
 | 22. Task Execution and Photo Annotation | v3.0 | 0/TBD | Not started | - |
 | 23. Real-Time Chat | v3.0 | 0/TBD | Not started | - |
 | 24. GC Inspection Workflow | v3.0 | 0/TBD | Not started | - |
