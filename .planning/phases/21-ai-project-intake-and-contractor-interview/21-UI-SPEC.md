@@ -45,7 +45,7 @@ Declared values (multiples of 4):
 | 3xl | 64px | Page-level top/bottom padding |
 
 Exceptions:
-- Chat input touch target (mobile): minimum 44px height per iOS HIG / Material touch target spec
+- Chat input touch target (mobile): minimum 48px height per iOS HIG / Material touch target spec
 - Avatar circle: 32px diameter (8px * 4) — fits within sm/md scale
 
 ---
@@ -281,7 +281,7 @@ The following shadcn components are needed for web and may need to be added:
 - TypingIndicator: `aria-label="ContractorHub AI is typing"` (web) / `Semantics(label: "AI is responding")` (mobile)
 - OfflineBanner: `role="alert"` (web) / `Semantics(liveRegion: true)` (mobile)
 - Image thumbnails: require `alt` text set to "Attached image" (web) / accessible label (mobile)
-- All CTAs: minimum 44px touch target on mobile
+- All CTAs: minimum 48px touch target on mobile
 - Color contrast: all text-on-bubble combinations must meet WCAG AA (4.5:1 for body text)
 - Send IconButton (mobile): `Semantics(label: "Send message", button: true)` wrapping the send `IconButton`
 - Attach IconButton (mobile): `Semantics(label: "Attach image", button: true)` wrapping the attach `IconButton`
