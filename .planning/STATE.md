@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: AI-Driven Construction Management
-status: unknown
-stopped_at: Phase 21 context gathered
-last_updated: "2026-03-23T06:48:22.581Z"
+status: Ready to execute
+stopped_at: Completed 21-01-PLAN.md
+last_updated: "2026-03-23T17:48:57.947Z"
 progress:
   total_phases: 14
   completed_phases: 8
-  total_plans: 36
-  completed_plans: 36
+  total_plans: 42
+  completed_plans: 37
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** AI eliminates the chaos of multi-trade coordination — GCs always know where every trade stands, contractors always know what to do today, projects stay on track.
-**Current focus:** Phase 20 — dependency-engine
+**Current focus:** Phase 21 — ai-project-intake-and-contractor-interview
 
 ## Current Position
 
-Phase: 20 (dependency-engine) — EXECUTING
-Plan: 1 of 6
+Phase: 21 (ai-project-intake-and-contractor-interview) — EXECUTING
+Plan: 2 of 6
 
 ## Performance Metrics
 
@@ -46,6 +46,7 @@ Plan: 1 of 6
 | Phase 20-dependency-engine P03 | 45 | 2 tasks | 13 files |
 | Phase 20-dependency-engine P05 | 2m | 2 tasks | 3 files |
 | Phase 20-dependency-engine P06 | 8 | 2 tasks | 2 files |
+| Phase 21-ai-project-intake-and-contractor-interview P01 | 5m | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -83,6 +84,8 @@ Plan: 1 of 6
 - [Phase 20-05]: useProjectDependencies uses sorted task ID join as queryKey — ensures stable TanStack Query cache key across re-renders; project-dependencies invalidation uses prefix key (no projectId) to clear all task-ID-keyed entries after dependency creation
 - [Phase 20-06]: TaskDependenciesCompanion imported via app_database.dart show clause — Drift-generated companions only accessible via app_database barrel
 - [Phase 20-06]: registerFallbackValue required for TaskDependenciesCompanion in mocktail any() matcher — non-nullable custom type needs explicit fallback in setUpAll
+- [Phase 21]: anthropic SDK installed via uv pip into venv (pyproject.toml has no [project] section — requirements.txt is canonical)
+- [Phase 21]: stream_turn and _call_with_retry are async generators (yield) — callers iterate with async for; retry only on APITimeoutError and RateLimitError
 
 ### Pending Todos
 
@@ -96,6 +99,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T06:48:22.574Z
-Stopped at: Phase 21 context gathered
-Resume file: .planning/phases/21-ai-project-intake-and-contractor-interview/21-CONTEXT.md
+Last session: 2026-03-23T17:48:57.940Z
+Stopped at: Completed 21-01-PLAN.md
+Resume file: None
