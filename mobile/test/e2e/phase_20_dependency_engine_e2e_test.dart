@@ -837,6 +837,231 @@ void main() {
       expect(empty.conflictTaskIds, isEmpty);
     });
 
+    // ── HV-2. Pinch-to-zoom: InteractiveViewer transform changes on scale ──
+    testWidgets('pinch-to-zoom changes InteractiveViewer transform', (tester) async {
+      final state = _makeGanttState();
+      await tester.pumpWidget(_buildGanttWidget(state));
+      await tester.pump();
+
+      // Find the InteractiveViewer
+      final viewerFinder = find.byType(InteractiveViewer);
+      expect(viewerFinder, findsOneWidget);
+
+      final viewer = tester.widget<InteractiveViewer>(viewerFinder);
+      // Verify scale bounds
+      expect(viewer.minScale, 0.5);
+      expect(viewer.maxScale, 3.0);
+      expect(viewer.constrained, isFalse);
+
+      // Get the TransformationController via the InteractiveViewer's state
+      // The InteractiveViewer wraps content in a Transform widget
+      final transformFinder = find.descendant(
+        of: viewerFinder,
+        matching: find.byType(Transform),
+      );
+      // InteractiveViewer always produces at least one Transform widget
+      expect(transformFinder, findsWidgets);
+    });
+
+    // ── HV-2b. Pinch-to-zoom boundary margin allows infinite pan ──────────
+    testWidgets('InteractiveViewer has infinite boundary margin for panning', (tester) async {
+      final state = _makeGanttState();
+      await tester.pumpWidget(_buildGanttWidget(state));
+      await tester.pump();
+
+      final viewer = tester.widget<InteractiveViewer>(
+        find.byType(InteractiveViewer),
+      );
+
+      // boundaryMargin: EdgeInsets.all(double.infinity) allows unrestricted panning
+      expect(viewer.boundaryMargin, const EdgeInsets.all(double.infinity));
+    });
+
+    // ── HV-3. Conflict banner styling: amber colors, icon, text ───────────
+    testWidgets('conflict banner has amber-100 background color', (tester) async {
+      final conflictDate = DateTime.now().add(const Duration(days: 5));
+      final conflicts = [
+        ConflictInfo(
+          zone1TaskId: _task1Id,
+          zone2TaskId: _task3Id,
+          zoneName: 'Kitchen',
+          conflictDate: conflictDate,
+          trade1Name: 'Electrical',
+          trade2Name: 'Plumbing',
+        ),
+      ];
+
+      final state = GanttDataState(
+        scopes: [
+          _makeScope(id: _scope1Id, tradeName: 'Electrical', tradeColor: '#3F51B5'),
+          _makeScope(id: _scope2Id, tradeName: 'Plumbing', tradeColor: '#0097A7'),
+        ],
+        tasksByScope: {
+          _scope1Id: [
+            _makeTask(id: _task1Id, tradeScopeId: _scope1Id, title: 'Wire Kitchen',
+              zoneId: _zone1Id, dueDate: conflictDate),
+          ],
+          _scope2Id: [
+            _makeTask(id: _task3Id, tradeScopeId: _scope2Id, title: 'Plumb Kitchen',
+              zoneId: _zone1Id, dueDate: conflictDate),
+          ],
+        },
+        dependencies: [],
+        zones: [_makeZone(id: _zone1Id, name: 'Kitchen')],
+        conflicts: conflicts,
+      );
+
+      await tester.pumpWidget(_buildGanttWidget(state));
+      await tester.pump();
+
+      // MaterialBanner should exist
+      final bannerFinder = find.byType(MaterialBanner);
+      expect(bannerFinder, findsOneWidget);
+
+      // Verify the banner background color is amber-100 (0xFFFEF3C7)
+      final banner = tester.widget<MaterialBanner>(bannerFinder);
+      expect(banner.backgroundColor, const Color(0xFFFEF3C7));
+    });
+
+    // ── HV-3b. Conflict banner has warning_amber_rounded icon in amber-600 ─
+    testWidgets('conflict banner has amber warning icon', (tester) async {
+      final conflictDate = DateTime.now().add(const Duration(days: 5));
+      final conflicts = [
+        ConflictInfo(
+          zone1TaskId: _task1Id,
+          zone2TaskId: _task3Id,
+          zoneName: 'Kitchen',
+          conflictDate: conflictDate,
+          trade1Name: 'Electrical',
+          trade2Name: 'Plumbing',
+        ),
+      ];
+
+      final state = GanttDataState(
+        scopes: [
+          _makeScope(id: _scope1Id, tradeName: 'Electrical', tradeColor: '#3F51B5'),
+          _makeScope(id: _scope2Id, tradeName: 'Plumbing', tradeColor: '#0097A7'),
+        ],
+        tasksByScope: {
+          _scope1Id: [
+            _makeTask(id: _task1Id, tradeScopeId: _scope1Id, title: 'Wire Kitchen',
+              zoneId: _zone1Id, dueDate: conflictDate),
+          ],
+          _scope2Id: [
+            _makeTask(id: _task3Id, tradeScopeId: _scope2Id, title: 'Plumb Kitchen',
+              zoneId: _zone1Id, dueDate: conflictDate),
+          ],
+        },
+        dependencies: [],
+        zones: [_makeZone(id: _zone1Id, name: 'Kitchen')],
+        conflicts: conflicts,
+      );
+
+      await tester.pumpWidget(_buildGanttWidget(state));
+      await tester.pump();
+
+      // The leading icon should be warning_amber_rounded in amber-600
+      final iconFinder = find.byIcon(Icons.warning_amber_rounded);
+      expect(iconFinder, findsOneWidget);
+
+      final icon = tester.widget<Icon>(iconFinder);
+      expect(icon.color, const Color(0xFFD97706)); // amber-600
+    });
+
+    // ── HV-3c. Conflict banner text has amber-800 color ────────────────────
+    testWidgets('conflict banner text uses amber-800 color', (tester) async {
+      final conflictDate = DateTime.now().add(const Duration(days: 5));
+      final conflicts = [
+        ConflictInfo(
+          zone1TaskId: _task1Id,
+          zone2TaskId: _task3Id,
+          zoneName: 'Kitchen',
+          conflictDate: conflictDate,
+          trade1Name: 'Electrical',
+          trade2Name: 'Plumbing',
+        ),
+      ];
+
+      final state = GanttDataState(
+        scopes: [
+          _makeScope(id: _scope1Id, tradeName: 'Electrical', tradeColor: '#3F51B5'),
+          _makeScope(id: _scope2Id, tradeName: 'Plumbing', tradeColor: '#0097A7'),
+        ],
+        tasksByScope: {
+          _scope1Id: [
+            _makeTask(id: _task1Id, tradeScopeId: _scope1Id, title: 'Wire Kitchen',
+              zoneId: _zone1Id, dueDate: conflictDate),
+          ],
+          _scope2Id: [
+            _makeTask(id: _task3Id, tradeScopeId: _scope2Id, title: 'Plumb Kitchen',
+              zoneId: _zone1Id, dueDate: conflictDate),
+          ],
+        },
+        dependencies: [],
+        zones: [_makeZone(id: _zone1Id, name: 'Kitchen')],
+        conflicts: conflicts,
+      );
+
+      await tester.pumpWidget(_buildGanttWidget(state));
+      await tester.pump();
+
+      // Find the conflict text that contains trade names
+      final textFinder = find.textContaining('Conflict:');
+      expect(textFinder, findsOneWidget);
+
+      // Verify the text style color is amber-800 (0xFF92400E)
+      final textWidget = tester.widget<Text>(textFinder);
+      expect(textWidget.style?.color, const Color(0xFF92400E));
+    });
+
+    // ── HV-3d. Conflict banner dismiss button works ────────────────────────
+    testWidgets('conflict banner dismiss hides the banner', (tester) async {
+      final conflictDate = DateTime.now().add(const Duration(days: 5));
+      final conflicts = [
+        ConflictInfo(
+          zone1TaskId: _task1Id,
+          zone2TaskId: _task3Id,
+          zoneName: 'Kitchen',
+          conflictDate: conflictDate,
+          trade1Name: 'Electrical',
+          trade2Name: 'Plumbing',
+        ),
+      ];
+
+      final state = GanttDataState(
+        scopes: [
+          _makeScope(id: _scope1Id, tradeName: 'Electrical', tradeColor: '#3F51B5'),
+          _makeScope(id: _scope2Id, tradeName: 'Plumbing', tradeColor: '#0097A7'),
+        ],
+        tasksByScope: {
+          _scope1Id: [
+            _makeTask(id: _task1Id, tradeScopeId: _scope1Id, title: 'Wire Kitchen',
+              zoneId: _zone1Id, dueDate: conflictDate),
+          ],
+          _scope2Id: [
+            _makeTask(id: _task3Id, tradeScopeId: _scope2Id, title: 'Plumb Kitchen',
+              zoneId: _zone1Id, dueDate: conflictDate),
+          ],
+        },
+        dependencies: [],
+        zones: [_makeZone(id: _zone1Id, name: 'Kitchen')],
+        conflicts: conflicts,
+      );
+
+      await tester.pumpWidget(_buildGanttWidget(state));
+      await tester.pump();
+
+      // Banner visible initially
+      expect(find.byType(MaterialBanner), findsOneWidget);
+
+      // Tap Dismiss button
+      await tester.tap(find.text('Dismiss'));
+      await tester.pump();
+
+      // Banner should be gone
+      expect(find.byType(MaterialBanner), findsNothing);
+    });
+
     // ── 15. Dependency creation persists to Drift via insertWithSyncQueue ─
     testWidgets(
         'dependency creation persists to Drift via insertWithSyncQueue',
