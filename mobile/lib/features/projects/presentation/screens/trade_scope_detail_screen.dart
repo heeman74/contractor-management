@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/database/app_database.dart' show TradeScope;
+import '../../../../core/routing/route_names.dart';
 import '../providers/project_providers.dart';
 import '../widgets/project_status_badge.dart';
 
@@ -58,7 +60,10 @@ class TradeScopeDetailScreen extends ConsumerWidget {
         ),
         data: (tasks) {
           if (tasks.isEmpty) {
-            return _EmptyTasksState();
+            return _EmptyTasksState(
+              scopeId: scopeId,
+              tradeName: scopeName,
+            );
           }
           return ListView.builder(
             padding: const EdgeInsets.symmetric(vertical: 8),
@@ -232,6 +237,14 @@ class _TaskRow extends StatelessWidget {
 }
 
 class _EmptyTasksState extends StatelessWidget {
+  const _EmptyTasksState({
+    required this.scopeId,
+    required this.tradeName,
+  });
+
+  final String scopeId;
+  final String tradeName;
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
@@ -258,11 +271,22 @@ class _EmptyTasksState extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Tasks will appear here once added to this trade scope.',
+              'Use AI Interview to generate a detailed task plan for this trade scope.',
               style: textTheme.bodyMedium?.copyWith(
                 color: colorScheme.onSurface.withValues(alpha: 0.6),
               ),
               textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            // Start Interview button — visible when no tasks exist
+            ElevatedButton.icon(
+              onPressed: () {
+                context.push(
+                  '${RouteNames.aiInterviewPath(scopeId)}?tradeName=${Uri.encodeComponent(tradeName)}',
+                );
+              },
+              icon: const Icon(Icons.smart_toy),
+              label: const Text('Start AI Interview'),
             ),
           ],
         ),

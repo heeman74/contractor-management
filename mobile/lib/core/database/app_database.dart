@@ -16,6 +16,7 @@ import '../../features/projects/data/task_dependency_dao.dart';
 import '../../features/projects/data/trade_catalog_dao.dart';
 import '../../features/projects/data/trade_scope_dao.dart';
 import '../../features/quotes/data/quote_dao.dart';
+import '../../features/ai/data/ai_conversation_dao.dart';
 import '../../features/schedule/data/booking_dao.dart';
 import '../../features/users/data/user_dao.dart';
 import '../sync/sync_cursor_dao.dart';
@@ -47,6 +48,8 @@ import 'tables/trade_scopes.dart';
 import 'tables/user_roles.dart';
 import 'tables/user_trade_specialties.dart';
 import 'tables/users.dart';
+import 'tables/ai_conversations.dart';
+import 'tables/ai_messages.dart';
 
 export '../../features/company/data/company_dao.dart';
 export '../../features/invoices/data/invoice_dao.dart';
@@ -61,6 +64,7 @@ export '../../features/projects/data/task_dependency_dao.dart';
 export '../../features/projects/data/trade_catalog_dao.dart';
 export '../../features/projects/data/trade_scope_dao.dart';
 export '../../features/quotes/data/quote_dao.dart';
+export '../../features/ai/data/ai_conversation_dao.dart';
 export '../../features/schedule/data/booking_dao.dart';
 export '../../features/users/data/user_dao.dart';
 
@@ -95,6 +99,8 @@ part 'app_database.g.dart';
     UserTradeSpecialties,
     TaskDependencies,
     ProjectZones,
+    AiConversations,
+    AiMessages,
   ],
   daos: [
     CompanyDao,
@@ -114,6 +120,7 @@ part 'app_database.g.dart';
     TaskDao,
     TaskDependencyDao,
     ProjectZoneDao,
+    AiConversationDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -121,7 +128,7 @@ class AppDatabase extends _$AppDatabase {
       : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -183,6 +190,11 @@ class AppDatabase extends _$AppDatabase {
             // Remove dependsOn column — dependencies now live in task_dependencies table.
             // alterTable rewrites the table with current column definitions (dependsOn excluded).
             await m.alterTable(TableMigration(projectTasks));
+          }
+          if (from < 9) {
+            // Phase 21: AI conversation transcript cache tables (D-31)
+            await m.createTable(aiConversations);
+            await m.createTable(aiMessages);
           }
         },
       );

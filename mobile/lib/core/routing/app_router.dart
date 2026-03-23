@@ -39,6 +39,8 @@ import '../../features/projects/presentation/screens/project_list_screen.dart';
 import '../../features/projects/presentation/screens/trade_scope_detail_screen.dart';
 import '../../features/reports/presentation/screens/admin_reports_screen.dart';
 import '../../features/reports/presentation/screens/contractor_reports_screen.dart';
+import '../../features/ai/presentation/screens/intake_chat_screen.dart';
+import '../../features/ai/presentation/screens/interview_chat_screen.dart';
 import '../../features/schedule/presentation/screens/contractor_schedule_screen.dart';
 import '../../features/schedule/presentation/screens/schedule_settings_screen.dart';
 import '../../shared/models/user_role.dart';
@@ -223,6 +225,27 @@ final routerProvider = Provider.autoDispose<GoRouter>((ref) {
         builder: (context, state) {
           final quoteId = state.pathParameters['quoteId']!;
           return QuoteDetailScreen(quoteId: quoteId);
+        },
+      ),
+      // Phase 21: AI intake chat — GC describes project, AI generates trade breakdown.
+      // Push via: context.push(RouteNames.aiIntake)
+      // Optional query param: projectId (to resume existing project intake)
+      GoRoute(
+        path: RouteNames.aiIntake,
+        builder: (context, state) {
+          final projectId = state.uri.queryParameters['projectId'];
+          return IntakeChatScreen(projectId: projectId);
+        },
+      ),
+      // Phase 21: AI interview chat — contractor answers questions, AI generates task plan.
+      // Push via: context.push(RouteNames.aiInterviewPath(scopeId))
+      // Optional query param: tradeName (display name in AppBar)
+      GoRoute(
+        path: RouteNames.aiInterview,
+        builder: (context, state) {
+          final scopeId = state.pathParameters['scopeId']!;
+          final tradeName = state.uri.queryParameters['tradeName'];
+          return InterviewChatScreen(scopeId: scopeId, tradeName: tradeName);
         },
       ),
       // --- Shell routes (with bottom nav) ---

@@ -64,20 +64,14 @@ class ProjectListScreen extends ConsumerWidget {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: const Color(0xFF3949AB), // indigo-600
-        foregroundColor: Colors.white,
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Create project — coming soon'),
-              duration: Duration(seconds: 2),
+      floatingActionButton: isContractorOnly
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () => context.push(RouteNames.aiIntake),
+              tooltip: 'New AI Project',
+              icon: const Icon(Icons.smart_toy),
+              label: const Text('New AI Project'),
             ),
-          );
-        },
-        tooltip: 'New project',
-        child: const Icon(Icons.add),
-      ),
     );
   }
 }

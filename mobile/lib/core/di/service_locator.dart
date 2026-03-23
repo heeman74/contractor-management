@@ -35,6 +35,8 @@ import '../sync/handlers/trade_catalog_sync_handler.dart';
 import '../sync/handlers/trade_scope_sync_handler.dart';
 import '../../features/projects/data/project_zone_dao.dart';
 import '../../features/projects/data/task_dependency_dao.dart';
+import '../../features/ai/data/ai_conversation_dao.dart';
+import '../../features/ai/data/ai_sse_client.dart';
 
 final getIt = GetIt.instance;
 
@@ -148,4 +150,17 @@ Future<void> setupServiceLocator() async {
 
   // Wire AttachmentUploadService into SyncEngine for post-drain upload.
   syncEngine.setAttachmentUploadService(attachmentUploadService);
+
+  // Phase 21: AI chat SSE client — bypasses Dio for text/event-stream streaming.
+  // Uses dart:io HttpClient directly since Dio cannot handle SSE responses.
+  getIt.registerLazySingleton<AiSseClient>(() => AiSseClient(
+        baseUrl: const String.fromEnvironment(
+          'API_BASE_URL',
+          defaultValue: 'http://10.0.2.2:8000',
+        ),
+        getAccessToken: () => tokenStorage.readAccessToken(),
+      ));
+
+  // Phase 21: AI conversation DAO for local transcript cache (D-31)
+  getIt.registerSingleton<AiConversationDao>(AiConversationDao(db));
 }

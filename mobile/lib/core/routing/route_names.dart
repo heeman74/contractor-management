@@ -196,4 +196,22 @@ abstract final class RouteNames {
   /// Build the Gantt chart path for a specific project.
   static String projectGanttPath(String projectId) =>
       '/projects/$projectId/gantt';
+
+  // --- Phase 21: AI chat routes ---
+
+  /// AI intake chat — GC describes project, AI generates trade breakdown.
+  ///
+  /// Optional query param: projectId (to resume an existing project's intake).
+  /// Navigate via: context.push(RouteNames.aiIntake)
+  static const aiIntake = '/ai-intake';
+
+  /// AI interview chat — contractor answers questions, AI generates task plan.
+  ///
+  /// Path param: scopeId (the trade scope being interviewed).
+  /// Optional query param: tradeName (for display in AppBar).
+  /// Navigate via: context.push(RouteNames.aiInterviewPath(scopeId))
+  static const aiInterview = '/ai-interview/:scopeId';
+
+  /// Build the AI interview path for a specific trade scope.
+  static String aiInterviewPath(String scopeId) => '/ai-interview/$scopeId';
 }
