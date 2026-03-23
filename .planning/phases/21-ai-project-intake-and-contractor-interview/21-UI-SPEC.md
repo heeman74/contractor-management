@@ -54,14 +54,20 @@ Exceptions:
 
 ### Web (Geist Sans — inherits shadcn base-nova scale)
 
+Two weights only: 400 (regular) and 600 (semibold).
+
 | Role | Size | Weight | Line Height | Usage |
 |------|------|--------|-------------|-------|
 | Body | 14px | 400 | 1.5 | Chat bubble message text, task card description |
-| Label | 12px | 500 | 1.4 | Sender name above bubble, timestamp, badge text |
+| Label | 12px | 400 | 1.4 | Sender name above bubble, timestamp, badge text |
 | Heading | 16px | 600 | 1.3 | Screen titles ("AI Intake", "Contractor Interview"), card section headers |
 | Display | 20px | 600 | 1.2 | Page-level headings (full-page chat screen title) |
 
+Note on 12px/14px: the Label vs Body distinction is semantic (metadata vs content), not purely size-driven. The 2px gap is intentional — both render at weight 400; Label items additionally use `text-muted-foreground` color to reinforce the hierarchy.
+
 ### Mobile (Material 3 text theme — seed `#1E4D8C`)
+
+Two weights only: 400 (w400) and 600 (w600).
 
 | Role | M3 Token | Size | Weight | Line Height | Usage |
 |------|----------|------|--------|-------------|-------|
@@ -99,6 +105,16 @@ Accent reserved for:
 | Secondary (30%) | `colorScheme.surfaceVariant` | AI message bubbles (left), preview card, task editable cards |
 | Accent (10%) | `colorScheme.primary` | User message bubbles (right), primary CTAs, typing indicator dots |
 | Destructive | `colorScheme.error` | Re-interview confirmation — "Restart Interview" destructive button only |
+
+---
+
+## Primary Visual Focal Point
+
+The chat message list is the primary visual anchor on both platforms. The user's eye should be drawn to the most recent message at the bottom of the list. Achieve this by:
+- Web: the fixed bottom input bar draws the eye downward; the last message sits directly above it with md (16px) clearance.
+- Mobile: the pinned `Container` with the `TextField` anchors the bottom; the `ListView` scrolls so the latest message is always the nearest element above the input.
+
+The AI avatar (`ContractorHub AI` icon + label) beside each AI bubble is the secondary focal point — it communicates the AI persona and differentiates the two sides of the conversation.
 
 ---
 
@@ -196,7 +212,7 @@ The following shadcn components are needed for web and may need to be added:
 - "Restart Interview" button triggers `AlertDialog` / shadcn `Dialog`
 - Title: "Restart Interview?"
 - Body: "This will replace all [N] existing tasks for [Trade Name]. This cannot be undone."
-- Actions: "Cancel" (outline) + "Restart Interview" (destructive — red)
+- Actions: "Keep Current Plan" (outline) + "Restart Interview" (destructive — red)
 - On confirm: mark old conversation `abandoned`, start new conversation
 
 ---
@@ -210,19 +226,20 @@ The following shadcn components are needed for web and may need to be added:
 | AI persona display name | "ContractorHub AI" | D-26 (branded AI persona) |
 | Chat input placeholder (intake) | "Describe your project — what are you building?" | default |
 | Chat input placeholder (interview) | "Answer the question above..." | default |
-| Send button label | "Send" | default |
+| Send button label (web) | "Send Message" | default — verb + noun |
+| Send button label (mobile) | Icon only — `Semantics(label: "Send message")` | default — icon button; label via Semantics |
 | Offline banner | "AI features require an internet connection." | D-30 (exact copy from decisions) |
 | Primary CTA — GC intake | "Create Project" | D-04 (GC taps after editing preview) |
 | Primary CTA — contractor | "Accept Plan" | D-17 (contractor approves task list) |
 | Transitional AI message (tool_call) — intake | "Generating your trade breakdown..." | default |
 | Transitional AI message (tool_call) — interview | "Generating your task plan..." | default |
 | Empty state — intake (no chats yet) | "Tell me about your project" / "Describe what you're building — type, size, location, and timeline — and I'll break it into trade scopes." | default |
-| Empty state — interview (no chats yet) | "Let's build your task plan" / "I'll ask you a few questions about your [Trade Name] scope to create a detailed task plan." | default |
+| Empty state — interview (no chats yet) | "Let's build your task plan" / "I'll ask you a few questions about your {Trade Name} scope to create a detailed task plan." | default |
 | Error state — AI failure | "Something went wrong. Please try again." / sub-text: "If the problem persists, check your connection and reload." | D-12 (friendly message on persistent failure) |
 | Error state — connection lost mid-stream | "Connection lost. Please check your internet connection and try again." | D-30 |
 | Re-interview dialog title | "Restart Interview?" | D-19 |
 | Re-interview dialog body | "This will replace all {N} existing tasks for {Trade Name}. This cannot be undone." | D-19 |
-| Re-interview dialog cancel | "Cancel" | default |
+| Re-interview dialog cancel | "Keep Current Plan" | revised — context-specific; preserves existing task plan |
 | Re-interview dialog confirm | "Restart Interview" | D-19 (destructive) |
 | GC push notification (interview complete) | "{Trade Name} contractor completed interview — {N} tasks generated" | D-20 (exact format from decisions) |
 | Task preview empty state (no tasks generated) | "No tasks were generated. Try restarting the interview." | default |
@@ -266,6 +283,8 @@ The following shadcn components are needed for web and may need to be added:
 - Image thumbnails: require `alt` text set to "Attached image" (web) / accessible label (mobile)
 - All CTAs: minimum 44px touch target on mobile
 - Color contrast: all text-on-bubble combinations must meet WCAG AA (4.5:1 for body text)
+- Send IconButton (mobile): `Semantics(label: "Send message", button: true)` wrapping the send `IconButton`
+- Attach IconButton (mobile): `Semantics(label: "Attach image", button: true)` wrapping the attach `IconButton`
 
 ---
 
