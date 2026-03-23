@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Bot } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProjects } from "@/lib/api/projects";
@@ -64,14 +65,23 @@ export default function ProjectsPage() {
       {/* Page header */}
       <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
         <h1 className="text-xl font-semibold text-gray-900">Projects</h1>
-        <Button
-          size="sm"
-          onClick={() => setCreateDialogOpen(true)}
-          data-testid="create-project-button"
-        >
-          <Plus className="h-4 w-4" />
-          New Project
-        </Button>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/projects/new/ai-intake"
+            className="inline-flex h-7 items-center gap-1 rounded-[min(var(--radius-md),12px)] border border-border bg-background px-2.5 text-[0.8rem] font-medium text-foreground transition-colors hover:bg-muted"
+          >
+            <Bot className="h-3.5 w-3.5" />
+            New AI Project
+          </Link>
+          <Button
+            size="sm"
+            onClick={() => setCreateDialogOpen(true)}
+            data-testid="create-project-button"
+          >
+            <Plus className="h-4 w-4" />
+            New Project
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-1 overflow-hidden">

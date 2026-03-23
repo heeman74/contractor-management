@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import Link from "next/link";
+import { Bot } from "lucide-react";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { useTasks, updateTradeScope } from "@/lib/api/projects";
@@ -118,9 +120,20 @@ export function TradeScopeDetail({ scope, onSelectTask }: TradeScopeDetailProps)
 
       {/* Task list */}
       <div>
-        <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-700">
-          Tasks ({totalCount})
-        </h3>
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700">
+            Tasks ({totalCount})
+          </h3>
+          {totalCount === 0 && (
+            <Link
+              href={`/projects/${scope.project_id}/interview/${scope.id}`}
+              className="inline-flex h-7 items-center gap-1 rounded-[min(var(--radius-md),12px)] border border-border bg-background px-2.5 text-[0.8rem] font-medium text-foreground transition-colors hover:bg-muted"
+            >
+              <Bot className="h-3.5 w-3.5" />
+              Start AI Interview
+            </Link>
+          )}
+        </div>
         {tasks && tasks.length > 0 ? (
           <div className="space-y-2">
             {tasks.map((task) => {
