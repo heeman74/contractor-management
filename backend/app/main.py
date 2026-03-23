@@ -11,6 +11,7 @@ from app.core.base_middleware import ASGIMiddleware
 from app.core.config import settings
 from app.core.rate_limit import limiter
 from app.core.tenant import TenantMiddleware
+from app.features.ai.router import router as ai_router
 from app.features.auth.router import router as auth_router
 from app.features.companies.router import router as companies_router
 from app.features.files.router import router as files_router
@@ -116,6 +117,8 @@ app.include_router(files_router, prefix="/api/v1")
 app.include_router(notifications_router, prefix="/api/v1")
 # Phase 19: project data model — projects, trade catalog, trade scopes, tasks
 app.include_router(projects_router, prefix="/api/v1")
+# Phase 21: AI intake and interview SSE endpoints
+app.include_router(ai_router, prefix="/api/v1")
 # Phase 8: business operations — quotes, invoices, and reporting
 app.include_router(quotes_router, prefix="/api/v1")
 app.include_router(invoices_router, prefix="/api/v1")
