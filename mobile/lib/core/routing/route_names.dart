@@ -197,6 +197,29 @@ abstract final class RouteNames {
   static String projectGanttPath(String projectId) =>
       '/projects/$projectId/gantt';
 
+  // --- Phase 23: Real-time chat routes ---
+
+  /// Chat thread list for a project — shows Trade Conversations + Project Group sections.
+  ///
+  /// Path param: projectId (must match the surrounding project detail route).
+  /// Navigate via: context.push(RouteNames.chatPath(projectId))
+  static const chat = '/projects/:projectId/chat';
+
+  /// Individual chat thread screen — message list + input bar.
+  ///
+  /// Path params: projectId, threadId.
+  /// Navigate via: context.push(RouteNames.chatThreadPath(projectId, threadId))
+  static const chatThread = '/projects/:projectId/chat/:threadId';
+
+  // ─── Helpers ─────────────────────────────────────────────────────────────
+
+  /// Build the chat screen path for a project.
+  static String chatPath(String projectId) => '/projects/$projectId/chat';
+
+  /// Build the chat thread screen path for a specific thread.
+  static String chatThreadPath(String projectId, String threadId) =>
+      '/projects/$projectId/chat/$threadId';
+
   // --- Phase 21: AI chat routes ---
 
   /// AI intake chat — GC describes project, AI generates trade breakdown.
