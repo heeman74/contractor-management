@@ -13,6 +13,7 @@ from app.core.rate_limit import limiter
 from app.core.tenant import TenantMiddleware
 from app.features.ai.router import router as ai_router
 from app.features.auth.router import router as auth_router
+from app.features.chat.router import router as chat_router
 from app.features.companies.router import router as companies_router
 from app.features.files.router import router as files_router
 from app.features.invoices.router import router as invoices_router
@@ -29,6 +30,9 @@ from app.features.users.router import router as users_router
 # Ensure the uploads directory exists on startup
 _UPLOADS_DIR = Path("uploads")
 _UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+# Ensure chat uploads directory exists
+_CHAT_UPLOADS_DIR = Path("uploads") / "chat"
+_CHAT_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 # ---------------------------------------------------------------------------
 # App factory
@@ -119,6 +123,8 @@ app.include_router(notifications_router, prefix="/api/v1")
 app.include_router(projects_router, prefix="/api/v1")
 # Phase 21: AI intake and interview SSE endpoints
 app.include_router(ai_router, prefix="/api/v1")
+# Phase 23: real-time chat (WebSocket + REST endpoints)
+app.include_router(chat_router, prefix="/api/v1")
 # Phase 8: business operations — quotes, invoices, and reporting
 app.include_router(quotes_router, prefix="/api/v1")
 app.include_router(invoices_router, prefix="/api/v1")
@@ -130,6 +136,8 @@ app.include_router(reports_router, prefix="/api/v1")
 app.mount("/uploads", StaticFiles(directory=str(_UPLOADS_DIR)), name="uploads")
 # Phase 6: serve attachments at /files/ (uploads/ dir re-mapped to match remote_url prefix)
 app.mount("/files", StaticFiles(directory=str(_UPLOADS_DIR)), name="files")
+# Phase 23: serve chat attachments at /uploads/chat/
+app.mount("/uploads/chat", StaticFiles(directory=str(_CHAT_UPLOADS_DIR)), name="chat-uploads")
 
 
 @app.get("/health")

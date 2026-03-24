@@ -121,17 +121,22 @@ class ChatMessageRepository(TenantScopedRepository[ChatMessage]):
         self,
         thread_id: uuid.UUID,
         before_seq: int | None = None,
+        since_seq: int | None = None,
         limit: int = 50,
     ) -> list[ChatMessage]:
         """List messages for a thread, ordered ascending by seq.
 
-        Supports cursor pagination: pass before_seq to fetch messages older than
-        that seq value. Results are returned in ascending order (oldest first)
-        so the UI can append new messages at the bottom.
+        Supports two cursor pagination modes:
+        - before_seq: fetch messages with seq < before_seq (scroll-up history load)
+        - since_seq: fetch messages with seq > since_seq (reconnect catch-up)
+
+        Results are always returned in ascending order (oldest first) so the UI
+        can append new messages at the bottom.
 
         Args:
             thread_id: The thread to fetch messages from.
             before_seq: If provided, fetch only messages with seq < before_seq.
+            since_seq: If provided, fetch only messages with seq > since_seq.
             limit: Maximum number of messages to return (default 50).
         """
         stmt = (
@@ -141,13 +146,22 @@ class ChatMessageRepository(TenantScopedRepository[ChatMessage]):
         )
         if before_seq is not None:
             stmt = stmt.where(ChatMessage.seq < before_seq)
-
-        # Fetch DESC to get the N most recent, then reverse to return ASC
-        stmt = stmt.order_by(ChatMessage.seq.desc()).limit(limit)
-        result = await self.db.execute(stmt)
-        messages = list(result.scalars().all())
-        # Return in ascending order (oldest first) for UI rendering
-        return list(reversed(messages))
+            # Fetch DESC to get the N most recent, then reverse to return ASC
+            stmt = stmt.order_by(ChatMessage.seq.desc()).limit(limit)
+            result = await self.db.execute(stmt)
+            messages = list(result.scalars().all())
+            return list(reversed(messages))
+        elif since_seq is not None:
+            stmt = stmt.where(ChatMessage.seq > since_seq)
+            stmt = stmt.order_by(ChatMessage.seq.asc()).limit(limit)
+            result = await self.db.execute(stmt)
+            return list(result.scalars().all())
+        else:
+            # No cursor — fetch most recent N messages in ASC order
+            stmt = stmt.order_by(ChatMessage.seq.desc()).limit(limit)
+            result = await self.db.execute(stmt)
+            messages = list(result.scalars().all())
+            return list(reversed(messages))
 
     async def get_by_uuid(self, message_id: uuid.UUID) -> ChatMessage | None:
         """Fetch a message by its UUID primary key (for dedup verification)."""
