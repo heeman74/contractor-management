@@ -6,7 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get_it/get_it.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../../../core/database/app_database.dart';
+// Hide Drift-generated ChatMessage to avoid conflict with AI domain model.
+import '../../../../core/database/app_database.dart' hide ChatMessage;
 import '../../data/ai_conversation_dao.dart';
 import '../../data/ai_sse_client.dart';
 import '../../domain/ai_models.dart';
