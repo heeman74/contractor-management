@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: AI-Driven Construction Management
 status: Ready to plan
-stopped_at: Completed 23-real-time-chat-05-PLAN.md
-last_updated: "2026-03-24T21:53:25.337Z"
+stopped_at: Completed 23-real-time-chat-06-PLAN.md
+last_updated: "2026-03-24T23:05:00Z"
 progress:
   total_phases: 14
   completed_phases: 10
   total_plans: 54
-  completed_plans: 53
+  completed_plans: 54
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-19)
 ## Current Position
 
 Phase: 23
-Plan: 03 (complete)
+Plan: 06 (complete)
 
 ## Performance Metrics
 
@@ -63,6 +63,7 @@ Plan: 03 (complete)
 | Phase 23 P03 | 400s | 2 tasks | 7 files |
 | Phase 23 P04 | 1153 | 2 tasks | 9 files |
 | Phase 23-real-time-chat P05 | 35min | 2 tasks | 11 files |
+| Phase 23-real-time-chat P06 | 123min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -141,6 +142,10 @@ Plan: 03 (complete)
 - [Phase 23]: Chat attachment picker (ImagePicker/FilePicker) stubbed — actual picker integration deferred to follow-up plan
 - [Phase 23-real-time-chat]: WebSocket token via GET /api/auth/ws-token — browser WS API cannot set headers; short-lived token in ?token= query param
 - [Phase 23-real-time-chat]: @mention dropdown as absolute div (not Popover) — base-ui PopoverTrigger does not support asChild prop
+- [Phase 23 P06]: _NoOpChatRepository stub prevents GetIt/DioClient lookup in widget tests — chatRepositoryProvider read in ChatScreen.initState post-frame callback
+- [Phase 23 P06]: _threadScreenBaseOverrides() helper bundles chatDaoProvider + chatRepositoryProvider overrides for all ChatThreadScreen tests
+- [Phase 23 P06]: tester.runAsync() escapes FakeAsync for Drift one-shot .get() queries — watch streams hang in FakeAsync context (testWidgets)
+- [Phase 23 P06]: pump(600ms) flushes ChatInputBar 500ms typing debounce Timer — pending timers cause testWidgets framework to hang on teardown
 
 ### Pending Todos
 
@@ -154,6 +159,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-24T21:53:25.319Z
+Last session: 2026-03-24T23:05:00Z
+Stopped at: Completed 23-real-time-chat-06-PLAN.md
 Stopped at: Completed 23-real-time-chat-05-PLAN.md
 Resume file: None

@@ -48,7 +48,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 - [x] **Phase 20: Dependency Engine** — Cross-trade dependency graph with cycle detection, topological sort, and Gantt timeline view (gap closure in progress) (completed 2026-03-22)
 - [x] **Phase 21: AI Project Intake and Contractor Interview** — Claude API integration: GC describes project, AI structures by trade, AI interviews each contractor (completed 2026-03-24)
 - [x] **Phase 22: Task Execution and Photo Annotation** — Contractor daily checklists, task progress on mobile, non-destructive photo annotation on mobile and web (completed 2026-03-24)
-- [ ] **Phase 23: Real-Time Chat** — Bidirectional GC-contractor chat with WebSocket, Redis pub/sub, file sharing, and FCM offline delivery
+- [x] **Phase 23: Real-Time Chat** — Bidirectional GC-contractor chat with WebSocket, Redis pub/sub, file sharing, and FCM offline delivery
 - [ ] **Phase 24: GC Inspection Workflow** — Approve/reject/flag tasks, punch list, annotated photo evidence, FCM notifications to contractors
 - [ ] **Phase 25: Per-Trade Billing** — Trade-scoped quotes and invoices, project-level aggregation, progress billing at milestones
 - [ ] **Phase 26: AI Daily Checklists and Monitoring Dashboard** — Morning checklist push, AI schedule adaptation, cross-trade monitoring dashboard with AI alerts
@@ -245,7 +245,7 @@ Plans:
   3. Both parties can share photos (including annotated photos) and PDF files in chat
   4. Chat threads are organized by trade scope within a project — the GC's electrical chat and plumbing chat are separate threads
   5. A contractor who is offline receives a push notification (FCM) for new messages and sees full message history when they reconnect
-**Plans:** 5/6 plans executed
+**Plans:** 6/6 plans executed
 
 Plans:
 - [x] 23-01-PLAN.md — Backend foundation: migration 0020 (4 chat tables with RLS), SQLAlchemy models, repository, service, schemas, WebSocket ConnectionManager with Redis pub/sub
@@ -253,7 +253,7 @@ Plans:
 - [x] 23-03-PLAN.md — Backend endpoints: WebSocket router with JWT auth + 5-min re-validation, REST chat endpoints (threads, messages, attachments, read receipts, mute), FCM chat notifications, integration tests
 - [x] 23-04-PLAN.md — Mobile chat UI: ChatScreen (thread list), ChatThreadScreen (message view + WS), MessageBubble (4 variants), ChatInputBar (attachments + @mentions), TypingIndicator, GoRouter routes
 - [x] 23-05-PLAN.md — Web chat: TypeScript types, useChatWebSocket hook, useChatMessages infinite query hook, ChatPanel split view, thread list, message bubbles, message input, Playwright E2E tests
-- [ ] 23-06-PLAN.md — Phase E2E tests: 15+ backend integration tests + 16+ Flutter widget E2E tests covering CHAT-01 through CHAT-05
+- [x] 23-06-PLAN.md — Phase E2E tests: 19 backend integration tests + 23 Flutter widget E2E tests covering CHAT-01 through CHAT-05
 
 ### Phase 24: GC Inspection Workflow
 **Goal**: GCs can formally inspect completed tasks from mobile, approve or reject them with annotated photo evidence, create punch list items, and contractors are notified of decisions immediately
