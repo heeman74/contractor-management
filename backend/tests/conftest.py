@@ -162,6 +162,13 @@ async def clean_tables(test_engine):
                 "projects, "
                 "user_trade_specialties, "
                 "trade_catalog, "
+                # Phase 23 chat tables (reference chat_threads, users, projects)
+                # chat_read_receipts -> chat_threads; chat_messages -> chat_threads
+                # chat_memberships -> chat_threads; chat_threads -> projects
+                "chat_read_receipts, "
+                "chat_messages, "
+                "chat_memberships, "
+                "chat_threads, "
                 # Auth + core tables
                 "refresh_tokens, "
                 "user_roles, "
