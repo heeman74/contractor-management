@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.core.base_schemas import TenantResponseSchema
+from app.core.base_schemas import BaseResponseSchema, TenantResponseSchema
 
 
 class ConversationCreate(BaseModel):
@@ -41,3 +41,12 @@ class AIMessageResponse(TenantResponseSchema):
     role: str
     content_json: dict
     sequence_num: int
+
+
+class ImageUploadResponse(BaseResponseSchema):
+    """Response schema for an uploaded AI image."""
+
+    conversation_id: uuid.UUID
+    original_filename: str
+    media_type: str
+    file_size_bytes: int

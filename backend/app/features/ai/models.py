@@ -169,3 +169,38 @@ class AITokenUsage(TenantScopedModel):
     model: Mapped[str] = mapped_column(Text, nullable=False)
     input_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
     output_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class AIImageUpload(TenantScopedModel):
+    """An uploaded image attached to an AI conversation for Claude vision.
+
+    Images are compressed server-side to max 1280x1280 JPEG before storage.
+    The returned id is passed as image_ref_id in ChatTurnRequest to include
+    the image as a base64 vision block in the Claude API call.
+
+    conversation_id: FK to ai_conversations (CASCADE — images deleted with conv)
+    user_id: the user who uploaded the image
+    file_path: disk path to the compressed JPEG
+    original_filename: original file name from the upload
+    media_type: always "image/jpeg" after server-side compression
+    file_size_bytes: size of the compressed file
+    """
+
+    __tablename__ = "ai_image_uploads"
+
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("ai_conversations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        nullable=False,
+    )
+    file_path: Mapped[str] = mapped_column(Text, nullable=False)
+    original_filename: Mapped[str] = mapped_column(Text, nullable=False)
+    media_type: Mapped[str] = mapped_column(Text, nullable=False, server_default="image/jpeg")
+    file_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    conversation: Mapped[AIConversation] = relationship(lazy="raise")

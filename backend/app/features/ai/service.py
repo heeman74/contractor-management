@@ -16,17 +16,20 @@ Retry: 3 attempts, 1s/2s/4s delays
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import uuid
 from collections.abc import AsyncGenerator
 from typing import Any
 
+import aiofiles
 from anthropic import APIError, APITimeoutError, AsyncAnthropic, RateLimitError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_service import TenantScopedService
-from app.features.ai.models import AIConversation, AIMessage, AITokenUsage
+from app.features.ai.models import AIConversation, AIImageUpload, AIMessage, AITokenUsage
 from app.features.ai.prompts.intake_system import INTAKE_SYSTEM_PROMPT
 from app.features.ai.prompts.interview_system import INTERVIEW_SYSTEM_PROMPT
 from app.features.ai.repository import (
@@ -112,9 +115,7 @@ class AIService(TenantScopedService[AIConversation]):
             raise ValueError(f"Conversation {conversation_id} not found")
 
         db_messages = await self._message_repo.list_by_conversation(conversation_id)
-        messages = [
-            {"role": msg.role, "content": msg.content_json} for msg in db_messages
-        ]
+        messages = [{"role": msg.role, "content": msg.content_json} for msg in db_messages]
 
         system_prompt = self._build_system_prompt(conv)
         return conv, messages, system_prompt
@@ -274,7 +275,9 @@ class AIService(TenantScopedService[AIConversation]):
         text deltas for their own persistence.
         """
         try:
-            async for event_str in self._call_with_retry(conversation, messages, system_prompt, tools):
+            async for event_str in self._call_with_retry(
+                conversation, messages, system_prompt, tools
+            ):
                 yield event_str
         except Exception as exc:
             logger.exception("Unrecoverable error in stream_turn: %s", exc)
@@ -349,7 +352,9 @@ class AIService(TenantScopedService[AIConversation]):
     # Tool input validation
     # -------------------------------------------------------------------------
 
-    async def validate_tool_input(self, tool_name: str, tool_input: dict[str, Any]) -> dict[str, Any]:
+    async def validate_tool_input(
+        self, tool_name: str, tool_input: dict[str, Any]
+    ) -> dict[str, Any]:
         """Validate and clean tool input against TradeScopeCreate / TaskCreate field constraints.
 
         Raises ValueError with a descriptive message on invalid input.
@@ -409,9 +414,7 @@ class AIService(TenantScopedService[AIConversation]):
         priority = inp.get("priority", "medium")
         valid_priorities = {"low", "medium", "high", "urgent"}
         if priority not in valid_priorities:
-            raise ValueError(
-                f"create_task: 'priority' must be one of {sorted(valid_priorities)}"
-            )
+            raise ValueError(f"create_task: 'priority' must be one of {sorted(valid_priorities)}")
         result["priority"] = priority
 
         estimated_hours = inp.get("estimated_hours")
@@ -451,6 +454,39 @@ class AIService(TenantScopedService[AIConversation]):
         if not isinstance(question, str) or not question.strip():
             raise ValueError("ask_clarifying_question: 'question' must be a non-empty string")
         return {"question": question.strip()}
+
+    # -------------------------------------------------------------------------
+    # Image vision support
+    # -------------------------------------------------------------------------
+
+    async def build_image_content_block(self, image_ref_id: uuid.UUID) -> dict[str, Any] | None:
+        """Look up an uploaded image by ID and return a Claude vision content block.
+
+        Returns None if the image is not found (chat degrades to text-only).
+        The file is read from disk and base64-encoded for the Claude API.
+        """
+        result = await self.db.execute(
+            select(AIImageUpload).where(
+                AIImageUpload.id == image_ref_id,
+                AIImageUpload.deleted_at.is_(None),
+            )
+        )
+        image = result.scalar_one_or_none()
+        if image is None:
+            return None
+
+        async with aiofiles.open(image.file_path, "rb") as f:
+            raw_bytes = await f.read()
+
+        base64_data = base64.b64encode(raw_bytes).decode("utf-8")
+        return {
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": image.media_type,
+                "data": base64_data,
+            },
+        }
 
     # -------------------------------------------------------------------------
     # Conversation lifecycle

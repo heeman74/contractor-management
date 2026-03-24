@@ -16,21 +16,27 @@ Complete endpoints wrap all DB work in the get_db transaction (auto-commit/rollb
 
 from __future__ import annotations
 
+import io
+import os
 import uuid
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import aiofiles
+from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
+from PIL import Image
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import CurrentUser, get_current_user
+from app.features.ai.models import AIImageUpload
 from app.features.ai.prompts.tools import INTAKE_TOOLS, INTERVIEW_TOOLS
 from app.features.ai.repository import AIConversationRepository, AIMessageRepository
 from app.features.ai.schemas import (
     ChatTurnRequest,
     ConversationResponse,
+    ImageUploadResponse,
 )
 from app.features.ai.service import AIService
 from app.features.projects.schemas import (
@@ -120,6 +126,72 @@ async def intake_start(
 
 
 # ---------------------------------------------------------------------------
+# POST /ai/intake/image
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/ai/intake/image",
+    response_model=ImageUploadResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_image(
+    file: UploadFile,
+    conversation_id: Annotated[uuid.UUID, Form(...)],
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ImageUploadResponse:
+    """Upload an image for AI chat context (Claude vision).
+
+    Images are compressed server-side to max 1280x1280 JPEG before storage.
+    The returned id is passed as image_ref_id in ChatTurnRequest to include
+    the image as a base64 vision block in the Claude API call.
+    Non-image files are rejected with 400.
+    """
+    # Validate content type
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image (JPEG, PNG, etc.)")
+
+    # Read and validate size (max 10MB raw)
+    file_bytes = await file.read()
+    if len(file_bytes) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image must be under 10MB")
+
+    # Compress with Pillow to max 1280x1280 JPEG
+    img = Image.open(io.BytesIO(file_bytes))
+    img.thumbnail((1280, 1280))
+    buf = io.BytesIO()
+    # Convert RGBA/P to RGB for JPEG compatibility
+    if img.mode in ("RGBA", "P"):
+        img = img.convert("RGB")
+    img.save(buf, format="JPEG", quality=85)
+    compressed_bytes = buf.getvalue()
+
+    # Save to disk
+    upload_dir = f"uploads/ai_images/{conversation_id}"
+    os.makedirs(upload_dir, exist_ok=True)
+    file_id = uuid.uuid4()
+    file_path = f"{upload_dir}/{file_id}.jpg"
+    async with aiofiles.open(file_path, "wb") as f:
+        await f.write(compressed_bytes)
+
+    # Create DB record
+    image_record = AIImageUpload(
+        conversation_id=conversation_id,
+        user_id=current_user.user_id,
+        company_id=current_user.company_id,
+        file_path=file_path,
+        original_filename=file.filename or "upload.jpg",
+        media_type="image/jpeg",
+        file_size_bytes=len(compressed_bytes),
+    )
+    db.add(image_record)
+    await db.flush()
+
+    return ImageUploadResponse.model_validate(image_record)
+
+
+# ---------------------------------------------------------------------------
 # POST /ai/intake/message
 # ---------------------------------------------------------------------------
 
@@ -149,12 +221,21 @@ async def intake_message(
             detail="Conversation is not active",
         )
 
-    await service.persist_user_message(
-        req.conversation_id, req.message, current_user.user_id
-    )
+    # Build user content (text or text+image for Claude vision)
+    user_content: str | list = req.message
+    if req.image_ref_id:
+        image_block = await service.build_image_content_block(req.image_ref_id)
+        if image_block:
+            user_content = [image_block, {"type": "text", "text": req.message}]
+
+    await service.persist_user_message(req.conversation_id, user_content, current_user.user_id)
 
     # Add the new user message to the messages list for this turn
-    messages = messages + [{"role": "user", "content": [{"type": "text", "text": req.message}]}]
+    if isinstance(user_content, str):
+        api_content: list[dict] = [{"type": "text", "text": user_content}]
+    else:
+        api_content = user_content  # type: ignore[assignment]
+    messages = messages + [{"role": "user", "content": api_content}]
 
     stream = service.stream_turn(conv, messages, system_prompt, INTAKE_TOOLS)
     return _sse_response(stream)
@@ -338,12 +419,21 @@ async def interview_message(
             detail="Conversation is not active",
         )
 
-    await service.persist_user_message(
-        req.conversation_id, req.message, current_user.user_id
-    )
+    # Build user content (text or text+image for Claude vision)
+    user_content: str | list = req.message
+    if req.image_ref_id:
+        image_block = await service.build_image_content_block(req.image_ref_id)
+        if image_block:
+            user_content = [image_block, {"type": "text", "text": req.message}]
+
+    await service.persist_user_message(req.conversation_id, user_content, current_user.user_id)
 
     # Add the new user message to the messages list for this turn
-    messages = messages + [{"role": "user", "content": [{"type": "text", "text": req.message}]}]
+    if isinstance(user_content, str):
+        api_content: list[dict] = [{"type": "text", "text": user_content}]
+    else:
+        api_content = user_content  # type: ignore[assignment]
+    messages = messages + [{"role": "user", "content": api_content}]
 
     stream = service.stream_turn(conv, messages, system_prompt, INTERVIEW_TOOLS)
     return _sse_response(stream)
