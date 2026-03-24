@@ -214,4 +214,31 @@ abstract final class RouteNames {
 
   /// Build the AI interview path for a specific trade scope.
   static String aiInterviewPath(String scopeId) => '/ai-interview/$scopeId';
+
+  // --- Phase 22: Task execution routes ---
+
+  /// Contractor cross-scope task checklist — all incomplete tasks assigned to user.
+  ///
+  /// Navigate via: context.push(RouteNames.myTasks)
+  static const myTasks = '/my-tasks';
+
+  /// Task detail screen — notes, photos, annotation, status controls.
+  ///
+  /// Navigate via: context.push(RouteNames.taskDetailPath(taskId))
+  static const taskDetail = '/tasks/:taskId';
+
+  /// Photo annotation screen — draw on a photo with arrows, circles, text, measurements.
+  ///
+  /// Navigate via: context.push(RouteNames.photoAnnotationPath(taskId, attachmentId))
+  /// Non-destructive: annotation JSON stored in TaskAttachments.annotationData.
+  static const photoAnnotation = '/tasks/:taskId/photos/:attachmentId/annotate';
+
+  // ─── Helpers ─────────────────────────────────────────────────────────────
+
+  /// Build the task detail path for a specific task ID.
+  static String taskDetailPath(String taskId) => '/tasks/$taskId';
+
+  /// Build the photo annotation path for a specific task attachment.
+  static String photoAnnotationPath(String taskId, String attachmentId) =>
+      '/tasks/$taskId/photos/$attachmentId/annotate';
 }

@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/database/tables/sync_queue.dart';
 import '../../../core/database/tables/tasks.dart';
+import '../../../core/database/tables/trade_scopes.dart';
 
 part 'task_dao.g.dart';
 
@@ -17,7 +18,11 @@ part 'task_dao.g.dart';
 ///
 /// [countTasksByScope] and [countCompletedTasksByScope] are used to
 /// compute scope-level progress percentages in the project detail view.
-@DriftAccessor(tables: [ProjectTasks, SyncQueue])
+///
+/// [watchTasksForContractor] is the cross-scope query for the contractor's
+/// "My Tasks" view — returns all incomplete tasks assigned to a user across
+/// all trade scopes, ordered by priority then due date.
+@DriftAccessor(tables: [ProjectTasks, TradeScopes, SyncQueue])
 class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
   TaskDao(super.db);
 
@@ -64,6 +69,55 @@ class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
       );
     final result = await query.getSingleOrNull();
     return result?.read(countExpr) ?? 0;
+  }
+
+  /// Reactive stream of all incomplete tasks assigned to a contractor.
+  ///
+  /// Cross-scope query: returns tasks from ANY trade scope where
+  /// [assignedTo] matches the given userId and task is not completed/deleted.
+  ///
+  /// Ordered by priority (urgent → high → medium → low) then dueDate ASC
+  /// with nulls last — surfaces the most critical work at the top of the
+  /// contractor's "My Tasks" checklist.
+  Stream<List<ProjectTask>> watchTasksForContractor(String userId) {
+    return (select(projectTasks)
+          ..where(
+            (tbl) =>
+                tbl.assignedTo.equals(userId) &
+                tbl.deletedAt.isNull() &
+                tbl.status.isNotIn(const ['complete']),
+          )
+          ..orderBy([
+            (tbl) => OrderingTerm(
+                  expression: tbl.priority.caseMatch(
+                    when: {
+                      const Constant('urgent'): const Constant(0),
+                      const Constant('high'): const Constant(1),
+                      const Constant('medium'): const Constant(2),
+                    },
+                    orElse: const Constant(3),
+                  ),
+                ),
+            (tbl) => OrderingTerm(
+                  expression: tbl.dueDate,
+                ),
+          ]))
+        .watch();
+  }
+
+  /// Reactive stream of all tasks for a trade scope including completed tasks.
+  ///
+  /// Used for GC read-only views where all task states must be visible.
+  /// Ordered by [sortOrder] for consistent task list display.
+  Stream<List<ProjectTask>> watchTasksByScopeWithStatus(String tradeScopeId) {
+    return (select(projectTasks)
+          ..where(
+            (tbl) =>
+                tbl.tradeScopeId.equals(tradeScopeId) &
+                tbl.deletedAt.isNull(),
+          )
+          ..orderBy([(tbl) => OrderingTerm.asc(tbl.sortOrder)]))
+        .watch();
   }
 
   /// Insert a new task and atomically enqueue a CREATE sync item.

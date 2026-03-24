@@ -135,6 +135,10 @@ Future<void> setupServiceLocator() async {
   getIt.registerSingleton<TradeScopeDao>(db.tradeScopeDao);
   getIt.registerSingleton<TaskDao>(db.taskDao);
 
+  // Phase 22 DAOs — registered for task execution features
+  getIt.registerSingleton<TaskNoteDao>(db.taskNoteDao);
+  getIt.registerSingleton<TaskAttachmentDao>(db.taskAttachmentDao);
+
   // Phase 20 DAOs — registered for dependency engine features
   getIt.registerSingleton<TaskDependencyDao>(taskDepDao);
   getIt.registerSingleton<ProjectZoneDao>(projectZoneDao);
@@ -156,7 +160,7 @@ Future<void> setupServiceLocator() async {
   getIt.registerLazySingleton<AiSseClient>(() => AiSseClient(
         baseUrl: const String.fromEnvironment(
           'API_BASE_URL',
-          defaultValue: 'http://10.0.2.2:8000',
+          defaultValue: 'http://localhost:8000',
         ),
         getAccessToken: () => tokenStorage.readAccessToken(),
       ));
