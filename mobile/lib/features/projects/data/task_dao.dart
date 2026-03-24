@@ -105,6 +105,19 @@ class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
         .watch();
   }
 
+  /// Reactive stream of a single task by ID.
+  ///
+  /// Used by TaskDetailScreen to observe live status updates.
+  /// Emits null when the task is not found (deleted or unknown ID).
+  Stream<ProjectTask?> watchTaskById(String id) {
+    return (select(projectTasks)
+          ..where(
+            (tbl) => tbl.id.equals(id) & tbl.deletedAt.isNull(),
+          )
+          ..limit(1))
+        .watchSingleOrNull();
+  }
+
   /// Reactive stream of all tasks for a trade scope including completed tasks.
   ///
   /// Used for GC read-only views where all task states must be visible.

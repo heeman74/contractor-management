@@ -41,6 +41,11 @@ import '../../features/reports/presentation/screens/admin_reports_screen.dart';
 import '../../features/reports/presentation/screens/contractor_reports_screen.dart';
 import '../../features/ai/presentation/screens/intake_chat_screen.dart';
 import '../../features/ai/presentation/screens/interview_chat_screen.dart';
+import '../../core/database/app_database.dart'
+    show TaskAttachment;
+import '../../features/projects/presentation/screens/my_tasks_screen.dart';
+import '../../features/projects/presentation/screens/task_detail_screen.dart';
+import '../../features/projects/presentation/screens/task_photo_viewer_screen.dart';
 import '../../features/schedule/presentation/screens/contractor_schedule_screen.dart';
 import '../../features/schedule/presentation/screens/schedule_settings_screen.dart';
 import '../../shared/models/user_role.dart';
@@ -246,6 +251,36 @@ final routerProvider = Provider.autoDispose<GoRouter>((ref) {
           final scopeId = state.pathParameters['scopeId']!;
           final tradeName = state.uri.queryParameters['tradeName'];
           return InterviewChatScreen(scopeId: scopeId, tradeName: tradeName);
+        },
+      ),
+      // Phase 22: Contractor cross-scope task checklist.
+      // Push via: context.push(RouteNames.myTasks)
+      GoRoute(
+        path: RouteNames.myTasks,
+        builder: (context, state) => const MyTasksScreen(),
+      ),
+      // Phase 22: Task detail — notes, photos, annotation, status controls.
+      // Push via: context.push(RouteNames.taskDetailPath(taskId))
+      GoRoute(
+        path: RouteNames.taskDetail,
+        builder: (context, state) {
+          final taskId = state.pathParameters['taskId']!;
+          return TaskDetailScreen(taskId: taskId);
+        },
+      ),
+      // Phase 22: Task photo viewer — full-screen with annotate action.
+      // Push via: context.push(RouteNames.taskPhotoViewerPath(taskId, attachmentId), extra: {...})
+      GoRoute(
+        path: RouteNames.taskPhotoViewer,
+        builder: (context, state) {
+          final taskId = state.pathParameters['taskId']!;
+          final extra = state.extra as Map<String, dynamic>;
+          return TaskPhotoViewerScreen(
+            taskId: taskId,
+            attachment: extra['attachment'] as TaskAttachment,
+            allPhotos: (extra['allPhotos'] as List).cast<TaskAttachment>(),
+            initialIndex: extra['initialIndex'] as int,
+          );
         },
       ),
       // --- Shell routes (with bottom nav) ---

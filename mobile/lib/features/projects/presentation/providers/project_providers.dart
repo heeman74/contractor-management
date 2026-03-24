@@ -191,3 +191,19 @@ final taskDocCountProvider = StreamProvider.autoDispose
   final dao = ref.watch(taskAttachmentDaoProvider);
   return dao.watchDocCountByTask(taskId);
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+// Scope name lookup map — for My Tasks grouped view
+// ────────────────────────────────────────────────────────────────────────────
+
+/// Streams a Map<scopeId, tradeName> for all scopes in the user's company.
+///
+/// Used by MyTasksScreen to display scope group headers without a separate
+/// scope name lookup per task. Auto-disposed when no longer watched.
+final scopeNameMapProvider = StreamProvider.autoDispose
+    .family<Map<String, String>, String>((ref, companyId) {
+  final dao = ref.watch(tradeScopeDaoProvider);
+  return dao.watchAllScopesByCompany(companyId).map(
+        (scopes) => {for (final s in scopes) s.id: s.tradeName},
+      );
+});

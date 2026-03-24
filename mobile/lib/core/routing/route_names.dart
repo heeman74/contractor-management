@@ -227,6 +227,12 @@ abstract final class RouteNames {
   /// Navigate via: context.push(RouteNames.taskDetailPath(taskId))
   static const taskDetail = '/tasks/:taskId';
 
+  /// Task photo viewer — full-screen photo view with annotate action.
+  ///
+  /// Navigate via: context.push(RouteNames.taskPhotoViewerPath(taskId, attachmentId))
+  /// Pass extra: Map with 'attachment', 'allPhotos', 'initialIndex'.
+  static const taskPhotoViewer = '/tasks/:taskId/photos/:attachmentId/view';
+
   /// Photo annotation screen — draw on a photo with arrows, circles, text, measurements.
   ///
   /// Navigate via: context.push(RouteNames.photoAnnotationPath(taskId, attachmentId))
@@ -237,6 +243,10 @@ abstract final class RouteNames {
 
   /// Build the task detail path for a specific task ID.
   static String taskDetailPath(String taskId) => '/tasks/$taskId';
+
+  /// Build the task photo viewer path for a specific attachment.
+  static String taskPhotoViewerPath(String taskId, String attachmentId) =>
+      '/tasks/$taskId/photos/$attachmentId/view';
 
   /// Build the photo annotation path for a specific task attachment.
   static String photoAnnotationPath(String taskId, String attachmentId) =>

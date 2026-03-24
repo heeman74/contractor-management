@@ -20,6 +20,19 @@ class TradeScopeDao extends DatabaseAccessor<AppDatabase>
     with _$TradeScopeDaoMixin {
   TradeScopeDao(super.db);
 
+  /// Reactive stream of all active (non-deleted) trade scopes for a company.
+  ///
+  /// Used in the My Tasks screen to build a scopeId → tradeName lookup map
+  /// without needing to know which projects the contractor belongs to.
+  Stream<List<TradeScope>> watchAllScopesByCompany(String companyId) {
+    return (select(tradeScopes)
+          ..where(
+            (tbl) =>
+                tbl.companyId.equals(companyId) & tbl.deletedAt.isNull(),
+          ))
+        .watch();
+  }
+
   /// Reactive stream of all active (non-deleted) trade scopes for a project.
   ///
   /// Ordered by [sortOrder] for consistent display in project detail view.
