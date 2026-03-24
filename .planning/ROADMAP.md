@@ -47,7 +47,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 - [x] **Phase 19: Project Data Model** — Project -> Trade Scope -> Task hierarchy with RLS, Drift schema, and sync handlers (completed 2026-03-20)
 - [x] **Phase 20: Dependency Engine** — Cross-trade dependency graph with cycle detection, topological sort, and Gantt timeline view (gap closure in progress) (completed 2026-03-22)
 - [x] **Phase 21: AI Project Intake and Contractor Interview** — Claude API integration: GC describes project, AI structures by trade, AI interviews each contractor (completed 2026-03-24)
-- [ ] **Phase 22: Task Execution and Photo Annotation** — Contractor daily checklists, task progress on mobile, non-destructive photo annotation on mobile and web
+- [x] **Phase 22: Task Execution and Photo Annotation** — Contractor daily checklists, task progress on mobile, non-destructive photo annotation on mobile and web (completed 2026-03-24)
 - [ ] **Phase 23: Real-Time Chat** — Bidirectional GC-contractor chat with WebSocket, Redis pub/sub, file sharing, and FCM offline delivery
 - [ ] **Phase 24: GC Inspection Workflow** — Approve/reject/flag tasks, punch list, annotated photo evidence, FCM notifications to contractors
 - [ ] **Phase 25: Per-Trade Billing** — Trade-scoped quotes and invoices, project-level aggregation, progress billing at milestones
@@ -226,14 +226,14 @@ Plans:
   4. Contractor can capture or attach a photo to a task and draw annotations (arrows, circles, text, measurements) on it before saving
   5. Contractor can attach a PDF document to any task and the attachment is accessible to the GC
   6. GC can view task progress (completion status, notes, photos) across all trades from the mobile app
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 - [x] 22-01-PLAN.md — Backend: migration 0019 (task_notes table + annotation_data JSONB), TaskNote model/service/schemas, task note + attachment upload endpoints, integration tests
 - [x] 22-02-PLAN.md — Mobile: Drift schema v10 (TaskNotes + annotationData), TaskNoteDao, TaskAttachmentDao, cross-scope TaskDao query, providers, routes, DAO tests
 - [x] 22-03-PLAN.md — Mobile UI: MyTasksScreen (cross-scope checklist), TaskDetailScreen (notes, photos, PDFs), TaskChecklistCard (photo gate), GoRouter wiring
 - [x] 22-04-PLAN.md — Photo annotation: shared JSON schema, Flutter PhotoAnnotationScreen (4 tools), web PhotoAnnotationCanvas (HTML5 Canvas), annotation unit tests
-- [ ] 22-05-PLAN.md — GC progress: TradeProgressCard (mobile + web), ProjectDetailScreen upgrade, Phase 22 E2E tests (15+ tests covering TASK-01 through TASK-07)
+- [x] 22-05-PLAN.md — GC progress: TradeProgressCard (mobile + web), ProjectDetailScreen upgrade, Phase 22 E2E tests (15+ tests covering TASK-01 through TASK-07)
 
 ### Phase 23: Real-Time Chat
 **Goal**: GCs and contractors can exchange messages, photos, and files in real time within project-scoped trade threads, with push notifications for offline delivery
@@ -312,7 +312,7 @@ Note: Phase 25 (Billing) depends only on Phase 19 and may start in parallel with
 | 19. Project Data Model | v3.0 | 5/5 | Complete | 2026-03-21 |
 | 20. Dependency Engine | v3.0 | 6/6 | Complete | 2026-03-22 |
 | 21. AI Project Intake and Contractor Interview | v3.0 | 7/7 | Complete    | 2026-03-24 |
-| 22. Task Execution and Photo Annotation | v3.0 | 4/5 | In Progress|  |
+| 22. Task Execution and Photo Annotation | v3.0 | 5/5 | Complete   | 2026-03-24 |
 | 23. Real-Time Chat | v3.0 | 0/TBD | Not started | - |
 | 24. GC Inspection Workflow | v3.0 | 0/TBD | Not started | - |
 | 25. Per-Trade Billing | v3.0 | 0/TBD | Not started | - |

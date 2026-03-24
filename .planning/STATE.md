@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: AI-Driven Construction Management
-status: Ready to execute
-stopped_at: Completed 22-04-PLAN.md
-last_updated: "2026-03-24T08:21:14.004Z"
+status: Phase complete — ready for verification
+stopped_at: Completed 22-05-PLAN.md
+last_updated: "2026-03-24T09:07:15.280Z"
 progress:
   total_phases: 14
-  completed_phases: 9
+  completed_phases: 10
   total_plans: 48
-  completed_plans: 47
+  completed_plans: 48
 ---
 
 # Project State
@@ -58,6 +58,7 @@ Plan: 5 of 5
 | Phase 22 P02 | 12m | 2 tasks | 11 files |
 | Phase 22-task-execution-and-photo-annotation P03 | 534 | 2 tasks | 13 files |
 | Phase 22-task-execution-and-photo-annotation P04 | 10m | 2 tasks | 7 files |
+| Phase 22-task-execution-and-photo-annotation P05 | 2388 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -123,6 +124,9 @@ Plan: 5 of 5
 - [Phase 22]: Annotation JSON uses normalized 0-1 coordinates — no raw pixel values stored; enables cross-platform rendering at any resolution
 - [Phase 22]: useRef (not useState) for annotation array in usePhotoAnnotation — prevents React re-renders from clearing canvas imperatively
 - [Phase 22]: crypto.randomUUID() used instead of uuid package — built-in to modern browsers/Node.js; no package needed
+- [Phase 22]: ScopeProgress class made public (not private _ScopeProgress) to allow widget-test provider overrides via Stream.value()
+- [Phase 22]: tradeScopeProgressProvider uses asyncMap on watchTasksByScope stream — reactive to Drift changes without separate FutureProviders
+- [Phase 22]: ScopeProgressCard inner component in React isolates useTasks hook per scope independently
 
 ### Pending Todos
 
@@ -136,6 +140,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-24T08:21:13.996Z
-Stopped at: Completed 22-04-PLAN.md
+Last session: 2026-03-24T09:07:15.272Z
+Stopped at: Completed 22-05-PLAN.md
 Resume file: None
