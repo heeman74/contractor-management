@@ -41,8 +41,8 @@ AI eliminates the chaos of multi-trade coordination — GCs always know exactly 
 - [x] AI contractor interview — AI asks trade-specific questions to generate detailed task plans — Validated in Phase 21: AI Project Intake and Contractor Interview
 - [ ] AI daily checklists — morning push with tasks, materials needed, photo requirements
 - [ ] Project model — multi-trade hierarchy (Project → Trade Scopes → Tasks) with dependency graph
-- [ ] Task-level progress — notes, photos with annotation/drawing, PDF attachments per task
-- [ ] Photo annotation — draw on photos (arrows, circles, text, measurements) on mobile and web
+- [x] Task-level progress — notes, photos with annotation/drawing, PDF attachments per task — Validated in Phase 22: Task Execution and Photo Annotation
+- [x] Photo annotation — draw on photos (arrows, circles, text, measurements) on mobile and web — Validated in Phase 22: Task Execution and Photo Annotation
 - [ ] GC ↔ contractor bidirectional chat with photo/file sharing
 - [ ] GC mobile inspection — approve/reject tasks, flag issues, create punch list items
 - [x] Cross-trade task dependencies with cycle prevention and Gantt timeline — Validated in Phase 20: Dependency Engine
