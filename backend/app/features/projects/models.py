@@ -34,7 +34,6 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-
 from app.core.base_models import TenantScopedModel
 
 if TYPE_CHECKING:
@@ -278,6 +277,9 @@ class TaskAttachment(TenantScopedModel):
     remote_url: path served by the static files endpoint.
     local_path: device-local path for offline access on mobile.
     sort_order: display ordering within a task (default 0).
+    annotation_data: JSONB blob with non-destructive annotation overlay data
+                     (arrows, circles, text, measurements). Base photo is
+                     immutable; annotations stored separately per D-6 decision.
 
     Separate table from existing `attachments` — independent lifecycle
     and different attachment_type CHECK values (includes 'video').
@@ -298,6 +300,7 @@ class TaskAttachment(TenantScopedModel):
     local_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     caption: Mapped[str | None] = mapped_column(Text, nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    annotation_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     __table_args__ = (
         CheckConstraint(
@@ -310,6 +313,37 @@ class TaskAttachment(TenantScopedModel):
     task: Mapped[Task] = relationship(
         "Task",
         back_populates="attachments",
+        lazy="raise",
+    )
+
+
+class TaskNote(TenantScopedModel):
+    """A field note written by a contractor (or GC) against a specific task.
+
+    author_id: soft FK to users — avoids hard FK coupling to user table changes.
+    body: free-text note content (required; non-empty).
+    Ordered by created_at DESC when listed so newest notes appear first.
+
+    Relationships:
+    - task: many-to-one FK to tasks (with ON DELETE CASCADE at DB level)
+    """
+
+    __tablename__ = "task_notes"
+
+    task_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("tasks.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    author_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=False,
+    )
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Relationships — lazy="raise" per CLAUDE.md rules
+    task: Mapped[Task] = relationship(
+        "Task",
         lazy="raise",
     )
 
@@ -331,9 +365,7 @@ class ProjectZone(TenantScopedModel):
     )
     name: Mapped[str] = mapped_column(Text, nullable=False)
 
-    __table_args__ = (
-        UniqueConstraint("project_id", "name", name="uq_project_zone_name"),
-    )
+    __table_args__ = (UniqueConstraint("project_id", "name", name="uq_project_zone_name"),)
 
     # Relationships
     project: Mapped[Project] = relationship("Project", lazy="raise")
@@ -358,21 +390,18 @@ class TaskDependency(TenantScopedModel):
     successor_task_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False
     )
-    dependency_type: Mapped[str] = mapped_column(
-        Text, nullable=False, server_default="'FS'"
-    )
+    dependency_type: Mapped[str] = mapped_column(Text, nullable=False, server_default="'FS'")
     lag_days: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
 
     __table_args__ = (
-        UniqueConstraint("predecessor_task_id", "successor_task_id",
-                         name="uq_task_dependency_edge"),
-        CheckConstraint(
-            "dependency_type IN ('FS','SS','FF','SE')",
-            name="task_dependencies_type_check"
+        UniqueConstraint(
+            "predecessor_task_id", "successor_task_id", name="uq_task_dependency_edge"
         ),
         CheckConstraint(
-            "predecessor_task_id != successor_task_id",
-            name="task_dependencies_no_self_loop"
+            "dependency_type IN ('FS','SS','FF','SE')", name="task_dependencies_type_check"
+        ),
+        CheckConstraint(
+            "predecessor_task_id != successor_task_id", name="task_dependencies_no_self_loop"
         ),
     )
 
@@ -380,9 +409,7 @@ class TaskDependency(TenantScopedModel):
     predecessor: Mapped[Task] = relationship(
         "Task", foreign_keys=[predecessor_task_id], lazy="raise"
     )
-    successor: Mapped[Task] = relationship(
-        "Task", foreign_keys=[successor_task_id], lazy="raise"
-    )
+    successor: Mapped[Task] = relationship("Task", foreign_keys=[successor_task_id], lazy="raise")
 
 
 class UserTradeSpecialty(TenantScopedModel):

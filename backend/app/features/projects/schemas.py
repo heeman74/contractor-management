@@ -239,6 +239,25 @@ class TaskResponse(TenantResponseSchema):
 
 
 # ---------------------------------------------------------------------------
+# TaskNote schemas
+# ---------------------------------------------------------------------------
+
+
+class TaskNoteCreate(BaseModel):
+    """Schema for creating a task note."""
+
+    body: str = Field(min_length=1)
+
+
+class TaskNoteResponse(TenantResponseSchema):
+    """Response schema for TaskNote entities."""
+
+    task_id: uuid.UUID
+    author_id: uuid.UUID
+    body: str
+
+
+# ---------------------------------------------------------------------------
 # TaskAttachment schemas
 # ---------------------------------------------------------------------------
 
@@ -251,13 +270,15 @@ class TaskAttachmentCreate(BaseModel):
     remote_url: str | None = None
     local_path: str | None = None
     caption: str | None = None
+    annotation_data: dict[str, Any] | None = None
 
 
 class TaskAttachmentUpdate(BaseModel):
-    """Schema for updating a task attachment."""
+    """Schema for updating a task attachment (all fields optional for PATCH semantics)."""
 
     caption: str | None = None
     sort_order: int | None = None
+    annotation_data: dict[str, Any] | None = None
 
 
 class TaskAttachmentResponse(TenantResponseSchema):
@@ -269,6 +290,7 @@ class TaskAttachmentResponse(TenantResponseSchema):
     local_path: str | None = None
     caption: str | None = None
     sort_order: int
+    annotation_data: dict[str, Any] | None = None
 
 
 # ---------------------------------------------------------------------------
