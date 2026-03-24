@@ -43,6 +43,8 @@ import '../../features/ai/presentation/screens/intake_chat_screen.dart';
 import '../../features/ai/presentation/screens/interview_chat_screen.dart';
 import '../../core/database/app_database.dart'
     show TaskAttachment;
+import '../../features/chat/presentation/screens/chat_screen.dart';
+import '../../features/chat/presentation/screens/chat_thread_screen.dart';
 import '../../features/projects/presentation/screens/my_tasks_screen.dart';
 import '../../features/projects/presentation/screens/photo_annotation_screen.dart';
 import '../../features/projects/presentation/screens/task_detail_screen.dart';
@@ -489,6 +491,31 @@ final routerProvider = Provider.autoDispose<GoRouter>((ref) {
                             scopeId: scopeId,
                           );
                         },
+                      ),
+                      // Phase 23: Real-time chat thread list for project
+                      GoRoute(
+                        path: 'chat',
+                        builder: (context, state) {
+                          final projectId =
+                              state.pathParameters['projectId']!;
+                          return ChatScreen(projectId: projectId);
+                        },
+                        routes: [
+                          // Phase 23: Individual chat thread screen
+                          GoRoute(
+                            path: ':threadId',
+                            builder: (context, state) {
+                              final projectId =
+                                  state.pathParameters['projectId']!;
+                              final threadId =
+                                  state.pathParameters['threadId']!;
+                              return ChatThreadScreen(
+                                threadId: threadId,
+                                projectId: projectId,
+                              );
+                            },
+                          ),
+                        ],
                       ),
                       GoRoute(
                         path: 'gantt',
