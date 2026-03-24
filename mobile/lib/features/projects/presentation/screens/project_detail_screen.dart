@@ -53,6 +53,13 @@ class ProjectDetailScreen extends ConsumerWidget {
           ],
         ),
         actions: [
+          // Chat button — Phase 23 real-time chat
+          IconButton(
+            icon: const Icon(Icons.chat_bubble_outline),
+            tooltip: 'Messages',
+            onPressed: () =>
+                context.push(RouteNames.chatPath(projectId)),
+          ),
           // Timeline (Gantt chart) button — Phase 20 dependency engine
           IconButton(
             icon: const Icon(Icons.timeline),
