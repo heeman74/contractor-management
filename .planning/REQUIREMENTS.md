@@ -28,10 +28,10 @@ Requirements for AI-Driven Construction Management milestone. Each maps to roadm
 
 - [ ] **TASK-01**: Contractor can view their daily AI-generated checklist on mobile
 - [ ] **TASK-02**: Contractor can check off checklist items as they complete tasks
-- [ ] **TASK-03**: Contractor can add progress notes (text) to any task
-- [ ] **TASK-04**: Contractor can capture and attach photos to tasks
-- [ ] **TASK-05**: Contractor can draw annotations on photos (arrows, circles, text, measurements)
-- [ ] **TASK-06**: Contractor can attach PDF documents to tasks
+- [x] **TASK-03**: Contractor can add progress notes (text) to any task
+- [x] **TASK-04**: Contractor can capture and attach photos to tasks
+- [x] **TASK-05**: Contractor can draw annotations on photos (arrows, circles, text, measurements)
+- [x] **TASK-06**: Contractor can attach PDF documents to tasks
 - [ ] **TASK-07**: GC can view task progress across all trades from mobile
 
 ### GC Inspection
@@ -112,10 +112,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AI-06 | Phase 20 | Complete |
 | TASK-01 | Phase 22 | Pending |
 | TASK-02 | Phase 22 | Pending |
-| TASK-03 | Phase 22 | Pending |
-| TASK-04 | Phase 22 | Pending |
-| TASK-05 | Phase 22 | Pending |
-| TASK-06 | Phase 22 | Pending |
+| TASK-03 | Phase 22 | Complete |
+| TASK-04 | Phase 22 | Complete |
+| TASK-05 | Phase 22 | Complete |
+| TASK-06 | Phase 22 | Complete |
 | TASK-07 | Phase 22 | Pending |
 | INSP-01 | Phase 24 | Pending |
 | INSP-02 | Phase 24 | Pending |
