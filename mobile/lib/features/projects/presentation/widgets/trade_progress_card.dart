@@ -8,8 +8,10 @@ import '../providers/project_providers.dart';
 // ---------------------------------------------------------------------------
 
 /// Combined task progress counts for a trade scope.
-class _ScopeProgress {
-  const _ScopeProgress({required this.total, required this.completed});
+///
+/// Public so widget tests can create instances for provider overrides.
+class ScopeProgress {
+  const ScopeProgress({required this.total, required this.completed});
   final int total;
   final int completed;
 
@@ -23,20 +25,20 @@ class _ScopeProgress {
 // Provider
 // ---------------------------------------------------------------------------
 
-/// Streams combined [_ScopeProgress] (total + completed) for a trade scope.
+/// Streams combined [ScopeProgress] (total + completed) for a trade scope.
 ///
 /// Uses two FutureProviders combined via a StreamProvider wrapper.
 /// Auto-disposed when the card leaves the tree.
 ///
 /// NOTE: GetIt<->Riverpod tradeoff documented — DAO accessed via taskDaoProvider.
 final tradeScopeProgressProvider = StreamProvider.autoDispose
-    .family<_ScopeProgress, String>((ref, scopeId) {
+    .family<ScopeProgress, String>((ref, scopeId) {
   final dao = ref.watch(taskDaoProvider);
   // Watch the tasks stream and map to counts — reactive to Drift DB changes.
   return dao.watchTasksByScope(scopeId).asyncMap((tasks) async {
     final total = tasks.length;
     final completed = tasks.where((t) => t.status == 'complete').length;
-    return _ScopeProgress(total: total, completed: completed);
+    return ScopeProgress(total: total, completed: completed);
   });
 });
 
@@ -112,7 +114,7 @@ class TradeProgressCard extends ConsumerWidget {
                 textTheme: textTheme,
                 colorScheme: colorScheme,
                 dotColor: color,
-                progress: const _ScopeProgress(total: 0, completed: 0),
+                progress: const ScopeProgress(total: 0, completed: 0),
                 isLoading: true,
               ),
               error: (error, _) => _buildContent(
@@ -120,7 +122,7 @@ class TradeProgressCard extends ConsumerWidget {
                 textTheme: textTheme,
                 colorScheme: colorScheme,
                 dotColor: color,
-                progress: const _ScopeProgress(total: 0, completed: 0),
+                progress: const ScopeProgress(total: 0, completed: 0),
               ),
               data: (progress) => _buildContent(
                 context,
@@ -141,7 +143,7 @@ class TradeProgressCard extends ConsumerWidget {
     required TextTheme textTheme,
     required ColorScheme colorScheme,
     required Color dotColor,
-    required _ScopeProgress progress,
+    required ScopeProgress progress,
     bool isLoading = false,
   }) {
     final progressColor = _progressColor(progress.fraction);
