@@ -136,6 +136,97 @@ class NotificationService(BaseService[DeviceToken]):
                 messaging=messaging,
             )
 
+    async def queue_task_completion_digest(
+        self,
+        task_id: uuid.UUID,
+        task_title: str,
+        trade_scope_name: str,
+        company_id: uuid.UUID,
+        completed_by_name: str,
+    ) -> None:
+        """Fire-and-forget: notify all GC/admin users in the company when a task is completed.
+
+        Design notes (per D-16):
+        - True batch/digest grouping ("Plumbing: 3 tasks today") is a future enhancement.
+          For now, each task completion sends one FCM notification per GC device.
+        - data payload includes trade_scope_name so mobile clients can group client-side.
+        - All failures are fire-and-forget — errors logged but never raised.
+        - Gracefully skips if GOOGLE_APPLICATION_CREDENTIALS not set (dev/test environments).
+
+        Args:
+            task_id:            UUID of the completed task (included in FCM data payload).
+            task_title:         Title of the completed task for notification body text.
+            trade_scope_name:   Trade name (e.g. "Electrical", "Plumbing") for grouping.
+            company_id:         Tenant company UUID — used to scope the user lookup.
+            completed_by_name:  Display name of the user who completed the task.
+        """
+        firebase_app = _get_firebase_app()
+        if firebase_app is None:
+            logger.debug(
+                "FCM not configured — skipping task completion digest for task %s", task_id
+            )
+            return
+
+        try:
+            from firebase_admin import messaging
+            from sqlalchemy import select
+
+            from app.features.users.models import User, UserRole
+
+            # Query all GC/admin users for this company
+            stmt = (
+                select(User)
+                .join(UserRole, UserRole.user_id == User.id)
+                .where(UserRole.role.in_(["gc", "admin"]))
+                .where(User.company_id == company_id)
+                .where(User.deleted_at.is_(None))
+            )
+            result = await self.db.execute(stmt)
+            gc_users = result.scalars().all()
+
+            title = "Task Completed"
+            body = f"{completed_by_name} completed '{task_title}' in {trade_scope_name}"
+            data_payload = {
+                "type": "task_completion_digest",
+                "task_id": str(task_id),
+                "trade_scope_name": trade_scope_name,
+            }
+
+            for gc_user in gc_users:
+                tokens = await self.repository.get_tokens_for_user(gc_user.id)
+                for device_token in tokens:
+                    try:
+                        message = messaging.Message(
+                            notification=messaging.Notification(title=title, body=body),
+                            data=data_payload,
+                            token=device_token.token,
+                        )
+                        messaging.send(message)
+                        logger.debug(
+                            "Task completion digest FCM sent to GC user %s token %s...",
+                            gc_user.id,
+                            device_token.token[:12],
+                        )
+                    except messaging.UnregisteredError:
+                        logger.info(
+                            "FCM token unregistered — removing token %s... for user %s",
+                            device_token.token[:12],
+                            gc_user.id,
+                        )
+                        await self.repository.delete_token(device_token.token)
+                    except Exception:  # noqa: BLE001
+                        logger.exception(
+                            "FCM task digest send failed for token %s... user %s",
+                            device_token.token[:12],
+                            gc_user.id,
+                        )
+        except Exception:  # noqa: BLE001
+            # Outer catch: never let notification logic break the task status update
+            logger.exception(
+                "queue_task_completion_digest failed for task %s — continuing without notification",
+                task_id,
+            )
+
     async def _send_to_token(
         self,
         *,

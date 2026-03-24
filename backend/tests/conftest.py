@@ -151,9 +151,10 @@ async def clean_tables(test_engine):
                 "ai_image_uploads, "
                 "ai_messages, "
                 "ai_conversations, "
-                # Phase 19 project data model tables (reference users/companies/trade_catalog)
-                # task_attachments -> tasks -> trade_scopes -> projects
+                # Phase 19/22 project data model tables (reference users/companies/trade_catalog)
+                # task_notes -> tasks; task_attachments -> tasks -> trade_scopes -> projects
                 # user_trade_specialties -> users, trade_catalog
+                "task_notes, "
                 "task_attachments, "
                 "tasks, "
                 "project_zones, "

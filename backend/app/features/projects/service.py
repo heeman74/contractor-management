@@ -34,14 +34,18 @@ from app.features.projects.models import (
     Project,
     ProjectZone,
     Task,
+    TaskAttachment,
     TaskDependency,
+    TaskNote,
     TradeCatalog,
     TradeScope,
 )
 from app.features.projects.repository import (
     ProjectRepository,
     ProjectZoneRepository,
+    TaskAttachmentRepository,
     TaskDependencyRepository,
+    TaskNoteRepository,
     TaskRepository,
     TradeCatalogRepository,
     TradeScopeRepository,
@@ -323,6 +327,119 @@ class TaskService(TenantScopedService[Task]):
         edges = result.scalars().all()
         for edge in edges:
             await dep_svc._recompute_blocked_status(edge.successor_task_id)
+
+    async def count_attachments_by_type(self, task_id: uuid.UUID, attachment_type: str) -> int:
+        """Count non-deleted task attachments of a specific type for a task."""
+        from sqlalchemy import func
+
+        result = await self.db.execute(
+            select(func.count())
+            .select_from(TaskAttachment)
+            .where(TaskAttachment.task_id == task_id)
+            .where(TaskAttachment.attachment_type == attachment_type)
+            .where(TaskAttachment.deleted_at.is_(None))
+        )
+        return result.scalar_one()
+
+    async def create_attachment(
+        self,
+        task_id: uuid.UUID,
+        attachment_type: str,
+        remote_url: str | None,
+        caption: str | None,
+        sort_order: int,
+        annotation_data: dict | None,
+        company_id: uuid.UUID,
+    ) -> TaskAttachment:
+        """Create a TaskAttachment record after enforcing per-type count limits.
+
+        Limits:
+        - photo: max 10 per task
+        - document: max 5 per task
+        - video: max 10 per task (no separate limit defined — reuse photo limit)
+
+        Raises:
+            HTTPException 400: if attachment count limit exceeded.
+        """
+        attachment_limits = {"photo": 10, "document": 5, "video": 10}
+        limit = attachment_limits.get(attachment_type)
+        if limit is not None:
+            current_count = await self.count_attachments_by_type(task_id, attachment_type)
+            if current_count >= limit:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        f"Attachment limit exceeded: max {limit} {attachment_type} attachments "
+                        f"per task. Current count: {current_count}."
+                    ),
+                )
+
+        attachment = TaskAttachment(
+            company_id=company_id,
+            task_id=task_id,
+            attachment_type=attachment_type,
+            remote_url=remote_url,
+            caption=caption,
+            sort_order=sort_order,
+            annotation_data=annotation_data,
+        )
+        repo = TaskAttachmentRepository(self.db)
+        return await repo.create(attachment)
+
+
+class TaskNoteService(TenantScopedService[TaskNote]):
+    """Business logic for TaskNote entities.
+
+    Notes are ordered newest-first (created_at DESC) when listed.
+    author_id is taken from the authenticated user (not from request body).
+    """
+
+    repository_class = TaskNoteRepository
+
+    async def create_note(
+        self,
+        task_id: uuid.UUID,
+        body: str,
+        author_id: uuid.UUID,
+    ) -> TaskNote:
+        """Create a task note.
+
+        Verifies the task exists (404 if not), then creates the note.
+
+        Args:
+            task_id:   UUID of the task to attach the note to.
+            body:      Note text content (min 1 char enforced at schema level).
+            author_id: UUID of the user writing the note.
+
+        Returns:
+            Newly created TaskNote.
+
+        Raises:
+            HTTPException 404: if the task does not exist.
+        """
+        company_id = self._require_tenant_id()
+
+        # Verify task exists (RLS will also enforce tenant scoping)
+        task = await self.db.get(Task, task_id)
+        if task is None or task.deleted_at is not None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Task {task_id} not found",
+            )
+
+        note = TaskNote(
+            company_id=company_id,
+            task_id=task_id,
+            author_id=author_id,
+            body=body,
+        )
+        repo = TaskNoteRepository(self.db)
+        return await repo.create(note)
+
+    async def list_by_task(self, task_id: uuid.UUID) -> list[TaskNote]:
+        """List non-deleted notes for a task, ordered newest first (created_at DESC)."""
+        repo = TaskNoteRepository(self.db)
+        return await repo.list_by_task(task_id)
 
 
 class DependencyService(TenantScopedService[TaskDependency]):

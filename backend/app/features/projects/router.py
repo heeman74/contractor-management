@@ -18,9 +18,13 @@ CLAUDE.md rules:
 
 from __future__ import annotations
 
+import logging
 import uuid
+from pathlib import Path
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+import aiofiles
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -33,9 +37,13 @@ from app.features.projects.schemas import (
     ProjectUpdate,
     ProjectZoneCreate,
     ProjectZoneResponse,
+    TaskAttachmentResponse,
+    TaskAttachmentUpdate,
     TaskCreate,
     TaskDependencyCreate,
     TaskDependencyResponse,
+    TaskNoteCreate,
+    TaskNoteResponse,
     TaskResponse,
     TaskUpdate,
     TradeCatalogCreate,
@@ -50,10 +58,13 @@ from app.features.projects.service import (
     DependencyService,
     ProjectService,
     ProjectZoneService,
+    TaskNoteService,
     TaskService,
     TradeCatalogService,
     TradeScopeService,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -333,25 +344,71 @@ async def update_task(
     task_id: uuid.UUID,
     data: TaskUpdate,
     db: AsyncSession = Depends(get_db),
-    _current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> TaskResponse:
     """Update a task.
 
-    When status changes to 'complete', automatically recomputes blocked status
-    for all successor tasks (tasks that were blocked waiting for this task).
+    When status changes to 'complete':
+    - Automatically recomputes blocked status for all successor tasks.
+    - Fires a batch digest notification to all GC/admin users (fire-and-forget per D-16).
+      Notification failure never blocks the status update.
     """
     svc = TaskService(db)
     update_data = data.model_dump(exclude_none=True)
     new_status = update_data.get("status")
+
+    # Track the previous status to avoid re-triggering on idempotent PATCHes
+    existing_task = await svc.repository.get_by_id(task_id)
+    if existing_task is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Task {task_id} not found",
+        )
+    previous_status = existing_task.status
+
     task = await svc.update(task_id, update_data)
     if task is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Task {task_id} not found",
         )
-    # When task is completed, unblock successors that were waiting on it
-    if new_status == "complete":
+
+    # When task transitions to 'complete' (not already complete), handle side effects
+    if new_status == "complete" and previous_status != "complete":
+        # Unblock successors that were waiting on this task
         await svc.recompute_successor_statuses(task_id)
+
+        # Fire-and-forget digest notification to GC users (per D-16)
+        # Notification failure must never block the task status update
+        try:
+            from sqlalchemy import select
+
+            from app.features.notifications.service import NotificationService
+            from app.features.projects.models import TradeScope
+
+            # Resolve trade_scope.trade_name for the notification body
+            scope_result = await db.execute(
+                select(TradeScope).where(TradeScope.id == task.trade_scope_id)
+            )
+            scope = scope_result.scalars().first()
+            trade_scope_name = scope.trade_name if scope else "Unknown Trade"
+
+            completed_by_name = str(current_user.user_id)  # fallback — user_id as display name
+
+            notif_svc = NotificationService(db)
+            await notif_svc.queue_task_completion_digest(
+                task_id=task_id,
+                task_title=task.title,
+                trade_scope_name=trade_scope_name,
+                company_id=current_user.company_id,
+                completed_by_name=completed_by_name,
+            )
+        except Exception:  # noqa: BLE001
+            # Fire-and-forget: log but never raise
+            logger.exception(
+                "Digest notification failed for task %s — task update still succeeded", task_id
+            )
+
     return TaskResponse.model_validate(task)
 
 
@@ -368,6 +425,205 @@ async def delete_task(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Task {task_id} not found",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Task notes endpoints
+# ---------------------------------------------------------------------------
+
+
+@tasks_router.post(
+    "/{task_id}/notes",
+    response_model=TaskNoteResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_task_note(
+    task_id: uuid.UUID,
+    data: TaskNoteCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> TaskNoteResponse:
+    """Create a note on a task. Returns 201 with the created note."""
+    svc = TaskNoteService(db)
+    note = await svc.create_note(
+        task_id=task_id,
+        body=data.body,
+        author_id=current_user.user_id,
+    )
+    return TaskNoteResponse.model_validate(note)
+
+
+@tasks_router.get("/{task_id}/notes", response_model=list[TaskNoteResponse])
+async def list_task_notes(
+    task_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(get_current_user),
+) -> list[TaskNoteResponse]:
+    """List all notes for a task, newest first."""
+    svc = TaskNoteService(db)
+    notes = await svc.list_by_task(task_id)
+    return [TaskNoteResponse.model_validate(n) for n in notes]
+
+
+# ---------------------------------------------------------------------------
+# Task attachments endpoints
+# ---------------------------------------------------------------------------
+
+_ALLOWED_TASK_ATTACHMENT_TYPES = frozenset({"photo", "video", "document"})
+
+
+@tasks_router.post(
+    "/{task_id}/attachments",
+    response_model=TaskAttachmentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_task_attachment(
+    task_id: uuid.UUID,
+    file: UploadFile,
+    attachment_type: Annotated[str, Form(description="Type: 'photo', 'video', or 'document'")],
+    caption: Annotated[str | None, Form()] = None,
+    sort_order: Annotated[int, Form()] = 0,
+    annotation_data: Annotated[
+        str | None, Form(description="JSON string of annotation overlay data")
+    ] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> TaskAttachmentResponse:
+    """Upload a file and create a TaskAttachment record.
+
+    Saves file to uploads/task-attachments/{task_id}/{uuid}{ext}.
+    Enforces count limits: max 10 photos/videos, max 5 documents per task.
+    Returns 201 + TaskAttachmentResponse with remote_url populated.
+
+    Raises:
+    - 400 if attachment_type is invalid
+    - 400 if no file provided
+    - 400 if count limit exceeded
+    """
+    import json
+
+    # Validate attachment_type
+    if attachment_type not in _ALLOWED_TASK_ATTACHMENT_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Invalid attachment_type '{attachment_type}'. "
+                f"Must be one of: {', '.join(sorted(_ALLOWED_TASK_ATTACHMENT_TYPES))}"
+            ),
+        )
+
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No file provided.",
+        )
+
+    # Parse annotation_data JSON string if provided
+    parsed_annotation_data: dict | None = None
+    if annotation_data:
+        try:
+            parsed_annotation_data = json.loads(annotation_data)
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="annotation_data must be a valid JSON string",
+            ) from exc
+
+    # Save file to disk: uploads/task-attachments/{task_id}/{uuid}{ext}
+    original_suffix = Path(file.filename).suffix.lower() or ".bin"
+    unique_filename = f"{uuid.uuid4()}{original_suffix}"
+    upload_dir = Path("uploads") / "task-attachments" / str(task_id)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    dest_path = upload_dir / unique_filename
+
+    content = await file.read()
+    async with aiofiles.open(dest_path, "wb") as f:
+        await f.write(content)
+
+    # remote_url served by StaticFiles mount at /files/
+    remote_url = f"/files/task-attachments/{task_id}/{unique_filename}"
+
+    # Create DB record (enforces count limits)
+    svc = TaskService(db)
+    attachment = await svc.create_attachment(
+        task_id=task_id,
+        attachment_type=attachment_type,
+        remote_url=remote_url,
+        caption=caption,
+        sort_order=sort_order,
+        annotation_data=parsed_annotation_data,
+        company_id=current_user.company_id,
+    )
+    return TaskAttachmentResponse.model_validate(attachment)
+
+
+@tasks_router.get("/{task_id}/attachments", response_model=list[TaskAttachmentResponse])
+async def list_task_attachments(
+    task_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(get_current_user),
+) -> list[TaskAttachmentResponse]:
+    """List all non-deleted attachments for a task, ordered by sort_order."""
+    from sqlalchemy import select
+
+    from app.features.projects.models import TaskAttachment
+
+    result = await db.execute(
+        select(TaskAttachment)
+        .where(TaskAttachment.task_id == task_id)
+        .where(TaskAttachment.deleted_at.is_(None))
+        .order_by(TaskAttachment.sort_order)
+    )
+    attachments = result.scalars().all()
+    return [TaskAttachmentResponse.model_validate(a) for a in attachments]
+
+
+@tasks_router.patch(
+    "/{task_id}/attachments/{attachment_id}",
+    response_model=TaskAttachmentResponse,
+)
+async def update_task_attachment(
+    task_id: uuid.UUID,
+    attachment_id: uuid.UUID,
+    data: TaskAttachmentUpdate,
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(get_current_user),
+) -> TaskAttachmentResponse:
+    """Update a task attachment (caption, sort_order, annotation_data)."""
+    from app.features.projects.repository import TaskAttachmentRepository
+
+    repo = TaskAttachmentRepository(db)
+    update_data = data.model_dump(exclude_none=True)
+    attachment = await repo.update(attachment_id, update_data)
+    if attachment is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"TaskAttachment {attachment_id} not found",
+        )
+    return TaskAttachmentResponse.model_validate(attachment)
+
+
+@tasks_router.delete(
+    "/{task_id}/attachments/{attachment_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
+async def delete_task_attachment(
+    task_id: uuid.UUID,
+    attachment_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(get_current_user),
+) -> None:
+    """Soft-delete a task attachment."""
+    from app.features.projects.repository import TaskAttachmentRepository
+
+    repo = TaskAttachmentRepository(db)
+    deleted = await repo.soft_delete(attachment_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"TaskAttachment {attachment_id} not found",
         )
 
 

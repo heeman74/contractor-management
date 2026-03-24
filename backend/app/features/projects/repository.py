@@ -26,6 +26,7 @@ from app.features.projects.models import (
     Task,
     TaskAttachment,
     TaskDependency,
+    TaskNote,
     TradeCatalog,
     TradeScope,
 )
@@ -117,6 +118,22 @@ class TaskRepository(BaseRepository[Task]):
             .where(Task.trade_scope_id == trade_scope_id)
             .where(Task.deleted_at.is_(None))
             .order_by(Task.sort_order)
+        )
+        return list(result.scalars().all())
+
+
+class TaskNoteRepository(BaseRepository[TaskNote]):
+    """Repository for TaskNote entities."""
+
+    model = TaskNote
+
+    async def list_by_task(self, task_id: uuid.UUID) -> list[TaskNote]:
+        """List non-deleted notes for a task, newest first."""
+        result = await self.db.execute(
+            select(TaskNote)
+            .where(TaskNote.task_id == task_id)
+            .where(TaskNote.deleted_at.is_(None))
+            .order_by(TaskNote.created_at.desc())
         )
         return list(result.scalars().all())
 
