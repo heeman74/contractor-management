@@ -37,8 +37,8 @@ AI eliminates the chaos of multi-trade coordination — GCs always know exactly 
 
 ### Active
 
-- [ ] AI project intake — describe project, AI breaks into trades with sequencing and dependencies
-- [ ] AI contractor interview — AI asks trade-specific questions to generate detailed task plans
+- [x] AI project intake — describe project, AI breaks into trades with sequencing and dependencies — Validated in Phase 21: AI Project Intake and Contractor Interview
+- [x] AI contractor interview — AI asks trade-specific questions to generate detailed task plans — Validated in Phase 21: AI Project Intake and Contractor Interview
 - [ ] AI daily checklists — morning push with tasks, materials needed, photo requirements
 - [ ] Project model — multi-trade hierarchy (Project → Trade Scopes → Tasks) with dependency graph
 - [ ] Task-level progress — notes, photos with annotation/drawing, PDF attachments per task
