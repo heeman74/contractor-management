@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: AI-Driven Construction Management
-status: Ready to execute
-stopped_at: Completed 21-04-PLAN.md
-last_updated: "2026-03-23T19:32:24.923Z"
+status: Phase complete — ready for verification
+stopped_at: Completed 21-05-PLAN.md
+last_updated: "2026-03-24T00:44:38.704Z"
 progress:
   total_phases: 14
-  completed_phases: 8
+  completed_phases: 9
   total_plans: 42
-  completed_plans: 41
+  completed_plans: 42
 ---
 
 # Project State
@@ -52,6 +52,7 @@ Plan: 6 of 6
 | Phase 21 P03 | 35m | 2 tasks | 16 files |
 | Phase 21 P04 | 1195s | 2 tasks | 22 files |
 | Phase 21 P04 | 20 | 3 tasks | 22 files |
+| Phase 21-ai-project-intake-and-contractor-interview P05 | 35m | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -101,6 +102,9 @@ Plan: 6 of 6
 - [Phase 21]: [Phase 21 P04]: parseSseEvent extracted as top-level function (not class method) to enable independent unit testing without AiSseClient instance
 - [Phase 21]: [Phase 21 P04]: dart:io HttpClient used for SSE streaming — flutter_client_sse does not support POST body; Dio cannot handle text/event-stream
 - [Phase 21]: [Phase 21 P04]: parseSseEvent extracted as top-level function (not class method) to enable independent unit testing without AiSseClient instance
+- [Phase 21]: Fake notifiers extend real Notifier class (not base Notifier<State>) — screen casts ref to concrete type, so fake must be subtype
+- [Phase 21]: TaskPreviewList renders task titles as controlled <input> elements — Playwright assertions use locator('input[placeholder=Task title]') not getByText
+- [Phase 21]: ChatBubble isStreaming:true appends cursor via AnimatedBuilder — Flutter tests use find.textContaining() not find.text() for streaming assertions
 
 ### Pending Todos
 
@@ -114,6 +118,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T19:32:24.916Z
-Stopped at: Completed 21-04-PLAN.md
+Last session: 2026-03-24T00:44:38.698Z
+Stopped at: Completed 21-05-PLAN.md
 Resume file: None

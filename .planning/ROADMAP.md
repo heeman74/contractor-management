@@ -46,7 +46,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 - [x] **Phase 19: Project Data Model** — Project -> Trade Scope -> Task hierarchy with RLS, Drift schema, and sync handlers (completed 2026-03-20)
 - [x] **Phase 20: Dependency Engine** — Cross-trade dependency graph with cycle detection, topological sort, and Gantt timeline view (gap closure in progress) (completed 2026-03-22)
-- [ ] **Phase 21: AI Project Intake and Contractor Interview** — Claude API integration: GC describes project, AI structures by trade, AI interviews each contractor
+- [x] **Phase 21: AI Project Intake and Contractor Interview** — Claude API integration: GC describes project, AI structures by trade, AI interviews each contractor (completed 2026-03-24)
 - [ ] **Phase 22: Task Execution and Photo Annotation** — Contractor daily checklists, task progress on mobile, non-destructive photo annotation on mobile and web
 - [ ] **Phase 23: Real-Time Chat** — Bidirectional GC-contractor chat with WebSocket, Redis pub/sub, file sharing, and FCM offline delivery
 - [ ] **Phase 24: GC Inspection Workflow** — Approve/reject/flag tasks, punch list, annotated photo evidence, FCM notifications to contractors
@@ -205,14 +205,14 @@ Plans:
   2. AI asks the GC clarifying questions before generating the trade breakdown when the project description is ambiguous
   3. Each trade contractor can complete an AI-guided interview with trade-specific questions and receive a generated task plan with per-task detail
   4. All AI-generated trade scopes and tasks are validated against the data model (referential integrity, no orphan tasks) before being written to the database
-**Plans:** 5/6 plans executed
+**Plans:** 6/6 plans complete
 
 Plans:
 - [x] 21-01-PLAN.md — Backend AI module: SQLAlchemy models (3 tables), Alembic migration 0017 with RLS, repository, AIService with Claude streaming + tool dispatch, system prompts
 - [x] 21-02-PLAN.md — Backend SSE endpoints: FastAPI router with intake/interview start/message/complete, EventSourceResponse streaming, backend unit + integration E2E tests
 - [x] 21-03-PLAN.md — Web chat UI: SSE proxy route, streaming hooks, chat components (bubbles, typing indicator, input), TradeScopePreviewCard, TaskPreviewList, intake + interview pages
 - [x] 21-04-PLAN.md — Mobile chat UI: Drift schema v9, SSE client (bypasses Dio), Riverpod providers, chat screens, widgets, navigation routes
-- [ ] 21-05-PLAN.md — E2E tests: Flutter widget tests (16+ tests) + Playwright E2E tests (14+ tests) covering all three AI requirements on both platforms
+- [x] 21-05-PLAN.md — E2E tests: Flutter widget tests (16+ tests) + Playwright E2E tests (14+ tests) covering all three AI requirements on both platforms
 - [x] 21-06-PLAN.md — Image upload: backend endpoint with Pillow compression, Claude vision base64 wiring, image_ref_id flow, upload tests
 
 ### Phase 22: Task Execution and Photo Annotation
@@ -304,7 +304,7 @@ Note: Phase 25 (Billing) depends only on Phase 19 and may start in parallel with
 | 18. Reporting Dashboard | v2.0 | 3/3 | Complete | 2026-03-19 |
 | 19. Project Data Model | v3.0 | 5/5 | Complete | 2026-03-21 |
 | 20. Dependency Engine | v3.0 | 6/6 | Complete | 2026-03-22 |
-| 21. AI Project Intake and Contractor Interview | v3.0 | 5/6 | In Progress|  |
+| 21. AI Project Intake and Contractor Interview | v3.0 | 6/6 | Complete   | 2026-03-24 |
 | 22. Task Execution and Photo Annotation | v3.0 | 0/TBD | Not started | - |
 | 23. Real-Time Chat | v3.0 | 0/TBD | Not started | - |
 | 24. GC Inspection Workflow | v3.0 | 0/TBD | Not started | - |
