@@ -245,12 +245,12 @@ Plans:
   3. Both parties can share photos (including annotated photos) and PDF files in chat
   4. Chat threads are organized by trade scope within a project — the GC's electrical chat and plumbing chat are separate threads
   5. A contractor who is offline receives a push notification (FCM) for new messages and sees full message history when they reconnect
-**Plans:** 2/6 plans executed
+**Plans:** 3/6 plans executed
 
 Plans:
 - [x] 23-01-PLAN.md — Backend foundation: migration 0020 (4 chat tables with RLS), SQLAlchemy models, repository, service, schemas, WebSocket ConnectionManager with Redis pub/sub
 - [x] 23-02-PLAN.md — Mobile data layer: Drift schema v11 (3 chat tables), ChatDao, ChatWsClient with reconnect backoff, ChatSyncService (offline outbox), Riverpod providers
-- [ ] 23-03-PLAN.md — Backend endpoints: WebSocket router with JWT auth + 5-min re-validation, REST chat endpoints (threads, messages, attachments, read receipts, mute), FCM chat notifications, integration tests
+- [x] 23-03-PLAN.md — Backend endpoints: WebSocket router with JWT auth + 5-min re-validation, REST chat endpoints (threads, messages, attachments, read receipts, mute), FCM chat notifications, integration tests
 - [ ] 23-04-PLAN.md — Mobile chat UI: ChatScreen (thread list), ChatThreadScreen (message view + WS), MessageBubble (4 variants), ChatInputBar (attachments + @mentions), TypingIndicator, GoRouter routes
 - [ ] 23-05-PLAN.md — Web chat: TypeScript types, useChatWebSocket hook, useChatMessages infinite query hook, ChatPanel split view, thread list, message bubbles, message input, Playwright E2E tests
 - [ ] 23-06-PLAN.md — Phase E2E tests: 15+ backend integration tests + 16+ Flutter widget E2E tests covering CHAT-01 through CHAT-05
@@ -321,7 +321,7 @@ Note: Phase 25 (Billing) depends only on Phase 19 and may start in parallel with
 | 20. Dependency Engine | v3.0 | 6/6 | Complete | 2026-03-22 |
 | 21. AI Project Intake and Contractor Interview | v3.0 | 7/7 | Complete    | 2026-03-24 |
 | 22. Task Execution and Photo Annotation | v3.0 | 5/5 | Complete    | 2026-03-24 |
-| 23. Real-Time Chat | v3.0 | 2/6 | In Progress|  |
+| 23. Real-Time Chat | v3.0 | 3/6 | In Progress|  |
 | 24. GC Inspection Workflow | v3.0 | 0/TBD | Not started | - |
 | 25. Per-Trade Billing | v3.0 | 0/TBD | Not started | - |
 | 26. AI Daily Checklists and Monitoring Dashboard | v3.0 | 0/TBD | Not started | - |
