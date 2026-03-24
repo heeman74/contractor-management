@@ -170,15 +170,15 @@ Progress bar color thresholds (applied to progress bar fill on `TradeProgressCar
 | Task detail: Attachments section header | "Attachments ({N})" | D-10 (section label with count) |
 | Task detail: Materials section header | "Materials Needed" | carried from TaskDetail.tsx existing pattern |
 | Task detail: empty notes state | "No notes yet. Tap to add a progress note." | default |
-| Task detail: empty photos state | "No photos yet." | default |
+| Task detail: empty photos state | "No photos yet. Tap 'Add Photo' to document your progress." | updated per checker feedback |
 | Task detail: photo limit warning | "Maximum 10 photos per task reached." | D-13 (10 photo limit) |
 | Task detail: PDF limit warning | "Maximum 5 attachments per task reached." | D-13 (5 PDF limit) |
 | Photo annotation screen title | "Annotate Photo" | D-06 (annotation overlay screen) |
 | Photo annotation: Save button | "Save Annotation" | D-06 (save stores original + annotation JSON) |
-| Photo annotation: Cancel button | "Discard" | default — discard changes, return to task |
+| Photo annotation: Cancel button | "Discard Changes" | updated per checker feedback — discard changes, return to task |
 | Photo annotation: measurement dialog | "Enter measurement (e.g. 24 inches)" | RESEARCH.md Pattern 7 — measurement label dialog |
 | Photo annotation: measurement dialog placeholder | "24 inches" | default — example format |
-| Photo annotation: measurement confirm | "Done" | default |
+| Photo annotation: measurement confirm | "Add Measurement" | updated per checker feedback |
 | Annotation tool labels | "Arrow", "Circle", "Text", "Measure" | D-07 (four required tools) |
 | GC project detail screen title | "{Project Name}" | default — project name |
 | GC trade progress card: no activity | "No activity yet" | D-14 (last activity timestamp placeholder) |
@@ -187,12 +187,12 @@ Progress bar color thresholds (applied to progress bar fill on `TradeProgressCar
 | PDF attachment open: button label | "Open PDF" | default — opens in system viewer via url_launcher |
 | Delete note confirmation title | "Delete Note?" | default |
 | Delete note confirmation body | "This note will be permanently deleted." | default |
-| Delete note confirm button | "Delete" | default (destructive) |
-| Delete note cancel button | "Cancel" | default |
+| Delete note confirm button | "Delete Note" | updated per checker feedback (destructive) |
+| Delete note cancel button | "Keep Note" | updated per checker feedback — specific dismiss label |
 | Delete attachment confirmation title | "Remove Attachment?" | default |
 | Delete attachment confirmation body | "This file will be permanently removed from this task." | default |
-| Delete attachment confirm button | "Remove" | default (destructive) |
-| Delete attachment cancel button | "Cancel" | default |
+| Delete attachment confirm button | "Remove Attachment" | updated per checker feedback (destructive) |
+| Delete attachment cancel button | "Keep Attachment" | updated per checker feedback — specific dismiss label |
 | Sync error toast | "Unable to sync. Changes saved locally." | default — outbox pattern; changes are not lost |
 
 ---
@@ -203,7 +203,7 @@ Progress bar color thresholds (applied to progress bar fill on `TradeProgressCar
 
 | Component | File | Notes |
 |-----------|------|-------|
-| `MyTasksScreen` | `my_tasks_screen.dart` | Cross-scope contractor checklist. Scrollable ListView with collapsible SliverList groups. AppBar: "My Tasks". |
+| `MyTasksScreen` | `my_tasks_screen.dart` | Cross-scope contractor checklist. Scrollable ListView with collapsible SliverList groups. AppBar: "My Tasks". Focal point: the "Mark Done" CTA on each task row — the primary contractor action on this screen. |
 | `TaskChecklistCard` | `task_checklist_card.dart` | Card with 4px priority left border, Checkbox (or Camera icon when photo_required + no photo), task title (Heading), priority Badge, time estimate (Label), photo-required indicator chip. Tap card → TaskDetailScreen. Tap checkbox → complete toggle or open picker. |
 | `TaskScopeGroupHeader` | `task_scope_group_header.dart` | Collapsible header row: trade name (Heading weight), count badge ("3/8"), percentage text (Label). Tap to expand/collapse group. |
 | `TaskDetailScreen` | `task_detail_screen.dart` | Full-screen scrollable. Sections in order: Header → Details → Notes → Photos → Attachments. Bottom bar: "Add Photo" (outline) + "Mark Done" (filled, primary). |
@@ -217,7 +217,7 @@ Progress bar color thresholds (applied to progress bar fill on `TradeProgressCar
 | Component | File | Notes |
 |-----------|------|-------|
 | `TradeProgressCard` | `web/src/features/tasks/components/TradeProgressCard.tsx` | shadcn Card. Trade color dot (w-3 h-3 rounded-full), trade name (text-base font-semibold), X/Y count (text-xs text-muted-foreground), shadcn Progress bar, contractor name + last activity (text-xs text-muted-foreground). Tap → read-only scope task view in right panel. |
-| `PhotoAnnotationCanvas` | `web/src/features/tasks/components/PhotoAnnotationCanvas.tsx` | HTML5 Canvas over `<img>` via absolute positioning. Tool state in useRef (not useState). Toolbar: Arrow, Circle, Text, Measure tools + color palette + Undo + "Save Annotation" + "Discard". Mode toggle: pan (default) vs draw. |
+| `PhotoAnnotationCanvas` | `web/src/features/tasks/components/PhotoAnnotationCanvas.tsx` | HTML5 Canvas over `<img>` via absolute positioning. Tool state in useRef (not useState). Toolbar: Arrow, Circle, Text, Measure tools + color palette + Undo + "Save Annotation" + "Discard Changes". Mode toggle: pan (default) vs draw. |
 | `usePhotoAnnotation` | `web/src/features/tasks/hooks/usePhotoAnnotation.ts` | Canvas ref management, annotation list in useRef, redraw-on-annotation-change via useEffect, JSON serialization/deserialization. |
 
 ### Shadcn Components to Install (web)
@@ -239,6 +239,7 @@ Progress bar color thresholds (applied to progress bar fill on `TradeProgressCar
 ### My Tasks Screen (Mobile — Contractor)
 
 - Single screen accessible from the Projects bottom nav tab (new tab item or nested route)
+- Focal point: the task checklist — specifically the checkbox / camera icon as the primary interactive element on each row. The "Mark Done" bottom bar CTA on the Task Detail screen is the terminal action, but on this screen the checkbox drives the main contractor workflow.
 - Groups: one collapsible group per trade scope. Scope group header shows scope name + "X/Y" count + percentage text.
 - Within each group: tasks ordered by (1) overdue first (due_date < today highlighted with amber background), (2) priority (urgent > high > medium > low), (3) due_date ASC nulls last.
 - Across groups: groups ordered by scope `sort_order` from TradeScopes table.
@@ -262,13 +263,13 @@ Progress bar color thresholds (applied to progress bar fill on `TradeProgressCar
 ### Photo Annotation Screen (Mobile)
 
 - Entry: tap "Annotate" button on full-screen photo viewer.
-- Layout: `Scaffold` with no AppBar — immersive full-screen. Top-right corner: "Discard" text button + "Save Annotation" text button. Bottom: tool toolbar (horizontal scrollable row).
+- Layout: `Scaffold` with no AppBar — immersive full-screen. Top-right corner: "Discard Changes" text button + "Save Annotation" text button. Bottom: tool toolbar (horizontal scrollable row).
 - Mode toggle: default = view mode (InteractiveViewer handles all gestures — pinch-to-zoom, pan). Tapping a tool icon switches to draw mode (GestureDetector intercepts pointer events; InteractiveViewer `panEnabled: false, scaleEnabled: false`). A floating "Done Drawing" chip at top-center switches back to view mode.
 - Tool toolbar: Arrow | Circle | Text | Measure | [color swatches: red, orange, yellow, blue, black] | Undo | (trash = clear all).
 - Arrow tool: drag to draw directional arrow with arrowhead. Rendered on pan end.
 - Circle tool: drag to draw ellipse from center-to-corner. Rendered on pan end.
 - Text tool: tap to place cursor. Show keyboard + `AlertDialog`-style inline text input. On submit: text label placed at tap point.
-- Measure tool: drag to draw line. On pan end: show `showDialog` with `TextField` "Enter measurement (e.g. 24 inches)". On submit: labeled line rendered with tick marks at endpoints. On cancel: measurement line discarded.
+- Measure tool: drag to draw line. On pan end: show `showDialog` with `TextField` "Enter measurement (e.g. 24 inches)". On submit ("Add Measurement" button): labeled line rendered with tick marks at endpoints. On cancel ("Keep Attachment" does not apply here — measurement dialog cancel simply discards the pending line without any file operation): measurement line discarded.
 - Save behavior: `Navigator.pop(context, jsonEncode(annotationLayer))`. Caller (TaskPhotoGrid) receives JSON and writes via `TaskAttachmentDao.updateAnnotation()`.
 - Discard behavior: `Navigator.pop(context, null)`. No changes written.
 - Orientation: portrait-first. No landscape lock (opposite of DrawingPadScreen which locks landscape).
@@ -289,7 +290,7 @@ Progress bar color thresholds (applied to progress bar fill on `TradeProgressCar
 - Tool toolbar: same 4 tools as mobile (Arrow, Circle, Text, Measure) + color palette (5 colors) + Undo.
 - React state: annotations stored in `useRef<Annotation[]>` (not useState). `useEffect([annotations])` redraws full canvas on every annotation change. This prevents React re-renders from clearing canvas state.
 - Save: `onSave(JSON.stringify(annotationLayer))` callback propagated to parent. Parent calls PATCH on attachment.
-- Discard: close modal without calling onSave.
+- Discard: close modal without calling onSave. Button label: "Discard Changes".
 
 ---
 
@@ -327,9 +328,9 @@ Progress bar color thresholds (applied to progress bar fill on `TradeProgressCar
 |-------|--------|
 | `view_mode` | InteractiveViewer active; pinch/pan work; tool toolbar visible but tools not active |
 | `draw_mode` | Tool selected in toolbar; GestureDetector active; "Done Drawing" chip visible; zoom disabled |
-| `measurement_dialog` | `showDialog` open; canvas frozen; user types dimension |
+| `measurement_dialog` | `showDialog` open; canvas frozen; user types dimension; confirm button reads "Add Measurement" |
 | `text_placement` | Keyboard up; tap-to-place mode active |
-| `unsaved_changes` | "Save Annotation" button shows accent color; "Discard" shows outline |
+| `unsaved_changes` | "Save Annotation" button shows accent color; "Discard Changes" shows outline |
 | `no_changes` | "Save Annotation" button disabled (grayed) |
 
 ---
