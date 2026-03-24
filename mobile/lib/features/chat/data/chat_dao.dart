@@ -84,9 +84,7 @@ class ChatDao extends DatabaseAccessor<AppDatabase> with _$ChatDaoMixin {
   Future<void> batchInsertMessages(
       List<ChatMessagesCompanion> messages) async {
     await batch((b) {
-      for (final msg in messages) {
-        b.insertOnConflictUpdate(chatMessages, msg);
-      }
+      b.insertAllOnConflictUpdate(chatMessages, messages);
     });
   }
 
