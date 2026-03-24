@@ -45,9 +45,9 @@ Requirements for AI-Driven Construction Management milestone. Each maps to roadm
 
 - [x] **CHAT-01**: GC can send text messages to any trade contractor on a project
 - [x] **CHAT-02**: Contractor can reply to GC messages in real-time
-- [ ] **CHAT-03**: Chat supports photo and file sharing (annotated photos, PDFs)
+- [x] **CHAT-03**: Chat supports photo and file sharing (annotated photos, PDFs)
 - [x] **CHAT-04**: Chat threads are organized per trade scope within a project
-- [ ] **CHAT-05**: New chat messages trigger push notifications via FCM
+- [x] **CHAT-05**: New chat messages trigger push notifications via FCM
 
 ### Per-Trade Billing
 
@@ -123,9 +123,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INSP-04 | Phase 24 | Pending |
 | CHAT-01 | Phase 23 | Complete |
 | CHAT-02 | Phase 23 | Complete |
-| CHAT-03 | Phase 23 | Pending |
+| CHAT-03 | Phase 23 | Complete |
 | CHAT-04 | Phase 23 | Complete |
-| CHAT-05 | Phase 23 | Pending |
+| CHAT-05 | Phase 23 | Complete |
 | BILL-01 | Phase 25 | Pending |
 | BILL-02 | Phase 25 | Pending |
 | BILL-03 | Phase 25 | Pending |

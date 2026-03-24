@@ -227,6 +227,105 @@ class NotificationService(BaseService[DeviceToken]):
                 task_id,
             )
 
+    async def send_chat_notification(
+        self,
+        thread_id: uuid.UUID,
+        sender_name: str,
+        trade_scope_name: str | None,
+        message_preview: str,
+        recipient_user_ids: list[uuid.UUID],
+        mention_all: bool,
+        mentioned_user_ids: list[uuid.UUID],
+        muted_user_ids: list[uuid.UUID],
+    ) -> None:
+        """Dispatch FCM push for a new chat message to offline recipients.
+
+        @mention override: even muted users receive FCM if they are mentioned
+        (mention_all overrides mute for everyone; mention_user_ids overrides for
+        specific users).
+
+        Per D-14 FCM body format: "{sender_name} ({trade_scope_name}): {preview}"
+        If trade_scope_name is None, uses "{sender_name}: {preview}".
+
+        All failures are fire-and-forget — errors are logged but never raised.
+
+        Args:
+            thread_id:            UUID of the chat thread (for deep-link data).
+            sender_name:          Display name of the message author.
+            trade_scope_name:     Trade name for scope threads (e.g. "Plumbing"), or None.
+            message_preview:      First 100 chars of message content for notification body.
+            recipient_user_ids:   Users to notify (offline, non-sender members).
+            mention_all:          True if sender used @everyone — overrides mute for all.
+            mentioned_user_ids:   Specific users mentioned — overrides mute for them.
+            muted_user_ids:       Users who have muted this thread.
+        """
+        firebase_app = _get_firebase_app()
+        if firebase_app is None:
+            logger.debug("FCM not configured — skipping chat notification for thread %s", thread_id)
+            return
+
+        if not recipient_user_ids:
+            return
+
+        try:
+            from firebase_admin import messaging
+        except ImportError:
+            logger.exception("firebase_admin.messaging not available — FCM skipped")
+            return
+
+        # Build notification body per D-14
+        if trade_scope_name:
+            body = f"{sender_name} ({trade_scope_name}): {message_preview[:100]}"
+        else:
+            body = f"{sender_name}: {message_preview[:100]}"
+        title = "New Message"
+
+        data_payload = {
+            "type": "chat_message",
+            "thread_id": str(thread_id),
+        }
+
+        muted_set = {str(uid) for uid in muted_user_ids}
+        mentioned_set = {str(uid) for uid in mentioned_user_ids}
+
+        for user_id in recipient_user_ids:
+            uid_str = str(user_id)
+            is_muted = uid_str in muted_set
+
+            # Skip muted users UNLESS they are mentioned or mention_all is set
+            if is_muted and not mention_all and uid_str not in mentioned_set:
+                continue
+
+            tokens = await self.repository.get_tokens_for_user(user_id)
+            for device_token in tokens:
+                try:
+                    message = messaging.Message(
+                        notification=messaging.Notification(title=title, body=body),
+                        data=data_payload,
+                        token=device_token.token,
+                    )
+                    messaging.send(message)
+                    logger.debug(
+                        "Chat FCM sent to user %s token %s... thread %s",
+                        user_id,
+                        device_token.token[:12],
+                        thread_id,
+                    )
+                except messaging.UnregisteredError:
+                    logger.info(
+                        "FCM token unregistered — removing token %s... for user %s",
+                        device_token.token[:12],
+                        user_id,
+                    )
+                    await self.repository.delete_token(device_token.token)
+                except Exception:  # noqa: BLE001
+                    logger.exception(
+                        "Chat FCM send failed for token %s... user %s thread %s",
+                        device_token.token[:12],
+                        user_id,
+                        thread_id,
+                    )
+
     async def _send_to_token(
         self,
         *,
