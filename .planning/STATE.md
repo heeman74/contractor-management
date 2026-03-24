@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: AI-Driven Construction Management
 status: Ready to execute
-stopped_at: Completed 22-03-PLAN.md
-last_updated: "2026-03-24T08:18:34.727Z"
+stopped_at: Completed 22-04-PLAN.md
+last_updated: "2026-03-24T08:21:14.004Z"
 progress:
   total_phases: 14
   completed_phases: 9
   total_plans: 48
-  completed_plans: 46
+  completed_plans: 47
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-19)
 ## Current Position
 
 Phase: 22 (task-execution-and-photo-annotation) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 
 ## Performance Metrics
 
@@ -57,6 +57,7 @@ Plan: 4 of 5
 | Phase 22-task-execution-and-photo-annotation P01 | 447 | 2 tasks | 9 files |
 | Phase 22 P02 | 12m | 2 tasks | 11 files |
 | Phase 22-task-execution-and-photo-annotation P03 | 534 | 2 tasks | 13 files |
+| Phase 22-task-execution-and-photo-annotation P04 | 10m | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -119,6 +120,9 @@ Plan: 4 of 5
 - [Phase 22-task-execution-and-photo-annotation]: AsyncValue.value (not valueOrNull) is the Riverpod 3 pattern for nullable AsyncValue access in widget builds
 - [Phase 22-task-execution-and-photo-annotation]: scopeNameMapProvider watches all company scopes for scopeId→tradeName lookup in MyTasksScreen without per-task scope queries
 - [Phase 22-task-execution-and-photo-annotation]: url_launcher added for PDF system viewer launch (File URI scheme) in TaskDetailScreen attachment section
+- [Phase 22]: Annotation JSON uses normalized 0-1 coordinates — no raw pixel values stored; enables cross-platform rendering at any resolution
+- [Phase 22]: useRef (not useState) for annotation array in usePhotoAnnotation — prevents React re-renders from clearing canvas imperatively
+- [Phase 22]: crypto.randomUUID() used instead of uuid package — built-in to modern browsers/Node.js; no package needed
 
 ### Pending Todos
 
@@ -132,6 +136,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-24T08:18:34.720Z
-Stopped at: Completed 22-03-PLAN.md
+Last session: 2026-03-24T08:21:13.996Z
+Stopped at: Completed 22-04-PLAN.md
 Resume file: None
