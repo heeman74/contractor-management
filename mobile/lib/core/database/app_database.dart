@@ -19,6 +19,7 @@ import '../../features/projects/data/trade_catalog_dao.dart';
 import '../../features/projects/data/trade_scope_dao.dart';
 import '../../features/quotes/data/quote_dao.dart';
 import '../../features/ai/data/ai_conversation_dao.dart';
+import '../../features/chat/data/chat_dao.dart';
 import '../../features/schedule/data/booking_dao.dart';
 import '../../features/users/data/user_dao.dart';
 import '../sync/sync_cursor_dao.dart';
@@ -53,6 +54,9 @@ import 'tables/user_trade_specialties.dart';
 import 'tables/users.dart';
 import 'tables/ai_conversations.dart';
 import 'tables/ai_messages.dart';
+import 'tables/chat_threads.dart';
+import 'tables/chat_messages.dart';
+import 'tables/chat_read_receipts.dart';
 
 export '../../features/company/data/company_dao.dart';
 export '../../features/invoices/data/invoice_dao.dart';
@@ -70,6 +74,7 @@ export '../../features/projects/data/trade_catalog_dao.dart';
 export '../../features/projects/data/trade_scope_dao.dart';
 export '../../features/quotes/data/quote_dao.dart';
 export '../../features/ai/data/ai_conversation_dao.dart';
+export '../../features/chat/data/chat_dao.dart';
 export '../../features/schedule/data/booking_dao.dart';
 export '../../features/users/data/user_dao.dart';
 
@@ -107,6 +112,9 @@ part 'app_database.g.dart';
     ProjectZones,
     AiConversations,
     AiMessages,
+    ChatThreads,
+    ChatMessages,
+    ChatReadReceipts,
   ],
   daos: [
     CompanyDao,
@@ -129,6 +137,7 @@ part 'app_database.g.dart';
     TaskDependencyDao,
     ProjectZoneDao,
     AiConversationDao,
+    ChatDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -136,7 +145,7 @@ class AppDatabase extends _$AppDatabase {
       : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -212,6 +221,15 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(taskNotes);
             // Add annotationData column to TaskAttachments for photo markup
             await m.addColumn(taskAttachments, taskAttachments.annotationData);
+          }
+          if (from < 11) {
+            // Phase 23: Real-time chat data layer
+            // Create ChatThreads table for project conversation channels
+            await m.createTable(chatThreads);
+            // Create ChatMessages table for individual messages
+            await m.createTable(chatMessages);
+            // Create ChatReadReceipts table for read position tracking
+            await m.createTable(chatReadReceipts);
           }
         },
       );

@@ -22210,6 +22210,2078 @@ class AiMessagesCompanion extends UpdateCompanion<AiMessage> {
   }
 }
 
+class $ChatThreadsTable extends ChatThreads
+    with TableInfo<$ChatThreadsTable, ChatThread> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ChatThreadsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _companyIdMeta = const VerificationMeta(
+    'companyId',
+  );
+  @override
+  late final GeneratedColumn<String> companyId = GeneratedColumn<String>(
+    'company_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _projectIdMeta = const VerificationMeta(
+    'projectId',
+  );
+  @override
+  late final GeneratedColumn<String> projectId = GeneratedColumn<String>(
+    'project_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _threadTypeMeta = const VerificationMeta(
+    'threadType',
+  );
+  @override
+  late final GeneratedColumn<String> threadType = GeneratedColumn<String>(
+    'thread_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _tradeScopeIdMeta = const VerificationMeta(
+    'tradeScopeId',
+  );
+  @override
+  late final GeneratedColumn<String> tradeScopeId = GeneratedColumn<String>(
+    'trade_scope_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _unreadCountMeta = const VerificationMeta(
+    'unreadCount',
+  );
+  @override
+  late final GeneratedColumn<int> unreadCount = GeneratedColumn<int>(
+    'unread_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _lastMessageAtMeta = const VerificationMeta(
+    'lastMessageAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastMessageAt =
+      GeneratedColumn<DateTime>(
+        'last_message_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    companyId,
+    projectId,
+    threadType,
+    tradeScopeId,
+    name,
+    unreadCount,
+    lastMessageAt,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'chat_threads';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ChatThread> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('company_id')) {
+      context.handle(
+        _companyIdMeta,
+        companyId.isAcceptableOrUnknown(data['company_id']!, _companyIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_companyIdMeta);
+    }
+    if (data.containsKey('project_id')) {
+      context.handle(
+        _projectIdMeta,
+        projectId.isAcceptableOrUnknown(data['project_id']!, _projectIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_projectIdMeta);
+    }
+    if (data.containsKey('thread_type')) {
+      context.handle(
+        _threadTypeMeta,
+        threadType.isAcceptableOrUnknown(data['thread_type']!, _threadTypeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_threadTypeMeta);
+    }
+    if (data.containsKey('trade_scope_id')) {
+      context.handle(
+        _tradeScopeIdMeta,
+        tradeScopeId.isAcceptableOrUnknown(
+          data['trade_scope_id']!,
+          _tradeScopeIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('unread_count')) {
+      context.handle(
+        _unreadCountMeta,
+        unreadCount.isAcceptableOrUnknown(
+          data['unread_count']!,
+          _unreadCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_message_at')) {
+      context.handle(
+        _lastMessageAtMeta,
+        lastMessageAt.isAcceptableOrUnknown(
+          data['last_message_at']!,
+          _lastMessageAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ChatThread map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ChatThread(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      companyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}company_id'],
+      )!,
+      projectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}project_id'],
+      )!,
+      threadType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}thread_type'],
+      )!,
+      tradeScopeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}trade_scope_id'],
+      ),
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      unreadCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}unread_count'],
+      )!,
+      lastMessageAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_message_at'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+    );
+  }
+
+  @override
+  $ChatThreadsTable createAlias(String alias) {
+    return $ChatThreadsTable(attachedDatabase, alias);
+  }
+}
+
+class ChatThread extends DataClass implements Insertable<ChatThread> {
+  /// UUID matching backend chat_threads.id.
+  final String id;
+
+  /// Tenant scope — matches JWT companyId.
+  final String companyId;
+
+  /// FK to projects.id — soft reference (no hard Drift FK).
+  final String projectId;
+
+  /// Thread classification: 'scope' or 'project_wide'.
+  final String threadType;
+
+  /// FK to trade_scopes.id — non-null only when threadType == 'scope'.
+  final String? tradeScopeId;
+
+  /// Display name for the thread (e.g., trade scope name or "Project Wide").
+  final String name;
+
+  /// Local-only count of unread messages for the current user.
+  /// Updated by ChatSyncService when read receipts arrive.
+  final int unreadCount;
+
+  /// Local-only timestamp of the most recent message — used for sorting.
+  /// Updated by ChatSyncService when messages arrive.
+  final DateTime? lastMessageAt;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  /// Soft-delete for sync tombstone propagation across devices.
+  final DateTime? deletedAt;
+  const ChatThread({
+    required this.id,
+    required this.companyId,
+    required this.projectId,
+    required this.threadType,
+    this.tradeScopeId,
+    required this.name,
+    required this.unreadCount,
+    this.lastMessageAt,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['company_id'] = Variable<String>(companyId);
+    map['project_id'] = Variable<String>(projectId);
+    map['thread_type'] = Variable<String>(threadType);
+    if (!nullToAbsent || tradeScopeId != null) {
+      map['trade_scope_id'] = Variable<String>(tradeScopeId);
+    }
+    map['name'] = Variable<String>(name);
+    map['unread_count'] = Variable<int>(unreadCount);
+    if (!nullToAbsent || lastMessageAt != null) {
+      map['last_message_at'] = Variable<DateTime>(lastMessageAt);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    return map;
+  }
+
+  ChatThreadsCompanion toCompanion(bool nullToAbsent) {
+    return ChatThreadsCompanion(
+      id: Value(id),
+      companyId: Value(companyId),
+      projectId: Value(projectId),
+      threadType: Value(threadType),
+      tradeScopeId: tradeScopeId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(tradeScopeId),
+      name: Value(name),
+      unreadCount: Value(unreadCount),
+      lastMessageAt: lastMessageAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastMessageAt),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory ChatThread.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ChatThread(
+      id: serializer.fromJson<String>(json['id']),
+      companyId: serializer.fromJson<String>(json['companyId']),
+      projectId: serializer.fromJson<String>(json['projectId']),
+      threadType: serializer.fromJson<String>(json['threadType']),
+      tradeScopeId: serializer.fromJson<String?>(json['tradeScopeId']),
+      name: serializer.fromJson<String>(json['name']),
+      unreadCount: serializer.fromJson<int>(json['unreadCount']),
+      lastMessageAt: serializer.fromJson<DateTime?>(json['lastMessageAt']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'companyId': serializer.toJson<String>(companyId),
+      'projectId': serializer.toJson<String>(projectId),
+      'threadType': serializer.toJson<String>(threadType),
+      'tradeScopeId': serializer.toJson<String?>(tradeScopeId),
+      'name': serializer.toJson<String>(name),
+      'unreadCount': serializer.toJson<int>(unreadCount),
+      'lastMessageAt': serializer.toJson<DateTime?>(lastMessageAt),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+    };
+  }
+
+  ChatThread copyWith({
+    String? id,
+    String? companyId,
+    String? projectId,
+    String? threadType,
+    Value<String?> tradeScopeId = const Value.absent(),
+    String? name,
+    int? unreadCount,
+    Value<DateTime?> lastMessageAt = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+  }) => ChatThread(
+    id: id ?? this.id,
+    companyId: companyId ?? this.companyId,
+    projectId: projectId ?? this.projectId,
+    threadType: threadType ?? this.threadType,
+    tradeScopeId: tradeScopeId.present ? tradeScopeId.value : this.tradeScopeId,
+    name: name ?? this.name,
+    unreadCount: unreadCount ?? this.unreadCount,
+    lastMessageAt: lastMessageAt.present
+        ? lastMessageAt.value
+        : this.lastMessageAt,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+  );
+  ChatThread copyWithCompanion(ChatThreadsCompanion data) {
+    return ChatThread(
+      id: data.id.present ? data.id.value : this.id,
+      companyId: data.companyId.present ? data.companyId.value : this.companyId,
+      projectId: data.projectId.present ? data.projectId.value : this.projectId,
+      threadType: data.threadType.present
+          ? data.threadType.value
+          : this.threadType,
+      tradeScopeId: data.tradeScopeId.present
+          ? data.tradeScopeId.value
+          : this.tradeScopeId,
+      name: data.name.present ? data.name.value : this.name,
+      unreadCount: data.unreadCount.present
+          ? data.unreadCount.value
+          : this.unreadCount,
+      lastMessageAt: data.lastMessageAt.present
+          ? data.lastMessageAt.value
+          : this.lastMessageAt,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ChatThread(')
+          ..write('id: $id, ')
+          ..write('companyId: $companyId, ')
+          ..write('projectId: $projectId, ')
+          ..write('threadType: $threadType, ')
+          ..write('tradeScopeId: $tradeScopeId, ')
+          ..write('name: $name, ')
+          ..write('unreadCount: $unreadCount, ')
+          ..write('lastMessageAt: $lastMessageAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    companyId,
+    projectId,
+    threadType,
+    tradeScopeId,
+    name,
+    unreadCount,
+    lastMessageAt,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ChatThread &&
+          other.id == this.id &&
+          other.companyId == this.companyId &&
+          other.projectId == this.projectId &&
+          other.threadType == this.threadType &&
+          other.tradeScopeId == this.tradeScopeId &&
+          other.name == this.name &&
+          other.unreadCount == this.unreadCount &&
+          other.lastMessageAt == this.lastMessageAt &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class ChatThreadsCompanion extends UpdateCompanion<ChatThread> {
+  final Value<String> id;
+  final Value<String> companyId;
+  final Value<String> projectId;
+  final Value<String> threadType;
+  final Value<String?> tradeScopeId;
+  final Value<String> name;
+  final Value<int> unreadCount;
+  final Value<DateTime?> lastMessageAt;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<int> rowid;
+  const ChatThreadsCompanion({
+    this.id = const Value.absent(),
+    this.companyId = const Value.absent(),
+    this.projectId = const Value.absent(),
+    this.threadType = const Value.absent(),
+    this.tradeScopeId = const Value.absent(),
+    this.name = const Value.absent(),
+    this.unreadCount = const Value.absent(),
+    this.lastMessageAt = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ChatThreadsCompanion.insert({
+    required String id,
+    required String companyId,
+    required String projectId,
+    required String threadType,
+    this.tradeScopeId = const Value.absent(),
+    required String name,
+    this.unreadCount = const Value.absent(),
+    this.lastMessageAt = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       companyId = Value(companyId),
+       projectId = Value(projectId),
+       threadType = Value(threadType),
+       name = Value(name),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<ChatThread> custom({
+    Expression<String>? id,
+    Expression<String>? companyId,
+    Expression<String>? projectId,
+    Expression<String>? threadType,
+    Expression<String>? tradeScopeId,
+    Expression<String>? name,
+    Expression<int>? unreadCount,
+    Expression<DateTime>? lastMessageAt,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (companyId != null) 'company_id': companyId,
+      if (projectId != null) 'project_id': projectId,
+      if (threadType != null) 'thread_type': threadType,
+      if (tradeScopeId != null) 'trade_scope_id': tradeScopeId,
+      if (name != null) 'name': name,
+      if (unreadCount != null) 'unread_count': unreadCount,
+      if (lastMessageAt != null) 'last_message_at': lastMessageAt,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ChatThreadsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? companyId,
+    Value<String>? projectId,
+    Value<String>? threadType,
+    Value<String?>? tradeScopeId,
+    Value<String>? name,
+    Value<int>? unreadCount,
+    Value<DateTime?>? lastMessageAt,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return ChatThreadsCompanion(
+      id: id ?? this.id,
+      companyId: companyId ?? this.companyId,
+      projectId: projectId ?? this.projectId,
+      threadType: threadType ?? this.threadType,
+      tradeScopeId: tradeScopeId ?? this.tradeScopeId,
+      name: name ?? this.name,
+      unreadCount: unreadCount ?? this.unreadCount,
+      lastMessageAt: lastMessageAt ?? this.lastMessageAt,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (companyId.present) {
+      map['company_id'] = Variable<String>(companyId.value);
+    }
+    if (projectId.present) {
+      map['project_id'] = Variable<String>(projectId.value);
+    }
+    if (threadType.present) {
+      map['thread_type'] = Variable<String>(threadType.value);
+    }
+    if (tradeScopeId.present) {
+      map['trade_scope_id'] = Variable<String>(tradeScopeId.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (unreadCount.present) {
+      map['unread_count'] = Variable<int>(unreadCount.value);
+    }
+    if (lastMessageAt.present) {
+      map['last_message_at'] = Variable<DateTime>(lastMessageAt.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ChatThreadsCompanion(')
+          ..write('id: $id, ')
+          ..write('companyId: $companyId, ')
+          ..write('projectId: $projectId, ')
+          ..write('threadType: $threadType, ')
+          ..write('tradeScopeId: $tradeScopeId, ')
+          ..write('name: $name, ')
+          ..write('unreadCount: $unreadCount, ')
+          ..write('lastMessageAt: $lastMessageAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ChatMessagesTable extends ChatMessages
+    with TableInfo<$ChatMessagesTable, ChatMessage> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ChatMessagesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _companyIdMeta = const VerificationMeta(
+    'companyId',
+  );
+  @override
+  late final GeneratedColumn<String> companyId = GeneratedColumn<String>(
+    'company_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _threadIdMeta = const VerificationMeta(
+    'threadId',
+  );
+  @override
+  late final GeneratedColumn<String> threadId = GeneratedColumn<String>(
+    'thread_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _senderIdMeta = const VerificationMeta(
+    'senderId',
+  );
+  @override
+  late final GeneratedColumn<String> senderId = GeneratedColumn<String>(
+    'sender_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _senderNameMeta = const VerificationMeta(
+    'senderName',
+  );
+  @override
+  late final GeneratedColumn<String> senderName = GeneratedColumn<String>(
+    'sender_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contentMeta = const VerificationMeta(
+    'content',
+  );
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+    'content',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _seqMeta = const VerificationMeta('seq');
+  @override
+  late final GeneratedColumn<int> seq = GeneratedColumn<int>(
+    'seq',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _attachmentUrlMeta = const VerificationMeta(
+    'attachmentUrl',
+  );
+  @override
+  late final GeneratedColumn<String> attachmentUrl = GeneratedColumn<String>(
+    'attachment_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _attachmentTypeMeta = const VerificationMeta(
+    'attachmentType',
+  );
+  @override
+  late final GeneratedColumn<String> attachmentType = GeneratedColumn<String>(
+    'attachment_type',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _annotationDataMeta = const VerificationMeta(
+    'annotationData',
+  );
+  @override
+  late final GeneratedColumn<String> annotationData = GeneratedColumn<String>(
+    'annotation_data',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _mentionsMeta = const VerificationMeta(
+    'mentions',
+  );
+  @override
+  late final GeneratedColumn<String> mentions = GeneratedColumn<String>(
+    'mentions',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _mentionAllMeta = const VerificationMeta(
+    'mentionAll',
+  );
+  @override
+  late final GeneratedColumn<bool> mentionAll = GeneratedColumn<bool>(
+    'mention_all',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("mention_all" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('sent'),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    companyId,
+    threadId,
+    senderId,
+    senderName,
+    content,
+    seq,
+    attachmentUrl,
+    attachmentType,
+    annotationData,
+    mentions,
+    mentionAll,
+    status,
+    createdAt,
+    deletedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'chat_messages';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ChatMessage> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('company_id')) {
+      context.handle(
+        _companyIdMeta,
+        companyId.isAcceptableOrUnknown(data['company_id']!, _companyIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_companyIdMeta);
+    }
+    if (data.containsKey('thread_id')) {
+      context.handle(
+        _threadIdMeta,
+        threadId.isAcceptableOrUnknown(data['thread_id']!, _threadIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_threadIdMeta);
+    }
+    if (data.containsKey('sender_id')) {
+      context.handle(
+        _senderIdMeta,
+        senderId.isAcceptableOrUnknown(data['sender_id']!, _senderIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_senderIdMeta);
+    }
+    if (data.containsKey('sender_name')) {
+      context.handle(
+        _senderNameMeta,
+        senderName.isAcceptableOrUnknown(data['sender_name']!, _senderNameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_senderNameMeta);
+    }
+    if (data.containsKey('content')) {
+      context.handle(
+        _contentMeta,
+        content.isAcceptableOrUnknown(data['content']!, _contentMeta),
+      );
+    }
+    if (data.containsKey('seq')) {
+      context.handle(
+        _seqMeta,
+        seq.isAcceptableOrUnknown(data['seq']!, _seqMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_seqMeta);
+    }
+    if (data.containsKey('attachment_url')) {
+      context.handle(
+        _attachmentUrlMeta,
+        attachmentUrl.isAcceptableOrUnknown(
+          data['attachment_url']!,
+          _attachmentUrlMeta,
+        ),
+      );
+    }
+    if (data.containsKey('attachment_type')) {
+      context.handle(
+        _attachmentTypeMeta,
+        attachmentType.isAcceptableOrUnknown(
+          data['attachment_type']!,
+          _attachmentTypeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('annotation_data')) {
+      context.handle(
+        _annotationDataMeta,
+        annotationData.isAcceptableOrUnknown(
+          data['annotation_data']!,
+          _annotationDataMeta,
+        ),
+      );
+    }
+    if (data.containsKey('mentions')) {
+      context.handle(
+        _mentionsMeta,
+        mentions.isAcceptableOrUnknown(data['mentions']!, _mentionsMeta),
+      );
+    }
+    if (data.containsKey('mention_all')) {
+      context.handle(
+        _mentionAllMeta,
+        mentionAll.isAcceptableOrUnknown(data['mention_all']!, _mentionAllMeta),
+      );
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ChatMessage map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ChatMessage(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      companyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}company_id'],
+      )!,
+      threadId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}thread_id'],
+      )!,
+      senderId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sender_id'],
+      )!,
+      senderName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sender_name'],
+      )!,
+      content: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content'],
+      ),
+      seq: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}seq'],
+      )!,
+      attachmentUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}attachment_url'],
+      ),
+      attachmentType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}attachment_type'],
+      ),
+      annotationData: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}annotation_data'],
+      ),
+      mentions: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}mentions'],
+      )!,
+      mentionAll: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}mention_all'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+    );
+  }
+
+  @override
+  $ChatMessagesTable createAlias(String alias) {
+    return $ChatMessagesTable(attachedDatabase, alias);
+  }
+}
+
+class ChatMessage extends DataClass implements Insertable<ChatMessage> {
+  /// Client-generated UUID v4 — idempotency key for offline outbox.
+  final String id;
+
+  /// Tenant scope — matches JWT companyId.
+  final String companyId;
+
+  /// FK to chat_threads.id — soft reference (no hard Drift FK).
+  final String threadId;
+
+  /// FK to users.id — author of this message.
+  final String senderId;
+
+  /// Display name of the sender at time of send (denormalized for offline reads).
+  final String senderName;
+
+  /// Text body of the message. Nullable — attachment-only messages have no body.
+  final String? content;
+
+  /// Server-assigned monotonic sequence number within the thread.
+  /// Used for ordering, read receipt tracking, and missed-message sync.
+  final int seq;
+
+  /// URL to attachment file (photo, PDF, or annotated photo).
+  final String? attachmentUrl;
+
+  /// Attachment MIME category: 'photo', 'pdf', or 'annotated_photo'.
+  final String? attachmentType;
+
+  /// JSON string of annotation overlay data (non-destructive photo markup).
+  /// Stored as TEXT; parsed to Map<String, dynamic> at read time.
+  final String? annotationData;
+
+  /// JSON array of user IDs mentioned in this message (e.g., '["uuid1","uuid2"]').
+  final String mentions;
+
+  /// True if the message mentions all members of the thread.
+  final bool mentionAll;
+
+  /// Delivery status: 'pending' | 'sent' | 'failed'.
+  final String status;
+  final DateTime createdAt;
+
+  /// Soft-delete — server sets this when a message is deleted.
+  final DateTime? deletedAt;
+  const ChatMessage({
+    required this.id,
+    required this.companyId,
+    required this.threadId,
+    required this.senderId,
+    required this.senderName,
+    this.content,
+    required this.seq,
+    this.attachmentUrl,
+    this.attachmentType,
+    this.annotationData,
+    required this.mentions,
+    required this.mentionAll,
+    required this.status,
+    required this.createdAt,
+    this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['company_id'] = Variable<String>(companyId);
+    map['thread_id'] = Variable<String>(threadId);
+    map['sender_id'] = Variable<String>(senderId);
+    map['sender_name'] = Variable<String>(senderName);
+    if (!nullToAbsent || content != null) {
+      map['content'] = Variable<String>(content);
+    }
+    map['seq'] = Variable<int>(seq);
+    if (!nullToAbsent || attachmentUrl != null) {
+      map['attachment_url'] = Variable<String>(attachmentUrl);
+    }
+    if (!nullToAbsent || attachmentType != null) {
+      map['attachment_type'] = Variable<String>(attachmentType);
+    }
+    if (!nullToAbsent || annotationData != null) {
+      map['annotation_data'] = Variable<String>(annotationData);
+    }
+    map['mentions'] = Variable<String>(mentions);
+    map['mention_all'] = Variable<bool>(mentionAll);
+    map['status'] = Variable<String>(status);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    return map;
+  }
+
+  ChatMessagesCompanion toCompanion(bool nullToAbsent) {
+    return ChatMessagesCompanion(
+      id: Value(id),
+      companyId: Value(companyId),
+      threadId: Value(threadId),
+      senderId: Value(senderId),
+      senderName: Value(senderName),
+      content: content == null && nullToAbsent
+          ? const Value.absent()
+          : Value(content),
+      seq: Value(seq),
+      attachmentUrl: attachmentUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(attachmentUrl),
+      attachmentType: attachmentType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(attachmentType),
+      annotationData: annotationData == null && nullToAbsent
+          ? const Value.absent()
+          : Value(annotationData),
+      mentions: Value(mentions),
+      mentionAll: Value(mentionAll),
+      status: Value(status),
+      createdAt: Value(createdAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory ChatMessage.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ChatMessage(
+      id: serializer.fromJson<String>(json['id']),
+      companyId: serializer.fromJson<String>(json['companyId']),
+      threadId: serializer.fromJson<String>(json['threadId']),
+      senderId: serializer.fromJson<String>(json['senderId']),
+      senderName: serializer.fromJson<String>(json['senderName']),
+      content: serializer.fromJson<String?>(json['content']),
+      seq: serializer.fromJson<int>(json['seq']),
+      attachmentUrl: serializer.fromJson<String?>(json['attachmentUrl']),
+      attachmentType: serializer.fromJson<String?>(json['attachmentType']),
+      annotationData: serializer.fromJson<String?>(json['annotationData']),
+      mentions: serializer.fromJson<String>(json['mentions']),
+      mentionAll: serializer.fromJson<bool>(json['mentionAll']),
+      status: serializer.fromJson<String>(json['status']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'companyId': serializer.toJson<String>(companyId),
+      'threadId': serializer.toJson<String>(threadId),
+      'senderId': serializer.toJson<String>(senderId),
+      'senderName': serializer.toJson<String>(senderName),
+      'content': serializer.toJson<String?>(content),
+      'seq': serializer.toJson<int>(seq),
+      'attachmentUrl': serializer.toJson<String?>(attachmentUrl),
+      'attachmentType': serializer.toJson<String?>(attachmentType),
+      'annotationData': serializer.toJson<String?>(annotationData),
+      'mentions': serializer.toJson<String>(mentions),
+      'mentionAll': serializer.toJson<bool>(mentionAll),
+      'status': serializer.toJson<String>(status),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+    };
+  }
+
+  ChatMessage copyWith({
+    String? id,
+    String? companyId,
+    String? threadId,
+    String? senderId,
+    String? senderName,
+    Value<String?> content = const Value.absent(),
+    int? seq,
+    Value<String?> attachmentUrl = const Value.absent(),
+    Value<String?> attachmentType = const Value.absent(),
+    Value<String?> annotationData = const Value.absent(),
+    String? mentions,
+    bool? mentionAll,
+    String? status,
+    DateTime? createdAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+  }) => ChatMessage(
+    id: id ?? this.id,
+    companyId: companyId ?? this.companyId,
+    threadId: threadId ?? this.threadId,
+    senderId: senderId ?? this.senderId,
+    senderName: senderName ?? this.senderName,
+    content: content.present ? content.value : this.content,
+    seq: seq ?? this.seq,
+    attachmentUrl: attachmentUrl.present
+        ? attachmentUrl.value
+        : this.attachmentUrl,
+    attachmentType: attachmentType.present
+        ? attachmentType.value
+        : this.attachmentType,
+    annotationData: annotationData.present
+        ? annotationData.value
+        : this.annotationData,
+    mentions: mentions ?? this.mentions,
+    mentionAll: mentionAll ?? this.mentionAll,
+    status: status ?? this.status,
+    createdAt: createdAt ?? this.createdAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+  );
+  ChatMessage copyWithCompanion(ChatMessagesCompanion data) {
+    return ChatMessage(
+      id: data.id.present ? data.id.value : this.id,
+      companyId: data.companyId.present ? data.companyId.value : this.companyId,
+      threadId: data.threadId.present ? data.threadId.value : this.threadId,
+      senderId: data.senderId.present ? data.senderId.value : this.senderId,
+      senderName: data.senderName.present
+          ? data.senderName.value
+          : this.senderName,
+      content: data.content.present ? data.content.value : this.content,
+      seq: data.seq.present ? data.seq.value : this.seq,
+      attachmentUrl: data.attachmentUrl.present
+          ? data.attachmentUrl.value
+          : this.attachmentUrl,
+      attachmentType: data.attachmentType.present
+          ? data.attachmentType.value
+          : this.attachmentType,
+      annotationData: data.annotationData.present
+          ? data.annotationData.value
+          : this.annotationData,
+      mentions: data.mentions.present ? data.mentions.value : this.mentions,
+      mentionAll: data.mentionAll.present
+          ? data.mentionAll.value
+          : this.mentionAll,
+      status: data.status.present ? data.status.value : this.status,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ChatMessage(')
+          ..write('id: $id, ')
+          ..write('companyId: $companyId, ')
+          ..write('threadId: $threadId, ')
+          ..write('senderId: $senderId, ')
+          ..write('senderName: $senderName, ')
+          ..write('content: $content, ')
+          ..write('seq: $seq, ')
+          ..write('attachmentUrl: $attachmentUrl, ')
+          ..write('attachmentType: $attachmentType, ')
+          ..write('annotationData: $annotationData, ')
+          ..write('mentions: $mentions, ')
+          ..write('mentionAll: $mentionAll, ')
+          ..write('status: $status, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    companyId,
+    threadId,
+    senderId,
+    senderName,
+    content,
+    seq,
+    attachmentUrl,
+    attachmentType,
+    annotationData,
+    mentions,
+    mentionAll,
+    status,
+    createdAt,
+    deletedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ChatMessage &&
+          other.id == this.id &&
+          other.companyId == this.companyId &&
+          other.threadId == this.threadId &&
+          other.senderId == this.senderId &&
+          other.senderName == this.senderName &&
+          other.content == this.content &&
+          other.seq == this.seq &&
+          other.attachmentUrl == this.attachmentUrl &&
+          other.attachmentType == this.attachmentType &&
+          other.annotationData == this.annotationData &&
+          other.mentions == this.mentions &&
+          other.mentionAll == this.mentionAll &&
+          other.status == this.status &&
+          other.createdAt == this.createdAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class ChatMessagesCompanion extends UpdateCompanion<ChatMessage> {
+  final Value<String> id;
+  final Value<String> companyId;
+  final Value<String> threadId;
+  final Value<String> senderId;
+  final Value<String> senderName;
+  final Value<String?> content;
+  final Value<int> seq;
+  final Value<String?> attachmentUrl;
+  final Value<String?> attachmentType;
+  final Value<String?> annotationData;
+  final Value<String> mentions;
+  final Value<bool> mentionAll;
+  final Value<String> status;
+  final Value<DateTime> createdAt;
+  final Value<DateTime?> deletedAt;
+  final Value<int> rowid;
+  const ChatMessagesCompanion({
+    this.id = const Value.absent(),
+    this.companyId = const Value.absent(),
+    this.threadId = const Value.absent(),
+    this.senderId = const Value.absent(),
+    this.senderName = const Value.absent(),
+    this.content = const Value.absent(),
+    this.seq = const Value.absent(),
+    this.attachmentUrl = const Value.absent(),
+    this.attachmentType = const Value.absent(),
+    this.annotationData = const Value.absent(),
+    this.mentions = const Value.absent(),
+    this.mentionAll = const Value.absent(),
+    this.status = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ChatMessagesCompanion.insert({
+    required String id,
+    required String companyId,
+    required String threadId,
+    required String senderId,
+    required String senderName,
+    this.content = const Value.absent(),
+    required int seq,
+    this.attachmentUrl = const Value.absent(),
+    this.attachmentType = const Value.absent(),
+    this.annotationData = const Value.absent(),
+    this.mentions = const Value.absent(),
+    this.mentionAll = const Value.absent(),
+    this.status = const Value.absent(),
+    required DateTime createdAt,
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       companyId = Value(companyId),
+       threadId = Value(threadId),
+       senderId = Value(senderId),
+       senderName = Value(senderName),
+       seq = Value(seq),
+       createdAt = Value(createdAt);
+  static Insertable<ChatMessage> custom({
+    Expression<String>? id,
+    Expression<String>? companyId,
+    Expression<String>? threadId,
+    Expression<String>? senderId,
+    Expression<String>? senderName,
+    Expression<String>? content,
+    Expression<int>? seq,
+    Expression<String>? attachmentUrl,
+    Expression<String>? attachmentType,
+    Expression<String>? annotationData,
+    Expression<String>? mentions,
+    Expression<bool>? mentionAll,
+    Expression<String>? status,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (companyId != null) 'company_id': companyId,
+      if (threadId != null) 'thread_id': threadId,
+      if (senderId != null) 'sender_id': senderId,
+      if (senderName != null) 'sender_name': senderName,
+      if (content != null) 'content': content,
+      if (seq != null) 'seq': seq,
+      if (attachmentUrl != null) 'attachment_url': attachmentUrl,
+      if (attachmentType != null) 'attachment_type': attachmentType,
+      if (annotationData != null) 'annotation_data': annotationData,
+      if (mentions != null) 'mentions': mentions,
+      if (mentionAll != null) 'mention_all': mentionAll,
+      if (status != null) 'status': status,
+      if (createdAt != null) 'created_at': createdAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ChatMessagesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? companyId,
+    Value<String>? threadId,
+    Value<String>? senderId,
+    Value<String>? senderName,
+    Value<String?>? content,
+    Value<int>? seq,
+    Value<String?>? attachmentUrl,
+    Value<String?>? attachmentType,
+    Value<String?>? annotationData,
+    Value<String>? mentions,
+    Value<bool>? mentionAll,
+    Value<String>? status,
+    Value<DateTime>? createdAt,
+    Value<DateTime?>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return ChatMessagesCompanion(
+      id: id ?? this.id,
+      companyId: companyId ?? this.companyId,
+      threadId: threadId ?? this.threadId,
+      senderId: senderId ?? this.senderId,
+      senderName: senderName ?? this.senderName,
+      content: content ?? this.content,
+      seq: seq ?? this.seq,
+      attachmentUrl: attachmentUrl ?? this.attachmentUrl,
+      attachmentType: attachmentType ?? this.attachmentType,
+      annotationData: annotationData ?? this.annotationData,
+      mentions: mentions ?? this.mentions,
+      mentionAll: mentionAll ?? this.mentionAll,
+      status: status ?? this.status,
+      createdAt: createdAt ?? this.createdAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (companyId.present) {
+      map['company_id'] = Variable<String>(companyId.value);
+    }
+    if (threadId.present) {
+      map['thread_id'] = Variable<String>(threadId.value);
+    }
+    if (senderId.present) {
+      map['sender_id'] = Variable<String>(senderId.value);
+    }
+    if (senderName.present) {
+      map['sender_name'] = Variable<String>(senderName.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (seq.present) {
+      map['seq'] = Variable<int>(seq.value);
+    }
+    if (attachmentUrl.present) {
+      map['attachment_url'] = Variable<String>(attachmentUrl.value);
+    }
+    if (attachmentType.present) {
+      map['attachment_type'] = Variable<String>(attachmentType.value);
+    }
+    if (annotationData.present) {
+      map['annotation_data'] = Variable<String>(annotationData.value);
+    }
+    if (mentions.present) {
+      map['mentions'] = Variable<String>(mentions.value);
+    }
+    if (mentionAll.present) {
+      map['mention_all'] = Variable<bool>(mentionAll.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ChatMessagesCompanion(')
+          ..write('id: $id, ')
+          ..write('companyId: $companyId, ')
+          ..write('threadId: $threadId, ')
+          ..write('senderId: $senderId, ')
+          ..write('senderName: $senderName, ')
+          ..write('content: $content, ')
+          ..write('seq: $seq, ')
+          ..write('attachmentUrl: $attachmentUrl, ')
+          ..write('attachmentType: $attachmentType, ')
+          ..write('annotationData: $annotationData, ')
+          ..write('mentions: $mentions, ')
+          ..write('mentionAll: $mentionAll, ')
+          ..write('status: $status, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ChatReadReceiptsTable extends ChatReadReceipts
+    with TableInfo<$ChatReadReceiptsTable, ChatReadReceipt> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ChatReadReceiptsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _companyIdMeta = const VerificationMeta(
+    'companyId',
+  );
+  @override
+  late final GeneratedColumn<String> companyId = GeneratedColumn<String>(
+    'company_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _threadIdMeta = const VerificationMeta(
+    'threadId',
+  );
+  @override
+  late final GeneratedColumn<String> threadId = GeneratedColumn<String>(
+    'thread_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
+  @override
+  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
+    'user_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _userNameMeta = const VerificationMeta(
+    'userName',
+  );
+  @override
+  late final GeneratedColumn<String> userName = GeneratedColumn<String>(
+    'user_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastReadSeqMeta = const VerificationMeta(
+    'lastReadSeq',
+  );
+  @override
+  late final GeneratedColumn<int> lastReadSeq = GeneratedColumn<int>(
+    'last_read_seq',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _readAtMeta = const VerificationMeta('readAt');
+  @override
+  late final GeneratedColumn<DateTime> readAt = GeneratedColumn<DateTime>(
+    'read_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    companyId,
+    threadId,
+    userId,
+    userName,
+    lastReadSeq,
+    readAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'chat_read_receipts';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ChatReadReceipt> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('company_id')) {
+      context.handle(
+        _companyIdMeta,
+        companyId.isAcceptableOrUnknown(data['company_id']!, _companyIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_companyIdMeta);
+    }
+    if (data.containsKey('thread_id')) {
+      context.handle(
+        _threadIdMeta,
+        threadId.isAcceptableOrUnknown(data['thread_id']!, _threadIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_threadIdMeta);
+    }
+    if (data.containsKey('user_id')) {
+      context.handle(
+        _userIdMeta,
+        userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_userIdMeta);
+    }
+    if (data.containsKey('user_name')) {
+      context.handle(
+        _userNameMeta,
+        userName.isAcceptableOrUnknown(data['user_name']!, _userNameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_userNameMeta);
+    }
+    if (data.containsKey('last_read_seq')) {
+      context.handle(
+        _lastReadSeqMeta,
+        lastReadSeq.isAcceptableOrUnknown(
+          data['last_read_seq']!,
+          _lastReadSeqMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_lastReadSeqMeta);
+    }
+    if (data.containsKey('read_at')) {
+      context.handle(
+        _readAtMeta,
+        readAt.isAcceptableOrUnknown(data['read_at']!, _readAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_readAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ChatReadReceipt map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ChatReadReceipt(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      companyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}company_id'],
+      )!,
+      threadId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}thread_id'],
+      )!,
+      userId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_id'],
+      )!,
+      userName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_name'],
+      )!,
+      lastReadSeq: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_read_seq'],
+      )!,
+      readAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}read_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ChatReadReceiptsTable createAlias(String alias) {
+    return $ChatReadReceiptsTable(attachedDatabase, alias);
+  }
+}
+
+class ChatReadReceipt extends DataClass implements Insertable<ChatReadReceipt> {
+  /// Unique receipt ID — backend-assigned UUID or composite key.
+  final String id;
+
+  /// Tenant scope — matches JWT companyId.
+  final String companyId;
+
+  /// FK to chat_threads.id — soft reference.
+  final String threadId;
+
+  /// FK to users.id — the user whose read position this tracks.
+  final String userId;
+
+  /// Display name of the user at time of receipt (denormalized).
+  final String userName;
+
+  /// The highest [seq] number this user has read in the thread.
+  final int lastReadSeq;
+
+  /// Timestamp when the user last read up to [lastReadSeq].
+  final DateTime readAt;
+  const ChatReadReceipt({
+    required this.id,
+    required this.companyId,
+    required this.threadId,
+    required this.userId,
+    required this.userName,
+    required this.lastReadSeq,
+    required this.readAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['company_id'] = Variable<String>(companyId);
+    map['thread_id'] = Variable<String>(threadId);
+    map['user_id'] = Variable<String>(userId);
+    map['user_name'] = Variable<String>(userName);
+    map['last_read_seq'] = Variable<int>(lastReadSeq);
+    map['read_at'] = Variable<DateTime>(readAt);
+    return map;
+  }
+
+  ChatReadReceiptsCompanion toCompanion(bool nullToAbsent) {
+    return ChatReadReceiptsCompanion(
+      id: Value(id),
+      companyId: Value(companyId),
+      threadId: Value(threadId),
+      userId: Value(userId),
+      userName: Value(userName),
+      lastReadSeq: Value(lastReadSeq),
+      readAt: Value(readAt),
+    );
+  }
+
+  factory ChatReadReceipt.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ChatReadReceipt(
+      id: serializer.fromJson<String>(json['id']),
+      companyId: serializer.fromJson<String>(json['companyId']),
+      threadId: serializer.fromJson<String>(json['threadId']),
+      userId: serializer.fromJson<String>(json['userId']),
+      userName: serializer.fromJson<String>(json['userName']),
+      lastReadSeq: serializer.fromJson<int>(json['lastReadSeq']),
+      readAt: serializer.fromJson<DateTime>(json['readAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'companyId': serializer.toJson<String>(companyId),
+      'threadId': serializer.toJson<String>(threadId),
+      'userId': serializer.toJson<String>(userId),
+      'userName': serializer.toJson<String>(userName),
+      'lastReadSeq': serializer.toJson<int>(lastReadSeq),
+      'readAt': serializer.toJson<DateTime>(readAt),
+    };
+  }
+
+  ChatReadReceipt copyWith({
+    String? id,
+    String? companyId,
+    String? threadId,
+    String? userId,
+    String? userName,
+    int? lastReadSeq,
+    DateTime? readAt,
+  }) => ChatReadReceipt(
+    id: id ?? this.id,
+    companyId: companyId ?? this.companyId,
+    threadId: threadId ?? this.threadId,
+    userId: userId ?? this.userId,
+    userName: userName ?? this.userName,
+    lastReadSeq: lastReadSeq ?? this.lastReadSeq,
+    readAt: readAt ?? this.readAt,
+  );
+  ChatReadReceipt copyWithCompanion(ChatReadReceiptsCompanion data) {
+    return ChatReadReceipt(
+      id: data.id.present ? data.id.value : this.id,
+      companyId: data.companyId.present ? data.companyId.value : this.companyId,
+      threadId: data.threadId.present ? data.threadId.value : this.threadId,
+      userId: data.userId.present ? data.userId.value : this.userId,
+      userName: data.userName.present ? data.userName.value : this.userName,
+      lastReadSeq: data.lastReadSeq.present
+          ? data.lastReadSeq.value
+          : this.lastReadSeq,
+      readAt: data.readAt.present ? data.readAt.value : this.readAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ChatReadReceipt(')
+          ..write('id: $id, ')
+          ..write('companyId: $companyId, ')
+          ..write('threadId: $threadId, ')
+          ..write('userId: $userId, ')
+          ..write('userName: $userName, ')
+          ..write('lastReadSeq: $lastReadSeq, ')
+          ..write('readAt: $readAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    companyId,
+    threadId,
+    userId,
+    userName,
+    lastReadSeq,
+    readAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ChatReadReceipt &&
+          other.id == this.id &&
+          other.companyId == this.companyId &&
+          other.threadId == this.threadId &&
+          other.userId == this.userId &&
+          other.userName == this.userName &&
+          other.lastReadSeq == this.lastReadSeq &&
+          other.readAt == this.readAt);
+}
+
+class ChatReadReceiptsCompanion extends UpdateCompanion<ChatReadReceipt> {
+  final Value<String> id;
+  final Value<String> companyId;
+  final Value<String> threadId;
+  final Value<String> userId;
+  final Value<String> userName;
+  final Value<int> lastReadSeq;
+  final Value<DateTime> readAt;
+  final Value<int> rowid;
+  const ChatReadReceiptsCompanion({
+    this.id = const Value.absent(),
+    this.companyId = const Value.absent(),
+    this.threadId = const Value.absent(),
+    this.userId = const Value.absent(),
+    this.userName = const Value.absent(),
+    this.lastReadSeq = const Value.absent(),
+    this.readAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ChatReadReceiptsCompanion.insert({
+    required String id,
+    required String companyId,
+    required String threadId,
+    required String userId,
+    required String userName,
+    required int lastReadSeq,
+    required DateTime readAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       companyId = Value(companyId),
+       threadId = Value(threadId),
+       userId = Value(userId),
+       userName = Value(userName),
+       lastReadSeq = Value(lastReadSeq),
+       readAt = Value(readAt);
+  static Insertable<ChatReadReceipt> custom({
+    Expression<String>? id,
+    Expression<String>? companyId,
+    Expression<String>? threadId,
+    Expression<String>? userId,
+    Expression<String>? userName,
+    Expression<int>? lastReadSeq,
+    Expression<DateTime>? readAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (companyId != null) 'company_id': companyId,
+      if (threadId != null) 'thread_id': threadId,
+      if (userId != null) 'user_id': userId,
+      if (userName != null) 'user_name': userName,
+      if (lastReadSeq != null) 'last_read_seq': lastReadSeq,
+      if (readAt != null) 'read_at': readAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ChatReadReceiptsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? companyId,
+    Value<String>? threadId,
+    Value<String>? userId,
+    Value<String>? userName,
+    Value<int>? lastReadSeq,
+    Value<DateTime>? readAt,
+    Value<int>? rowid,
+  }) {
+    return ChatReadReceiptsCompanion(
+      id: id ?? this.id,
+      companyId: companyId ?? this.companyId,
+      threadId: threadId ?? this.threadId,
+      userId: userId ?? this.userId,
+      userName: userName ?? this.userName,
+      lastReadSeq: lastReadSeq ?? this.lastReadSeq,
+      readAt: readAt ?? this.readAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (companyId.present) {
+      map['company_id'] = Variable<String>(companyId.value);
+    }
+    if (threadId.present) {
+      map['thread_id'] = Variable<String>(threadId.value);
+    }
+    if (userId.present) {
+      map['user_id'] = Variable<String>(userId.value);
+    }
+    if (userName.present) {
+      map['user_name'] = Variable<String>(userName.value);
+    }
+    if (lastReadSeq.present) {
+      map['last_read_seq'] = Variable<int>(lastReadSeq.value);
+    }
+    if (readAt.present) {
+      map['read_at'] = Variable<DateTime>(readAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ChatReadReceiptsCompanion(')
+          ..write('id: $id, ')
+          ..write('companyId: $companyId, ')
+          ..write('threadId: $threadId, ')
+          ..write('userId: $userId, ')
+          ..write('userName: $userName, ')
+          ..write('lastReadSeq: $lastReadSeq, ')
+          ..write('readAt: $readAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -22255,6 +24327,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     this,
   );
   late final $AiMessagesTable aiMessages = $AiMessagesTable(this);
+  late final $ChatThreadsTable chatThreads = $ChatThreadsTable(this);
+  late final $ChatMessagesTable chatMessages = $ChatMessagesTable(this);
+  late final $ChatReadReceiptsTable chatReadReceipts = $ChatReadReceiptsTable(
+    this,
+  );
   late final Index idxBookingsContractorTime = Index(
     'idx_bookings_contractor_time',
     'CREATE INDEX idx_bookings_contractor_time ON bookings (contractor_id, time_range_start, deleted_at)',
@@ -22297,6 +24374,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final AiConversationDao aiConversationDao = AiConversationDao(
     this as AppDatabase,
   );
+  late final ChatDao chatDao = ChatDao(this as AppDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -22332,6 +24410,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     projectZones,
     aiConversations,
     aiMessages,
+    chatThreads,
+    chatMessages,
+    chatReadReceipts,
     idxBookingsContractorTime,
     idxBookingsCompanyTime,
     idxBookingsJobId,
@@ -38710,6 +40791,974 @@ typedef $$AiMessagesTableProcessedTableManager =
       AiMessage,
       PrefetchHooks Function()
     >;
+typedef $$ChatThreadsTableCreateCompanionBuilder =
+    ChatThreadsCompanion Function({
+      required String id,
+      required String companyId,
+      required String projectId,
+      required String threadType,
+      Value<String?> tradeScopeId,
+      required String name,
+      Value<int> unreadCount,
+      Value<DateTime?> lastMessageAt,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+typedef $$ChatThreadsTableUpdateCompanionBuilder =
+    ChatThreadsCompanion Function({
+      Value<String> id,
+      Value<String> companyId,
+      Value<String> projectId,
+      Value<String> threadType,
+      Value<String?> tradeScopeId,
+      Value<String> name,
+      Value<int> unreadCount,
+      Value<DateTime?> lastMessageAt,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+
+class $$ChatThreadsTableFilterComposer
+    extends Composer<_$AppDatabase, $ChatThreadsTable> {
+  $$ChatThreadsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get companyId => $composableBuilder(
+    column: $table.companyId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get projectId => $composableBuilder(
+    column: $table.projectId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get threadType => $composableBuilder(
+    column: $table.threadType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tradeScopeId => $composableBuilder(
+    column: $table.tradeScopeId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get unreadCount => $composableBuilder(
+    column: $table.unreadCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastMessageAt => $composableBuilder(
+    column: $table.lastMessageAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ChatThreadsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ChatThreadsTable> {
+  $$ChatThreadsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get companyId => $composableBuilder(
+    column: $table.companyId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get projectId => $composableBuilder(
+    column: $table.projectId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get threadType => $composableBuilder(
+    column: $table.threadType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get tradeScopeId => $composableBuilder(
+    column: $table.tradeScopeId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get unreadCount => $composableBuilder(
+    column: $table.unreadCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastMessageAt => $composableBuilder(
+    column: $table.lastMessageAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ChatThreadsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ChatThreadsTable> {
+  $$ChatThreadsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get companyId =>
+      $composableBuilder(column: $table.companyId, builder: (column) => column);
+
+  GeneratedColumn<String> get projectId =>
+      $composableBuilder(column: $table.projectId, builder: (column) => column);
+
+  GeneratedColumn<String> get threadType => $composableBuilder(
+    column: $table.threadType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get tradeScopeId => $composableBuilder(
+    column: $table.tradeScopeId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<int> get unreadCount => $composableBuilder(
+    column: $table.unreadCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastMessageAt => $composableBuilder(
+    column: $table.lastMessageAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$ChatThreadsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ChatThreadsTable,
+          ChatThread,
+          $$ChatThreadsTableFilterComposer,
+          $$ChatThreadsTableOrderingComposer,
+          $$ChatThreadsTableAnnotationComposer,
+          $$ChatThreadsTableCreateCompanionBuilder,
+          $$ChatThreadsTableUpdateCompanionBuilder,
+          (
+            ChatThread,
+            BaseReferences<_$AppDatabase, $ChatThreadsTable, ChatThread>,
+          ),
+          ChatThread,
+          PrefetchHooks Function()
+        > {
+  $$ChatThreadsTableTableManager(_$AppDatabase db, $ChatThreadsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ChatThreadsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ChatThreadsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ChatThreadsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> companyId = const Value.absent(),
+                Value<String> projectId = const Value.absent(),
+                Value<String> threadType = const Value.absent(),
+                Value<String?> tradeScopeId = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<int> unreadCount = const Value.absent(),
+                Value<DateTime?> lastMessageAt = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ChatThreadsCompanion(
+                id: id,
+                companyId: companyId,
+                projectId: projectId,
+                threadType: threadType,
+                tradeScopeId: tradeScopeId,
+                name: name,
+                unreadCount: unreadCount,
+                lastMessageAt: lastMessageAt,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String companyId,
+                required String projectId,
+                required String threadType,
+                Value<String?> tradeScopeId = const Value.absent(),
+                required String name,
+                Value<int> unreadCount = const Value.absent(),
+                Value<DateTime?> lastMessageAt = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ChatThreadsCompanion.insert(
+                id: id,
+                companyId: companyId,
+                projectId: projectId,
+                threadType: threadType,
+                tradeScopeId: tradeScopeId,
+                name: name,
+                unreadCount: unreadCount,
+                lastMessageAt: lastMessageAt,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ChatThreadsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ChatThreadsTable,
+      ChatThread,
+      $$ChatThreadsTableFilterComposer,
+      $$ChatThreadsTableOrderingComposer,
+      $$ChatThreadsTableAnnotationComposer,
+      $$ChatThreadsTableCreateCompanionBuilder,
+      $$ChatThreadsTableUpdateCompanionBuilder,
+      (
+        ChatThread,
+        BaseReferences<_$AppDatabase, $ChatThreadsTable, ChatThread>,
+      ),
+      ChatThread,
+      PrefetchHooks Function()
+    >;
+typedef $$ChatMessagesTableCreateCompanionBuilder =
+    ChatMessagesCompanion Function({
+      required String id,
+      required String companyId,
+      required String threadId,
+      required String senderId,
+      required String senderName,
+      Value<String?> content,
+      required int seq,
+      Value<String?> attachmentUrl,
+      Value<String?> attachmentType,
+      Value<String?> annotationData,
+      Value<String> mentions,
+      Value<bool> mentionAll,
+      Value<String> status,
+      required DateTime createdAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+typedef $$ChatMessagesTableUpdateCompanionBuilder =
+    ChatMessagesCompanion Function({
+      Value<String> id,
+      Value<String> companyId,
+      Value<String> threadId,
+      Value<String> senderId,
+      Value<String> senderName,
+      Value<String?> content,
+      Value<int> seq,
+      Value<String?> attachmentUrl,
+      Value<String?> attachmentType,
+      Value<String?> annotationData,
+      Value<String> mentions,
+      Value<bool> mentionAll,
+      Value<String> status,
+      Value<DateTime> createdAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+
+class $$ChatMessagesTableFilterComposer
+    extends Composer<_$AppDatabase, $ChatMessagesTable> {
+  $$ChatMessagesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get companyId => $composableBuilder(
+    column: $table.companyId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get threadId => $composableBuilder(
+    column: $table.threadId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get senderId => $composableBuilder(
+    column: $table.senderId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get senderName => $composableBuilder(
+    column: $table.senderName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get seq => $composableBuilder(
+    column: $table.seq,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get attachmentUrl => $composableBuilder(
+    column: $table.attachmentUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get attachmentType => $composableBuilder(
+    column: $table.attachmentType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get annotationData => $composableBuilder(
+    column: $table.annotationData,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get mentions => $composableBuilder(
+    column: $table.mentions,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get mentionAll => $composableBuilder(
+    column: $table.mentionAll,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ChatMessagesTableOrderingComposer
+    extends Composer<_$AppDatabase, $ChatMessagesTable> {
+  $$ChatMessagesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get companyId => $composableBuilder(
+    column: $table.companyId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get threadId => $composableBuilder(
+    column: $table.threadId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get senderId => $composableBuilder(
+    column: $table.senderId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get senderName => $composableBuilder(
+    column: $table.senderName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get seq => $composableBuilder(
+    column: $table.seq,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get attachmentUrl => $composableBuilder(
+    column: $table.attachmentUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get attachmentType => $composableBuilder(
+    column: $table.attachmentType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get annotationData => $composableBuilder(
+    column: $table.annotationData,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get mentions => $composableBuilder(
+    column: $table.mentions,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get mentionAll => $composableBuilder(
+    column: $table.mentionAll,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ChatMessagesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ChatMessagesTable> {
+  $$ChatMessagesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get companyId =>
+      $composableBuilder(column: $table.companyId, builder: (column) => column);
+
+  GeneratedColumn<String> get threadId =>
+      $composableBuilder(column: $table.threadId, builder: (column) => column);
+
+  GeneratedColumn<String> get senderId =>
+      $composableBuilder(column: $table.senderId, builder: (column) => column);
+
+  GeneratedColumn<String> get senderName => $composableBuilder(
+    column: $table.senderName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<int> get seq =>
+      $composableBuilder(column: $table.seq, builder: (column) => column);
+
+  GeneratedColumn<String> get attachmentUrl => $composableBuilder(
+    column: $table.attachmentUrl,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get attachmentType => $composableBuilder(
+    column: $table.attachmentType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get annotationData => $composableBuilder(
+    column: $table.annotationData,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get mentions =>
+      $composableBuilder(column: $table.mentions, builder: (column) => column);
+
+  GeneratedColumn<bool> get mentionAll => $composableBuilder(
+    column: $table.mentionAll,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$ChatMessagesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ChatMessagesTable,
+          ChatMessage,
+          $$ChatMessagesTableFilterComposer,
+          $$ChatMessagesTableOrderingComposer,
+          $$ChatMessagesTableAnnotationComposer,
+          $$ChatMessagesTableCreateCompanionBuilder,
+          $$ChatMessagesTableUpdateCompanionBuilder,
+          (
+            ChatMessage,
+            BaseReferences<_$AppDatabase, $ChatMessagesTable, ChatMessage>,
+          ),
+          ChatMessage,
+          PrefetchHooks Function()
+        > {
+  $$ChatMessagesTableTableManager(_$AppDatabase db, $ChatMessagesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ChatMessagesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ChatMessagesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ChatMessagesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> companyId = const Value.absent(),
+                Value<String> threadId = const Value.absent(),
+                Value<String> senderId = const Value.absent(),
+                Value<String> senderName = const Value.absent(),
+                Value<String?> content = const Value.absent(),
+                Value<int> seq = const Value.absent(),
+                Value<String?> attachmentUrl = const Value.absent(),
+                Value<String?> attachmentType = const Value.absent(),
+                Value<String?> annotationData = const Value.absent(),
+                Value<String> mentions = const Value.absent(),
+                Value<bool> mentionAll = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ChatMessagesCompanion(
+                id: id,
+                companyId: companyId,
+                threadId: threadId,
+                senderId: senderId,
+                senderName: senderName,
+                content: content,
+                seq: seq,
+                attachmentUrl: attachmentUrl,
+                attachmentType: attachmentType,
+                annotationData: annotationData,
+                mentions: mentions,
+                mentionAll: mentionAll,
+                status: status,
+                createdAt: createdAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String companyId,
+                required String threadId,
+                required String senderId,
+                required String senderName,
+                Value<String?> content = const Value.absent(),
+                required int seq,
+                Value<String?> attachmentUrl = const Value.absent(),
+                Value<String?> attachmentType = const Value.absent(),
+                Value<String?> annotationData = const Value.absent(),
+                Value<String> mentions = const Value.absent(),
+                Value<bool> mentionAll = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                required DateTime createdAt,
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ChatMessagesCompanion.insert(
+                id: id,
+                companyId: companyId,
+                threadId: threadId,
+                senderId: senderId,
+                senderName: senderName,
+                content: content,
+                seq: seq,
+                attachmentUrl: attachmentUrl,
+                attachmentType: attachmentType,
+                annotationData: annotationData,
+                mentions: mentions,
+                mentionAll: mentionAll,
+                status: status,
+                createdAt: createdAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ChatMessagesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ChatMessagesTable,
+      ChatMessage,
+      $$ChatMessagesTableFilterComposer,
+      $$ChatMessagesTableOrderingComposer,
+      $$ChatMessagesTableAnnotationComposer,
+      $$ChatMessagesTableCreateCompanionBuilder,
+      $$ChatMessagesTableUpdateCompanionBuilder,
+      (
+        ChatMessage,
+        BaseReferences<_$AppDatabase, $ChatMessagesTable, ChatMessage>,
+      ),
+      ChatMessage,
+      PrefetchHooks Function()
+    >;
+typedef $$ChatReadReceiptsTableCreateCompanionBuilder =
+    ChatReadReceiptsCompanion Function({
+      required String id,
+      required String companyId,
+      required String threadId,
+      required String userId,
+      required String userName,
+      required int lastReadSeq,
+      required DateTime readAt,
+      Value<int> rowid,
+    });
+typedef $$ChatReadReceiptsTableUpdateCompanionBuilder =
+    ChatReadReceiptsCompanion Function({
+      Value<String> id,
+      Value<String> companyId,
+      Value<String> threadId,
+      Value<String> userId,
+      Value<String> userName,
+      Value<int> lastReadSeq,
+      Value<DateTime> readAt,
+      Value<int> rowid,
+    });
+
+class $$ChatReadReceiptsTableFilterComposer
+    extends Composer<_$AppDatabase, $ChatReadReceiptsTable> {
+  $$ChatReadReceiptsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get companyId => $composableBuilder(
+    column: $table.companyId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get threadId => $composableBuilder(
+    column: $table.threadId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get userName => $composableBuilder(
+    column: $table.userName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastReadSeq => $composableBuilder(
+    column: $table.lastReadSeq,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get readAt => $composableBuilder(
+    column: $table.readAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ChatReadReceiptsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ChatReadReceiptsTable> {
+  $$ChatReadReceiptsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get companyId => $composableBuilder(
+    column: $table.companyId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get threadId => $composableBuilder(
+    column: $table.threadId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get userName => $composableBuilder(
+    column: $table.userName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastReadSeq => $composableBuilder(
+    column: $table.lastReadSeq,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get readAt => $composableBuilder(
+    column: $table.readAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ChatReadReceiptsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ChatReadReceiptsTable> {
+  $$ChatReadReceiptsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get companyId =>
+      $composableBuilder(column: $table.companyId, builder: (column) => column);
+
+  GeneratedColumn<String> get threadId =>
+      $composableBuilder(column: $table.threadId, builder: (column) => column);
+
+  GeneratedColumn<String> get userId =>
+      $composableBuilder(column: $table.userId, builder: (column) => column);
+
+  GeneratedColumn<String> get userName =>
+      $composableBuilder(column: $table.userName, builder: (column) => column);
+
+  GeneratedColumn<int> get lastReadSeq => $composableBuilder(
+    column: $table.lastReadSeq,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get readAt =>
+      $composableBuilder(column: $table.readAt, builder: (column) => column);
+}
+
+class $$ChatReadReceiptsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ChatReadReceiptsTable,
+          ChatReadReceipt,
+          $$ChatReadReceiptsTableFilterComposer,
+          $$ChatReadReceiptsTableOrderingComposer,
+          $$ChatReadReceiptsTableAnnotationComposer,
+          $$ChatReadReceiptsTableCreateCompanionBuilder,
+          $$ChatReadReceiptsTableUpdateCompanionBuilder,
+          (
+            ChatReadReceipt,
+            BaseReferences<
+              _$AppDatabase,
+              $ChatReadReceiptsTable,
+              ChatReadReceipt
+            >,
+          ),
+          ChatReadReceipt,
+          PrefetchHooks Function()
+        > {
+  $$ChatReadReceiptsTableTableManager(
+    _$AppDatabase db,
+    $ChatReadReceiptsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ChatReadReceiptsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ChatReadReceiptsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ChatReadReceiptsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> companyId = const Value.absent(),
+                Value<String> threadId = const Value.absent(),
+                Value<String> userId = const Value.absent(),
+                Value<String> userName = const Value.absent(),
+                Value<int> lastReadSeq = const Value.absent(),
+                Value<DateTime> readAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ChatReadReceiptsCompanion(
+                id: id,
+                companyId: companyId,
+                threadId: threadId,
+                userId: userId,
+                userName: userName,
+                lastReadSeq: lastReadSeq,
+                readAt: readAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String companyId,
+                required String threadId,
+                required String userId,
+                required String userName,
+                required int lastReadSeq,
+                required DateTime readAt,
+                Value<int> rowid = const Value.absent(),
+              }) => ChatReadReceiptsCompanion.insert(
+                id: id,
+                companyId: companyId,
+                threadId: threadId,
+                userId: userId,
+                userName: userName,
+                lastReadSeq: lastReadSeq,
+                readAt: readAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ChatReadReceiptsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ChatReadReceiptsTable,
+      ChatReadReceipt,
+      $$ChatReadReceiptsTableFilterComposer,
+      $$ChatReadReceiptsTableOrderingComposer,
+      $$ChatReadReceiptsTableAnnotationComposer,
+      $$ChatReadReceiptsTableCreateCompanionBuilder,
+      $$ChatReadReceiptsTableUpdateCompanionBuilder,
+      (
+        ChatReadReceipt,
+        BaseReferences<_$AppDatabase, $ChatReadReceiptsTable, ChatReadReceipt>,
+      ),
+      ChatReadReceipt,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -38773,4 +41822,10 @@ class $AppDatabaseManager {
       $$AiConversationsTableTableManager(_db, _db.aiConversations);
   $$AiMessagesTableTableManager get aiMessages =>
       $$AiMessagesTableTableManager(_db, _db.aiMessages);
+  $$ChatThreadsTableTableManager get chatThreads =>
+      $$ChatThreadsTableTableManager(_db, _db.chatThreads);
+  $$ChatMessagesTableTableManager get chatMessages =>
+      $$ChatMessagesTableTableManager(_db, _db.chatMessages);
+  $$ChatReadReceiptsTableTableManager get chatReadReceipts =>
+      $$ChatReadReceiptsTableTableManager(_db, _db.chatReadReceipts);
 }
