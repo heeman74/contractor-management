@@ -31,6 +31,14 @@ class TaskAttachments extends Table {
   /// Optional display caption for the attachment.
   TextColumn get caption => text().nullable()();
 
+  /// JSON-encoded annotation overlay data for photo markup.
+  ///
+  /// Non-destructive: the base photo (localPath/remoteUrl) is never modified.
+  /// Annotation strokes, arrows, circles, text, and measurements are stored
+  /// here as a JSON string and rendered as an overlay layer on the client.
+  /// Null until the user annotates the photo.
+  TextColumn get annotationData => text().nullable()();
+
   /// Display order within the task's attachment list.
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 

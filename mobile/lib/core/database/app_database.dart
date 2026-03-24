@@ -11,8 +11,10 @@ import '../../features/jobs/data/note_dao.dart';
 import '../../features/jobs/data/time_entry_dao.dart';
 import '../../features/projects/data/project_dao.dart';
 import '../../features/projects/data/project_zone_dao.dart';
+import '../../features/projects/data/task_attachment_dao.dart';
 import '../../features/projects/data/task_dao.dart';
 import '../../features/projects/data/task_dependency_dao.dart';
+import '../../features/projects/data/task_note_dao.dart';
 import '../../features/projects/data/trade_catalog_dao.dart';
 import '../../features/projects/data/trade_scope_dao.dart';
 import '../../features/quotes/data/quote_dao.dart';
@@ -41,6 +43,7 @@ import 'tables/sync_cursor.dart';
 import 'tables/sync_queue.dart';
 import 'tables/task_attachments.dart';
 import 'tables/task_dependencies.dart';
+import 'tables/task_notes.dart';
 import 'tables/tasks.dart';
 import 'tables/time_entries.dart';
 import 'tables/trade_catalog.dart';
@@ -59,8 +62,10 @@ export '../../features/jobs/data/note_dao.dart';
 export '../../features/jobs/data/time_entry_dao.dart';
 export '../../features/projects/data/project_dao.dart';
 export '../../features/projects/data/project_zone_dao.dart';
+export '../../features/projects/data/task_attachment_dao.dart';
 export '../../features/projects/data/task_dao.dart';
 export '../../features/projects/data/task_dependency_dao.dart';
+export '../../features/projects/data/task_note_dao.dart';
 export '../../features/projects/data/trade_catalog_dao.dart';
 export '../../features/projects/data/trade_scope_dao.dart';
 export '../../features/quotes/data/quote_dao.dart';
@@ -96,6 +101,7 @@ part 'app_database.g.dart';
     TradeScopes,
     ProjectTasks,
     TaskAttachments,
+    TaskNotes,
     UserTradeSpecialties,
     TaskDependencies,
     ProjectZones,
@@ -118,6 +124,8 @@ part 'app_database.g.dart';
     TradeCatalogDao,
     TradeScopeDao,
     TaskDao,
+    TaskNoteDao,
+    TaskAttachmentDao,
     TaskDependencyDao,
     ProjectZoneDao,
     AiConversationDao,
@@ -128,7 +136,7 @@ class AppDatabase extends _$AppDatabase {
       : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -183,10 +191,12 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(taskDependencies);
             // Create project_zones table for spatial conflict detection
             await m.createTable(projectZones);
-            // Add zoneId soft-FK column to projectTasks
-            await m.addColumn(projectTasks, projectTasks.zoneId);
-            // Add startDate column for Gantt/CPM scheduling
-            await m.addColumn(projectTasks, projectTasks.startDate);
+            // Add zoneId and startDate columns if not already present
+            // (they exist if projectTasks was created fresh at schema >= 7)
+            await _addColumnIfMissing(m, 'project_tasks', 'zone_id',
+                projectTasks, projectTasks.zoneId);
+            await _addColumnIfMissing(m, 'project_tasks', 'start_date',
+                projectTasks, projectTasks.startDate);
             // Remove dependsOn column — dependencies now live in task_dependencies table.
             // alterTable rewrites the table with current column definitions (dependsOn excluded).
             await m.alterTable(TableMigration(projectTasks));
@@ -196,8 +206,34 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(aiConversations);
             await m.createTable(aiMessages);
           }
+          if (from < 10) {
+            // Phase 22: Task execution data layer
+            // Create TaskNotes table for per-task field notes
+            await m.createTable(taskNotes);
+            // Add annotationData column to TaskAttachments for photo markup
+            await m.addColumn(taskAttachments, taskAttachments.annotationData);
+          }
         },
       );
+
+  /// Adds a column only if it doesn't already exist in the table.
+  /// Prevents "duplicate column" errors when a table was created fresh
+  /// at a schema version that already included the column.
+  Future<void> _addColumnIfMissing(
+    Migrator m,
+    String tableName,
+    String columnName,
+    TableInfo table,
+    GeneratedColumn column,
+  ) async {
+    final cols = await customSelect(
+      "PRAGMA table_info('$tableName')",
+    ).get();
+    final exists = cols.any((row) => row.read<String>('name') == columnName);
+    if (!exists) {
+      await m.addColumn(table, column);
+    }
+  }
 
   static QueryExecutor _openConnection() {
     return driftDatabase(
