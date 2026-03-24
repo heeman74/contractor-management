@@ -84,12 +84,16 @@ class ChatService(TenantScopedService[ChatThread]):
         await self.db.flush()
         await self.db.refresh(thread)
 
-        # Add GC and contractor as members
-        for user_id in [gc_user_id, contractor_id]:
+        # Add GC and contractor as members (deduplicate in case same user)
+        seen: set[uuid.UUID] = set()
+        for member_id in [gc_user_id, contractor_id]:
+            if member_id in seen:
+                continue
+            seen.add(member_id)
             membership = ChatMembership(
                 company_id=company_id,
                 thread_id=thread.id,
-                user_id=user_id,
+                user_id=member_id,
             )
             self.db.add(membership)
 

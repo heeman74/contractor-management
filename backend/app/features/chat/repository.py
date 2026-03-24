@@ -151,17 +151,16 @@ class ChatMessageRepository(TenantScopedRepository[ChatMessage]):
             result = await self.db.execute(stmt)
             messages = list(result.scalars().all())
             return list(reversed(messages))
-        elif since_seq is not None:
+        if since_seq is not None:
             stmt = stmt.where(ChatMessage.seq > since_seq)
             stmt = stmt.order_by(ChatMessage.seq.asc()).limit(limit)
             result = await self.db.execute(stmt)
             return list(result.scalars().all())
-        else:
-            # No cursor — fetch most recent N messages in ASC order
-            stmt = stmt.order_by(ChatMessage.seq.desc()).limit(limit)
-            result = await self.db.execute(stmt)
-            messages = list(result.scalars().all())
-            return list(reversed(messages))
+        # No cursor — fetch most recent N messages in ASC order
+        stmt = stmt.order_by(ChatMessage.seq.desc()).limit(limit)
+        result = await self.db.execute(stmt)
+        messages = list(result.scalars().all())
+        return list(reversed(messages))
 
     async def get_by_uuid(self, message_id: uuid.UUID) -> ChatMessage | None:
         """Fetch a message by its UUID primary key (for dedup verification)."""
