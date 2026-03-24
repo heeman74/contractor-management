@@ -226,11 +226,11 @@ Plans:
   4. Contractor can capture or attach a photo to a task and draw annotations (arrows, circles, text, measurements) on it before saving
   5. Contractor can attach a PDF document to any task and the attachment is accessible to the GC
   6. GC can view task progress (completion status, notes, photos) across all trades from the mobile app
-**Plans:** 1/5 plans executed
+**Plans:** 2/5 plans executed
 
 Plans:
 - [x] 22-01-PLAN.md — Backend: migration 0019 (task_notes table + annotation_data JSONB), TaskNote model/service/schemas, task note + attachment upload endpoints, integration tests
-- [ ] 22-02-PLAN.md — Mobile: Drift schema v10 (TaskNotes + annotationData), TaskNoteDao, TaskAttachmentDao, cross-scope TaskDao query, providers, routes, DAO tests
+- [x] 22-02-PLAN.md — Mobile: Drift schema v10 (TaskNotes + annotationData), TaskNoteDao, TaskAttachmentDao, cross-scope TaskDao query, providers, routes, DAO tests
 - [ ] 22-03-PLAN.md — Mobile UI: MyTasksScreen (cross-scope checklist), TaskDetailScreen (notes, photos, PDFs), TaskChecklistCard (photo gate), GoRouter wiring
 - [ ] 22-04-PLAN.md — Photo annotation: shared JSON schema, Flutter PhotoAnnotationScreen (4 tools), web PhotoAnnotationCanvas (HTML5 Canvas), annotation unit tests
 - [ ] 22-05-PLAN.md — GC progress: TradeProgressCard (mobile + web), ProjectDetailScreen upgrade, Phase 22 E2E tests (15+ tests covering TASK-01 through TASK-07)
@@ -312,7 +312,7 @@ Note: Phase 25 (Billing) depends only on Phase 19 and may start in parallel with
 | 19. Project Data Model | v3.0 | 5/5 | Complete | 2026-03-21 |
 | 20. Dependency Engine | v3.0 | 6/6 | Complete | 2026-03-22 |
 | 21. AI Project Intake and Contractor Interview | v3.0 | 7/7 | Complete    | 2026-03-24 |
-| 22. Task Execution and Photo Annotation | v3.0 | 1/5 | In Progress|  |
+| 22. Task Execution and Photo Annotation | v3.0 | 2/5 | In Progress|  |
 | 23. Real-Time Chat | v3.0 | 0/TBD | Not started | - |
 | 24. GC Inspection Workflow | v3.0 | 0/TBD | Not started | - |
 | 25. Per-Trade Billing | v3.0 | 0/TBD | Not started | - |

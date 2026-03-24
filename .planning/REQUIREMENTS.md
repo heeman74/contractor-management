@@ -26,8 +26,8 @@ Requirements for AI-Driven Construction Management milestone. Each maps to roadm
 
 ### Task Execution
 
-- [ ] **TASK-01**: Contractor can view their daily AI-generated checklist on mobile
-- [ ] **TASK-02**: Contractor can check off checklist items as they complete tasks
+- [x] **TASK-01**: Contractor can view their daily AI-generated checklist on mobile
+- [x] **TASK-02**: Contractor can check off checklist items as they complete tasks
 - [x] **TASK-03**: Contractor can add progress notes (text) to any task
 - [x] **TASK-04**: Contractor can capture and attach photos to tasks
 - [x] **TASK-05**: Contractor can draw annotations on photos (arrows, circles, text, measurements)
@@ -110,8 +110,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AI-04 | Phase 26 | Pending |
 | AI-05 | Phase 26 | Pending |
 | AI-06 | Phase 20 | Complete |
-| TASK-01 | Phase 22 | Pending |
-| TASK-02 | Phase 22 | Pending |
+| TASK-01 | Phase 22 | Complete |
+| TASK-02 | Phase 22 | Complete |
 | TASK-03 | Phase 22 | Complete |
 | TASK-04 | Phase 22 | Complete |
 | TASK-05 | Phase 22 | Complete |
