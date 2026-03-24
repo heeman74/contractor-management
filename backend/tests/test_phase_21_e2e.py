@@ -14,6 +14,7 @@ All tests use seed_two_tenants + clean_tables for isolation.
 
 from __future__ import annotations
 
+import io
 import json
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -21,6 +22,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
+from PIL import Image as PILImage
 
 # ---------------------------------------------------------------------------
 # Mock Anthropic helpers
@@ -235,7 +237,10 @@ class TestIntakeFlow:
         # Message (the mock streams tool_use blocks but we just verify SSE returned)
         msg_resp = await tenant_a_client.post(
             "/api/v1/ai/intake/message",
-            json={"conversation_id": conv_id, "message": "Build a house with electrical, plumbing, framing"},
+            json={
+                "conversation_id": conv_id,
+                "message": "Build a house with electrical, plumbing, framing",
+            },
         )
         assert msg_resp.status_code == 200
 
@@ -259,9 +264,7 @@ class TestIntakeFlow:
 
         # Verify trade scopes exist via GET
         project_id = result["project_id"]
-        scopes_resp = await tenant_a_client.get(
-            f"/api/v1/trade-scopes/?project_id={project_id}"
-        )
+        scopes_resp = await tenant_a_client.get(f"/api/v1/trade-scopes/?project_id={project_id}")
         assert scopes_resp.status_code == 200
         scopes = scopes_resp.json()
         scope_names = [s["trade_name"] for s in scopes]
@@ -306,7 +309,9 @@ class TestIntakeFlow:
             assert tasks_resp.status_code == 200
             scope_tasks = tasks_resp.json()
             placeholder_tasks = [t for t in scope_tasks if "[Scope placeholder]" in t["title"]]
-            assert len(placeholder_tasks) == 1, f"Expected 1 placeholder for scope {scope_id}, got {len(placeholder_tasks)}"
+            assert len(placeholder_tasks) == 1, (
+                f"Expected 1 placeholder for scope {scope_id}, got {len(placeholder_tasks)}"
+            )
             all_placeholder_tasks.extend(placeholder_tasks)
 
         assert len(all_placeholder_tasks) == 3
@@ -326,7 +331,9 @@ class TestIntakeFlow:
             for dep in deps:
                 seen_edge_ids.add(dep["id"])
 
-        assert len(seen_edge_ids) == 2, f"Expected 2 unique dependency edges, got {len(seen_edge_ids)}: {seen_edge_ids}"
+        assert len(seen_edge_ids) == 2, (
+            f"Expected 2 unique dependency edges, got {len(seen_edge_ids)}: {seen_edge_ids}"
+        )
 
     @pytest.mark.asyncio
     async def test_intake_complete_rolls_back_on_partial_failure(
@@ -358,23 +365,28 @@ class TestIntakeFlow:
         import contextlib
 
         resp = None
-        with patch.object(TradeScopeService, "create", _failing_create), contextlib.suppress(Exception):
+        with (
+            patch.object(TradeScopeService, "create", _failing_create),
+            contextlib.suppress(Exception),
+        ):
             resp = await tenant_a_client.post(
-                    "/api/v1/ai/intake/complete",
-                    json={
-                        "conversation_id": conv_id,
-                        "project_name": "Rollback Test",
-                        "trade_scopes": [
-                            {"trade_name": "Scope A", "sort_order": 0},
-                            {"trade_name": "Scope B", "sort_order": 1},
-                            {"trade_name": "Scope C", "sort_order": 2},
-                        ],
-                    },
-                )
+                "/api/v1/ai/intake/complete",
+                json={
+                    "conversation_id": conv_id,
+                    "project_name": "Rollback Test",
+                    "trade_scopes": [
+                        {"trade_name": "Scope A", "sort_order": 0},
+                        {"trade_name": "Scope B", "sort_order": 1},
+                        {"trade_name": "Scope C", "sort_order": 2},
+                    ],
+                },
+            )
 
         # Either an exception was raised (resp is None) or an error response was returned
         if resp is not None:
-            assert resp.status_code in (500, 422, 400), f"Expected error, got {resp.status_code}: {resp.text}"
+            assert resp.status_code in (500, 422, 400), (
+                f"Expected error, got {resp.status_code}: {resp.text}"
+            )
 
         # Conversation should NOT be marked complete — it stays active because the
         # transaction rolled back (get_db's auto-rollback on exception)
@@ -427,9 +439,7 @@ class TestInterviewFlow:
         self, tenant_a_client: AsyncClient, seed_two_tenants: dict
     ):
         """POST /ai/interview/start with unknown scope_id returns 404."""
-        resp = await tenant_a_client.post(
-            f"/api/v1/ai/interview/start?scope_id={uuid.uuid4()}"
-        )
+        resp = await tenant_a_client.post(f"/api/v1/ai/interview/start?scope_id={uuid.uuid4()}")
         assert resp.status_code == 404
 
     @pytest.mark.asyncio
@@ -456,9 +466,7 @@ class TestInterviewFlow:
         scope_id = scope_resp.json()["id"]
 
         # Start interview
-        start_resp = await tenant_a_client.post(
-            f"/api/v1/ai/interview/start?scope_id={scope_id}"
-        )
+        start_resp = await tenant_a_client.post(f"/api/v1/ai/interview/start?scope_id={scope_id}")
         assert start_resp.status_code == 201
         data = start_resp.json()
         assert data["conv_type"] == "interview"
@@ -495,9 +503,7 @@ class TestInterviewFlow:
         scope_id = scope_resp.json()["id"]
 
         # Start interview
-        start_resp = await tenant_a_client.post(
-            f"/api/v1/ai/interview/start?scope_id={scope_id}"
-        )
+        start_resp = await tenant_a_client.post(f"/api/v1/ai/interview/start?scope_id={scope_id}")
         conv_id = start_resp.json()["id"]
 
         # Message (mock returns create_task tool calls)
@@ -583,3 +589,155 @@ class TestTenantIsolation:
         resp_b = await tenant_b_client.get(f"/api/v1/ai/conversations/{conv_id}")
         # Should return 404 (RLS hides the record) or 403
         assert resp_b.status_code in (404, 403)
+
+
+# ---------------------------------------------------------------------------
+# Image upload helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_test_jpeg(width: int = 10, height: int = 10) -> bytes:
+    """Create a minimal JPEG in memory."""
+    img = PILImage.new("RGB", (width, height), color="red")
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG")
+    return buf.getvalue()
+
+
+async def _start_intake_conversation(client) -> str:
+    """Start an intake conversation and return the conversation_id."""
+    resp = await client.post("/api/v1/ai/intake/start")
+    assert resp.status_code == 201, resp.text
+    return resp.json()["id"]
+
+
+# ---------------------------------------------------------------------------
+# Image upload tests
+# ---------------------------------------------------------------------------
+
+
+class TestImageUpload:
+    @pytest.mark.asyncio
+    async def test_image_upload_returns_ref_id(self, tenant_a_client, seed_two_tenants: dict):
+        """POST /ai/intake/image with a JPEG returns 201 with a valid UUID id."""
+        conv_id = await _start_intake_conversation(tenant_a_client)
+        jpeg_bytes = _make_test_jpeg(10, 10)
+
+        resp = await tenant_a_client.post(
+            "/api/v1/ai/intake/image",
+            files={"file": ("test.jpg", jpeg_bytes, "image/jpeg")},
+            data={"conversation_id": conv_id},
+        )
+        assert resp.status_code == 201, resp.text
+        data = resp.json()
+        assert "id" in data
+        # Verify the id is a valid UUID
+        uuid.UUID(data["id"])
+        assert data["conversation_id"] == conv_id
+        assert data["media_type"] == "image/jpeg"
+        assert data["original_filename"] == "test.jpg"
+
+    @pytest.mark.asyncio
+    async def test_image_upload_rejects_non_image(self, tenant_a_client, seed_two_tenants: dict):
+        """POST /ai/intake/image with a .txt file returns 400 with 'image' in detail."""
+        conv_id = await _start_intake_conversation(tenant_a_client)
+
+        resp = await tenant_a_client.post(
+            "/api/v1/ai/intake/image",
+            files={"file": ("test.txt", b"hello world", "text/plain")},
+            data={"conversation_id": conv_id},
+        )
+        assert resp.status_code == 400, resp.text
+        detail = resp.json()["detail"].lower()
+        assert "image" in detail
+
+    @pytest.mark.asyncio
+    async def test_image_upload_compresses_large_image(
+        self, tenant_a_client, seed_two_tenants: dict
+    ):
+        """POST /ai/intake/image with 2000x2000 JPEG stores compressed file <= 1280x1280."""
+        import glob
+        import os
+
+        conv_id = await _start_intake_conversation(tenant_a_client)
+        large_jpeg = _make_test_jpeg(2000, 2000)
+
+        resp = await tenant_a_client.post(
+            "/api/v1/ai/intake/image",
+            files={"file": ("large.jpg", large_jpeg, "image/jpeg")},
+            data={"conversation_id": conv_id},
+        )
+        assert resp.status_code == 201, resp.text
+        data = resp.json()
+
+        # Verify the stored file dimensions are <= 1280x1280
+        assert data["file_size_bytes"] > 0
+        assert data["conversation_id"] == conv_id
+
+        # Find the uploaded file on disk by convention (uploads/ai_images/{conv_id}/*.jpg)
+        # The server saves files relative to the backend working directory
+        backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        upload_pattern = os.path.join(backend_dir, f"uploads/ai_images/{conv_id}/*.jpg")
+        uploaded_files = glob.glob(upload_pattern)
+        assert len(uploaded_files) >= 1, f"No uploaded files found at pattern: {upload_pattern}"
+
+        # Open the compressed file and verify its dimensions are <= 1280x1280
+        compressed_img = PILImage.open(uploaded_files[0])
+        width, height = compressed_img.size
+        assert width <= 1280, f"Width {width} exceeds 1280"
+        assert height <= 1280, f"Height {height} exceeds 1280"
+
+    @pytest.mark.asyncio
+    async def test_chat_turn_with_image_includes_vision_block(
+        self, tenant_a_client, seed_two_tenants: dict, mock_anthropic_text
+    ):
+        """Upload image then POST intake/message with image_ref_id sends base64 vision block."""
+        conv_id = await _start_intake_conversation(tenant_a_client)
+        jpeg_bytes = _make_test_jpeg(10, 10)
+
+        # Upload image
+        upload_resp = await tenant_a_client.post(
+            "/api/v1/ai/intake/image",
+            files={"file": ("photo.jpg", jpeg_bytes, "image/jpeg")},
+            data={"conversation_id": conv_id},
+        )
+        assert upload_resp.status_code == 201, upload_resp.text
+        image_ref_id = upload_resp.json()["id"]
+
+        # Capture the messages passed to the Anthropic mock
+        captured_messages = []
+        original_stream = mock_anthropic_text.messages.stream
+
+        def capturing_stream(**kwargs):
+            captured_messages.extend(kwargs.get("messages", []))
+            return original_stream(**kwargs)
+
+        mock_anthropic_text.messages.stream.side_effect = capturing_stream
+
+        # Send chat turn with image_ref_id
+        msg_resp = await tenant_a_client.post(
+            "/api/v1/ai/intake/message",
+            json={
+                "conversation_id": conv_id,
+                "message": "What do you see in this photo?",
+                "image_ref_id": image_ref_id,
+            },
+        )
+        assert msg_resp.status_code == 200, msg_resp.text
+
+        # Find the user message in captured messages
+        user_messages = [m for m in captured_messages if m.get("role") == "user"]
+        assert len(user_messages) >= 1
+
+        # The last user message should contain an image block
+        last_user = user_messages[-1]
+        content = last_user["content"]
+        assert isinstance(content, list), f"Expected list content, got {type(content)}"
+
+        image_blocks = [
+            block for block in content if isinstance(block, dict) and block.get("type") == "image"
+        ]
+        assert len(image_blocks) >= 1, f"No image blocks found in content: {content}"
+        image_block = image_blocks[0]
+        assert image_block["source"]["type"] == "base64"
+        assert "data" in image_block["source"]
