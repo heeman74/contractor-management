@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: AI-Driven Construction Management
 status: Ready to plan
-stopped_at: Phase 23 UI-SPEC approved
-last_updated: "2026-03-24T20:04:03.282Z"
+stopped_at: Completed 23-02-PLAN.md
+last_updated: "2026-03-24T21:10:06.686Z"
 progress:
   total_phases: 14
   completed_phases: 10
-  total_plans: 48
-  completed_plans: 48
+  total_plans: 54
+  completed_plans: 50
 ---
 
 # Project State
@@ -59,6 +59,7 @@ Plan: Not started
 | Phase 22-task-execution-and-photo-annotation P03 | 534 | 2 tasks | 13 files |
 | Phase 22-task-execution-and-photo-annotation P04 | 10m | 2 tasks | 7 files |
 | Phase 22-task-execution-and-photo-annotation P05 | 2388 | 2 tasks | 7 files |
+| Phase 23 P02 | 1600 | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -127,6 +128,8 @@ Plan: Not started
 - [Phase 22]: ScopeProgress class made public (not private _ScopeProgress) to allow widget-test provider overrides via Stream.value()
 - [Phase 22]: tradeScopeProgressProvider uses asyncMap on watchTasksByScope stream — reactive to Drift changes without separate FutureProviders
 - [Phase 22]: ScopeProgressCard inner component in React isolates useTasks hook per scope independently
+- [Phase 23]: ChatMessage Drift data class conflicts with ai_models.dart ChatMessage; resolved with hide ChatMessage in AI provider imports
+- [Phase 23]: ChatWsClient per-thread as Provider.autoDispose.family so WS connection closes when thread screen leaves the widget tree
 
 ### Pending Todos
 
@@ -140,6 +143,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-24T20:04:03.274Z
-Stopped at: Phase 23 UI-SPEC approved
-Resume file: .planning/phases/23-real-time-chat/23-UI-SPEC.md
+Last session: 2026-03-24T21:10:06.671Z
+Stopped at: Completed 23-02-PLAN.md
+Resume file: None
