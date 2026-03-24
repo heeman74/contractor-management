@@ -44,6 +44,7 @@ import '../../features/ai/presentation/screens/interview_chat_screen.dart';
 import '../../core/database/app_database.dart'
     show TaskAttachment;
 import '../../features/projects/presentation/screens/my_tasks_screen.dart';
+import '../../features/projects/presentation/screens/photo_annotation_screen.dart';
 import '../../features/projects/presentation/screens/task_detail_screen.dart';
 import '../../features/projects/presentation/screens/task_photo_viewer_screen.dart';
 import '../../features/schedule/presentation/screens/contractor_schedule_screen.dart';
@@ -280,6 +281,20 @@ final routerProvider = Provider.autoDispose<GoRouter>((ref) {
             attachment: extra['attachment'] as TaskAttachment,
             allPhotos: (extra['allPhotos'] as List).cast<TaskAttachment>(),
             initialIndex: extra['initialIndex'] as int,
+          );
+        },
+      ),
+      // Phase 22: Photo annotation — full-screen photo overlay with 4 tools.
+      // Push via: context.push(RouteNames.photoAnnotationPath(taskId, attachmentId),
+      //           extra: {'localPath': ..., 'annotationData': ...})
+      // Returns: String? annotation JSON string, or null on discard.
+      GoRoute(
+        path: RouteNames.photoAnnotation,
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>? ?? {};
+          return PhotoAnnotationScreen(
+            localPath: extra['localPath'] as String? ?? '',
+            annotationData: extra['annotationData'] as String?,
           );
         },
       ),
