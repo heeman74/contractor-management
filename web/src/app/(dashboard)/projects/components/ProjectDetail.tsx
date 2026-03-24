@@ -1,16 +1,62 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Calendar, MapPin, User } from "lucide-react";
+import { Calendar, MapPin, Plus, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { AddTradeScopeSheet } from "./AddTradeScopeSheet";
-import { useTradeScopes } from "@/lib/api/projects";
-import type { ProjectResponse } from "@/types/projects";
+import { useTradeScopes, useTasks } from "@/lib/api/projects";
+import { TradeProgressCard } from "@/features/tasks/components/TradeProgressCard";
+import type { ProjectResponse, TradeScopeResponse } from "@/types/projects";
 
 interface ProjectDetailProps {
   project: ProjectResponse;
   onSelectScope: (scopeId: string) => void;
+}
+
+/**
+ * Inner component that renders a single scope with live task counts.
+ * Isolates the per-scope `useTasks` hook so each scope fetches independently.
+ */
+function ScopeProgressCard({
+  scope,
+  onSelect,
+}: {
+  scope: TradeScopeResponse;
+  onSelect: () => void;
+}) {
+  const { data: tasks } = useTasks(scope.id);
+
+  const totalTasks = tasks?.length ?? 0;
+  const completedTasks = tasks?.filter((t) => t.status === "complete").length ?? 0;
+
+  // Format last activity from the most recently updated task
+  const lastActivity = tasks
+    ? (() => {
+        const sorted = [...tasks].sort(
+          (a, b) =>
+            new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+        );
+        if (sorted.length === 0) return undefined;
+        const diff = Date.now() - new Date(sorted[0].updated_at).getTime();
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        if (hours < 1) return "Just now";
+        if (hours < 24) return `${hours}h ago`;
+        const days = Math.floor(hours / 24);
+        return `${days}d ago`;
+      })()
+    : undefined;
+
+  return (
+    <TradeProgressCard
+      tradeName={scope.trade_name}
+      tradeColor={scope.trade_color || "#6b7280"}
+      completedTasks={completedTasks}
+      totalTasks={totalTasks}
+      lastActivity={lastActivity}
+      onClick={onSelect}
+    />
+  );
 }
 
 export function ProjectDetail({ project, onSelectScope }: ProjectDetailProps) {
@@ -73,37 +119,19 @@ export function ProjectDetail({ project, onSelectScope }: ProjectDetailProps) {
         )}
       </div>
 
-      {/* Trade scopes summary */}
+      {/* Trade scopes with progress */}
       <div>
-        <h3 className="mb-3 text-sm font-semibold text-gray-700 uppercase tracking-wide">
+        <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-700">
           Trade Scopes ({scopes?.length ?? 0})
         </h3>
         {scopes && scopes.length > 0 ? (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {scopes.map((scope) => (
-              <div
+              <ScopeProgressCard
                 key={scope.id}
-                className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 bg-white p-3 transition-colors hover:bg-gray-50"
-                onClick={() => onSelectScope(scope.id)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    onSelectScope(scope.id);
-                  }
-                }}
-              >
-                <span
-                  className="inline-block h-3 w-3 flex-shrink-0 rounded-full"
-                  style={{ backgroundColor: scope.trade_color || "#6b7280" }}
-                  aria-hidden="true"
-                />
-                <span className="flex-1 text-sm font-medium text-gray-800">
-                  {scope.trade_name}
-                </span>
-                <StatusBadge status={scope.status} size="sm" />
-              </div>
+                scope={scope}
+                onSelect={() => onSelectScope(scope.id)}
+              />
             ))}
           </div>
         ) : (

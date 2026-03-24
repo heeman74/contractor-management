@@ -6,6 +6,7 @@ import '../../../../core/database/app_database.dart' show TradeScope;
 import '../../../../core/routing/route_names.dart';
 import '../providers/project_providers.dart';
 import '../widgets/project_status_badge.dart';
+import '../widgets/task_thumbnail_row.dart';
 
 /// Trade scope detail screen — shows the task list for a trade scope.
 ///
@@ -71,6 +72,7 @@ class TradeScopeDetailScreen extends ConsumerWidget {
             itemBuilder: (context, index) {
               final task = tasks[index];
               return _TaskRow(
+                taskId: task.id,
                 title: task.title,
                 status: task.status,
                 priority: task.priority,
@@ -129,15 +131,19 @@ class TradeScopeDetailScreen extends ConsumerWidget {
   }
 }
 
-/// A single task row in the scope detail list.
+/// A single task row in the scope detail list (GC read-only view).
 ///
 /// Has a 4px priority left border:
 /// - urgent: red
 /// - high: orange
 /// - medium: blue
 /// - low: grey
+///
+/// Per D-15: shows [TaskThumbnailRow] below the title/status line so the GC
+/// can see quick visual progress without opening each task.
 class _TaskRow extends StatelessWidget {
   const _TaskRow({
+    required this.taskId,
     required this.title,
     required this.status,
     required this.priority,
@@ -146,6 +152,7 @@ class _TaskRow extends StatelessWidget {
     this.description,
   });
 
+  final String taskId;
   final String title;
   final String status;
   final String priority;
@@ -204,6 +211,9 @@ class _TaskRow extends StatelessWidget {
                                   ),
                                 ),
                               ],
+                              // D-15: Photo thumbnails for quick visual progress
+                              const SizedBox(height: 4),
+                              TaskThumbnailRow(taskId: taskId),
                             ],
                           ),
                         ),

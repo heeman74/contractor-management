@@ -6,7 +6,7 @@ import '../../../../core/database/app_database.dart' show Project;
 import '../../../../core/routing/route_names.dart';
 import '../providers/project_providers.dart';
 import '../widgets/project_status_badge.dart';
-import '../widgets/trade_scope_card.dart';
+import '../widgets/trade_progress_card.dart';
 
 /// Project detail screen — shows project info and trade scope cards.
 ///
@@ -92,13 +92,10 @@ class ProjectDetailScreen extends ConsumerWidget {
                   itemCount: scopes.length,
                   itemBuilder: (context, index) {
                     final scope = scopes[index];
-                    return TradeScopeCard(
+                    return TradeProgressCard(
+                      scopeId: scope.id,
                       tradeName: scope.tradeName,
-                      tradeColor: hexToColor(scope.tradeColor),
-                      contractorName: null, // contractor name resolved in detail
-                      completedTasks: 0, // task counts loaded in detail screen
-                      totalTasks: 0,
-                      status: scope.status,
+                      tradeColor: scope.tradeColor,
                       onTap: () => context.push(
                         RouteNames.tradeScopeDetailPath(projectId, scope.id),
                       ),
