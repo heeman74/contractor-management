@@ -62,7 +62,6 @@ class ChatThreadTile extends StatelessWidget {
           constraints: const BoxConstraints(minHeight: 56),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               // Leading: thread type indicator
               _buildLeading(colorScheme),
