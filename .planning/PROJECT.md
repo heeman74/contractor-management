@@ -43,7 +43,7 @@ AI eliminates the chaos of multi-trade coordination — GCs always know exactly 
 - [ ] Project model — multi-trade hierarchy (Project → Trade Scopes → Tasks) with dependency graph
 - [x] Task-level progress — notes, photos with annotation/drawing, PDF attachments per task — Validated in Phase 22: Task Execution and Photo Annotation
 - [x] Photo annotation — draw on photos (arrows, circles, text, measurements) on mobile and web — Validated in Phase 22: Task Execution and Photo Annotation
-- [ ] GC ↔ contractor bidirectional chat with photo/file sharing
+- [x] GC ↔ contractor bidirectional chat with photo/file sharing — Validated in Phase 23: Real-Time Chat
 - [ ] GC mobile inspection — approve/reject tasks, flag issues, create punch list items
 - [x] Cross-trade task dependencies with cycle prevention and Gantt timeline — Validated in Phase 20: Dependency Engine
 - [ ] GC cross-trade monitoring dashboard — trade status, AI alerts (Gantt timeline complete via Phase 20)
