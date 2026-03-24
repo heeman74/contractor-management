@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: AI-Driven Construction Management
 status: Ready to plan
-stopped_at: Completed 23-04-PLAN.md
-last_updated: "2026-03-24T21:33:38.118Z"
+stopped_at: Completed 23-real-time-chat-05-PLAN.md
+last_updated: "2026-03-24T21:53:25.337Z"
 progress:
   total_phases: 14
   completed_phases: 10
   total_plans: 54
-  completed_plans: 52
+  completed_plans: 53
 ---
 
 # Project State
@@ -62,6 +62,7 @@ Plan: 03 (complete)
 | Phase 23 P02 | 1600 | 2 tasks | 12 files |
 | Phase 23 P03 | 400s | 2 tasks | 7 files |
 | Phase 23 P04 | 1153 | 2 tasks | 9 files |
+| Phase 23-real-time-chat P05 | 35min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -138,6 +139,8 @@ Plan: 03 (complete)
 - [Phase 23]: Drift Value() type aliased as drift.Value via import as drift to avoid name collision
 - [Phase 23]: surfaceVariant deprecated — replaced with surfaceContainerHighest in chat widgets
 - [Phase 23]: Chat attachment picker (ImagePicker/FilePicker) stubbed — actual picker integration deferred to follow-up plan
+- [Phase 23-real-time-chat]: WebSocket token via GET /api/auth/ws-token — browser WS API cannot set headers; short-lived token in ?token= query param
+- [Phase 23-real-time-chat]: @mention dropdown as absolute div (not Popover) — base-ui PopoverTrigger does not support asChild prop
 
 ### Pending Todos
 
@@ -151,6 +154,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-24T21:33:38.109Z
-Stopped at: Completed 23-04-PLAN.md
+Last session: 2026-03-24T21:53:25.319Z
+Stopped at: Completed 23-real-time-chat-05-PLAN.md
 Resume file: None
