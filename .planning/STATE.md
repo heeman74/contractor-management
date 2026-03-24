@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: AI-Driven Construction Management
 status: Ready to execute
-stopped_at: Completed 22-02-PLAN.md
-last_updated: "2026-03-24T08:06:21.963Z"
+stopped_at: Completed 22-03-PLAN.md
+last_updated: "2026-03-24T08:18:34.727Z"
 progress:
   total_phases: 14
   completed_phases: 9
   total_plans: 48
-  completed_plans: 45
+  completed_plans: 46
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-19)
 ## Current Position
 
 Phase: 22 (task-execution-and-photo-annotation) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 
 ## Performance Metrics
 
@@ -56,6 +56,7 @@ Plan: 3 of 5
 | Phase 21 P07 | 15 | 2 tasks | 8 files |
 | Phase 22-task-execution-and-photo-annotation P01 | 447 | 2 tasks | 9 files |
 | Phase 22 P02 | 12m | 2 tasks | 11 files |
+| Phase 22-task-execution-and-photo-annotation P03 | 534 | 2 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -115,6 +116,9 @@ Plan: 3 of 5
 - [Phase 22-task-execution-and-photo-annotation]: [Phase 22 P01]: TaskNote author_id is soft FK (no hard FK) consistent with project pattern; completed_by_name uses user_id string fallback
 - [Phase 22]: TaskAttachmentDao uses sync queue outbox (not binary upload service) for task attachments in Phase 22 — binary upload can be layered on in a later phase
 - [Phase 22]: annotationData stored as nullable TEXT on TaskAttachments; base photo immutable; annotation JSON as overlay (non-destructive)
+- [Phase 22-task-execution-and-photo-annotation]: AsyncValue.value (not valueOrNull) is the Riverpod 3 pattern for nullable AsyncValue access in widget builds
+- [Phase 22-task-execution-and-photo-annotation]: scopeNameMapProvider watches all company scopes for scopeId→tradeName lookup in MyTasksScreen without per-task scope queries
+- [Phase 22-task-execution-and-photo-annotation]: url_launcher added for PDF system viewer launch (File URI scheme) in TaskDetailScreen attachment section
 
 ### Pending Todos
 
@@ -128,6 +132,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-24T08:06:21.955Z
-Stopped at: Completed 22-02-PLAN.md
+Last session: 2026-03-24T08:18:34.720Z
+Stopped at: Completed 22-03-PLAN.md
 Resume file: None
