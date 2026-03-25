@@ -326,6 +326,85 @@ class NotificationService(BaseService[DeviceToken]):
                         thread_id,
                     )
 
+    async def send_task_rejection_notification(
+        self,
+        task_id: uuid.UUID,
+        task_title: str,
+        rejection_reason: str,
+        contractor_id: uuid.UUID,
+    ) -> None:
+        """Fire-and-forget FCM to contractor when their task is rejected by the GC.
+
+        Follows the same fire-and-forget pattern as queue_task_completion_digest:
+        - Skips gracefully if GOOGLE_APPLICATION_CREDENTIALS is not set.
+        - UnregisteredError: cleans up stale token.
+        - Any other error: logged but never raised (never blocks the inspect response).
+
+        Args:
+            task_id:          UUID of the rejected task (for deep-link data payload).
+            task_title:       Title of the task for the FCM notification body.
+            rejection_reason: Short rejection reason for notification body.
+            contractor_id:    UUID of the contractor assigned to the task.
+        """
+        firebase_app = _get_firebase_app()
+        if firebase_app is None:
+            logger.debug(
+                "FCM not configured — skipping rejection notification for task %s", task_id
+            )
+            return
+        try:
+            from firebase_admin import messaging
+
+            tokens = await self.repository.get_tokens_for_user(contractor_id)
+            if not tokens:
+                logger.debug(
+                    "No device tokens for contractor %s — skipping rejection notification",
+                    contractor_id,
+                )
+                return
+
+            title = "Task Rejected"
+            body = f"Task '{task_title}' was rejected: {rejection_reason}"
+            data_payload = {
+                "type": "task_rejection",
+                "task_id": str(task_id),
+                "rejection_reason": rejection_reason,
+            }
+
+            loop = asyncio.get_event_loop()
+            for device_token in tokens:
+                try:
+                    message = messaging.Message(
+                        notification=messaging.Notification(title=title, body=body),
+                        data=data_payload,
+                        token=device_token.token,
+                    )
+                    await loop.run_in_executor(_fcm_executor, messaging.send, message)
+                    logger.debug(
+                        "Task rejection FCM sent to contractor %s token %s... task %s",
+                        contractor_id,
+                        device_token.token[:12],
+                        task_id,
+                    )
+                except messaging.UnregisteredError:
+                    logger.info(
+                        "FCM token unregistered — removing %s... for contractor %s",
+                        device_token.token[:12],
+                        contractor_id,
+                    )
+                    await self.repository.delete_token(device_token.token)
+                except Exception:  # noqa: BLE001
+                    logger.exception(
+                        "FCM rejection send failed for token %s... contractor %s",
+                        device_token.token[:12],
+                        contractor_id,
+                    )
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                "send_task_rejection_notification failed for task %s — continuing",
+                task_id,
+            )
+
     async def _send_to_token(
         self,
         *,
