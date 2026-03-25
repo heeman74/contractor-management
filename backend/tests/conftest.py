@@ -169,6 +169,12 @@ async def clean_tables(test_engine):
                 "chat_messages, "
                 "chat_memberships, "
                 "chat_threads, "
+                # Phase 24 inspection workflow tables (reference tasks/projects/trade_scopes)
+                # task_inspections -> tasks; punch_list_items -> projects, trade_scopes
+                # site_walk_flags -> projects
+                "task_inspections, "
+                "punch_list_items, "
+                "site_walk_flags, "
                 # Auth + core tables
                 "refresh_tokens, "
                 "user_roles, "
