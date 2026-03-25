@@ -151,6 +151,7 @@ class TradeScope(TenantScopedModel):
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="not_started")
     status_override: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    inspection_checklist: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     __table_args__ = (
         CheckConstraint(
