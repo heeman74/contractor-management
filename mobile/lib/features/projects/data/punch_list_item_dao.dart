@@ -43,12 +43,15 @@ class PunchListItemDao extends DatabaseAccessor<AppDatabase>
           )
           ..orderBy([
             (tbl) => OrderingTerm(
-                  expression: tbl.priority.caseMatch(whens: {
-                    const Constant<String>('urgent'): const Constant<int>(0),
-                    const Constant<String>('high'): const Constant<int>(1),
-                    const Constant<String>('medium'): const Constant<int>(2),
-                    const Constant<String>('low'): const Constant<int>(3),
-                  }, orElse: const Constant<int>(2)),
+                  expression: tbl.priority.caseMatch(
+                    when: {
+                      const Constant('urgent'): const Constant(0),
+                      const Constant('high'): const Constant(1),
+                      const Constant('medium'): const Constant(2),
+                      const Constant('low'): const Constant(3),
+                    },
+                    orElse: const Constant(2),
+                  ),
                 ),
             (tbl) => OrderingTerm.desc(tbl.createdAt),
           ]))

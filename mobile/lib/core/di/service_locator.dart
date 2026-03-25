@@ -30,9 +30,12 @@ import '../../features/schedule/data/job_site_sync_handler.dart';
 import '../sync/handlers/project_sync_handler.dart';
 import '../sync/handlers/project_zone_sync_handler.dart';
 import '../sync/handlers/task_dependency_sync_handler.dart';
+import '../sync/handlers/task_inspection_sync_handler.dart';
 import '../sync/handlers/task_sync_handler.dart';
 import '../sync/handlers/trade_catalog_sync_handler.dart';
 import '../sync/handlers/trade_scope_sync_handler.dart';
+import '../sync/handlers/site_walk_flag_sync_handler.dart';
+import '../sync/handlers/punch_list_item_sync_handler.dart';
 import '../../features/projects/data/project_zone_dao.dart';
 import '../../features/projects/data/task_dependency_dao.dart';
 import '../../features/ai/data/ai_conversation_dao.dart';
@@ -97,6 +100,10 @@ Future<void> setupServiceLocator() async {
   final projectZoneDao = ProjectZoneDao(db);
   registry.register(TaskDependencySyncHandler(dioClient, taskDepDao));
   registry.register(ProjectZoneSyncHandler(dioClient, projectZoneDao));
+  // Phase 24: GC inspection workflow sync handlers
+  registry.register(TaskInspectionSyncHandler(dioClient, db));
+  registry.register(SiteWalkFlagSyncHandler(dioClient, db));
+  registry.register(PunchListItemSyncHandler(dioClient, db));
 
   getIt.registerSingleton<SyncRegistry>(registry);
 
@@ -138,6 +145,11 @@ Future<void> setupServiceLocator() async {
   // Phase 22 DAOs — registered for task execution features
   getIt.registerSingleton<TaskNoteDao>(db.taskNoteDao);
   getIt.registerSingleton<TaskAttachmentDao>(db.taskAttachmentDao);
+
+  // Phase 24 DAOs — registered for GC inspection workflow features
+  getIt.registerSingleton<TaskInspectionDao>(db.taskInspectionDao);
+  getIt.registerSingleton<SiteWalkFlagDao>(db.siteWalkFlagDao);
+  getIt.registerSingleton<PunchListItemDao>(db.punchListItemDao);
 
   // Phase 20 DAOs — registered for dependency engine features
   getIt.registerSingleton<TaskDependencyDao>(taskDepDao);

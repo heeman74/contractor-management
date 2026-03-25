@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // app_database.dart exports ProjectDao, TradeScopeDao, TaskDao, TaskNoteDao,
-// TaskAttachmentDao, and data classes (Project, TradeScope, ProjectTask,
-// TaskNote, TaskAttachment) via its re-export declarations.
+// TaskAttachmentDao, TaskInspectionDao, SiteWalkFlagDao, PunchListItemDao,
+// and data classes via its re-export declarations.
 // UserRole is also re-exported; we hide it to use the canonical shared model.
 import '../../../../core/database/app_database.dart'
     hide UserRole, BookingDao, NoteDao, AttachmentDao, TimeEntryDao,
@@ -251,4 +251,89 @@ final scopeNameMapProvider = StreamProvider.autoDispose
   return dao.watchAllScopesByCompany(companyId).map(
         (scopes) => {for (final s in scopes) s.id: s.tradeName},
       );
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// GC Inspection Workflow — Phase 24
+// ────────────────────────────────────────────────────────────────────────────
+
+/// Provider exposing the [TaskInspectionDao] singleton from GetIt.
+///
+/// NOTE: GetIt is used here because [TaskInspectionDao] is a database accessor
+/// registered at startup in service_locator.dart. Riverpod providers that
+/// need the DAO read it via this provider — dependency is explicit and
+/// testable via ProviderScope overrides.
+/// (CLAUDE.md: document GetIt<->Riverpod tradeoffs)
+final taskInspectionDaoProvider = Provider<TaskInspectionDao>((ref) {
+  return getIt<TaskInspectionDao>();
+});
+
+/// Provider exposing the [SiteWalkFlagDao] singleton from GetIt.
+///
+/// NOTE: Same GetIt<->Riverpod tradeoff as taskInspectionDaoProvider.
+final siteWalkFlagDaoProvider = Provider<SiteWalkFlagDao>((ref) {
+  return getIt<SiteWalkFlagDao>();
+});
+
+/// Provider exposing the [PunchListItemDao] singleton from GetIt.
+///
+/// NOTE: Same GetIt<->Riverpod tradeoff as taskInspectionDaoProvider.
+final punchListItemDaoProvider = Provider<PunchListItemDao>((ref) {
+  return getIt<PunchListItemDao>();
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Task inspection streams — family providers parameterized by taskId
+// ────────────────────────────────────────────────────────────────────────────
+
+/// Streams all active inspections for a given task, ordered newest-first.
+///
+/// Returns the full approve/reject audit trail for a task.
+/// StreamProvider.family — one instance per taskId. Auto-disposed when
+/// the task detail screen is popped.
+final inspectionsForTaskProvider = StreamProvider.autoDispose
+    .family<List<TaskInspection>, String>((ref, taskId) {
+  final dao = ref.watch(taskInspectionDaoProvider);
+  return dao.watchByTaskId(taskId);
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Site walk flag streams — family providers parameterized by projectId
+// ────────────────────────────────────────────────────────────────────────────
+
+/// Streams all active site walk flags for a given project, ordered newest-first.
+///
+/// StreamProvider.family — one instance per projectId. Auto-disposed when
+/// the project-level flag list screen is popped.
+final flagsForProjectProvider = StreamProvider.autoDispose
+    .family<List<SiteWalkFlag>, String>((ref, projectId) {
+  final dao = ref.watch(siteWalkFlagDaoProvider);
+  return dao.watchByProjectId(projectId);
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Punch list item streams — family providers for scope and project level
+// ────────────────────────────────────────────────────────────────────────────
+
+/// Streams all active punch list items for a trade scope.
+///
+/// Ordered by priority (urgent first) then newest-first. This is the primary
+/// view for the GC's per-scope punch list management UI.
+/// StreamProvider.family — one instance per tradeScopeId. Auto-disposed when
+/// the scope punch list screen is popped.
+final punchItemsByScopeProvider = StreamProvider.autoDispose
+    .family<List<PunchListItem>, String>((ref, tradeScopeId) {
+  final dao = ref.watch(punchListItemDaoProvider);
+  return dao.watchByScopeId(tradeScopeId);
+});
+
+/// Streams all active punch list items for a project.
+///
+/// Ordered newest-first. Used by GC project-level punch list overview.
+/// StreamProvider.family — one instance per projectId. Auto-disposed when
+/// the project punch list screen is popped.
+final punchItemsByProjectProvider = StreamProvider.autoDispose
+    .family<List<PunchListItem>, String>((ref, projectId) {
+  final dao = ref.watch(punchListItemDaoProvider);
+  return dao.watchByProjectId(projectId);
 });
