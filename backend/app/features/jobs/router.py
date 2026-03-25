@@ -253,10 +253,12 @@ async def search_jobs(
     client_id: uuid.UUID | None = Query(default=None),
     trade_type: str | None = Query(default=None),
     priority: str | None = Query(default=None),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> list[JobResponse]:
-    """Full-text search across jobs."""
+    """Full-text search across jobs. Paginated via offset/limit."""
     svc = JobService(db)
     jobs = await svc.search_jobs(
         q,
@@ -266,6 +268,8 @@ async def search_jobs(
         trade_type=trade_type,
         priority=priority,
     )
+    # Apply pagination
+    jobs = jobs[offset : offset + limit]
     return [_job_with_client_name(j) for j in jobs]
 
 
@@ -887,13 +891,14 @@ async def list_clients(
 ) -> list[ClientProfileResponse]:
     """List client profiles. Optionally filter by name/email search term."""
     svc = CrmService(db)
-    profiles = await svc.list_clients(
+    results = await svc.list_clients(
         company_id=current_user.company_id,
         search_term=search,
         offset=offset,
         limit=limit,
     )
-    return [ClientProfileResponse.model_validate(p) for p in profiles]
+    # list_clients returns list[tuple[ClientProfile, int]] — extract the profile
+    return [ClientProfileResponse.model_validate(profile) for profile, _jobs_count in results]
 
 
 @router.get("/clients/{user_id}", response_model=ClientProfileResponse)

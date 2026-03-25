@@ -49,7 +49,9 @@ class ClientNotesTab extends ConsumerWidget {
           if (rawTs != null) {
             try {
               ts = DateTime.parse(rawTs);
-            } catch (_) {}
+            } catch (e) {
+              debugPrint('[ClientNotesTab] Invalid timestamp: $e');
+            }
           }
           ts ??= job.updatedAt;
 

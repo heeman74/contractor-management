@@ -16,11 +16,15 @@ Usage:
 
 import asyncio
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+
+# Dedicated thread pool for CPU-bound WeasyPrint rendering
+_pdf_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="pdf")
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +153,7 @@ class PdfService:
 
         html = self._render_html("quote.html", context)
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self._html_to_pdf, html)
+        return await loop.run_in_executor(_pdf_executor, self._html_to_pdf, html)
 
     async def generate_invoice_pdf(self, invoice: object, company: object) -> bytes:
         """Generate a PDF for an invoice.
@@ -195,7 +199,7 @@ class PdfService:
 
         html = self._render_html("invoice.html", context)
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self._html_to_pdf, html)
+        return await loop.run_in_executor(_pdf_executor, self._html_to_pdf, html)
 
 
 # Module-level singleton — no DB dependency, safe to instantiate at import time

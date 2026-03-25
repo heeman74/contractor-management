@@ -81,13 +81,15 @@ async def generate_invoice_from_quote(
 @router.get("/", response_model=list[InvoiceResponse])
 async def list_invoices(
     status: str | None = None,
+    offset: int = 0,
+    limit: int = 50,
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> list[InvoiceResponse]:
     """List all invoices for the tenant (admin only).
 
     Optional `status` query param filters by payment status (unpaid, partially_paid, paid).
-    Soft-deleted invoices are excluded.
+    Soft-deleted invoices are excluded. Paginated via offset/limit.
     """
     _require_admin(current_user)
     svc = InvoiceService(db)
@@ -95,6 +97,8 @@ async def list_invoices(
     invoices = [i for i in invoices if i.deleted_at is None]
     if status is not None:
         invoices = [i for i in invoices if i.status == status]
+    # Apply pagination
+    invoices = invoices[offset : offset + min(limit, 200)]
     return [InvoiceResponse.from_orm_with_totals(i) for i in invoices]
 
 

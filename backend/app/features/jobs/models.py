@@ -200,6 +200,7 @@ class ClientProfile(TenantScopedModel):
         back_populates="client_profile",
         primaryjoin="ClientProfile.user_id == foreign(ClientProperty.client_id)",
         lazy="raise",
+        overlaps="client",
     )
 
 
@@ -241,6 +242,7 @@ class ClientProperty(TenantScopedModel):
         primaryjoin="foreign(ClientProperty.client_id) == ClientProfile.user_id",
         back_populates="properties",
         lazy="raise",
+        overlaps="client",
     )
 
 

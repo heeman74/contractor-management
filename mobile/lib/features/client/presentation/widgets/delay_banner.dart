@@ -172,7 +172,9 @@ class _EtaComparison extends StatelessWidget {
         final dt = DateTime.parse(timestamp).toLocal();
         dateLabel =
             '${dt.day}/${dt.month}/${dt.year}';
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[DelayBanner] Invalid timestamp format: $e');
+      }
     }
 
     return Column(

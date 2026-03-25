@@ -41,6 +41,7 @@ class ChatWsClient {
   Timer? _reconnectTimer;
 
   bool _disposed = false;
+  bool _isConnecting = false;
   String? _currentThreadId;
   int _reconnectAttempt = 0;
 
@@ -65,7 +66,8 @@ class ChatWsClient {
   }
 
   Future<void> _openConnection(String threadId) async {
-    if (_disposed) return;
+    if (_disposed || _isConnecting) return;
+    _isConnecting = true;
 
     try {
       final token = await tokenProvider();
@@ -86,6 +88,8 @@ class ChatWsClient {
     } catch (e) {
       debugPrint('[ChatWsClient] Connection error: $e');
       _scheduleReconnect();
+    } finally {
+      _isConnecting = false;
     }
   }
 

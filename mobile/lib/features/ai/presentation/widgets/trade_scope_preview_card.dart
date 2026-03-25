@@ -264,7 +264,9 @@ class _ScopeRow extends StatelessWidget {
       if (clean.length == 6) {
         return Color(int.parse('FF$clean', radix: 16));
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[TradeScopePreviewCard] Invalid color hex: $e');
+    }
     return const Color(0xFF3949AB); // fallback indigo
   }
 }

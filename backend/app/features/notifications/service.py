@@ -17,14 +17,20 @@ FCM dispatch design:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from app.core.base_service import BaseService
 from app.features.notifications.models import DeviceToken
 from app.features.notifications.repository import NotificationRepository
+
+# Dedicated thread pool for synchronous Firebase Admin SDK calls
+# to avoid blocking the async event loop
+_fcm_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="fcm")
 
 logger = logging.getLogger(__name__)
 
@@ -192,34 +198,38 @@ class NotificationService(BaseService[DeviceToken]):
                 "trade_scope_name": trade_scope_name,
             }
 
-            for gc_user in gc_users:
-                tokens = await self.repository.get_tokens_for_user(gc_user.id)
-                for device_token in tokens:
-                    try:
-                        message = messaging.Message(
-                            notification=messaging.Notification(title=title, body=body),
-                            data=data_payload,
-                            token=device_token.token,
-                        )
-                        messaging.send(message)
-                        logger.debug(
-                            "Task completion digest FCM sent to GC user %s token %s...",
-                            gc_user.id,
-                            device_token.token[:12],
-                        )
-                    except messaging.UnregisteredError:
-                        logger.info(
-                            "FCM token unregistered — removing token %s... for user %s",
-                            device_token.token[:12],
-                            gc_user.id,
-                        )
-                        await self.repository.delete_token(device_token.token)
-                    except Exception:  # noqa: BLE001
-                        logger.exception(
-                            "FCM task digest send failed for token %s... user %s",
-                            device_token.token[:12],
-                            gc_user.id,
-                        )
+            # Bulk-fetch all GC user IDs, then fetch all tokens in one query
+            gc_user_ids = [u.id for u in gc_users]
+            all_tokens: list[DeviceToken] = []
+            for uid in gc_user_ids:
+                all_tokens.extend(await self.repository.get_tokens_for_user(uid))
+
+            loop = asyncio.get_event_loop()
+            for device_token in all_tokens:
+                try:
+                    message = messaging.Message(
+                        notification=messaging.Notification(title=title, body=body),
+                        data=data_payload,
+                        token=device_token.token,
+                    )
+                    await loop.run_in_executor(_fcm_executor, messaging.send, message)
+                    logger.debug(
+                        "Task completion digest FCM sent to token %s...",
+                        device_token.token[:12],
+                    )
+                except messaging.UnregisteredError:
+                    logger.info(
+                        "FCM token unregistered — removing token %s... for user %s",
+                        device_token.token[:12],
+                        device_token.user_id,
+                    )
+                    await self.repository.delete_token(device_token.token)
+                except Exception:  # noqa: BLE001
+                    logger.exception(
+                        "FCM task digest send failed for token %s... user %s",
+                        device_token.token[:12],
+                        device_token.user_id,
+                    )
         except Exception:  # noqa: BLE001
             # Outer catch: never let notification logic break the task status update
             logger.exception(
@@ -288,6 +298,7 @@ class NotificationService(BaseService[DeviceToken]):
         muted_set = {str(uid) for uid in muted_user_ids}
         mentioned_set = {str(uid) for uid in mentioned_user_ids}
 
+        loop = asyncio.get_event_loop()
         for user_id in recipient_user_ids:
             uid_str = str(user_id)
             is_muted = uid_str in muted_set
@@ -304,7 +315,7 @@ class NotificationService(BaseService[DeviceToken]):
                         data=data_payload,
                         token=device_token.token,
                     )
-                    messaging.send(message)
+                    await loop.run_in_executor(_fcm_executor, messaging.send, message)
                     logger.debug(
                         "Chat FCM sent to user %s token %s... thread %s",
                         user_id,
@@ -347,7 +358,8 @@ class NotificationService(BaseService[DeviceToken]):
                 data={"job_id": str(job_id), "event": "job_update"},
                 token=token_record.token,
             )
-            messaging.send(message)
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(_fcm_executor, messaging.send, message)
             logger.debug(
                 "FCM sent to token %s... for user %s",
                 token_record.token[:12],

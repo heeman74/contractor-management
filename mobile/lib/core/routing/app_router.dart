@@ -178,10 +178,12 @@ final routerProvider = Provider.autoDispose<GoRouter>((ref) {
       GoRoute(
         path: RouteNames.photoViewer,
         builder: (context, state) {
-          final extra = state.extra as Map<String, dynamic>;
+          final extra = state.extra is Map<String, dynamic>
+              ? state.extra! as Map<String, dynamic>
+              : <String, dynamic>{};
           return PhotoViewerScreen(
-            photos: extra['photos'] as List<AttachmentEntity>,
-            initialIndex: extra['initialIndex'] as int,
+            photos: (extra['photos'] as List?)?.cast<AttachmentEntity>() ?? [],
+            initialIndex: (extra['initialIndex'] as int?) ?? 0,
           );
         },
       ),
@@ -276,13 +278,15 @@ final routerProvider = Provider.autoDispose<GoRouter>((ref) {
       GoRoute(
         path: RouteNames.taskPhotoViewer,
         builder: (context, state) {
-          final taskId = state.pathParameters['taskId']!;
-          final extra = state.extra as Map<String, dynamic>;
+          final taskId = state.pathParameters['taskId'] ?? '';
+          final extra = state.extra is Map<String, dynamic>
+              ? state.extra! as Map<String, dynamic>
+              : <String, dynamic>{};
           return TaskPhotoViewerScreen(
             taskId: taskId,
             attachment: extra['attachment'] as TaskAttachment,
-            allPhotos: (extra['allPhotos'] as List).cast<TaskAttachment>(),
-            initialIndex: extra['initialIndex'] as int,
+            allPhotos: (extra['allPhotos'] as List?)?.cast<TaskAttachment>() ?? [],
+            initialIndex: (extra['initialIndex'] as int?) ?? 0,
           );
         },
       ),

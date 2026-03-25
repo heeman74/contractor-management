@@ -71,6 +71,15 @@ _WS_JWT_REVALIDATE_INTERVAL = 300  # seconds (5 minutes per STATE.md decision)
 _WS_RECEIVE_TIMEOUT = 30.0  # seconds
 
 
+def _is_valid_uuid(val: str) -> bool:
+    """Check if a string is a valid UUID without raising."""
+    try:
+        uuid.UUID(val)
+        return True
+    except (ValueError, AttributeError):
+        return False
+
+
 # ------------------------------------------------------------------
 # Helper: build ChatMessageResponse from ORM model
 # ------------------------------------------------------------------
@@ -243,7 +252,9 @@ async def websocket_chat(
                     attachment_url=data.get("attachment_url"),
                     attachment_type=data.get("attachment_type"),
                     annotation_data=data.get("annotation_data"),
-                    mentions=[uuid.UUID(m) for m in data.get("mentions", []) if m],
+                    mentions=[
+                        uuid.UUID(m) for m in data.get("mentions", []) if m and _is_valid_uuid(m)
+                    ],
                     mention_all=bool(data.get("mention_all", False)),
                 )
 
@@ -268,13 +279,15 @@ async def websocket_chat(
                     await manager.broadcast_to_thread(str(thread_id), broadcast_payload)
 
                     # Fire FCM for offline recipients (fire-and-forget)
+                    # Pass primitive data — task creates its own DB session
                     asyncio.create_task(
                         _fire_chat_fcm(
-                            db=db,
                             thread_id=thread_id,
                             user_id=user_id,
                             company_id=company_id,
-                            message=message,
+                            message_content=message.content,
+                            message_mentions=message.mentions,
+                            message_mention_all=message.mention_all,
                             thread_id_str=str(thread_id),
                         )
                     )
@@ -288,64 +301,70 @@ async def websocket_chat(
 
 
 async def _fire_chat_fcm(
-    db: AsyncSession,
     thread_id: uuid.UUID,
     user_id: uuid.UUID,
     company_id: uuid.UUID,
-    message,
+    message_content: str | None,
+    message_mentions: list | None,
+    message_mention_all: bool,
     thread_id_str: str,
 ) -> None:
     """Fire FCM notifications for offline recipients of a chat message.
 
     Called as fire-and-forget asyncio.create_task(). Never raises.
-    Determines offline recipients (thread members not currently connected)
-    and calls NotificationService.send_chat_notification for each.
+    Creates its own database session to avoid using the WebSocket handler's
+    session which may be closed by the time this task executes.
     """
     try:
         from sqlalchemy import select
 
+        from app.core.database import async_session_factory
+        from app.core.tenant import set_current_tenant_id
         from app.features.chat.models import ChatMembership
 
-        # Load all thread memberships to find recipients
-        memberships_result = await db.execute(
-            select(ChatMembership).where(ChatMembership.thread_id == thread_id)
-        )
-        memberships = memberships_result.scalars().all()
+        set_current_tenant_id(company_id)
 
-        # Connected user IDs on this worker for this thread
-        connected = set(manager._connections.get(thread_id_str, {}).keys())
+        async with async_session_factory() as db:
+            # Load all thread memberships to find recipients
+            memberships_result = await db.execute(
+                select(ChatMembership).where(ChatMembership.thread_id == thread_id)
+            )
+            memberships = memberships_result.scalars().all()
 
-        # Recipients: members who are NOT the sender AND are not currently connected
-        offline_recipients = [
-            m.user_id
-            for m in memberships
-            if str(m.user_id) not in connected and m.user_id != user_id
-        ]
-        muted_recipients = [m.user_id for m in memberships if m.muted]
+            # Connected user IDs on this worker for this thread
+            connected = set(manager._connections.get(thread_id_str, {}).keys())
 
-        if not offline_recipients:
-            return
+            # Recipients: members who are NOT the sender AND are not currently connected
+            offline_recipients = [
+                m.user_id
+                for m in memberships
+                if str(m.user_id) not in connected and m.user_id != user_id
+            ]
+            muted_recipients = [m.user_id for m in memberships if m.muted]
 
-        # Determine mentioned user IDs
-        import contextlib
+            if not offline_recipients:
+                return
 
-        mention_uuids = []
-        if message.mentions:
-            for m_id in message.mentions:
-                with contextlib.suppress(ValueError):
-                    mention_uuids.append(uuid.UUID(str(m_id)))
+            # Determine mentioned user IDs
+            import contextlib
 
-        notif_service = NotificationService(db)
-        await notif_service.send_chat_notification(
-            thread_id=thread_id,
-            sender_name=str(user_id),  # name resolution deferred (no user lookup in WS context)
-            trade_scope_name=None,
-            message_preview=(message.content or "")[:100],
-            recipient_user_ids=offline_recipients,
-            mention_all=message.mention_all,
-            mentioned_user_ids=mention_uuids,
-            muted_user_ids=muted_recipients,
-        )
+            mention_uuids: list[uuid.UUID] = []
+            if message_mentions:
+                for m_id in message_mentions:
+                    with contextlib.suppress(ValueError):
+                        mention_uuids.append(uuid.UUID(str(m_id)))
+
+            notif_service = NotificationService(db)
+            await notif_service.send_chat_notification(
+                thread_id=thread_id,
+                sender_name=str(user_id),
+                trade_scope_name=None,
+                message_preview=(message_content or "")[:100],
+                recipient_user_ids=offline_recipients,
+                mention_all=message_mention_all,
+                mentioned_user_ids=mention_uuids,
+                muted_user_ids=muted_recipients,
+            )
     except Exception:  # noqa: BLE001
         logger.exception("FCM fire-and-forget failed for thread %s", thread_id)
 
@@ -412,10 +431,22 @@ async def create_thread(
     - member_ids: list of user UUIDs to add as members
     - trade_scope_id: UUID (required for scope threads)
     """
-    project_id = uuid.UUID(str(body["project_id"]))
+    try:
+        project_id = uuid.UUID(str(body["project_id"]))
+    except (KeyError, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="project_id is required and must be a valid UUID",
+        ) from exc
     thread_type = body.get("thread_type", "project_wide")
     name = body.get("name", "")
-    member_ids = [uuid.UUID(str(m)) for m in body.get("member_ids", [])]
+    try:
+        member_ids = [uuid.UUID(str(m)) for m in body.get("member_ids", [])]
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="member_ids must be valid UUIDs",
+        ) from exc
     trade_scope_id = body.get("trade_scope_id")
 
     chat_service = ChatService(db)
@@ -665,14 +696,21 @@ async def upload_chat_attachment(
             detail="No file provided.",
         )
 
+    # Read and validate file size (max 10 MB)
+    content = await file.read()
+    max_attachment_size = 10 * 1024 * 1024  # 10 MB
+    if len(content) > max_attachment_size:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="File too large. Maximum size is 10 MB.",
+        )
+
     # Save file to uploads/chat/{message_id}/{filename}
     original_suffix = Path(file.filename).suffix.lower() or ".bin"
     unique_filename = f"{uuid.uuid4()}{original_suffix}"
     upload_dir = Path("uploads") / "chat" / str(message_id)
     upload_dir.mkdir(parents=True, exist_ok=True)
     dest_path = upload_dir / unique_filename
-
-    content = await file.read()
     async with aiofiles.open(dest_path, "wb") as f:
         await f.write(content)
 

@@ -145,18 +145,23 @@ async def delete_template(
 @router.get("/", response_model=list[QuoteResponse])
 async def list_quotes(
     status: str | None = None,
+    offset: int = 0,
+    limit: int = 50,
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> list[QuoteResponse]:
     """List all active (non-deleted, non-revised) quotes for the tenant (admin only).
 
     Optional `status` query param filters by quote status (e.g. draft, sent, approved).
+    Paginated via offset/limit.
     """
     _require_admin(current_user)
     svc = QuoteService(db)
     quotes = await svc.repository.get_active_quotes()
     if status is not None:
         quotes = [q for q in quotes if q.status == status]
+    # Apply pagination
+    quotes = quotes[offset : offset + min(limit, 200)]
     return [QuoteResponse.from_orm_with_totals(q) for q in quotes]
 
 

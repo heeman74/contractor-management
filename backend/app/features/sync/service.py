@@ -24,6 +24,9 @@ from sqlalchemy.orm import joinedload, selectinload
 from app.features.companies.models import Company
 from app.features.users.models import User, UserRole
 
+# Maximum records per sync batch to prevent memory exhaustion on first sync
+_SYNC_MAX_LIMIT = 1000
+
 
 class SyncService:
     """Delta sync service for offline-first clients."""
@@ -78,6 +81,7 @@ class SyncService:
         since: datetime,
         *,
         client_user_id: str | None = None,
+        limit: int = _SYNC_MAX_LIMIT,
     ) -> list:
         """Return all jobs changed since the given cursor timestamp.
 
@@ -92,6 +96,7 @@ class SyncService:
             client_user_id: When provided (client role), restricts results to jobs
                             where Job.client_id == client_user_id. Ensures clients
                             only receive their own jobs in the delta sync (CLNT-05).
+            limit:          Max records to return (prevents memory exhaustion).
         """
         import uuid
 
@@ -104,6 +109,8 @@ class SyncService:
                 joinedload(Job.client),
                 joinedload(Job.contractor),
             )
+            .order_by(Job.updated_at)
+            .limit(limit)
         )
         if client_user_id is not None:
             stmt = stmt.where(Job.client_id == uuid.UUID(client_user_id))
@@ -150,6 +157,7 @@ class SyncService:
         since: datetime,
         *,
         client_user_id: str | None = None,
+        limit: int = _SYNC_MAX_LIMIT,
     ) -> list:
         """Return all bookings changed since the given cursor timestamp.
 
@@ -169,7 +177,12 @@ class SyncService:
 
         from app.features.scheduling.models import Booking
 
-        stmt = select(Booking).where(or_(Booking.updated_at > since, Booking.deleted_at > since))
+        stmt = (
+            select(Booking)
+            .where(or_(Booking.updated_at > since, Booking.deleted_at > since))
+            .order_by(Booking.updated_at)
+            .limit(limit)
+        )
 
         if client_user_id is not None:
             from app.features.jobs.models import Job
