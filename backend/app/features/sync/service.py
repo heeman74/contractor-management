@@ -44,7 +44,10 @@ class SyncService:
         This is intentional: companies are the tenant root, not scoped by it.
         """
         result = await self.db.execute(
-            select(Company).where(or_(Company.updated_at > since, Company.deleted_at > since))
+            select(Company)
+            .where(or_(Company.updated_at > since, Company.deleted_at > since))
+            .order_by(Company.updated_at)
+            .limit(_SYNC_MAX_LIMIT)
         )
         return list(result.scalars().all())
 
@@ -58,6 +61,8 @@ class SyncService:
             select(User)
             .where(or_(User.updated_at > since, User.deleted_at > since))
             .options(selectinload(User.roles))
+            .order_by(User.updated_at)
+            .limit(_SYNC_MAX_LIMIT)
         )
         return list(result.scalars().all())
 
@@ -68,7 +73,10 @@ class SyncService:
         (deleted_at > since). RLS automatically restricts to current tenant.
         """
         result = await self.db.execute(
-            select(UserRole).where(or_(UserRole.updated_at > since, UserRole.deleted_at > since))
+            select(UserRole)
+            .where(or_(UserRole.updated_at > since, UserRole.deleted_at > since))
+            .order_by(UserRole.updated_at)
+            .limit(_SYNC_MAX_LIMIT)
         )
         return list(result.scalars().all())
 
@@ -127,9 +135,10 @@ class SyncService:
         from app.features.jobs.models import ClientProfile
 
         result = await self.db.execute(
-            select(ClientProfile).where(
-                or_(ClientProfile.updated_at > since, ClientProfile.deleted_at > since)
-            )
+            select(ClientProfile)
+            .where(or_(ClientProfile.updated_at > since, ClientProfile.deleted_at > since))
+            .order_by(ClientProfile.updated_at)
+            .limit(_SYNC_MAX_LIMIT)
         )
         return list(result.scalars().all())
 
@@ -142,9 +151,10 @@ class SyncService:
         from app.features.jobs.models import JobRequest
 
         result = await self.db.execute(
-            select(JobRequest).where(
-                or_(JobRequest.updated_at > since, JobRequest.deleted_at > since)
-            )
+            select(JobRequest)
+            .where(or_(JobRequest.updated_at > since, JobRequest.deleted_at > since))
+            .order_by(JobRequest.updated_at)
+            .limit(_SYNC_MAX_LIMIT)
         )
         return list(result.scalars().all())
 
@@ -203,7 +213,10 @@ class SyncService:
         from app.features.scheduling.models import JobSite
 
         result = await self.db.execute(
-            select(JobSite).where(or_(JobSite.updated_at > since, JobSite.deleted_at > since))
+            select(JobSite)
+            .where(or_(JobSite.updated_at > since, JobSite.deleted_at > since))
+            .order_by(JobSite.updated_at)
+            .limit(_SYNC_MAX_LIMIT)
         )
         return list(result.scalars().all())
 
@@ -236,6 +249,8 @@ class SyncService:
             select(JobNote)
             .where(or_(JobNote.updated_at > since, JobNote.deleted_at > since))
             .options(selectinload(JobNote.attachments))
+            .order_by(JobNote.updated_at)
+            .limit(_SYNC_MAX_LIMIT)
         )
 
         if client_user_id is not None:
@@ -257,7 +272,10 @@ class SyncService:
         from app.features.jobs.models import TimeEntry
 
         result = await self.db.execute(
-            select(TimeEntry).where(or_(TimeEntry.updated_at > since, TimeEntry.deleted_at > since))
+            select(TimeEntry)
+            .where(or_(TimeEntry.updated_at > since, TimeEntry.deleted_at > since))
+            .order_by(TimeEntry.updated_at)
+            .limit(_SYNC_MAX_LIMIT)
         )
         return list(result.scalars().all())
 
@@ -282,8 +300,11 @@ class SyncService:
 
         from app.features.jobs.models import Attachment
 
-        stmt = select(Attachment).where(
-            or_(Attachment.updated_at > since, Attachment.deleted_at > since)
+        stmt = (
+            select(Attachment)
+            .where(or_(Attachment.updated_at > since, Attachment.deleted_at > since))
+            .order_by(Attachment.updated_at)
+            .limit(_SYNC_MAX_LIMIT)
         )
 
         if client_user_id is not None:
@@ -327,6 +348,8 @@ class SyncService:
             select(Quote)
             .where(or_(Quote.updated_at > since, Quote.deleted_at > since))
             .options(selectinload(Quote.line_items))
+            .order_by(Quote.updated_at)
+            .limit(_SYNC_MAX_LIMIT)
         )
 
         if client_user_id is not None:
@@ -351,9 +374,10 @@ class SyncService:
         from app.features.quotes.models import QuoteLineItem
 
         result = await self.db.execute(
-            select(QuoteLineItem).where(
-                or_(QuoteLineItem.updated_at > since, QuoteLineItem.deleted_at > since)
-            )
+            select(QuoteLineItem)
+            .where(or_(QuoteLineItem.updated_at > since, QuoteLineItem.deleted_at > since))
+            .order_by(QuoteLineItem.updated_at)
+            .limit(_SYNC_MAX_LIMIT)
         )
         return list(result.scalars().all())
 
@@ -381,6 +405,8 @@ class SyncService:
             select(Invoice)
             .where(or_(Invoice.updated_at > since, Invoice.deleted_at > since))
             .options(selectinload(Invoice.line_items))
+            .order_by(Invoice.updated_at)
+            .limit(_SYNC_MAX_LIMIT)
         )
 
         if client_user_id is not None:
@@ -400,8 +426,9 @@ class SyncService:
         from app.features.invoices.models import InvoiceLineItem
 
         result = await self.db.execute(
-            select(InvoiceLineItem).where(
-                or_(InvoiceLineItem.updated_at > since, InvoiceLineItem.deleted_at > since)
-            )
+            select(InvoiceLineItem)
+            .where(or_(InvoiceLineItem.updated_at > since, InvoiceLineItem.deleted_at > since))
+            .order_by(InvoiceLineItem.updated_at)
+            .limit(_SYNC_MAX_LIMIT)
         )
         return list(result.scalars().all())

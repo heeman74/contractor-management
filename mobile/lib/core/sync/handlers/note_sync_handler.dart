@@ -27,6 +27,9 @@ class NoteSyncHandler extends SyncHandler {
   Future<void> push(SyncQueueData item) async {
     final payload = jsonDecode(item.payload) as Map<String, dynamic>;
     final jobId = payload['job_id'] as String?;
+    if (jobId == null) {
+      throw StateError('NoteSyncHandler: job_id is required in payload');
+    }
 
     if (item.operation == 'CREATE') {
       await _dioClient.pushWithIdempotency(
