@@ -46,6 +46,7 @@ Exceptions:
 - Bottom bar horizontal padding: `EdgeInsets.symmetric(horizontal: 16, vertical: 8)` — matches existing bottom bar verbatim.
 - Rejection bottom sheet inner padding: `EdgeInsets.all(16)` with 24px gap between form fields.
 - Checklist item row height: natural sizing (`ListTile` default), no hardcoded height per CLAUDE.md memory rule.
+- Gap between Reject and Approve buttons in the bottom bar: `SizedBox(width: 12)` — justified exception from existing code. This value is inherited verbatim from `task_detail_screen.dart` line 382 (`const SizedBox(width: 12)`) where it separates the "Add Photo" and "Mark Done" buttons. Not introducing a new value; carrying forward existing spacing.
 
 Source: `mobile/lib/features/projects/presentation/screens/task_detail_screen.dart` — existing spacing patterns.
 
@@ -64,7 +65,7 @@ All roles use Flutter `textTheme` pulled from `Theme.of(context).textTheme`. Mat
 
 Two weights only: **regular (400)** and **semibold (600)**. Source: existing usage in `task_detail_screen.dart` lines 103–107, 120–124, 154, 161, 188.
 
-Chip label text (status/priority badges, Punch badge): `labelSmall` at 11px, white, weight 500 — matches `_StatusBadge` implementation.
+Note: `_StatusBadge` and `_PriorityBadge` internally use `textTheme.labelSmall` (approx 11px, inherited Material 3 weight). These widgets are **existing** — Phase 24 extends their `_color()` switch cases only. Their internal style is not declared as a new token in this contract.
 
 ---
 
@@ -118,7 +119,7 @@ Layout:
 - When `showInspectBar == true`: hide "Add Photo" OutlinedButton, replace right button with TWO buttons side-by-side using `Expanded`.
 - Left: `OutlinedButton` labeled "Reject" — `foregroundColor: colorScheme.error`, `minimumSize: Size(0, 48)`, always enabled.
 - Right: `ElevatedButton` labeled "Approve" — `backgroundColor: colorScheme.primary`, `minimumSize: Size(0, 48)`, disabled (`onPressed: null`) until all checklist items are checked.
-- Gap between buttons: `SizedBox(width: 12)` — matches existing bottom bar gap.
+- Gap between buttons: `SizedBox(width: 12)` — inherited from existing bottom bar gap at `task_detail_screen.dart` line 382.
 
 Semantics:
 - Reject button: `Semantics(label: 'Reject this task — provide rejection reason')`
@@ -329,7 +330,8 @@ This phase is a Flutter mobile app. shadcn, radix, and web component registries 
 | Punch items inline with trade scope tasks | CONTEXT.md D-08 |
 | Flag severity field | RESEARCH.md Key Discretion Decisions |
 | Punch status lifecycle: open/in_progress/resolved/verified | RESEARCH.md Key Discretion Decisions |
-| Spacing scale (16px default, 48px touch target, 12px button gap) | Existing code — `task_detail_screen.dart` |
+| Spacing scale (16px default, 48px touch target) | Existing code — `task_detail_screen.dart` |
+| Spacing exception: 12px button gap | Existing code — `task_detail_screen.dart` line 382 |
 | Typography (titleMedium+w600 for headings, bodyMedium for body) | Existing code — `task_detail_screen.dart` |
 | Color scheme (seed `0xFF1E4D8C`, Material 3) | Existing code — `main.dart` `_buildTheme()` |
 | Card style (elevation 0, grey border, radius 12) | Existing code — `main.dart` `cardTheme` |
