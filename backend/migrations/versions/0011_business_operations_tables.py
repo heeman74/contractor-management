@@ -218,7 +218,7 @@ def upgrade() -> None:
     # Row Level Security — standard tenant isolation (same pattern as 0008/0009)
     #
     # app.current_company_id is set by TenantMiddleware (tenant.py receive_after_begin)
-    # The appuser DB role has BYPASSRLS privilege — no policy needed for backend ops
+    # The appuser DB role is NOBYPASSRLS — RLS policies enforce tenant isolation
     # -------------------------------------------------------------------------
     for table in [
         "quotes",
