@@ -346,7 +346,12 @@ class SyncEngine {
           final handler = _registry.getHandler(handlerType);
           for (final entity in entities) {
             try {
-              await handler.applyPulled(entity as Map<String, dynamic>);
+              if (entity is! Map<String, dynamic>) {
+                typeSkipped++;
+                debugPrint('pullDelta: skip $handlerType — entity is not a Map');
+                continue;
+              }
+              await handler.applyPulled(entity);
               typePulled++;
             } catch (e) {
               typeSkipped++;
@@ -393,7 +398,8 @@ class SyncEngine {
       }
 
       // Update the cursor to the server's timestamp for the next delta pull
-      final serverTimestamp = data['server_timestamp'] as String?;
+      final rawTimestamp = data['server_timestamp'];
+      final serverTimestamp = rawTimestamp is String ? rawTimestamp : rawTimestamp?.toString();
       if (serverTimestamp != null) {
         await _syncCursorDao.updateCursor(DateTime.parse(serverTimestamp));
       }

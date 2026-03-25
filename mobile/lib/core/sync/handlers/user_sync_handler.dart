@@ -35,25 +35,35 @@ class UserSyncHandler extends SyncHandler {
 
   @override
   Future<void> applyPulled(Map<String, dynamic> data) async {
+    final id = data['id'];
+    final companyId = data['company_id'];
+    final email = data['email'];
+    if (id is! String || companyId is! String || email is! String) {
+      throw FormatException(
+        'User missing required fields: id=${id.runtimeType}, '
+        'company_id=${companyId.runtimeType}, email=${email.runtimeType}',
+      );
+    }
+
     final deletedAt = data['deleted_at'] != null
-        ? DateTime.parse(data['deleted_at'] as String)
+        ? DateTime.parse(data['deleted_at'].toString())
         : null;
 
     final companion = UsersCompanion(
-      id: Value(data['id'] as String),
-      companyId: Value(data['company_id'] as String),
-      email: Value(data['email'] as String),
-      firstName: Value(data['first_name'] as String?),
-      lastName: Value(data['last_name'] as String?),
-      phone: Value(data['phone'] as String?),
-      version: data['version'] != null
+      id: Value(id),
+      companyId: Value(companyId),
+      email: Value(email),
+      firstName: Value(data['first_name']?.toString()),
+      lastName: Value(data['last_name']?.toString()),
+      phone: Value(data['phone']?.toString()),
+      version: data['version'] is int
           ? Value(data['version'] as int)
           : const Value.absent(),
       createdAt: data['created_at'] != null
-          ? Value(DateTime.parse(data['created_at'] as String))
+          ? Value(DateTime.parse(data['created_at'].toString()))
           : const Value.absent(),
       updatedAt: data['updated_at'] != null
-          ? Value(DateTime.parse(data['updated_at'] as String))
+          ? Value(DateTime.parse(data['updated_at'].toString()))
           : const Value.absent(),
       deletedAt: Value(deletedAt),
     );

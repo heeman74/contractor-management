@@ -197,8 +197,9 @@ class ContractorJobCard extends ConsumerWidget {
 
     if (!canStart && !canComplete) return;
 
-    final overlay = Overlay.of(context).context.findRenderObject()!
-        as RenderBox;
+    final renderObj = Overlay.of(context).context.findRenderObject();
+    if (renderObj is! RenderBox) return;
+    final overlay = renderObj;
 
     showMenu<String>(
       context: context,

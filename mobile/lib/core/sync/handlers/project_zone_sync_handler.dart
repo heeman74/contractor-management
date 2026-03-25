@@ -43,21 +43,33 @@ class ProjectZoneSyncHandler extends SyncHandler {
 
   @override
   Future<void> applyPulled(Map<String, dynamic> data) async {
+    final id = data['id'];
+    final companyId = data['company_id'];
+    final projectId = data['project_id'];
+    final name = data['name'];
+    if (id is! String || companyId is! String || projectId is! String || name is! String) {
+      throw FormatException('ProjectZone missing required fields');
+    }
+
     final deletedAt = data['deleted_at'] != null
-        ? DateTime.parse(data['deleted_at'] as String)
+        ? DateTime.parse(data['deleted_at'].toString())
         : null;
 
     await _dao.upsertZone(
       ProjectZonesCompanion(
-        id: Value(data['id'] as String),
-        companyId: Value(data['company_id'] as String),
-        projectId: Value(data['project_id'] as String),
-        name: Value(data['name'] as String),
-        version: data['version'] != null
+        id: Value(id),
+        companyId: Value(companyId),
+        projectId: Value(projectId),
+        name: Value(name),
+        version: data['version'] is int
             ? Value(data['version'] as int)
             : const Value(1),
-        createdAt: Value(DateTime.parse(data['created_at'] as String)),
-        updatedAt: Value(DateTime.parse(data['updated_at'] as String)),
+        createdAt: data['created_at'] != null
+            ? Value(DateTime.parse(data['created_at'].toString()))
+            : Value(DateTime.now()),
+        updatedAt: data['updated_at'] != null
+            ? Value(DateTime.parse(data['updated_at'].toString()))
+            : Value(DateTime.now()),
         deletedAt: Value(deletedAt),
       ),
     );
