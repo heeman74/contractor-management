@@ -284,11 +284,20 @@ class QuoteDao extends DatabaseAccessor<AppDatabase> with _$QuoteDaoMixin {
   /// No sync_queue entry — this IS the sync pull; writing to the queue
   /// would cause an infinite sync loop.
   Future<void> upsertFromSync(Map<String, dynamic> data) async {
+    final id = data['id'];
+    final companyId = data['company_id'];
+    final jobId = data['job_id'];
+    if (id is! String || companyId is! String || jobId is! String) {
+      throw FormatException(
+        'Quote missing required fields: id=${id.runtimeType}, '
+        'company_id=${companyId.runtimeType}, job_id=${jobId.runtimeType}',
+      );
+    }
     await db.transaction(() async {
       final companion = QuotesCompanion(
-        id: Value(data['id'] as String),
-        companyId: Value(data['company_id'] as String),
-        jobId: Value(data['job_id'] as String),
+        id: Value(id),
+        companyId: Value(companyId),
+        jobId: Value(jobId),
         status: data['status'] != null ? Value(data['status'] as String) : const Value.absent(),
         revisionNumber: data['revision_number'] != null ? Value(data['revision_number'] as int) : const Value.absent(),
         taxRate: data['tax_rate'] != null ? Value((data['tax_rate'] as num).toDouble()) : const Value.absent(),

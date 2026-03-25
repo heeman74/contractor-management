@@ -26,7 +26,10 @@ class UserRoleSyncHandler extends SyncHandler {
   @override
   Future<void> push(SyncQueueData item) async {
     final payload = jsonDecode(item.payload) as Map<String, dynamic>;
-    final userId = payload['userId'] as String;
+    final userId = payload['userId'];
+    if (userId is! String) {
+      throw StateError('UserRoleSyncHandler: userId is required in payload');
+    }
     await _dioClient.pushWithIdempotency(
       '/users/$userId/roles',
       payload,
@@ -36,17 +39,25 @@ class UserRoleSyncHandler extends SyncHandler {
 
   @override
   Future<void> applyPulled(Map<String, dynamic> data) async {
+    final id = data['id'];
+    final userId = data['user_id'];
+    final companyId = data['company_id'];
+    final role = data['role'];
+    if (id is! String || userId is! String || companyId is! String || role is! String) {
+      throw FormatException('UserRole missing required fields');
+    }
+
     final deletedAt = data['deleted_at'] != null
-        ? DateTime.parse(data['deleted_at'] as String)
+        ? DateTime.parse(data['deleted_at'].toString())
         : null;
 
     final companion = UserRolesCompanion(
-      id: Value(data['id'] as String),
-      userId: Value(data['user_id'] as String),
-      companyId: Value(data['company_id'] as String),
-      role: Value(data['role'] as String),
+      id: Value(id),
+      userId: Value(userId),
+      companyId: Value(companyId),
+      role: Value(role),
       createdAt: data['created_at'] != null
-          ? Value(DateTime.parse(data['created_at'] as String))
+          ? Value(DateTime.parse(data['created_at'].toString()))
           : const Value.absent(),
       deletedAt: Value(deletedAt),
     );

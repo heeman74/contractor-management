@@ -241,11 +241,20 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase> with _$InvoiceDaoMixin {
   /// Processes the nested [line_items] array: upserts each child row.
   /// No sync_queue entry — this IS the sync pull.
   Future<void> upsertFromSync(Map<String, dynamic> data) async {
+    final id = data['id'];
+    final companyId = data['company_id'];
+    final jobId = data['job_id'];
+    if (id is! String || companyId is! String || jobId is! String) {
+      throw FormatException(
+        'Invoice missing required fields: id=${id.runtimeType}, '
+        'company_id=${companyId.runtimeType}, job_id=${jobId.runtimeType}',
+      );
+    }
     await db.transaction(() async {
       final companion = InvoicesCompanion(
-        id: Value(data['id'] as String),
-        companyId: Value(data['company_id'] as String),
-        jobId: Value(data['job_id'] as String),
+        id: Value(id),
+        companyId: Value(companyId),
+        jobId: Value(jobId),
         quoteId: Value(data['quote_id'] as String?),
         invoiceNumber: data['invoice_number'] != null ? Value(data['invoice_number'] as String) : const Value.absent(),
         status: data['status'] != null ? Value(data['status'] as String) : const Value.absent(),
