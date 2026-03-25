@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: AI-Driven Construction Management
 status: Ready to execute
-stopped_at: Completed 24-gc-inspection-workflow 24-01-PLAN.md
-last_updated: "2026-03-25T21:49:53.012Z"
+stopped_at: Completed 24-gc-inspection-workflow-02-PLAN.md
+last_updated: "2026-03-25T21:50:30.633Z"
 progress:
   total_phases: 14
   completed_phases: 10
   total_plans: 58
-  completed_plans: 54
+  completed_plans: 55
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-19)
 ## Current Position
 
 Phase: 24 (gc-inspection-workflow) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 
 ## Performance Metrics
 
@@ -65,6 +65,7 @@ Plan: 2 of 4
 | Phase 23-real-time-chat P05 | 35min | 2 tasks | 11 files |
 | Phase 23-real-time-chat P06 | 123min | 2 tasks | 9 files |
 | Phase 24-gc-inspection-workflow P01 | 423 | 2 tasks | 10 files |
+| Phase 24 P02 | 15min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -150,6 +151,9 @@ Plan: 2 of 4
 - [Phase 24-gc-inspection-workflow]: [Phase 24 P01]: inspector_id, flagged_by, created_by are soft FKs (no hard FK), consistent with TaskNote.author_id pattern
 - [Phase 24-gc-inspection-workflow]: [Phase 24 P01]: reblock_successors only re-blocks FS/SS/SE dependency types — FF does not block
 - [Phase 24-gc-inspection-workflow]: [Phase 24 P01]: FCM rejection notification fires via asyncio.create_task — inspect endpoint never waits for FCM
+- [Phase 24]: SiteWalkFlagDao.convertFlag performs 4 atomic writes in a single Drift transaction (flag status + sync entry + punch item + sync entry) — ensures consistency between flag and punch list state
+- [Phase 24]: PunchListItemDao.watchByScopeId uses caseMatch for priority ordering (urgent=0, high=1, medium=2, low=3) — same pattern as TaskDao
+- [Phase 24]: Sync handlers in core/sync/handlers/ (individual files per entity) — project uses this pattern, not a monolithic sync_handlers.dart
 
 ### Pending Todos
 
@@ -163,7 +167,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-25T21:49:53.006Z
-Stopped at: Completed 24-gc-inspection-workflow 24-01-PLAN.md
+Last session: 2026-03-25T21:50:30.626Z
+Stopped at: Completed 24-gc-inspection-workflow-02-PLAN.md
 Stopped at: Completed 23-real-time-chat-05-PLAN.md
 Resume file: None
