@@ -15987,6 +15987,17 @@ class $TradeScopesTable extends TradeScopes
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _inspectionChecklistMeta =
+      const VerificationMeta('inspectionChecklist');
+  @override
+  late final GeneratedColumn<String> inspectionChecklist =
+      GeneratedColumn<String>(
+        'inspection_checklist',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _versionMeta = const VerificationMeta(
     'version',
   );
@@ -16044,6 +16055,7 @@ class $TradeScopesTable extends TradeScopes
     status,
     statusOverride,
     sortOrder,
+    inspectionChecklist,
     version,
     createdAt,
     updatedAt,
@@ -16133,6 +16145,15 @@ class $TradeScopesTable extends TradeScopes
         sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
       );
     }
+    if (data.containsKey('inspection_checklist')) {
+      context.handle(
+        _inspectionChecklistMeta,
+        inspectionChecklist.isAcceptableOrUnknown(
+          data['inspection_checklist']!,
+          _inspectionChecklistMeta,
+        ),
+      );
+    }
     if (data.containsKey('version')) {
       context.handle(
         _versionMeta,
@@ -16210,6 +16231,10 @@ class $TradeScopesTable extends TradeScopes
         DriftSqlType.int,
         data['${effectivePrefix}sort_order'],
       )!,
+      inspectionChecklist: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}inspection_checklist'],
+      ),
       version: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}version'],
@@ -16263,6 +16288,12 @@ class TradeScope extends DataClass implements Insertable<TradeScope> {
 
   /// Display order within the project's trade scope list.
   final int sortOrder;
+
+  /// JSON array defining the checklist items a GC must evaluate when
+  /// inspecting tasks in this trade scope. Each item:
+  /// { "id": "...", "label": "...", "required": true/false }
+  /// Nullable — scopes without a checklist use a free-form inspection flow.
+  final String? inspectionChecklist;
   final int version;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -16280,6 +16311,7 @@ class TradeScope extends DataClass implements Insertable<TradeScope> {
     required this.status,
     required this.statusOverride,
     required this.sortOrder,
+    this.inspectionChecklist,
     required this.version,
     required this.createdAt,
     required this.updatedAt,
@@ -16302,6 +16334,9 @@ class TradeScope extends DataClass implements Insertable<TradeScope> {
     map['status'] = Variable<String>(status);
     map['status_override'] = Variable<bool>(statusOverride);
     map['sort_order'] = Variable<int>(sortOrder);
+    if (!nullToAbsent || inspectionChecklist != null) {
+      map['inspection_checklist'] = Variable<String>(inspectionChecklist);
+    }
     map['version'] = Variable<int>(version);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -16327,6 +16362,9 @@ class TradeScope extends DataClass implements Insertable<TradeScope> {
       status: Value(status),
       statusOverride: Value(statusOverride),
       sortOrder: Value(sortOrder),
+      inspectionChecklist: inspectionChecklist == null && nullToAbsent
+          ? const Value.absent()
+          : Value(inspectionChecklist),
       version: Value(version),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
@@ -16352,6 +16390,9 @@ class TradeScope extends DataClass implements Insertable<TradeScope> {
       status: serializer.fromJson<String>(json['status']),
       statusOverride: serializer.fromJson<bool>(json['statusOverride']),
       sortOrder: serializer.fromJson<int>(json['sortOrder']),
+      inspectionChecklist: serializer.fromJson<String?>(
+        json['inspectionChecklist'],
+      ),
       version: serializer.fromJson<int>(json['version']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
@@ -16372,6 +16413,7 @@ class TradeScope extends DataClass implements Insertable<TradeScope> {
       'status': serializer.toJson<String>(status),
       'statusOverride': serializer.toJson<bool>(statusOverride),
       'sortOrder': serializer.toJson<int>(sortOrder),
+      'inspectionChecklist': serializer.toJson<String?>(inspectionChecklist),
       'version': serializer.toJson<int>(version),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -16390,6 +16432,7 @@ class TradeScope extends DataClass implements Insertable<TradeScope> {
     String? status,
     bool? statusOverride,
     int? sortOrder,
+    Value<String?> inspectionChecklist = const Value.absent(),
     int? version,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -16407,6 +16450,9 @@ class TradeScope extends DataClass implements Insertable<TradeScope> {
     status: status ?? this.status,
     statusOverride: statusOverride ?? this.statusOverride,
     sortOrder: sortOrder ?? this.sortOrder,
+    inspectionChecklist: inspectionChecklist.present
+        ? inspectionChecklist.value
+        : this.inspectionChecklist,
     version: version ?? this.version,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -16432,6 +16478,9 @@ class TradeScope extends DataClass implements Insertable<TradeScope> {
           ? data.statusOverride.value
           : this.statusOverride,
       sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+      inspectionChecklist: data.inspectionChecklist.present
+          ? data.inspectionChecklist.value
+          : this.inspectionChecklist,
       version: data.version.present ? data.version.value : this.version,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
@@ -16452,6 +16501,7 @@ class TradeScope extends DataClass implements Insertable<TradeScope> {
           ..write('status: $status, ')
           ..write('statusOverride: $statusOverride, ')
           ..write('sortOrder: $sortOrder, ')
+          ..write('inspectionChecklist: $inspectionChecklist, ')
           ..write('version: $version, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -16472,6 +16522,7 @@ class TradeScope extends DataClass implements Insertable<TradeScope> {
     status,
     statusOverride,
     sortOrder,
+    inspectionChecklist,
     version,
     createdAt,
     updatedAt,
@@ -16491,6 +16542,7 @@ class TradeScope extends DataClass implements Insertable<TradeScope> {
           other.status == this.status &&
           other.statusOverride == this.statusOverride &&
           other.sortOrder == this.sortOrder &&
+          other.inspectionChecklist == this.inspectionChecklist &&
           other.version == this.version &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
@@ -16508,6 +16560,7 @@ class TradeScopesCompanion extends UpdateCompanion<TradeScope> {
   final Value<String> status;
   final Value<bool> statusOverride;
   final Value<int> sortOrder;
+  final Value<String?> inspectionChecklist;
   final Value<int> version;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
@@ -16524,6 +16577,7 @@ class TradeScopesCompanion extends UpdateCompanion<TradeScope> {
     this.status = const Value.absent(),
     this.statusOverride = const Value.absent(),
     this.sortOrder = const Value.absent(),
+    this.inspectionChecklist = const Value.absent(),
     this.version = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -16541,6 +16595,7 @@ class TradeScopesCompanion extends UpdateCompanion<TradeScope> {
     this.status = const Value.absent(),
     this.statusOverride = const Value.absent(),
     this.sortOrder = const Value.absent(),
+    this.inspectionChecklist = const Value.absent(),
     this.version = const Value.absent(),
     required DateTime createdAt,
     required DateTime updatedAt,
@@ -16562,6 +16617,7 @@ class TradeScopesCompanion extends UpdateCompanion<TradeScope> {
     Expression<String>? status,
     Expression<bool>? statusOverride,
     Expression<int>? sortOrder,
+    Expression<String>? inspectionChecklist,
     Expression<int>? version,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
@@ -16579,6 +16635,8 @@ class TradeScopesCompanion extends UpdateCompanion<TradeScope> {
       if (status != null) 'status': status,
       if (statusOverride != null) 'status_override': statusOverride,
       if (sortOrder != null) 'sort_order': sortOrder,
+      if (inspectionChecklist != null)
+        'inspection_checklist': inspectionChecklist,
       if (version != null) 'version': version,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -16598,6 +16656,7 @@ class TradeScopesCompanion extends UpdateCompanion<TradeScope> {
     Value<String>? status,
     Value<bool>? statusOverride,
     Value<int>? sortOrder,
+    Value<String?>? inspectionChecklist,
     Value<int>? version,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
@@ -16615,6 +16674,7 @@ class TradeScopesCompanion extends UpdateCompanion<TradeScope> {
       status: status ?? this.status,
       statusOverride: statusOverride ?? this.statusOverride,
       sortOrder: sortOrder ?? this.sortOrder,
+      inspectionChecklist: inspectionChecklist ?? this.inspectionChecklist,
       version: version ?? this.version,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -16656,6 +16716,9 @@ class TradeScopesCompanion extends UpdateCompanion<TradeScope> {
     if (sortOrder.present) {
       map['sort_order'] = Variable<int>(sortOrder.value);
     }
+    if (inspectionChecklist.present) {
+      map['inspection_checklist'] = Variable<String>(inspectionChecklist.value);
+    }
     if (version.present) {
       map['version'] = Variable<int>(version.value);
     }
@@ -16687,6 +16750,7 @@ class TradeScopesCompanion extends UpdateCompanion<TradeScope> {
           ..write('status: $status, ')
           ..write('statusOverride: $statusOverride, ')
           ..write('sortOrder: $sortOrder, ')
+          ..write('inspectionChecklist: $inspectionChecklist, ')
           ..write('version: $version, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -23323,10 +23387,10 @@ class ChatMessage extends DataClass implements Insertable<ChatMessage> {
   final String? attachmentType;
 
   /// JSON string of annotation overlay data (non-destructive photo markup).
-  /// Stored as TEXT; parsed to Map<String, dynamic> at read time.
+  /// Stored as TEXT; parsed to `Map&lt;String, dynamic&gt;` at read time.
   final String? annotationData;
 
-  /// JSON array of user IDs mentioned in this message (e.g., '["uuid1","uuid2"]').
+  /// JSON array of user IDs mentioned in this message (e.g. `["uuid1","uuid2"]`).
   final String mentions;
 
   /// True if the message mentions all members of the thread.
@@ -24282,6 +24346,2659 @@ class ChatReadReceiptsCompanion extends UpdateCompanion<ChatReadReceipt> {
   }
 }
 
+class $TaskInspectionsTable extends TaskInspections
+    with TableInfo<$TaskInspectionsTable, TaskInspection> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TaskInspectionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    clientDefault: () => const Uuid().v4(),
+  );
+  static const VerificationMeta _companyIdMeta = const VerificationMeta(
+    'companyId',
+  );
+  @override
+  late final GeneratedColumn<String> companyId = GeneratedColumn<String>(
+    'company_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES companies (id)',
+    ),
+  );
+  static const VerificationMeta _taskIdMeta = const VerificationMeta('taskId');
+  @override
+  late final GeneratedColumn<String> taskId = GeneratedColumn<String>(
+    'task_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES project_tasks (id)',
+    ),
+  );
+  static const VerificationMeta _inspectorIdMeta = const VerificationMeta(
+    'inspectorId',
+  );
+  @override
+  late final GeneratedColumn<String> inspectorId = GeneratedColumn<String>(
+    'inspector_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _decisionMeta = const VerificationMeta(
+    'decision',
+  );
+  @override
+  late final GeneratedColumn<String> decision = GeneratedColumn<String>(
+    'decision',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _checklistResultsMeta = const VerificationMeta(
+    'checklistResults',
+  );
+  @override
+  late final GeneratedColumn<String> checklistResults = GeneratedColumn<String>(
+    'checklist_results',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _rejectionReasonMeta = const VerificationMeta(
+    'rejectionReason',
+  );
+  @override
+  late final GeneratedColumn<String> rejectionReason = GeneratedColumn<String>(
+    'rejection_reason',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _rejectionCommentMeta = const VerificationMeta(
+    'rejectionComment',
+  );
+  @override
+  late final GeneratedColumn<String> rejectionComment = GeneratedColumn<String>(
+    'rejection_comment',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _rejectionPhotoUrlMeta = const VerificationMeta(
+    'rejectionPhotoUrl',
+  );
+  @override
+  late final GeneratedColumn<String> rejectionPhotoUrl =
+      GeneratedColumn<String>(
+        'rejection_photo_url',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _versionMeta = const VerificationMeta(
+    'version',
+  );
+  @override
+  late final GeneratedColumn<int> version = GeneratedColumn<int>(
+    'version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    companyId,
+    taskId,
+    inspectorId,
+    decision,
+    checklistResults,
+    rejectionReason,
+    rejectionComment,
+    rejectionPhotoUrl,
+    version,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'task_inspections';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TaskInspection> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('company_id')) {
+      context.handle(
+        _companyIdMeta,
+        companyId.isAcceptableOrUnknown(data['company_id']!, _companyIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_companyIdMeta);
+    }
+    if (data.containsKey('task_id')) {
+      context.handle(
+        _taskIdMeta,
+        taskId.isAcceptableOrUnknown(data['task_id']!, _taskIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_taskIdMeta);
+    }
+    if (data.containsKey('inspector_id')) {
+      context.handle(
+        _inspectorIdMeta,
+        inspectorId.isAcceptableOrUnknown(
+          data['inspector_id']!,
+          _inspectorIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_inspectorIdMeta);
+    }
+    if (data.containsKey('decision')) {
+      context.handle(
+        _decisionMeta,
+        decision.isAcceptableOrUnknown(data['decision']!, _decisionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_decisionMeta);
+    }
+    if (data.containsKey('checklist_results')) {
+      context.handle(
+        _checklistResultsMeta,
+        checklistResults.isAcceptableOrUnknown(
+          data['checklist_results']!,
+          _checklistResultsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('rejection_reason')) {
+      context.handle(
+        _rejectionReasonMeta,
+        rejectionReason.isAcceptableOrUnknown(
+          data['rejection_reason']!,
+          _rejectionReasonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('rejection_comment')) {
+      context.handle(
+        _rejectionCommentMeta,
+        rejectionComment.isAcceptableOrUnknown(
+          data['rejection_comment']!,
+          _rejectionCommentMeta,
+        ),
+      );
+    }
+    if (data.containsKey('rejection_photo_url')) {
+      context.handle(
+        _rejectionPhotoUrlMeta,
+        rejectionPhotoUrl.isAcceptableOrUnknown(
+          data['rejection_photo_url']!,
+          _rejectionPhotoUrlMeta,
+        ),
+      );
+    }
+    if (data.containsKey('version')) {
+      context.handle(
+        _versionMeta,
+        version.isAcceptableOrUnknown(data['version']!, _versionMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TaskInspection map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TaskInspection(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      companyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}company_id'],
+      )!,
+      taskId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}task_id'],
+      )!,
+      inspectorId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}inspector_id'],
+      )!,
+      decision: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}decision'],
+      )!,
+      checklistResults: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}checklist_results'],
+      )!,
+      rejectionReason: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}rejection_reason'],
+      ),
+      rejectionComment: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}rejection_comment'],
+      ),
+      rejectionPhotoUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}rejection_photo_url'],
+      ),
+      version: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}version'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+    );
+  }
+
+  @override
+  $TaskInspectionsTable createAlias(String alias) {
+    return $TaskInspectionsTable(attachedDatabase, alias);
+  }
+}
+
+class TaskInspection extends DataClass implements Insertable<TaskInspection> {
+  final String id;
+
+  /// FK to Companies.id — tenant scope.
+  final String companyId;
+
+  /// FK to ProjectTasks.id — the task being inspected.
+  final String taskId;
+
+  /// FK to Users.id — the GC who performed this inspection.
+  /// Soft FK (no hard reference) to avoid cross-feature coupling.
+  final String inspectorId;
+
+  /// Inspection outcome: 'approved' | 'rejected'
+  final String decision;
+
+  /// JSON array of checklist item results.
+  /// Each item: { "itemId": "...", "passed": true/false, "note": "..." }
+  final String checklistResults;
+
+  /// Short rejection reason code (e.g., 'poor_quality', 'incomplete_work').
+  /// Only populated when decision == 'rejected'.
+  final String? rejectionReason;
+
+  /// Free-text comment from the GC explaining the rejection.
+  final String? rejectionComment;
+
+  /// URL or local path of rejection evidence photo.
+  final String? rejectionPhotoUrl;
+  final int version;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  /// Soft-delete for sync tombstone propagation across devices.
+  final DateTime? deletedAt;
+  const TaskInspection({
+    required this.id,
+    required this.companyId,
+    required this.taskId,
+    required this.inspectorId,
+    required this.decision,
+    required this.checklistResults,
+    this.rejectionReason,
+    this.rejectionComment,
+    this.rejectionPhotoUrl,
+    required this.version,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['company_id'] = Variable<String>(companyId);
+    map['task_id'] = Variable<String>(taskId);
+    map['inspector_id'] = Variable<String>(inspectorId);
+    map['decision'] = Variable<String>(decision);
+    map['checklist_results'] = Variable<String>(checklistResults);
+    if (!nullToAbsent || rejectionReason != null) {
+      map['rejection_reason'] = Variable<String>(rejectionReason);
+    }
+    if (!nullToAbsent || rejectionComment != null) {
+      map['rejection_comment'] = Variable<String>(rejectionComment);
+    }
+    if (!nullToAbsent || rejectionPhotoUrl != null) {
+      map['rejection_photo_url'] = Variable<String>(rejectionPhotoUrl);
+    }
+    map['version'] = Variable<int>(version);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    return map;
+  }
+
+  TaskInspectionsCompanion toCompanion(bool nullToAbsent) {
+    return TaskInspectionsCompanion(
+      id: Value(id),
+      companyId: Value(companyId),
+      taskId: Value(taskId),
+      inspectorId: Value(inspectorId),
+      decision: Value(decision),
+      checklistResults: Value(checklistResults),
+      rejectionReason: rejectionReason == null && nullToAbsent
+          ? const Value.absent()
+          : Value(rejectionReason),
+      rejectionComment: rejectionComment == null && nullToAbsent
+          ? const Value.absent()
+          : Value(rejectionComment),
+      rejectionPhotoUrl: rejectionPhotoUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(rejectionPhotoUrl),
+      version: Value(version),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory TaskInspection.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TaskInspection(
+      id: serializer.fromJson<String>(json['id']),
+      companyId: serializer.fromJson<String>(json['companyId']),
+      taskId: serializer.fromJson<String>(json['taskId']),
+      inspectorId: serializer.fromJson<String>(json['inspectorId']),
+      decision: serializer.fromJson<String>(json['decision']),
+      checklistResults: serializer.fromJson<String>(json['checklistResults']),
+      rejectionReason: serializer.fromJson<String?>(json['rejectionReason']),
+      rejectionComment: serializer.fromJson<String?>(json['rejectionComment']),
+      rejectionPhotoUrl: serializer.fromJson<String?>(
+        json['rejectionPhotoUrl'],
+      ),
+      version: serializer.fromJson<int>(json['version']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'companyId': serializer.toJson<String>(companyId),
+      'taskId': serializer.toJson<String>(taskId),
+      'inspectorId': serializer.toJson<String>(inspectorId),
+      'decision': serializer.toJson<String>(decision),
+      'checklistResults': serializer.toJson<String>(checklistResults),
+      'rejectionReason': serializer.toJson<String?>(rejectionReason),
+      'rejectionComment': serializer.toJson<String?>(rejectionComment),
+      'rejectionPhotoUrl': serializer.toJson<String?>(rejectionPhotoUrl),
+      'version': serializer.toJson<int>(version),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+    };
+  }
+
+  TaskInspection copyWith({
+    String? id,
+    String? companyId,
+    String? taskId,
+    String? inspectorId,
+    String? decision,
+    String? checklistResults,
+    Value<String?> rejectionReason = const Value.absent(),
+    Value<String?> rejectionComment = const Value.absent(),
+    Value<String?> rejectionPhotoUrl = const Value.absent(),
+    int? version,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+  }) => TaskInspection(
+    id: id ?? this.id,
+    companyId: companyId ?? this.companyId,
+    taskId: taskId ?? this.taskId,
+    inspectorId: inspectorId ?? this.inspectorId,
+    decision: decision ?? this.decision,
+    checklistResults: checklistResults ?? this.checklistResults,
+    rejectionReason: rejectionReason.present
+        ? rejectionReason.value
+        : this.rejectionReason,
+    rejectionComment: rejectionComment.present
+        ? rejectionComment.value
+        : this.rejectionComment,
+    rejectionPhotoUrl: rejectionPhotoUrl.present
+        ? rejectionPhotoUrl.value
+        : this.rejectionPhotoUrl,
+    version: version ?? this.version,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+  );
+  TaskInspection copyWithCompanion(TaskInspectionsCompanion data) {
+    return TaskInspection(
+      id: data.id.present ? data.id.value : this.id,
+      companyId: data.companyId.present ? data.companyId.value : this.companyId,
+      taskId: data.taskId.present ? data.taskId.value : this.taskId,
+      inspectorId: data.inspectorId.present
+          ? data.inspectorId.value
+          : this.inspectorId,
+      decision: data.decision.present ? data.decision.value : this.decision,
+      checklistResults: data.checklistResults.present
+          ? data.checklistResults.value
+          : this.checklistResults,
+      rejectionReason: data.rejectionReason.present
+          ? data.rejectionReason.value
+          : this.rejectionReason,
+      rejectionComment: data.rejectionComment.present
+          ? data.rejectionComment.value
+          : this.rejectionComment,
+      rejectionPhotoUrl: data.rejectionPhotoUrl.present
+          ? data.rejectionPhotoUrl.value
+          : this.rejectionPhotoUrl,
+      version: data.version.present ? data.version.value : this.version,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TaskInspection(')
+          ..write('id: $id, ')
+          ..write('companyId: $companyId, ')
+          ..write('taskId: $taskId, ')
+          ..write('inspectorId: $inspectorId, ')
+          ..write('decision: $decision, ')
+          ..write('checklistResults: $checklistResults, ')
+          ..write('rejectionReason: $rejectionReason, ')
+          ..write('rejectionComment: $rejectionComment, ')
+          ..write('rejectionPhotoUrl: $rejectionPhotoUrl, ')
+          ..write('version: $version, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    companyId,
+    taskId,
+    inspectorId,
+    decision,
+    checklistResults,
+    rejectionReason,
+    rejectionComment,
+    rejectionPhotoUrl,
+    version,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TaskInspection &&
+          other.id == this.id &&
+          other.companyId == this.companyId &&
+          other.taskId == this.taskId &&
+          other.inspectorId == this.inspectorId &&
+          other.decision == this.decision &&
+          other.checklistResults == this.checklistResults &&
+          other.rejectionReason == this.rejectionReason &&
+          other.rejectionComment == this.rejectionComment &&
+          other.rejectionPhotoUrl == this.rejectionPhotoUrl &&
+          other.version == this.version &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class TaskInspectionsCompanion extends UpdateCompanion<TaskInspection> {
+  final Value<String> id;
+  final Value<String> companyId;
+  final Value<String> taskId;
+  final Value<String> inspectorId;
+  final Value<String> decision;
+  final Value<String> checklistResults;
+  final Value<String?> rejectionReason;
+  final Value<String?> rejectionComment;
+  final Value<String?> rejectionPhotoUrl;
+  final Value<int> version;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<int> rowid;
+  const TaskInspectionsCompanion({
+    this.id = const Value.absent(),
+    this.companyId = const Value.absent(),
+    this.taskId = const Value.absent(),
+    this.inspectorId = const Value.absent(),
+    this.decision = const Value.absent(),
+    this.checklistResults = const Value.absent(),
+    this.rejectionReason = const Value.absent(),
+    this.rejectionComment = const Value.absent(),
+    this.rejectionPhotoUrl = const Value.absent(),
+    this.version = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TaskInspectionsCompanion.insert({
+    this.id = const Value.absent(),
+    required String companyId,
+    required String taskId,
+    required String inspectorId,
+    required String decision,
+    this.checklistResults = const Value.absent(),
+    this.rejectionReason = const Value.absent(),
+    this.rejectionComment = const Value.absent(),
+    this.rejectionPhotoUrl = const Value.absent(),
+    this.version = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : companyId = Value(companyId),
+       taskId = Value(taskId),
+       inspectorId = Value(inspectorId),
+       decision = Value(decision),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<TaskInspection> custom({
+    Expression<String>? id,
+    Expression<String>? companyId,
+    Expression<String>? taskId,
+    Expression<String>? inspectorId,
+    Expression<String>? decision,
+    Expression<String>? checklistResults,
+    Expression<String>? rejectionReason,
+    Expression<String>? rejectionComment,
+    Expression<String>? rejectionPhotoUrl,
+    Expression<int>? version,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (companyId != null) 'company_id': companyId,
+      if (taskId != null) 'task_id': taskId,
+      if (inspectorId != null) 'inspector_id': inspectorId,
+      if (decision != null) 'decision': decision,
+      if (checklistResults != null) 'checklist_results': checklistResults,
+      if (rejectionReason != null) 'rejection_reason': rejectionReason,
+      if (rejectionComment != null) 'rejection_comment': rejectionComment,
+      if (rejectionPhotoUrl != null) 'rejection_photo_url': rejectionPhotoUrl,
+      if (version != null) 'version': version,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TaskInspectionsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? companyId,
+    Value<String>? taskId,
+    Value<String>? inspectorId,
+    Value<String>? decision,
+    Value<String>? checklistResults,
+    Value<String?>? rejectionReason,
+    Value<String?>? rejectionComment,
+    Value<String?>? rejectionPhotoUrl,
+    Value<int>? version,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return TaskInspectionsCompanion(
+      id: id ?? this.id,
+      companyId: companyId ?? this.companyId,
+      taskId: taskId ?? this.taskId,
+      inspectorId: inspectorId ?? this.inspectorId,
+      decision: decision ?? this.decision,
+      checklistResults: checklistResults ?? this.checklistResults,
+      rejectionReason: rejectionReason ?? this.rejectionReason,
+      rejectionComment: rejectionComment ?? this.rejectionComment,
+      rejectionPhotoUrl: rejectionPhotoUrl ?? this.rejectionPhotoUrl,
+      version: version ?? this.version,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (companyId.present) {
+      map['company_id'] = Variable<String>(companyId.value);
+    }
+    if (taskId.present) {
+      map['task_id'] = Variable<String>(taskId.value);
+    }
+    if (inspectorId.present) {
+      map['inspector_id'] = Variable<String>(inspectorId.value);
+    }
+    if (decision.present) {
+      map['decision'] = Variable<String>(decision.value);
+    }
+    if (checklistResults.present) {
+      map['checklist_results'] = Variable<String>(checklistResults.value);
+    }
+    if (rejectionReason.present) {
+      map['rejection_reason'] = Variable<String>(rejectionReason.value);
+    }
+    if (rejectionComment.present) {
+      map['rejection_comment'] = Variable<String>(rejectionComment.value);
+    }
+    if (rejectionPhotoUrl.present) {
+      map['rejection_photo_url'] = Variable<String>(rejectionPhotoUrl.value);
+    }
+    if (version.present) {
+      map['version'] = Variable<int>(version.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TaskInspectionsCompanion(')
+          ..write('id: $id, ')
+          ..write('companyId: $companyId, ')
+          ..write('taskId: $taskId, ')
+          ..write('inspectorId: $inspectorId, ')
+          ..write('decision: $decision, ')
+          ..write('checklistResults: $checklistResults, ')
+          ..write('rejectionReason: $rejectionReason, ')
+          ..write('rejectionComment: $rejectionComment, ')
+          ..write('rejectionPhotoUrl: $rejectionPhotoUrl, ')
+          ..write('version: $version, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SiteWalkFlagsTable extends SiteWalkFlags
+    with TableInfo<$SiteWalkFlagsTable, SiteWalkFlag> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SiteWalkFlagsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    clientDefault: () => const Uuid().v4(),
+  );
+  static const VerificationMeta _companyIdMeta = const VerificationMeta(
+    'companyId',
+  );
+  @override
+  late final GeneratedColumn<String> companyId = GeneratedColumn<String>(
+    'company_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES companies (id)',
+    ),
+  );
+  static const VerificationMeta _projectIdMeta = const VerificationMeta(
+    'projectId',
+  );
+  @override
+  late final GeneratedColumn<String> projectId = GeneratedColumn<String>(
+    'project_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES projects (id)',
+    ),
+  );
+  static const VerificationMeta _flaggedByMeta = const VerificationMeta(
+    'flaggedBy',
+  );
+  @override
+  late final GeneratedColumn<String> flaggedBy = GeneratedColumn<String>(
+    'flagged_by',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _descriptionMeta = const VerificationMeta(
+    'description',
+  );
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+    'description',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _severityMeta = const VerificationMeta(
+    'severity',
+  );
+  @override
+  late final GeneratedColumn<String> severity = GeneratedColumn<String>(
+    'severity',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('medium'),
+  );
+  static const VerificationMeta _locationLabelMeta = const VerificationMeta(
+    'locationLabel',
+  );
+  @override
+  late final GeneratedColumn<String> locationLabel = GeneratedColumn<String>(
+    'location_label',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _photoUrlMeta = const VerificationMeta(
+    'photoUrl',
+  );
+  @override
+  late final GeneratedColumn<String> photoUrl = GeneratedColumn<String>(
+    'photo_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _annotationDataMeta = const VerificationMeta(
+    'annotationData',
+  );
+  @override
+  late final GeneratedColumn<String> annotationData = GeneratedColumn<String>(
+    'annotation_data',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('open'),
+  );
+  static const VerificationMeta _versionMeta = const VerificationMeta(
+    'version',
+  );
+  @override
+  late final GeneratedColumn<int> version = GeneratedColumn<int>(
+    'version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    companyId,
+    projectId,
+    flaggedBy,
+    description,
+    severity,
+    locationLabel,
+    photoUrl,
+    annotationData,
+    status,
+    version,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'site_walk_flags';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SiteWalkFlag> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('company_id')) {
+      context.handle(
+        _companyIdMeta,
+        companyId.isAcceptableOrUnknown(data['company_id']!, _companyIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_companyIdMeta);
+    }
+    if (data.containsKey('project_id')) {
+      context.handle(
+        _projectIdMeta,
+        projectId.isAcceptableOrUnknown(data['project_id']!, _projectIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_projectIdMeta);
+    }
+    if (data.containsKey('flagged_by')) {
+      context.handle(
+        _flaggedByMeta,
+        flaggedBy.isAcceptableOrUnknown(data['flagged_by']!, _flaggedByMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_flaggedByMeta);
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+        _descriptionMeta,
+        description.isAcceptableOrUnknown(
+          data['description']!,
+          _descriptionMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_descriptionMeta);
+    }
+    if (data.containsKey('severity')) {
+      context.handle(
+        _severityMeta,
+        severity.isAcceptableOrUnknown(data['severity']!, _severityMeta),
+      );
+    }
+    if (data.containsKey('location_label')) {
+      context.handle(
+        _locationLabelMeta,
+        locationLabel.isAcceptableOrUnknown(
+          data['location_label']!,
+          _locationLabelMeta,
+        ),
+      );
+    }
+    if (data.containsKey('photo_url')) {
+      context.handle(
+        _photoUrlMeta,
+        photoUrl.isAcceptableOrUnknown(data['photo_url']!, _photoUrlMeta),
+      );
+    }
+    if (data.containsKey('annotation_data')) {
+      context.handle(
+        _annotationDataMeta,
+        annotationData.isAcceptableOrUnknown(
+          data['annotation_data']!,
+          _annotationDataMeta,
+        ),
+      );
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('version')) {
+      context.handle(
+        _versionMeta,
+        version.isAcceptableOrUnknown(data['version']!, _versionMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SiteWalkFlag map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SiteWalkFlag(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      companyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}company_id'],
+      )!,
+      projectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}project_id'],
+      )!,
+      flaggedBy: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}flagged_by'],
+      )!,
+      description: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}description'],
+      )!,
+      severity: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}severity'],
+      )!,
+      locationLabel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}location_label'],
+      ),
+      photoUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}photo_url'],
+      ),
+      annotationData: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}annotation_data'],
+      ),
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      version: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}version'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+    );
+  }
+
+  @override
+  $SiteWalkFlagsTable createAlias(String alias) {
+    return $SiteWalkFlagsTable(attachedDatabase, alias);
+  }
+}
+
+class SiteWalkFlag extends DataClass implements Insertable<SiteWalkFlag> {
+  final String id;
+
+  /// FK to Companies.id — tenant scope.
+  final String companyId;
+
+  /// FK to Projects.id — the project this flag belongs to.
+  final String projectId;
+
+  /// FK to Users.id — the GC who flagged the issue.
+  /// Soft FK (no hard reference) to avoid cross-feature coupling.
+  final String flaggedBy;
+
+  /// Description of the issue observed during the site walk.
+  final String description;
+
+  /// Issue severity: 'low' | 'medium' | 'high' | 'critical'
+  final String severity;
+
+  /// Human-readable location label (e.g., "Unit 3B, kitchen wall").
+  final String? locationLabel;
+
+  /// URL or local path of a photo documenting the flag.
+  final String? photoUrl;
+
+  /// JSON annotation overlay for [photoUrl].
+  /// Stored as normalized 0-1 coordinate array — non-destructive overlay.
+  final String? annotationData;
+
+  /// Flag status: 'open' | 'resolved' | 'converted' | 'dismissed'
+  final String status;
+  final int version;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  /// Soft-delete for sync tombstone propagation across devices.
+  final DateTime? deletedAt;
+  const SiteWalkFlag({
+    required this.id,
+    required this.companyId,
+    required this.projectId,
+    required this.flaggedBy,
+    required this.description,
+    required this.severity,
+    this.locationLabel,
+    this.photoUrl,
+    this.annotationData,
+    required this.status,
+    required this.version,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['company_id'] = Variable<String>(companyId);
+    map['project_id'] = Variable<String>(projectId);
+    map['flagged_by'] = Variable<String>(flaggedBy);
+    map['description'] = Variable<String>(description);
+    map['severity'] = Variable<String>(severity);
+    if (!nullToAbsent || locationLabel != null) {
+      map['location_label'] = Variable<String>(locationLabel);
+    }
+    if (!nullToAbsent || photoUrl != null) {
+      map['photo_url'] = Variable<String>(photoUrl);
+    }
+    if (!nullToAbsent || annotationData != null) {
+      map['annotation_data'] = Variable<String>(annotationData);
+    }
+    map['status'] = Variable<String>(status);
+    map['version'] = Variable<int>(version);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    return map;
+  }
+
+  SiteWalkFlagsCompanion toCompanion(bool nullToAbsent) {
+    return SiteWalkFlagsCompanion(
+      id: Value(id),
+      companyId: Value(companyId),
+      projectId: Value(projectId),
+      flaggedBy: Value(flaggedBy),
+      description: Value(description),
+      severity: Value(severity),
+      locationLabel: locationLabel == null && nullToAbsent
+          ? const Value.absent()
+          : Value(locationLabel),
+      photoUrl: photoUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(photoUrl),
+      annotationData: annotationData == null && nullToAbsent
+          ? const Value.absent()
+          : Value(annotationData),
+      status: Value(status),
+      version: Value(version),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory SiteWalkFlag.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SiteWalkFlag(
+      id: serializer.fromJson<String>(json['id']),
+      companyId: serializer.fromJson<String>(json['companyId']),
+      projectId: serializer.fromJson<String>(json['projectId']),
+      flaggedBy: serializer.fromJson<String>(json['flaggedBy']),
+      description: serializer.fromJson<String>(json['description']),
+      severity: serializer.fromJson<String>(json['severity']),
+      locationLabel: serializer.fromJson<String?>(json['locationLabel']),
+      photoUrl: serializer.fromJson<String?>(json['photoUrl']),
+      annotationData: serializer.fromJson<String?>(json['annotationData']),
+      status: serializer.fromJson<String>(json['status']),
+      version: serializer.fromJson<int>(json['version']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'companyId': serializer.toJson<String>(companyId),
+      'projectId': serializer.toJson<String>(projectId),
+      'flaggedBy': serializer.toJson<String>(flaggedBy),
+      'description': serializer.toJson<String>(description),
+      'severity': serializer.toJson<String>(severity),
+      'locationLabel': serializer.toJson<String?>(locationLabel),
+      'photoUrl': serializer.toJson<String?>(photoUrl),
+      'annotationData': serializer.toJson<String?>(annotationData),
+      'status': serializer.toJson<String>(status),
+      'version': serializer.toJson<int>(version),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+    };
+  }
+
+  SiteWalkFlag copyWith({
+    String? id,
+    String? companyId,
+    String? projectId,
+    String? flaggedBy,
+    String? description,
+    String? severity,
+    Value<String?> locationLabel = const Value.absent(),
+    Value<String?> photoUrl = const Value.absent(),
+    Value<String?> annotationData = const Value.absent(),
+    String? status,
+    int? version,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+  }) => SiteWalkFlag(
+    id: id ?? this.id,
+    companyId: companyId ?? this.companyId,
+    projectId: projectId ?? this.projectId,
+    flaggedBy: flaggedBy ?? this.flaggedBy,
+    description: description ?? this.description,
+    severity: severity ?? this.severity,
+    locationLabel: locationLabel.present
+        ? locationLabel.value
+        : this.locationLabel,
+    photoUrl: photoUrl.present ? photoUrl.value : this.photoUrl,
+    annotationData: annotationData.present
+        ? annotationData.value
+        : this.annotationData,
+    status: status ?? this.status,
+    version: version ?? this.version,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+  );
+  SiteWalkFlag copyWithCompanion(SiteWalkFlagsCompanion data) {
+    return SiteWalkFlag(
+      id: data.id.present ? data.id.value : this.id,
+      companyId: data.companyId.present ? data.companyId.value : this.companyId,
+      projectId: data.projectId.present ? data.projectId.value : this.projectId,
+      flaggedBy: data.flaggedBy.present ? data.flaggedBy.value : this.flaggedBy,
+      description: data.description.present
+          ? data.description.value
+          : this.description,
+      severity: data.severity.present ? data.severity.value : this.severity,
+      locationLabel: data.locationLabel.present
+          ? data.locationLabel.value
+          : this.locationLabel,
+      photoUrl: data.photoUrl.present ? data.photoUrl.value : this.photoUrl,
+      annotationData: data.annotationData.present
+          ? data.annotationData.value
+          : this.annotationData,
+      status: data.status.present ? data.status.value : this.status,
+      version: data.version.present ? data.version.value : this.version,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SiteWalkFlag(')
+          ..write('id: $id, ')
+          ..write('companyId: $companyId, ')
+          ..write('projectId: $projectId, ')
+          ..write('flaggedBy: $flaggedBy, ')
+          ..write('description: $description, ')
+          ..write('severity: $severity, ')
+          ..write('locationLabel: $locationLabel, ')
+          ..write('photoUrl: $photoUrl, ')
+          ..write('annotationData: $annotationData, ')
+          ..write('status: $status, ')
+          ..write('version: $version, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    companyId,
+    projectId,
+    flaggedBy,
+    description,
+    severity,
+    locationLabel,
+    photoUrl,
+    annotationData,
+    status,
+    version,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SiteWalkFlag &&
+          other.id == this.id &&
+          other.companyId == this.companyId &&
+          other.projectId == this.projectId &&
+          other.flaggedBy == this.flaggedBy &&
+          other.description == this.description &&
+          other.severity == this.severity &&
+          other.locationLabel == this.locationLabel &&
+          other.photoUrl == this.photoUrl &&
+          other.annotationData == this.annotationData &&
+          other.status == this.status &&
+          other.version == this.version &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class SiteWalkFlagsCompanion extends UpdateCompanion<SiteWalkFlag> {
+  final Value<String> id;
+  final Value<String> companyId;
+  final Value<String> projectId;
+  final Value<String> flaggedBy;
+  final Value<String> description;
+  final Value<String> severity;
+  final Value<String?> locationLabel;
+  final Value<String?> photoUrl;
+  final Value<String?> annotationData;
+  final Value<String> status;
+  final Value<int> version;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<int> rowid;
+  const SiteWalkFlagsCompanion({
+    this.id = const Value.absent(),
+    this.companyId = const Value.absent(),
+    this.projectId = const Value.absent(),
+    this.flaggedBy = const Value.absent(),
+    this.description = const Value.absent(),
+    this.severity = const Value.absent(),
+    this.locationLabel = const Value.absent(),
+    this.photoUrl = const Value.absent(),
+    this.annotationData = const Value.absent(),
+    this.status = const Value.absent(),
+    this.version = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SiteWalkFlagsCompanion.insert({
+    this.id = const Value.absent(),
+    required String companyId,
+    required String projectId,
+    required String flaggedBy,
+    required String description,
+    this.severity = const Value.absent(),
+    this.locationLabel = const Value.absent(),
+    this.photoUrl = const Value.absent(),
+    this.annotationData = const Value.absent(),
+    this.status = const Value.absent(),
+    this.version = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : companyId = Value(companyId),
+       projectId = Value(projectId),
+       flaggedBy = Value(flaggedBy),
+       description = Value(description),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<SiteWalkFlag> custom({
+    Expression<String>? id,
+    Expression<String>? companyId,
+    Expression<String>? projectId,
+    Expression<String>? flaggedBy,
+    Expression<String>? description,
+    Expression<String>? severity,
+    Expression<String>? locationLabel,
+    Expression<String>? photoUrl,
+    Expression<String>? annotationData,
+    Expression<String>? status,
+    Expression<int>? version,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (companyId != null) 'company_id': companyId,
+      if (projectId != null) 'project_id': projectId,
+      if (flaggedBy != null) 'flagged_by': flaggedBy,
+      if (description != null) 'description': description,
+      if (severity != null) 'severity': severity,
+      if (locationLabel != null) 'location_label': locationLabel,
+      if (photoUrl != null) 'photo_url': photoUrl,
+      if (annotationData != null) 'annotation_data': annotationData,
+      if (status != null) 'status': status,
+      if (version != null) 'version': version,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SiteWalkFlagsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? companyId,
+    Value<String>? projectId,
+    Value<String>? flaggedBy,
+    Value<String>? description,
+    Value<String>? severity,
+    Value<String?>? locationLabel,
+    Value<String?>? photoUrl,
+    Value<String?>? annotationData,
+    Value<String>? status,
+    Value<int>? version,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return SiteWalkFlagsCompanion(
+      id: id ?? this.id,
+      companyId: companyId ?? this.companyId,
+      projectId: projectId ?? this.projectId,
+      flaggedBy: flaggedBy ?? this.flaggedBy,
+      description: description ?? this.description,
+      severity: severity ?? this.severity,
+      locationLabel: locationLabel ?? this.locationLabel,
+      photoUrl: photoUrl ?? this.photoUrl,
+      annotationData: annotationData ?? this.annotationData,
+      status: status ?? this.status,
+      version: version ?? this.version,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (companyId.present) {
+      map['company_id'] = Variable<String>(companyId.value);
+    }
+    if (projectId.present) {
+      map['project_id'] = Variable<String>(projectId.value);
+    }
+    if (flaggedBy.present) {
+      map['flagged_by'] = Variable<String>(flaggedBy.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (severity.present) {
+      map['severity'] = Variable<String>(severity.value);
+    }
+    if (locationLabel.present) {
+      map['location_label'] = Variable<String>(locationLabel.value);
+    }
+    if (photoUrl.present) {
+      map['photo_url'] = Variable<String>(photoUrl.value);
+    }
+    if (annotationData.present) {
+      map['annotation_data'] = Variable<String>(annotationData.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (version.present) {
+      map['version'] = Variable<int>(version.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SiteWalkFlagsCompanion(')
+          ..write('id: $id, ')
+          ..write('companyId: $companyId, ')
+          ..write('projectId: $projectId, ')
+          ..write('flaggedBy: $flaggedBy, ')
+          ..write('description: $description, ')
+          ..write('severity: $severity, ')
+          ..write('locationLabel: $locationLabel, ')
+          ..write('photoUrl: $photoUrl, ')
+          ..write('annotationData: $annotationData, ')
+          ..write('status: $status, ')
+          ..write('version: $version, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $PunchListItemsTable extends PunchListItems
+    with TableInfo<$PunchListItemsTable, PunchListItem> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PunchListItemsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    clientDefault: () => const Uuid().v4(),
+  );
+  static const VerificationMeta _companyIdMeta = const VerificationMeta(
+    'companyId',
+  );
+  @override
+  late final GeneratedColumn<String> companyId = GeneratedColumn<String>(
+    'company_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES companies (id)',
+    ),
+  );
+  static const VerificationMeta _projectIdMeta = const VerificationMeta(
+    'projectId',
+  );
+  @override
+  late final GeneratedColumn<String> projectId = GeneratedColumn<String>(
+    'project_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES projects (id)',
+    ),
+  );
+  static const VerificationMeta _tradeScopeIdMeta = const VerificationMeta(
+    'tradeScopeId',
+  );
+  @override
+  late final GeneratedColumn<String> tradeScopeId = GeneratedColumn<String>(
+    'trade_scope_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES trade_scopes (id)',
+    ),
+  );
+  static const VerificationMeta _createdByMeta = const VerificationMeta(
+    'createdBy',
+  );
+  @override
+  late final GeneratedColumn<String> createdBy = GeneratedColumn<String>(
+    'created_by',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _assignedToMeta = const VerificationMeta(
+    'assignedTo',
+  );
+  @override
+  late final GeneratedColumn<String> assignedTo = GeneratedColumn<String>(
+    'assigned_to',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _descriptionMeta = const VerificationMeta(
+    'description',
+  );
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+    'description',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _priorityMeta = const VerificationMeta(
+    'priority',
+  );
+  @override
+  late final GeneratedColumn<String> priority = GeneratedColumn<String>(
+    'priority',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('medium'),
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('open'),
+  );
+  static const VerificationMeta _photoUrlMeta = const VerificationMeta(
+    'photoUrl',
+  );
+  @override
+  late final GeneratedColumn<String> photoUrl = GeneratedColumn<String>(
+    'photo_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _annotationDataMeta = const VerificationMeta(
+    'annotationData',
+  );
+  @override
+  late final GeneratedColumn<String> annotationData = GeneratedColumn<String>(
+    'annotation_data',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sourceFlagIdMeta = const VerificationMeta(
+    'sourceFlagId',
+  );
+  @override
+  late final GeneratedColumn<String> sourceFlagId = GeneratedColumn<String>(
+    'source_flag_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _dueDateMeta = const VerificationMeta(
+    'dueDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> dueDate = GeneratedColumn<DateTime>(
+    'due_date',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _versionMeta = const VerificationMeta(
+    'version',
+  );
+  @override
+  late final GeneratedColumn<int> version = GeneratedColumn<int>(
+    'version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    companyId,
+    projectId,
+    tradeScopeId,
+    createdBy,
+    assignedTo,
+    description,
+    priority,
+    status,
+    photoUrl,
+    annotationData,
+    sourceFlagId,
+    dueDate,
+    version,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'punch_list_items';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PunchListItem> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('company_id')) {
+      context.handle(
+        _companyIdMeta,
+        companyId.isAcceptableOrUnknown(data['company_id']!, _companyIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_companyIdMeta);
+    }
+    if (data.containsKey('project_id')) {
+      context.handle(
+        _projectIdMeta,
+        projectId.isAcceptableOrUnknown(data['project_id']!, _projectIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_projectIdMeta);
+    }
+    if (data.containsKey('trade_scope_id')) {
+      context.handle(
+        _tradeScopeIdMeta,
+        tradeScopeId.isAcceptableOrUnknown(
+          data['trade_scope_id']!,
+          _tradeScopeIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_tradeScopeIdMeta);
+    }
+    if (data.containsKey('created_by')) {
+      context.handle(
+        _createdByMeta,
+        createdBy.isAcceptableOrUnknown(data['created_by']!, _createdByMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdByMeta);
+    }
+    if (data.containsKey('assigned_to')) {
+      context.handle(
+        _assignedToMeta,
+        assignedTo.isAcceptableOrUnknown(data['assigned_to']!, _assignedToMeta),
+      );
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+        _descriptionMeta,
+        description.isAcceptableOrUnknown(
+          data['description']!,
+          _descriptionMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_descriptionMeta);
+    }
+    if (data.containsKey('priority')) {
+      context.handle(
+        _priorityMeta,
+        priority.isAcceptableOrUnknown(data['priority']!, _priorityMeta),
+      );
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('photo_url')) {
+      context.handle(
+        _photoUrlMeta,
+        photoUrl.isAcceptableOrUnknown(data['photo_url']!, _photoUrlMeta),
+      );
+    }
+    if (data.containsKey('annotation_data')) {
+      context.handle(
+        _annotationDataMeta,
+        annotationData.isAcceptableOrUnknown(
+          data['annotation_data']!,
+          _annotationDataMeta,
+        ),
+      );
+    }
+    if (data.containsKey('source_flag_id')) {
+      context.handle(
+        _sourceFlagIdMeta,
+        sourceFlagId.isAcceptableOrUnknown(
+          data['source_flag_id']!,
+          _sourceFlagIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('due_date')) {
+      context.handle(
+        _dueDateMeta,
+        dueDate.isAcceptableOrUnknown(data['due_date']!, _dueDateMeta),
+      );
+    }
+    if (data.containsKey('version')) {
+      context.handle(
+        _versionMeta,
+        version.isAcceptableOrUnknown(data['version']!, _versionMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PunchListItem map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PunchListItem(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      companyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}company_id'],
+      )!,
+      projectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}project_id'],
+      )!,
+      tradeScopeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}trade_scope_id'],
+      )!,
+      createdBy: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}created_by'],
+      )!,
+      assignedTo: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}assigned_to'],
+      ),
+      description: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}description'],
+      )!,
+      priority: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}priority'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      photoUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}photo_url'],
+      ),
+      annotationData: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}annotation_data'],
+      ),
+      sourceFlagId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_flag_id'],
+      ),
+      dueDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}due_date'],
+      ),
+      version: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}version'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+    );
+  }
+
+  @override
+  $PunchListItemsTable createAlias(String alias) {
+    return $PunchListItemsTable(attachedDatabase, alias);
+  }
+}
+
+class PunchListItem extends DataClass implements Insertable<PunchListItem> {
+  final String id;
+
+  /// FK to Companies.id — tenant scope.
+  final String companyId;
+
+  /// FK to Projects.id — the project this punch list item belongs to.
+  final String projectId;
+
+  /// FK to TradeScopes.id — the trade scope responsible for remediation.
+  final String tradeScopeId;
+
+  /// FK to Users.id — the GC who created this punch list item.
+  /// Soft FK (no hard reference) to avoid cross-feature coupling.
+  final String createdBy;
+
+  /// FK to Users.id — the contractor assigned to resolve this item.
+  /// Nullable until explicitly assigned.
+  final String? assignedTo;
+
+  /// Description of the deficiency or corrective action required.
+  final String description;
+
+  /// Item priority: 'low' | 'medium' | 'high' | 'urgent'
+  final String priority;
+
+  /// Item status: 'open' | 'in_progress' | 'resolved' | 'rejected'
+  final String status;
+
+  /// URL or local path of a photo documenting the deficiency.
+  final String? photoUrl;
+
+  /// JSON annotation overlay for [photoUrl].
+  /// Stored as normalized 0-1 coordinate array — non-destructive overlay.
+  final String? annotationData;
+
+  /// FK to SiteWalkFlags.id — populated when this item was created
+  /// via [SiteWalkFlagDao.convertFlag]. Null for directly-created items.
+  final String? sourceFlagId;
+
+  /// Optional due date for resolving this punch list item.
+  final DateTime? dueDate;
+  final int version;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  /// Soft-delete for sync tombstone propagation across devices.
+  final DateTime? deletedAt;
+  const PunchListItem({
+    required this.id,
+    required this.companyId,
+    required this.projectId,
+    required this.tradeScopeId,
+    required this.createdBy,
+    this.assignedTo,
+    required this.description,
+    required this.priority,
+    required this.status,
+    this.photoUrl,
+    this.annotationData,
+    this.sourceFlagId,
+    this.dueDate,
+    required this.version,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['company_id'] = Variable<String>(companyId);
+    map['project_id'] = Variable<String>(projectId);
+    map['trade_scope_id'] = Variable<String>(tradeScopeId);
+    map['created_by'] = Variable<String>(createdBy);
+    if (!nullToAbsent || assignedTo != null) {
+      map['assigned_to'] = Variable<String>(assignedTo);
+    }
+    map['description'] = Variable<String>(description);
+    map['priority'] = Variable<String>(priority);
+    map['status'] = Variable<String>(status);
+    if (!nullToAbsent || photoUrl != null) {
+      map['photo_url'] = Variable<String>(photoUrl);
+    }
+    if (!nullToAbsent || annotationData != null) {
+      map['annotation_data'] = Variable<String>(annotationData);
+    }
+    if (!nullToAbsent || sourceFlagId != null) {
+      map['source_flag_id'] = Variable<String>(sourceFlagId);
+    }
+    if (!nullToAbsent || dueDate != null) {
+      map['due_date'] = Variable<DateTime>(dueDate);
+    }
+    map['version'] = Variable<int>(version);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    return map;
+  }
+
+  PunchListItemsCompanion toCompanion(bool nullToAbsent) {
+    return PunchListItemsCompanion(
+      id: Value(id),
+      companyId: Value(companyId),
+      projectId: Value(projectId),
+      tradeScopeId: Value(tradeScopeId),
+      createdBy: Value(createdBy),
+      assignedTo: assignedTo == null && nullToAbsent
+          ? const Value.absent()
+          : Value(assignedTo),
+      description: Value(description),
+      priority: Value(priority),
+      status: Value(status),
+      photoUrl: photoUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(photoUrl),
+      annotationData: annotationData == null && nullToAbsent
+          ? const Value.absent()
+          : Value(annotationData),
+      sourceFlagId: sourceFlagId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceFlagId),
+      dueDate: dueDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(dueDate),
+      version: Value(version),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory PunchListItem.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PunchListItem(
+      id: serializer.fromJson<String>(json['id']),
+      companyId: serializer.fromJson<String>(json['companyId']),
+      projectId: serializer.fromJson<String>(json['projectId']),
+      tradeScopeId: serializer.fromJson<String>(json['tradeScopeId']),
+      createdBy: serializer.fromJson<String>(json['createdBy']),
+      assignedTo: serializer.fromJson<String?>(json['assignedTo']),
+      description: serializer.fromJson<String>(json['description']),
+      priority: serializer.fromJson<String>(json['priority']),
+      status: serializer.fromJson<String>(json['status']),
+      photoUrl: serializer.fromJson<String?>(json['photoUrl']),
+      annotationData: serializer.fromJson<String?>(json['annotationData']),
+      sourceFlagId: serializer.fromJson<String?>(json['sourceFlagId']),
+      dueDate: serializer.fromJson<DateTime?>(json['dueDate']),
+      version: serializer.fromJson<int>(json['version']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'companyId': serializer.toJson<String>(companyId),
+      'projectId': serializer.toJson<String>(projectId),
+      'tradeScopeId': serializer.toJson<String>(tradeScopeId),
+      'createdBy': serializer.toJson<String>(createdBy),
+      'assignedTo': serializer.toJson<String?>(assignedTo),
+      'description': serializer.toJson<String>(description),
+      'priority': serializer.toJson<String>(priority),
+      'status': serializer.toJson<String>(status),
+      'photoUrl': serializer.toJson<String?>(photoUrl),
+      'annotationData': serializer.toJson<String?>(annotationData),
+      'sourceFlagId': serializer.toJson<String?>(sourceFlagId),
+      'dueDate': serializer.toJson<DateTime?>(dueDate),
+      'version': serializer.toJson<int>(version),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+    };
+  }
+
+  PunchListItem copyWith({
+    String? id,
+    String? companyId,
+    String? projectId,
+    String? tradeScopeId,
+    String? createdBy,
+    Value<String?> assignedTo = const Value.absent(),
+    String? description,
+    String? priority,
+    String? status,
+    Value<String?> photoUrl = const Value.absent(),
+    Value<String?> annotationData = const Value.absent(),
+    Value<String?> sourceFlagId = const Value.absent(),
+    Value<DateTime?> dueDate = const Value.absent(),
+    int? version,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+  }) => PunchListItem(
+    id: id ?? this.id,
+    companyId: companyId ?? this.companyId,
+    projectId: projectId ?? this.projectId,
+    tradeScopeId: tradeScopeId ?? this.tradeScopeId,
+    createdBy: createdBy ?? this.createdBy,
+    assignedTo: assignedTo.present ? assignedTo.value : this.assignedTo,
+    description: description ?? this.description,
+    priority: priority ?? this.priority,
+    status: status ?? this.status,
+    photoUrl: photoUrl.present ? photoUrl.value : this.photoUrl,
+    annotationData: annotationData.present
+        ? annotationData.value
+        : this.annotationData,
+    sourceFlagId: sourceFlagId.present ? sourceFlagId.value : this.sourceFlagId,
+    dueDate: dueDate.present ? dueDate.value : this.dueDate,
+    version: version ?? this.version,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+  );
+  PunchListItem copyWithCompanion(PunchListItemsCompanion data) {
+    return PunchListItem(
+      id: data.id.present ? data.id.value : this.id,
+      companyId: data.companyId.present ? data.companyId.value : this.companyId,
+      projectId: data.projectId.present ? data.projectId.value : this.projectId,
+      tradeScopeId: data.tradeScopeId.present
+          ? data.tradeScopeId.value
+          : this.tradeScopeId,
+      createdBy: data.createdBy.present ? data.createdBy.value : this.createdBy,
+      assignedTo: data.assignedTo.present
+          ? data.assignedTo.value
+          : this.assignedTo,
+      description: data.description.present
+          ? data.description.value
+          : this.description,
+      priority: data.priority.present ? data.priority.value : this.priority,
+      status: data.status.present ? data.status.value : this.status,
+      photoUrl: data.photoUrl.present ? data.photoUrl.value : this.photoUrl,
+      annotationData: data.annotationData.present
+          ? data.annotationData.value
+          : this.annotationData,
+      sourceFlagId: data.sourceFlagId.present
+          ? data.sourceFlagId.value
+          : this.sourceFlagId,
+      dueDate: data.dueDate.present ? data.dueDate.value : this.dueDate,
+      version: data.version.present ? data.version.value : this.version,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PunchListItem(')
+          ..write('id: $id, ')
+          ..write('companyId: $companyId, ')
+          ..write('projectId: $projectId, ')
+          ..write('tradeScopeId: $tradeScopeId, ')
+          ..write('createdBy: $createdBy, ')
+          ..write('assignedTo: $assignedTo, ')
+          ..write('description: $description, ')
+          ..write('priority: $priority, ')
+          ..write('status: $status, ')
+          ..write('photoUrl: $photoUrl, ')
+          ..write('annotationData: $annotationData, ')
+          ..write('sourceFlagId: $sourceFlagId, ')
+          ..write('dueDate: $dueDate, ')
+          ..write('version: $version, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    companyId,
+    projectId,
+    tradeScopeId,
+    createdBy,
+    assignedTo,
+    description,
+    priority,
+    status,
+    photoUrl,
+    annotationData,
+    sourceFlagId,
+    dueDate,
+    version,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PunchListItem &&
+          other.id == this.id &&
+          other.companyId == this.companyId &&
+          other.projectId == this.projectId &&
+          other.tradeScopeId == this.tradeScopeId &&
+          other.createdBy == this.createdBy &&
+          other.assignedTo == this.assignedTo &&
+          other.description == this.description &&
+          other.priority == this.priority &&
+          other.status == this.status &&
+          other.photoUrl == this.photoUrl &&
+          other.annotationData == this.annotationData &&
+          other.sourceFlagId == this.sourceFlagId &&
+          other.dueDate == this.dueDate &&
+          other.version == this.version &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class PunchListItemsCompanion extends UpdateCompanion<PunchListItem> {
+  final Value<String> id;
+  final Value<String> companyId;
+  final Value<String> projectId;
+  final Value<String> tradeScopeId;
+  final Value<String> createdBy;
+  final Value<String?> assignedTo;
+  final Value<String> description;
+  final Value<String> priority;
+  final Value<String> status;
+  final Value<String?> photoUrl;
+  final Value<String?> annotationData;
+  final Value<String?> sourceFlagId;
+  final Value<DateTime?> dueDate;
+  final Value<int> version;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<int> rowid;
+  const PunchListItemsCompanion({
+    this.id = const Value.absent(),
+    this.companyId = const Value.absent(),
+    this.projectId = const Value.absent(),
+    this.tradeScopeId = const Value.absent(),
+    this.createdBy = const Value.absent(),
+    this.assignedTo = const Value.absent(),
+    this.description = const Value.absent(),
+    this.priority = const Value.absent(),
+    this.status = const Value.absent(),
+    this.photoUrl = const Value.absent(),
+    this.annotationData = const Value.absent(),
+    this.sourceFlagId = const Value.absent(),
+    this.dueDate = const Value.absent(),
+    this.version = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PunchListItemsCompanion.insert({
+    this.id = const Value.absent(),
+    required String companyId,
+    required String projectId,
+    required String tradeScopeId,
+    required String createdBy,
+    this.assignedTo = const Value.absent(),
+    required String description,
+    this.priority = const Value.absent(),
+    this.status = const Value.absent(),
+    this.photoUrl = const Value.absent(),
+    this.annotationData = const Value.absent(),
+    this.sourceFlagId = const Value.absent(),
+    this.dueDate = const Value.absent(),
+    this.version = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : companyId = Value(companyId),
+       projectId = Value(projectId),
+       tradeScopeId = Value(tradeScopeId),
+       createdBy = Value(createdBy),
+       description = Value(description),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<PunchListItem> custom({
+    Expression<String>? id,
+    Expression<String>? companyId,
+    Expression<String>? projectId,
+    Expression<String>? tradeScopeId,
+    Expression<String>? createdBy,
+    Expression<String>? assignedTo,
+    Expression<String>? description,
+    Expression<String>? priority,
+    Expression<String>? status,
+    Expression<String>? photoUrl,
+    Expression<String>? annotationData,
+    Expression<String>? sourceFlagId,
+    Expression<DateTime>? dueDate,
+    Expression<int>? version,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (companyId != null) 'company_id': companyId,
+      if (projectId != null) 'project_id': projectId,
+      if (tradeScopeId != null) 'trade_scope_id': tradeScopeId,
+      if (createdBy != null) 'created_by': createdBy,
+      if (assignedTo != null) 'assigned_to': assignedTo,
+      if (description != null) 'description': description,
+      if (priority != null) 'priority': priority,
+      if (status != null) 'status': status,
+      if (photoUrl != null) 'photo_url': photoUrl,
+      if (annotationData != null) 'annotation_data': annotationData,
+      if (sourceFlagId != null) 'source_flag_id': sourceFlagId,
+      if (dueDate != null) 'due_date': dueDate,
+      if (version != null) 'version': version,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PunchListItemsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? companyId,
+    Value<String>? projectId,
+    Value<String>? tradeScopeId,
+    Value<String>? createdBy,
+    Value<String?>? assignedTo,
+    Value<String>? description,
+    Value<String>? priority,
+    Value<String>? status,
+    Value<String?>? photoUrl,
+    Value<String?>? annotationData,
+    Value<String?>? sourceFlagId,
+    Value<DateTime?>? dueDate,
+    Value<int>? version,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return PunchListItemsCompanion(
+      id: id ?? this.id,
+      companyId: companyId ?? this.companyId,
+      projectId: projectId ?? this.projectId,
+      tradeScopeId: tradeScopeId ?? this.tradeScopeId,
+      createdBy: createdBy ?? this.createdBy,
+      assignedTo: assignedTo ?? this.assignedTo,
+      description: description ?? this.description,
+      priority: priority ?? this.priority,
+      status: status ?? this.status,
+      photoUrl: photoUrl ?? this.photoUrl,
+      annotationData: annotationData ?? this.annotationData,
+      sourceFlagId: sourceFlagId ?? this.sourceFlagId,
+      dueDate: dueDate ?? this.dueDate,
+      version: version ?? this.version,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (companyId.present) {
+      map['company_id'] = Variable<String>(companyId.value);
+    }
+    if (projectId.present) {
+      map['project_id'] = Variable<String>(projectId.value);
+    }
+    if (tradeScopeId.present) {
+      map['trade_scope_id'] = Variable<String>(tradeScopeId.value);
+    }
+    if (createdBy.present) {
+      map['created_by'] = Variable<String>(createdBy.value);
+    }
+    if (assignedTo.present) {
+      map['assigned_to'] = Variable<String>(assignedTo.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (priority.present) {
+      map['priority'] = Variable<String>(priority.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (photoUrl.present) {
+      map['photo_url'] = Variable<String>(photoUrl.value);
+    }
+    if (annotationData.present) {
+      map['annotation_data'] = Variable<String>(annotationData.value);
+    }
+    if (sourceFlagId.present) {
+      map['source_flag_id'] = Variable<String>(sourceFlagId.value);
+    }
+    if (dueDate.present) {
+      map['due_date'] = Variable<DateTime>(dueDate.value);
+    }
+    if (version.present) {
+      map['version'] = Variable<int>(version.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PunchListItemsCompanion(')
+          ..write('id: $id, ')
+          ..write('companyId: $companyId, ')
+          ..write('projectId: $projectId, ')
+          ..write('tradeScopeId: $tradeScopeId, ')
+          ..write('createdBy: $createdBy, ')
+          ..write('assignedTo: $assignedTo, ')
+          ..write('description: $description, ')
+          ..write('priority: $priority, ')
+          ..write('status: $status, ')
+          ..write('photoUrl: $photoUrl, ')
+          ..write('annotationData: $annotationData, ')
+          ..write('sourceFlagId: $sourceFlagId, ')
+          ..write('dueDate: $dueDate, ')
+          ..write('version: $version, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -24332,6 +27049,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ChatReadReceiptsTable chatReadReceipts = $ChatReadReceiptsTable(
     this,
   );
+  late final $TaskInspectionsTable taskInspections = $TaskInspectionsTable(
+    this,
+  );
+  late final $SiteWalkFlagsTable siteWalkFlags = $SiteWalkFlagsTable(this);
+  late final $PunchListItemsTable punchListItems = $PunchListItemsTable(this);
   late final Index idxBookingsContractorTime = Index(
     'idx_bookings_contractor_time',
     'CREATE INDEX idx_bookings_contractor_time ON bookings (contractor_id, time_range_start, deleted_at)',
@@ -24375,6 +27097,15 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     this as AppDatabase,
   );
   late final ChatDao chatDao = ChatDao(this as AppDatabase);
+  late final TaskInspectionDao taskInspectionDao = TaskInspectionDao(
+    this as AppDatabase,
+  );
+  late final SiteWalkFlagDao siteWalkFlagDao = SiteWalkFlagDao(
+    this as AppDatabase,
+  );
+  late final PunchListItemDao punchListItemDao = PunchListItemDao(
+    this as AppDatabase,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -24413,6 +27144,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     chatThreads,
     chatMessages,
     chatReadReceipts,
+    taskInspections,
+    siteWalkFlags,
+    punchListItems,
     idxBookingsContractorTime,
     idxBookingsCompanyTime,
     idxBookingsJobId,
@@ -24882,6 +27616,71 @@ final class $$CompaniesTableReferences
     final cache = $_typedResult.readTableOrNull(
       _aiConversationsRefsTable($_db),
     );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$TaskInspectionsTable, List<TaskInspection>>
+  _taskInspectionsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.taskInspections,
+    aliasName: $_aliasNameGenerator(
+      db.companies.id,
+      db.taskInspections.companyId,
+    ),
+  );
+
+  $$TaskInspectionsTableProcessedTableManager get taskInspectionsRefs {
+    final manager = $$TaskInspectionsTableTableManager(
+      $_db,
+      $_db.taskInspections,
+    ).filter((f) => f.companyId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _taskInspectionsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$SiteWalkFlagsTable, List<SiteWalkFlag>>
+  _siteWalkFlagsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.siteWalkFlags,
+    aliasName: $_aliasNameGenerator(
+      db.companies.id,
+      db.siteWalkFlags.companyId,
+    ),
+  );
+
+  $$SiteWalkFlagsTableProcessedTableManager get siteWalkFlagsRefs {
+    final manager = $$SiteWalkFlagsTableTableManager(
+      $_db,
+      $_db.siteWalkFlags,
+    ).filter((f) => f.companyId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_siteWalkFlagsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$PunchListItemsTable, List<PunchListItem>>
+  _punchListItemsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.punchListItems,
+    aliasName: $_aliasNameGenerator(
+      db.companies.id,
+      db.punchListItems.companyId,
+    ),
+  );
+
+  $$PunchListItemsTableProcessedTableManager get punchListItemsRefs {
+    final manager = $$PunchListItemsTableTableManager(
+      $_db,
+      $_db.punchListItems,
+    ).filter((f) => f.companyId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_punchListItemsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -25468,6 +28267,81 @@ class $$CompaniesTableFilterComposer
           }) => $$AiConversationsTableFilterComposer(
             $db: $db,
             $table: $db.aiConversations,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> taskInspectionsRefs(
+    Expression<bool> Function($$TaskInspectionsTableFilterComposer f) f,
+  ) {
+    final $$TaskInspectionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.taskInspections,
+      getReferencedColumn: (t) => t.companyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TaskInspectionsTableFilterComposer(
+            $db: $db,
+            $table: $db.taskInspections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> siteWalkFlagsRefs(
+    Expression<bool> Function($$SiteWalkFlagsTableFilterComposer f) f,
+  ) {
+    final $$SiteWalkFlagsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.siteWalkFlags,
+      getReferencedColumn: (t) => t.companyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SiteWalkFlagsTableFilterComposer(
+            $db: $db,
+            $table: $db.siteWalkFlags,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> punchListItemsRefs(
+    Expression<bool> Function($$PunchListItemsTableFilterComposer f) f,
+  ) {
+    final $$PunchListItemsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.punchListItems,
+      getReferencedColumn: (t) => t.companyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PunchListItemsTableFilterComposer(
+            $db: $db,
+            $table: $db.punchListItems,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -26115,6 +28989,81 @@ class $$CompaniesTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> taskInspectionsRefs<T extends Object>(
+    Expression<T> Function($$TaskInspectionsTableAnnotationComposer a) f,
+  ) {
+    final $$TaskInspectionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.taskInspections,
+      getReferencedColumn: (t) => t.companyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TaskInspectionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.taskInspections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> siteWalkFlagsRefs<T extends Object>(
+    Expression<T> Function($$SiteWalkFlagsTableAnnotationComposer a) f,
+  ) {
+    final $$SiteWalkFlagsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.siteWalkFlags,
+      getReferencedColumn: (t) => t.companyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SiteWalkFlagsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.siteWalkFlags,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> punchListItemsRefs<T extends Object>(
+    Expression<T> Function($$PunchListItemsTableAnnotationComposer a) f,
+  ) {
+    final $$PunchListItemsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.punchListItems,
+      getReferencedColumn: (t) => t.companyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PunchListItemsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.punchListItems,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$CompaniesTableTableManager
@@ -26152,6 +29101,9 @@ class $$CompaniesTableTableManager
             bool taskDependenciesRefs,
             bool projectZonesRefs,
             bool aiConversationsRefs,
+            bool taskInspectionsRefs,
+            bool siteWalkFlagsRefs,
+            bool punchListItemsRefs,
           })
         > {
   $$CompaniesTableTableManager(_$AppDatabase db, $CompaniesTable table)
@@ -26252,6 +29204,9 @@ class $$CompaniesTableTableManager
                 taskDependenciesRefs = false,
                 projectZonesRefs = false,
                 aiConversationsRefs = false,
+                taskInspectionsRefs = false,
+                siteWalkFlagsRefs = false,
+                punchListItemsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -26277,6 +29232,9 @@ class $$CompaniesTableTableManager
                     if (taskDependenciesRefs) db.taskDependencies,
                     if (projectZonesRefs) db.projectZones,
                     if (aiConversationsRefs) db.aiConversations,
+                    if (taskInspectionsRefs) db.taskInspections,
+                    if (siteWalkFlagsRefs) db.siteWalkFlags,
+                    if (punchListItemsRefs) db.punchListItems,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -26722,6 +29680,69 @@ class $$CompaniesTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (taskInspectionsRefs)
+                        await $_getPrefetchedData<
+                          Company,
+                          $CompaniesTable,
+                          TaskInspection
+                        >(
+                          currentTable: table,
+                          referencedTable: $$CompaniesTableReferences
+                              ._taskInspectionsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$CompaniesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).taskInspectionsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.companyId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (siteWalkFlagsRefs)
+                        await $_getPrefetchedData<
+                          Company,
+                          $CompaniesTable,
+                          SiteWalkFlag
+                        >(
+                          currentTable: table,
+                          referencedTable: $$CompaniesTableReferences
+                              ._siteWalkFlagsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$CompaniesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).siteWalkFlagsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.companyId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (punchListItemsRefs)
+                        await $_getPrefetchedData<
+                          Company,
+                          $CompaniesTable,
+                          PunchListItem
+                        >(
+                          currentTable: table,
+                          referencedTable: $$CompaniesTableReferences
+                              ._punchListItemsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$CompaniesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).punchListItemsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.companyId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -26764,6 +29785,9 @@ typedef $$CompaniesTableProcessedTableManager =
         bool taskDependenciesRefs,
         bool projectZonesRefs,
         bool aiConversationsRefs,
+        bool taskInspectionsRefs,
+        bool siteWalkFlagsRefs,
+        bool punchListItemsRefs,
       })
     >;
 typedef $$UsersTableCreateCompanionBuilder =
@@ -35278,6 +38302,45 @@ final class $$ProjectsTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$SiteWalkFlagsTable, List<SiteWalkFlag>>
+  _siteWalkFlagsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.siteWalkFlags,
+    aliasName: $_aliasNameGenerator(db.projects.id, db.siteWalkFlags.projectId),
+  );
+
+  $$SiteWalkFlagsTableProcessedTableManager get siteWalkFlagsRefs {
+    final manager = $$SiteWalkFlagsTableTableManager(
+      $_db,
+      $_db.siteWalkFlags,
+    ).filter((f) => f.projectId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_siteWalkFlagsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$PunchListItemsTable, List<PunchListItem>>
+  _punchListItemsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.punchListItems,
+    aliasName: $_aliasNameGenerator(
+      db.projects.id,
+      db.punchListItems.projectId,
+    ),
+  );
+
+  $$PunchListItemsTableProcessedTableManager get punchListItemsRefs {
+    final manager = $$PunchListItemsTableTableManager(
+      $_db,
+      $_db.punchListItems,
+    ).filter((f) => f.projectId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_punchListItemsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$ProjectsTableFilterComposer
@@ -35418,6 +38481,56 @@ class $$ProjectsTableFilterComposer
           }) => $$ProjectZonesTableFilterComposer(
             $db: $db,
             $table: $db.projectZones,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> siteWalkFlagsRefs(
+    Expression<bool> Function($$SiteWalkFlagsTableFilterComposer f) f,
+  ) {
+    final $$SiteWalkFlagsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.siteWalkFlags,
+      getReferencedColumn: (t) => t.projectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SiteWalkFlagsTableFilterComposer(
+            $db: $db,
+            $table: $db.siteWalkFlags,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> punchListItemsRefs(
+    Expression<bool> Function($$PunchListItemsTableFilterComposer f) f,
+  ) {
+    final $$PunchListItemsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.punchListItems,
+      getReferencedColumn: (t) => t.projectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PunchListItemsTableFilterComposer(
+            $db: $db,
+            $table: $db.punchListItems,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -35654,6 +38767,56 @@ class $$ProjectsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> siteWalkFlagsRefs<T extends Object>(
+    Expression<T> Function($$SiteWalkFlagsTableAnnotationComposer a) f,
+  ) {
+    final $$SiteWalkFlagsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.siteWalkFlags,
+      getReferencedColumn: (t) => t.projectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SiteWalkFlagsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.siteWalkFlags,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> punchListItemsRefs<T extends Object>(
+    Expression<T> Function($$PunchListItemsTableAnnotationComposer a) f,
+  ) {
+    final $$PunchListItemsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.punchListItems,
+      getReferencedColumn: (t) => t.projectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PunchListItemsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.punchListItems,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ProjectsTableTableManager
@@ -35673,6 +38836,8 @@ class $$ProjectsTableTableManager
             bool companyId,
             bool tradeScopesRefs,
             bool projectZonesRefs,
+            bool siteWalkFlagsRefs,
+            bool punchListItemsRefs,
           })
         > {
   $$ProjectsTableTableManager(_$AppDatabase db, $ProjectsTable table)
@@ -35767,12 +38932,16 @@ class $$ProjectsTableTableManager
                 companyId = false,
                 tradeScopesRefs = false,
                 projectZonesRefs = false,
+                siteWalkFlagsRefs = false,
+                punchListItemsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (tradeScopesRefs) db.tradeScopes,
                     if (projectZonesRefs) db.projectZones,
+                    if (siteWalkFlagsRefs) db.siteWalkFlags,
+                    if (punchListItemsRefs) db.punchListItems,
                   ],
                   addJoins:
                       <
@@ -35850,6 +39019,48 @@ class $$ProjectsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (siteWalkFlagsRefs)
+                        await $_getPrefetchedData<
+                          Project,
+                          $ProjectsTable,
+                          SiteWalkFlag
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ProjectsTableReferences
+                              ._siteWalkFlagsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ProjectsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).siteWalkFlagsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.projectId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (punchListItemsRefs)
+                        await $_getPrefetchedData<
+                          Project,
+                          $ProjectsTable,
+                          PunchListItem
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ProjectsTableReferences
+                              ._punchListItemsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ProjectsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).punchListItemsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.projectId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -35874,6 +39085,8 @@ typedef $$ProjectsTableProcessedTableManager =
         bool companyId,
         bool tradeScopesRefs,
         bool projectZonesRefs,
+        bool siteWalkFlagsRefs,
+        bool punchListItemsRefs,
       })
     >;
 typedef $$TradeScopesTableCreateCompanionBuilder =
@@ -35888,6 +39101,7 @@ typedef $$TradeScopesTableCreateCompanionBuilder =
       Value<String> status,
       Value<bool> statusOverride,
       Value<int> sortOrder,
+      Value<String?> inspectionChecklist,
       Value<int> version,
       required DateTime createdAt,
       required DateTime updatedAt,
@@ -35906,6 +39120,7 @@ typedef $$TradeScopesTableUpdateCompanionBuilder =
       Value<String> status,
       Value<bool> statusOverride,
       Value<int> sortOrder,
+      Value<String?> inspectionChecklist,
       Value<int> version,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -35975,6 +39190,27 @@ final class $$TradeScopesTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$PunchListItemsTable, List<PunchListItem>>
+  _punchListItemsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.punchListItems,
+    aliasName: $_aliasNameGenerator(
+      db.tradeScopes.id,
+      db.punchListItems.tradeScopeId,
+    ),
+  );
+
+  $$PunchListItemsTableProcessedTableManager get punchListItemsRefs {
+    final manager = $$PunchListItemsTableTableManager(
+      $_db,
+      $_db.punchListItems,
+    ).filter((f) => f.tradeScopeId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_punchListItemsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$TradeScopesTableFilterComposer
@@ -36023,6 +39259,11 @@ class $$TradeScopesTableFilterComposer
 
   ColumnFilters<int> get sortOrder => $composableBuilder(
     column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get inspectionChecklist => $composableBuilder(
+    column: $table.inspectionChecklist,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -36116,6 +39357,31 @@ class $$TradeScopesTableFilterComposer
     );
     return f(composer);
   }
+
+  Expression<bool> punchListItemsRefs(
+    Expression<bool> Function($$PunchListItemsTableFilterComposer f) f,
+  ) {
+    final $$PunchListItemsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.punchListItems,
+      getReferencedColumn: (t) => t.tradeScopeId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PunchListItemsTableFilterComposer(
+            $db: $db,
+            $table: $db.punchListItems,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$TradeScopesTableOrderingComposer
@@ -36164,6 +39430,11 @@ class $$TradeScopesTableOrderingComposer
 
   ColumnOrderings<int> get sortOrder => $composableBuilder(
     column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get inspectionChecklist => $composableBuilder(
+    column: $table.inspectionChecklist,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -36275,6 +39546,11 @@ class $$TradeScopesTableAnnotationComposer
   GeneratedColumn<int> get sortOrder =>
       $composableBuilder(column: $table.sortOrder, builder: (column) => column);
 
+  GeneratedColumn<String> get inspectionChecklist => $composableBuilder(
+    column: $table.inspectionChecklist,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get version =>
       $composableBuilder(column: $table.version, builder: (column) => column);
 
@@ -36357,6 +39633,31 @@ class $$TradeScopesTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> punchListItemsRefs<T extends Object>(
+    Expression<T> Function($$PunchListItemsTableAnnotationComposer a) f,
+  ) {
+    final $$PunchListItemsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.punchListItems,
+      getReferencedColumn: (t) => t.tradeScopeId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PunchListItemsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.punchListItems,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$TradeScopesTableTableManager
@@ -36376,6 +39677,7 @@ class $$TradeScopesTableTableManager
             bool companyId,
             bool projectId,
             bool projectTasksRefs,
+            bool punchListItemsRefs,
           })
         > {
   $$TradeScopesTableTableManager(_$AppDatabase db, $TradeScopesTable table)
@@ -36401,6 +39703,7 @@ class $$TradeScopesTableTableManager
                 Value<String> status = const Value.absent(),
                 Value<bool> statusOverride = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
+                Value<String?> inspectionChecklist = const Value.absent(),
                 Value<int> version = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -36417,6 +39720,7 @@ class $$TradeScopesTableTableManager
                 status: status,
                 statusOverride: statusOverride,
                 sortOrder: sortOrder,
+                inspectionChecklist: inspectionChecklist,
                 version: version,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -36435,6 +39739,7 @@ class $$TradeScopesTableTableManager
                 Value<String> status = const Value.absent(),
                 Value<bool> statusOverride = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
+                Value<String?> inspectionChecklist = const Value.absent(),
                 Value<int> version = const Value.absent(),
                 required DateTime createdAt,
                 required DateTime updatedAt,
@@ -36451,6 +39756,7 @@ class $$TradeScopesTableTableManager
                 status: status,
                 statusOverride: statusOverride,
                 sortOrder: sortOrder,
+                inspectionChecklist: inspectionChecklist,
                 version: version,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -36470,11 +39776,13 @@ class $$TradeScopesTableTableManager
                 companyId = false,
                 projectId = false,
                 projectTasksRefs = false,
+                punchListItemsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (projectTasksRefs) db.projectTasks,
+                    if (punchListItemsRefs) db.punchListItems,
                   ],
                   addJoins:
                       <
@@ -36548,6 +39856,27 @@ class $$TradeScopesTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (punchListItemsRefs)
+                        await $_getPrefetchedData<
+                          TradeScope,
+                          $TradeScopesTable,
+                          PunchListItem
+                        >(
+                          currentTable: table,
+                          referencedTable: $$TradeScopesTableReferences
+                              ._punchListItemsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$TradeScopesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).punchListItemsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.tradeScopeId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -36572,6 +39901,7 @@ typedef $$TradeScopesTableProcessedTableManager =
         bool companyId,
         bool projectId,
         bool projectTasksRefs,
+        bool punchListItemsRefs,
       })
     >;
 typedef $$ProjectTasksTableCreateCompanionBuilder =
@@ -36701,6 +40031,29 @@ final class $$ProjectTasksTableReferences
     ).filter((f) => f.taskId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_taskNotesRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$TaskInspectionsTable, List<TaskInspection>>
+  _taskInspectionsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.taskInspections,
+    aliasName: $_aliasNameGenerator(
+      db.projectTasks.id,
+      db.taskInspections.taskId,
+    ),
+  );
+
+  $$TaskInspectionsTableProcessedTableManager get taskInspectionsRefs {
+    final manager = $$TaskInspectionsTableTableManager(
+      $_db,
+      $_db.taskInspections,
+    ).filter((f) => f.taskId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _taskInspectionsRefsTable($_db),
+    );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -36893,6 +40246,31 @@ class $$ProjectTasksTableFilterComposer
           }) => $$TaskNotesTableFilterComposer(
             $db: $db,
             $table: $db.taskNotes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> taskInspectionsRefs(
+    Expression<bool> Function($$TaskInspectionsTableFilterComposer f) f,
+  ) {
+    final $$TaskInspectionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.taskInspections,
+      getReferencedColumn: (t) => t.taskId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TaskInspectionsTableFilterComposer(
+            $db: $db,
+            $table: $db.taskInspections,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -37219,6 +40597,31 @@ class $$ProjectTasksTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> taskInspectionsRefs<T extends Object>(
+    Expression<T> Function($$TaskInspectionsTableAnnotationComposer a) f,
+  ) {
+    final $$TaskInspectionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.taskInspections,
+      getReferencedColumn: (t) => t.taskId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TaskInspectionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.taskInspections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ProjectTasksTableTableManager
@@ -37239,6 +40642,7 @@ class $$ProjectTasksTableTableManager
             bool tradeScopeId,
             bool taskAttachmentsRefs,
             bool taskNotesRefs,
+            bool taskInspectionsRefs,
           })
         > {
   $$ProjectTasksTableTableManager(_$AppDatabase db, $ProjectTasksTable table)
@@ -37358,12 +40762,14 @@ class $$ProjectTasksTableTableManager
                 tradeScopeId = false,
                 taskAttachmentsRefs = false,
                 taskNotesRefs = false,
+                taskInspectionsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (taskAttachmentsRefs) db.taskAttachments,
                     if (taskNotesRefs) db.taskNotes,
+                    if (taskInspectionsRefs) db.taskInspections,
                   ],
                   addJoins:
                       <
@@ -37458,6 +40864,27 @@ class $$ProjectTasksTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (taskInspectionsRefs)
+                        await $_getPrefetchedData<
+                          ProjectTask,
+                          $ProjectTasksTable,
+                          TaskInspection
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ProjectTasksTableReferences
+                              ._taskInspectionsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ProjectTasksTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).taskInspectionsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.taskId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -37483,6 +40910,7 @@ typedef $$ProjectTasksTableProcessedTableManager =
         bool tradeScopeId,
         bool taskAttachmentsRefs,
         bool taskNotesRefs,
+        bool taskInspectionsRefs,
       })
     >;
 typedef $$TaskAttachmentsTableCreateCompanionBuilder =
@@ -41759,6 +45187,1926 @@ typedef $$ChatReadReceiptsTableProcessedTableManager =
       ChatReadReceipt,
       PrefetchHooks Function()
     >;
+typedef $$TaskInspectionsTableCreateCompanionBuilder =
+    TaskInspectionsCompanion Function({
+      Value<String> id,
+      required String companyId,
+      required String taskId,
+      required String inspectorId,
+      required String decision,
+      Value<String> checklistResults,
+      Value<String?> rejectionReason,
+      Value<String?> rejectionComment,
+      Value<String?> rejectionPhotoUrl,
+      Value<int> version,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+typedef $$TaskInspectionsTableUpdateCompanionBuilder =
+    TaskInspectionsCompanion Function({
+      Value<String> id,
+      Value<String> companyId,
+      Value<String> taskId,
+      Value<String> inspectorId,
+      Value<String> decision,
+      Value<String> checklistResults,
+      Value<String?> rejectionReason,
+      Value<String?> rejectionComment,
+      Value<String?> rejectionPhotoUrl,
+      Value<int> version,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+
+final class $$TaskInspectionsTableReferences
+    extends
+        BaseReferences<_$AppDatabase, $TaskInspectionsTable, TaskInspection> {
+  $$TaskInspectionsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $CompaniesTable _companyIdTable(_$AppDatabase db) =>
+      db.companies.createAlias(
+        $_aliasNameGenerator(db.taskInspections.companyId, db.companies.id),
+      );
+
+  $$CompaniesTableProcessedTableManager get companyId {
+    final $_column = $_itemColumn<String>('company_id')!;
+
+    final manager = $$CompaniesTableTableManager(
+      $_db,
+      $_db.companies,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_companyIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $ProjectTasksTable _taskIdTable(_$AppDatabase db) =>
+      db.projectTasks.createAlias(
+        $_aliasNameGenerator(db.taskInspections.taskId, db.projectTasks.id),
+      );
+
+  $$ProjectTasksTableProcessedTableManager get taskId {
+    final $_column = $_itemColumn<String>('task_id')!;
+
+    final manager = $$ProjectTasksTableTableManager(
+      $_db,
+      $_db.projectTasks,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_taskIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$TaskInspectionsTableFilterComposer
+    extends Composer<_$AppDatabase, $TaskInspectionsTable> {
+  $$TaskInspectionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get inspectorId => $composableBuilder(
+    column: $table.inspectorId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get decision => $composableBuilder(
+    column: $table.decision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get checklistResults => $composableBuilder(
+    column: $table.checklistResults,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get rejectionReason => $composableBuilder(
+    column: $table.rejectionReason,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get rejectionComment => $composableBuilder(
+    column: $table.rejectionComment,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get rejectionPhotoUrl => $composableBuilder(
+    column: $table.rejectionPhotoUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$CompaniesTableFilterComposer get companyId {
+    final $$CompaniesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.companyId,
+      referencedTable: $db.companies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CompaniesTableFilterComposer(
+            $db: $db,
+            $table: $db.companies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ProjectTasksTableFilterComposer get taskId {
+    final $$ProjectTasksTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.taskId,
+      referencedTable: $db.projectTasks,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectTasksTableFilterComposer(
+            $db: $db,
+            $table: $db.projectTasks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TaskInspectionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $TaskInspectionsTable> {
+  $$TaskInspectionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get inspectorId => $composableBuilder(
+    column: $table.inspectorId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get decision => $composableBuilder(
+    column: $table.decision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get checklistResults => $composableBuilder(
+    column: $table.checklistResults,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get rejectionReason => $composableBuilder(
+    column: $table.rejectionReason,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get rejectionComment => $composableBuilder(
+    column: $table.rejectionComment,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get rejectionPhotoUrl => $composableBuilder(
+    column: $table.rejectionPhotoUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$CompaniesTableOrderingComposer get companyId {
+    final $$CompaniesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.companyId,
+      referencedTable: $db.companies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CompaniesTableOrderingComposer(
+            $db: $db,
+            $table: $db.companies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ProjectTasksTableOrderingComposer get taskId {
+    final $$ProjectTasksTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.taskId,
+      referencedTable: $db.projectTasks,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectTasksTableOrderingComposer(
+            $db: $db,
+            $table: $db.projectTasks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TaskInspectionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TaskInspectionsTable> {
+  $$TaskInspectionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get inspectorId => $composableBuilder(
+    column: $table.inspectorId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get decision =>
+      $composableBuilder(column: $table.decision, builder: (column) => column);
+
+  GeneratedColumn<String> get checklistResults => $composableBuilder(
+    column: $table.checklistResults,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get rejectionReason => $composableBuilder(
+    column: $table.rejectionReason,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get rejectionComment => $composableBuilder(
+    column: $table.rejectionComment,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get rejectionPhotoUrl => $composableBuilder(
+    column: $table.rejectionPhotoUrl,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get version =>
+      $composableBuilder(column: $table.version, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  $$CompaniesTableAnnotationComposer get companyId {
+    final $$CompaniesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.companyId,
+      referencedTable: $db.companies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CompaniesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.companies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ProjectTasksTableAnnotationComposer get taskId {
+    final $$ProjectTasksTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.taskId,
+      referencedTable: $db.projectTasks,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectTasksTableAnnotationComposer(
+            $db: $db,
+            $table: $db.projectTasks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TaskInspectionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TaskInspectionsTable,
+          TaskInspection,
+          $$TaskInspectionsTableFilterComposer,
+          $$TaskInspectionsTableOrderingComposer,
+          $$TaskInspectionsTableAnnotationComposer,
+          $$TaskInspectionsTableCreateCompanionBuilder,
+          $$TaskInspectionsTableUpdateCompanionBuilder,
+          (TaskInspection, $$TaskInspectionsTableReferences),
+          TaskInspection,
+          PrefetchHooks Function({bool companyId, bool taskId})
+        > {
+  $$TaskInspectionsTableTableManager(
+    _$AppDatabase db,
+    $TaskInspectionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TaskInspectionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TaskInspectionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TaskInspectionsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> companyId = const Value.absent(),
+                Value<String> taskId = const Value.absent(),
+                Value<String> inspectorId = const Value.absent(),
+                Value<String> decision = const Value.absent(),
+                Value<String> checklistResults = const Value.absent(),
+                Value<String?> rejectionReason = const Value.absent(),
+                Value<String?> rejectionComment = const Value.absent(),
+                Value<String?> rejectionPhotoUrl = const Value.absent(),
+                Value<int> version = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TaskInspectionsCompanion(
+                id: id,
+                companyId: companyId,
+                taskId: taskId,
+                inspectorId: inspectorId,
+                decision: decision,
+                checklistResults: checklistResults,
+                rejectionReason: rejectionReason,
+                rejectionComment: rejectionComment,
+                rejectionPhotoUrl: rejectionPhotoUrl,
+                version: version,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                required String companyId,
+                required String taskId,
+                required String inspectorId,
+                required String decision,
+                Value<String> checklistResults = const Value.absent(),
+                Value<String?> rejectionReason = const Value.absent(),
+                Value<String?> rejectionComment = const Value.absent(),
+                Value<String?> rejectionPhotoUrl = const Value.absent(),
+                Value<int> version = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TaskInspectionsCompanion.insert(
+                id: id,
+                companyId: companyId,
+                taskId: taskId,
+                inspectorId: inspectorId,
+                decision: decision,
+                checklistResults: checklistResults,
+                rejectionReason: rejectionReason,
+                rejectionComment: rejectionComment,
+                rejectionPhotoUrl: rejectionPhotoUrl,
+                version: version,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$TaskInspectionsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({companyId = false, taskId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (companyId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.companyId,
+                                referencedTable:
+                                    $$TaskInspectionsTableReferences
+                                        ._companyIdTable(db),
+                                referencedColumn:
+                                    $$TaskInspectionsTableReferences
+                                        ._companyIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+                    if (taskId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.taskId,
+                                referencedTable:
+                                    $$TaskInspectionsTableReferences
+                                        ._taskIdTable(db),
+                                referencedColumn:
+                                    $$TaskInspectionsTableReferences
+                                        ._taskIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$TaskInspectionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TaskInspectionsTable,
+      TaskInspection,
+      $$TaskInspectionsTableFilterComposer,
+      $$TaskInspectionsTableOrderingComposer,
+      $$TaskInspectionsTableAnnotationComposer,
+      $$TaskInspectionsTableCreateCompanionBuilder,
+      $$TaskInspectionsTableUpdateCompanionBuilder,
+      (TaskInspection, $$TaskInspectionsTableReferences),
+      TaskInspection,
+      PrefetchHooks Function({bool companyId, bool taskId})
+    >;
+typedef $$SiteWalkFlagsTableCreateCompanionBuilder =
+    SiteWalkFlagsCompanion Function({
+      Value<String> id,
+      required String companyId,
+      required String projectId,
+      required String flaggedBy,
+      required String description,
+      Value<String> severity,
+      Value<String?> locationLabel,
+      Value<String?> photoUrl,
+      Value<String?> annotationData,
+      Value<String> status,
+      Value<int> version,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+typedef $$SiteWalkFlagsTableUpdateCompanionBuilder =
+    SiteWalkFlagsCompanion Function({
+      Value<String> id,
+      Value<String> companyId,
+      Value<String> projectId,
+      Value<String> flaggedBy,
+      Value<String> description,
+      Value<String> severity,
+      Value<String?> locationLabel,
+      Value<String?> photoUrl,
+      Value<String?> annotationData,
+      Value<String> status,
+      Value<int> version,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+
+final class $$SiteWalkFlagsTableReferences
+    extends BaseReferences<_$AppDatabase, $SiteWalkFlagsTable, SiteWalkFlag> {
+  $$SiteWalkFlagsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $CompaniesTable _companyIdTable(_$AppDatabase db) =>
+      db.companies.createAlias(
+        $_aliasNameGenerator(db.siteWalkFlags.companyId, db.companies.id),
+      );
+
+  $$CompaniesTableProcessedTableManager get companyId {
+    final $_column = $_itemColumn<String>('company_id')!;
+
+    final manager = $$CompaniesTableTableManager(
+      $_db,
+      $_db.companies,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_companyIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $ProjectsTable _projectIdTable(_$AppDatabase db) =>
+      db.projects.createAlias(
+        $_aliasNameGenerator(db.siteWalkFlags.projectId, db.projects.id),
+      );
+
+  $$ProjectsTableProcessedTableManager get projectId {
+    final $_column = $_itemColumn<String>('project_id')!;
+
+    final manager = $$ProjectsTableTableManager(
+      $_db,
+      $_db.projects,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_projectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$SiteWalkFlagsTableFilterComposer
+    extends Composer<_$AppDatabase, $SiteWalkFlagsTable> {
+  $$SiteWalkFlagsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get flaggedBy => $composableBuilder(
+    column: $table.flaggedBy,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get severity => $composableBuilder(
+    column: $table.severity,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get locationLabel => $composableBuilder(
+    column: $table.locationLabel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get photoUrl => $composableBuilder(
+    column: $table.photoUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get annotationData => $composableBuilder(
+    column: $table.annotationData,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$CompaniesTableFilterComposer get companyId {
+    final $$CompaniesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.companyId,
+      referencedTable: $db.companies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CompaniesTableFilterComposer(
+            $db: $db,
+            $table: $db.companies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ProjectsTableFilterComposer get projectId {
+    final $$ProjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SiteWalkFlagsTableOrderingComposer
+    extends Composer<_$AppDatabase, $SiteWalkFlagsTable> {
+  $$SiteWalkFlagsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get flaggedBy => $composableBuilder(
+    column: $table.flaggedBy,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get severity => $composableBuilder(
+    column: $table.severity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get locationLabel => $composableBuilder(
+    column: $table.locationLabel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get photoUrl => $composableBuilder(
+    column: $table.photoUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get annotationData => $composableBuilder(
+    column: $table.annotationData,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$CompaniesTableOrderingComposer get companyId {
+    final $$CompaniesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.companyId,
+      referencedTable: $db.companies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CompaniesTableOrderingComposer(
+            $db: $db,
+            $table: $db.companies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ProjectsTableOrderingComposer get projectId {
+    final $$ProjectsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableOrderingComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SiteWalkFlagsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SiteWalkFlagsTable> {
+  $$SiteWalkFlagsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get flaggedBy =>
+      $composableBuilder(column: $table.flaggedBy, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get severity =>
+      $composableBuilder(column: $table.severity, builder: (column) => column);
+
+  GeneratedColumn<String> get locationLabel => $composableBuilder(
+    column: $table.locationLabel,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get photoUrl =>
+      $composableBuilder(column: $table.photoUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get annotationData => $composableBuilder(
+    column: $table.annotationData,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<int> get version =>
+      $composableBuilder(column: $table.version, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  $$CompaniesTableAnnotationComposer get companyId {
+    final $$CompaniesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.companyId,
+      referencedTable: $db.companies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CompaniesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.companies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ProjectsTableAnnotationComposer get projectId {
+    final $$ProjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SiteWalkFlagsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SiteWalkFlagsTable,
+          SiteWalkFlag,
+          $$SiteWalkFlagsTableFilterComposer,
+          $$SiteWalkFlagsTableOrderingComposer,
+          $$SiteWalkFlagsTableAnnotationComposer,
+          $$SiteWalkFlagsTableCreateCompanionBuilder,
+          $$SiteWalkFlagsTableUpdateCompanionBuilder,
+          (SiteWalkFlag, $$SiteWalkFlagsTableReferences),
+          SiteWalkFlag,
+          PrefetchHooks Function({bool companyId, bool projectId})
+        > {
+  $$SiteWalkFlagsTableTableManager(_$AppDatabase db, $SiteWalkFlagsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SiteWalkFlagsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SiteWalkFlagsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SiteWalkFlagsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> companyId = const Value.absent(),
+                Value<String> projectId = const Value.absent(),
+                Value<String> flaggedBy = const Value.absent(),
+                Value<String> description = const Value.absent(),
+                Value<String> severity = const Value.absent(),
+                Value<String?> locationLabel = const Value.absent(),
+                Value<String?> photoUrl = const Value.absent(),
+                Value<String?> annotationData = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<int> version = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SiteWalkFlagsCompanion(
+                id: id,
+                companyId: companyId,
+                projectId: projectId,
+                flaggedBy: flaggedBy,
+                description: description,
+                severity: severity,
+                locationLabel: locationLabel,
+                photoUrl: photoUrl,
+                annotationData: annotationData,
+                status: status,
+                version: version,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                required String companyId,
+                required String projectId,
+                required String flaggedBy,
+                required String description,
+                Value<String> severity = const Value.absent(),
+                Value<String?> locationLabel = const Value.absent(),
+                Value<String?> photoUrl = const Value.absent(),
+                Value<String?> annotationData = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<int> version = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SiteWalkFlagsCompanion.insert(
+                id: id,
+                companyId: companyId,
+                projectId: projectId,
+                flaggedBy: flaggedBy,
+                description: description,
+                severity: severity,
+                locationLabel: locationLabel,
+                photoUrl: photoUrl,
+                annotationData: annotationData,
+                status: status,
+                version: version,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$SiteWalkFlagsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({companyId = false, projectId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (companyId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.companyId,
+                                referencedTable: $$SiteWalkFlagsTableReferences
+                                    ._companyIdTable(db),
+                                referencedColumn: $$SiteWalkFlagsTableReferences
+                                    ._companyIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+                    if (projectId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.projectId,
+                                referencedTable: $$SiteWalkFlagsTableReferences
+                                    ._projectIdTable(db),
+                                referencedColumn: $$SiteWalkFlagsTableReferences
+                                    ._projectIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$SiteWalkFlagsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SiteWalkFlagsTable,
+      SiteWalkFlag,
+      $$SiteWalkFlagsTableFilterComposer,
+      $$SiteWalkFlagsTableOrderingComposer,
+      $$SiteWalkFlagsTableAnnotationComposer,
+      $$SiteWalkFlagsTableCreateCompanionBuilder,
+      $$SiteWalkFlagsTableUpdateCompanionBuilder,
+      (SiteWalkFlag, $$SiteWalkFlagsTableReferences),
+      SiteWalkFlag,
+      PrefetchHooks Function({bool companyId, bool projectId})
+    >;
+typedef $$PunchListItemsTableCreateCompanionBuilder =
+    PunchListItemsCompanion Function({
+      Value<String> id,
+      required String companyId,
+      required String projectId,
+      required String tradeScopeId,
+      required String createdBy,
+      Value<String?> assignedTo,
+      required String description,
+      Value<String> priority,
+      Value<String> status,
+      Value<String?> photoUrl,
+      Value<String?> annotationData,
+      Value<String?> sourceFlagId,
+      Value<DateTime?> dueDate,
+      Value<int> version,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+typedef $$PunchListItemsTableUpdateCompanionBuilder =
+    PunchListItemsCompanion Function({
+      Value<String> id,
+      Value<String> companyId,
+      Value<String> projectId,
+      Value<String> tradeScopeId,
+      Value<String> createdBy,
+      Value<String?> assignedTo,
+      Value<String> description,
+      Value<String> priority,
+      Value<String> status,
+      Value<String?> photoUrl,
+      Value<String?> annotationData,
+      Value<String?> sourceFlagId,
+      Value<DateTime?> dueDate,
+      Value<int> version,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+
+final class $$PunchListItemsTableReferences
+    extends BaseReferences<_$AppDatabase, $PunchListItemsTable, PunchListItem> {
+  $$PunchListItemsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $CompaniesTable _companyIdTable(_$AppDatabase db) =>
+      db.companies.createAlias(
+        $_aliasNameGenerator(db.punchListItems.companyId, db.companies.id),
+      );
+
+  $$CompaniesTableProcessedTableManager get companyId {
+    final $_column = $_itemColumn<String>('company_id')!;
+
+    final manager = $$CompaniesTableTableManager(
+      $_db,
+      $_db.companies,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_companyIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $ProjectsTable _projectIdTable(_$AppDatabase db) =>
+      db.projects.createAlias(
+        $_aliasNameGenerator(db.punchListItems.projectId, db.projects.id),
+      );
+
+  $$ProjectsTableProcessedTableManager get projectId {
+    final $_column = $_itemColumn<String>('project_id')!;
+
+    final manager = $$ProjectsTableTableManager(
+      $_db,
+      $_db.projects,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_projectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $TradeScopesTable _tradeScopeIdTable(_$AppDatabase db) =>
+      db.tradeScopes.createAlias(
+        $_aliasNameGenerator(db.punchListItems.tradeScopeId, db.tradeScopes.id),
+      );
+
+  $$TradeScopesTableProcessedTableManager get tradeScopeId {
+    final $_column = $_itemColumn<String>('trade_scope_id')!;
+
+    final manager = $$TradeScopesTableTableManager(
+      $_db,
+      $_db.tradeScopes,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_tradeScopeIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$PunchListItemsTableFilterComposer
+    extends Composer<_$AppDatabase, $PunchListItemsTable> {
+  $$PunchListItemsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get createdBy => $composableBuilder(
+    column: $table.createdBy,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get assignedTo => $composableBuilder(
+    column: $table.assignedTo,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get priority => $composableBuilder(
+    column: $table.priority,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get photoUrl => $composableBuilder(
+    column: $table.photoUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get annotationData => $composableBuilder(
+    column: $table.annotationData,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceFlagId => $composableBuilder(
+    column: $table.sourceFlagId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get dueDate => $composableBuilder(
+    column: $table.dueDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$CompaniesTableFilterComposer get companyId {
+    final $$CompaniesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.companyId,
+      referencedTable: $db.companies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CompaniesTableFilterComposer(
+            $db: $db,
+            $table: $db.companies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ProjectsTableFilterComposer get projectId {
+    final $$ProjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$TradeScopesTableFilterComposer get tradeScopeId {
+    final $$TradeScopesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.tradeScopeId,
+      referencedTable: $db.tradeScopes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TradeScopesTableFilterComposer(
+            $db: $db,
+            $table: $db.tradeScopes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PunchListItemsTableOrderingComposer
+    extends Composer<_$AppDatabase, $PunchListItemsTable> {
+  $$PunchListItemsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get createdBy => $composableBuilder(
+    column: $table.createdBy,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get assignedTo => $composableBuilder(
+    column: $table.assignedTo,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get priority => $composableBuilder(
+    column: $table.priority,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get photoUrl => $composableBuilder(
+    column: $table.photoUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get annotationData => $composableBuilder(
+    column: $table.annotationData,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceFlagId => $composableBuilder(
+    column: $table.sourceFlagId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get dueDate => $composableBuilder(
+    column: $table.dueDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$CompaniesTableOrderingComposer get companyId {
+    final $$CompaniesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.companyId,
+      referencedTable: $db.companies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CompaniesTableOrderingComposer(
+            $db: $db,
+            $table: $db.companies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ProjectsTableOrderingComposer get projectId {
+    final $$ProjectsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableOrderingComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$TradeScopesTableOrderingComposer get tradeScopeId {
+    final $$TradeScopesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.tradeScopeId,
+      referencedTable: $db.tradeScopes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TradeScopesTableOrderingComposer(
+            $db: $db,
+            $table: $db.tradeScopes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PunchListItemsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PunchListItemsTable> {
+  $$PunchListItemsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get createdBy =>
+      $composableBuilder(column: $table.createdBy, builder: (column) => column);
+
+  GeneratedColumn<String> get assignedTo => $composableBuilder(
+    column: $table.assignedTo,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get priority =>
+      $composableBuilder(column: $table.priority, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get photoUrl =>
+      $composableBuilder(column: $table.photoUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get annotationData => $composableBuilder(
+    column: $table.annotationData,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sourceFlagId => $composableBuilder(
+    column: $table.sourceFlagId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get dueDate =>
+      $composableBuilder(column: $table.dueDate, builder: (column) => column);
+
+  GeneratedColumn<int> get version =>
+      $composableBuilder(column: $table.version, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  $$CompaniesTableAnnotationComposer get companyId {
+    final $$CompaniesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.companyId,
+      referencedTable: $db.companies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CompaniesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.companies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ProjectsTableAnnotationComposer get projectId {
+    final $$ProjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$TradeScopesTableAnnotationComposer get tradeScopeId {
+    final $$TradeScopesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.tradeScopeId,
+      referencedTable: $db.tradeScopes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TradeScopesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.tradeScopes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PunchListItemsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PunchListItemsTable,
+          PunchListItem,
+          $$PunchListItemsTableFilterComposer,
+          $$PunchListItemsTableOrderingComposer,
+          $$PunchListItemsTableAnnotationComposer,
+          $$PunchListItemsTableCreateCompanionBuilder,
+          $$PunchListItemsTableUpdateCompanionBuilder,
+          (PunchListItem, $$PunchListItemsTableReferences),
+          PunchListItem,
+          PrefetchHooks Function({
+            bool companyId,
+            bool projectId,
+            bool tradeScopeId,
+          })
+        > {
+  $$PunchListItemsTableTableManager(
+    _$AppDatabase db,
+    $PunchListItemsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PunchListItemsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PunchListItemsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PunchListItemsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> companyId = const Value.absent(),
+                Value<String> projectId = const Value.absent(),
+                Value<String> tradeScopeId = const Value.absent(),
+                Value<String> createdBy = const Value.absent(),
+                Value<String?> assignedTo = const Value.absent(),
+                Value<String> description = const Value.absent(),
+                Value<String> priority = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<String?> photoUrl = const Value.absent(),
+                Value<String?> annotationData = const Value.absent(),
+                Value<String?> sourceFlagId = const Value.absent(),
+                Value<DateTime?> dueDate = const Value.absent(),
+                Value<int> version = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PunchListItemsCompanion(
+                id: id,
+                companyId: companyId,
+                projectId: projectId,
+                tradeScopeId: tradeScopeId,
+                createdBy: createdBy,
+                assignedTo: assignedTo,
+                description: description,
+                priority: priority,
+                status: status,
+                photoUrl: photoUrl,
+                annotationData: annotationData,
+                sourceFlagId: sourceFlagId,
+                dueDate: dueDate,
+                version: version,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                required String companyId,
+                required String projectId,
+                required String tradeScopeId,
+                required String createdBy,
+                Value<String?> assignedTo = const Value.absent(),
+                required String description,
+                Value<String> priority = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<String?> photoUrl = const Value.absent(),
+                Value<String?> annotationData = const Value.absent(),
+                Value<String?> sourceFlagId = const Value.absent(),
+                Value<DateTime?> dueDate = const Value.absent(),
+                Value<int> version = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PunchListItemsCompanion.insert(
+                id: id,
+                companyId: companyId,
+                projectId: projectId,
+                tradeScopeId: tradeScopeId,
+                createdBy: createdBy,
+                assignedTo: assignedTo,
+                description: description,
+                priority: priority,
+                status: status,
+                photoUrl: photoUrl,
+                annotationData: annotationData,
+                sourceFlagId: sourceFlagId,
+                dueDate: dueDate,
+                version: version,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$PunchListItemsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({companyId = false, projectId = false, tradeScopeId = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (companyId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.companyId,
+                                    referencedTable:
+                                        $$PunchListItemsTableReferences
+                                            ._companyIdTable(db),
+                                    referencedColumn:
+                                        $$PunchListItemsTableReferences
+                                            ._companyIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (projectId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.projectId,
+                                    referencedTable:
+                                        $$PunchListItemsTableReferences
+                                            ._projectIdTable(db),
+                                    referencedColumn:
+                                        $$PunchListItemsTableReferences
+                                            ._projectIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (tradeScopeId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.tradeScopeId,
+                                    referencedTable:
+                                        $$PunchListItemsTableReferences
+                                            ._tradeScopeIdTable(db),
+                                    referencedColumn:
+                                        $$PunchListItemsTableReferences
+                                            ._tradeScopeIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$PunchListItemsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PunchListItemsTable,
+      PunchListItem,
+      $$PunchListItemsTableFilterComposer,
+      $$PunchListItemsTableOrderingComposer,
+      $$PunchListItemsTableAnnotationComposer,
+      $$PunchListItemsTableCreateCompanionBuilder,
+      $$PunchListItemsTableUpdateCompanionBuilder,
+      (PunchListItem, $$PunchListItemsTableReferences),
+      PunchListItem,
+      PrefetchHooks Function({
+        bool companyId,
+        bool projectId,
+        bool tradeScopeId,
+      })
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -41828,4 +47176,10 @@ class $AppDatabaseManager {
       $$ChatMessagesTableTableManager(_db, _db.chatMessages);
   $$ChatReadReceiptsTableTableManager get chatReadReceipts =>
       $$ChatReadReceiptsTableTableManager(_db, _db.chatReadReceipts);
+  $$TaskInspectionsTableTableManager get taskInspections =>
+      $$TaskInspectionsTableTableManager(_db, _db.taskInspections);
+  $$SiteWalkFlagsTableTableManager get siteWalkFlags =>
+      $$SiteWalkFlagsTableTableManager(_db, _db.siteWalkFlags);
+  $$PunchListItemsTableTableManager get punchListItems =>
+      $$PunchListItemsTableTableManager(_db, _db.punchListItems);
 }

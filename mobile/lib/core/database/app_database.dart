@@ -14,7 +14,10 @@ import '../../features/projects/data/project_zone_dao.dart';
 import '../../features/projects/data/task_attachment_dao.dart';
 import '../../features/projects/data/task_dao.dart';
 import '../../features/projects/data/task_dependency_dao.dart';
+import '../../features/projects/data/task_inspection_dao.dart';
 import '../../features/projects/data/task_note_dao.dart';
+import '../../features/projects/data/site_walk_flag_dao.dart';
+import '../../features/projects/data/punch_list_item_dao.dart';
 import '../../features/projects/data/trade_catalog_dao.dart';
 import '../../features/projects/data/trade_scope_dao.dart';
 import '../../features/quotes/data/quote_dao.dart';
@@ -57,6 +60,9 @@ import 'tables/ai_messages.dart';
 import 'tables/chat_threads.dart';
 import 'tables/chat_messages.dart';
 import 'tables/chat_read_receipts.dart';
+import 'tables/task_inspections.dart';
+import 'tables/site_walk_flags.dart';
+import 'tables/punch_list_items.dart';
 
 export '../../features/company/data/company_dao.dart';
 export '../../features/invoices/data/invoice_dao.dart';
@@ -69,7 +75,10 @@ export '../../features/projects/data/project_zone_dao.dart';
 export '../../features/projects/data/task_attachment_dao.dart';
 export '../../features/projects/data/task_dao.dart';
 export '../../features/projects/data/task_dependency_dao.dart';
+export '../../features/projects/data/task_inspection_dao.dart';
 export '../../features/projects/data/task_note_dao.dart';
+export '../../features/projects/data/site_walk_flag_dao.dart';
+export '../../features/projects/data/punch_list_item_dao.dart';
 export '../../features/projects/data/trade_catalog_dao.dart';
 export '../../features/projects/data/trade_scope_dao.dart';
 export '../../features/quotes/data/quote_dao.dart';
@@ -115,6 +124,9 @@ part 'app_database.g.dart';
     ChatThreads,
     ChatMessages,
     ChatReadReceipts,
+    TaskInspections,
+    SiteWalkFlags,
+    PunchListItems,
   ],
   daos: [
     CompanyDao,
@@ -138,6 +150,9 @@ part 'app_database.g.dart';
     ProjectZoneDao,
     AiConversationDao,
     ChatDao,
+    TaskInspectionDao,
+    SiteWalkFlagDao,
+    PunchListItemDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -145,7 +160,7 @@ class AppDatabase extends _$AppDatabase {
       : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 12;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -230,6 +245,17 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(chatMessages);
             // Create ChatReadReceipts table for read position tracking
             await m.createTable(chatReadReceipts);
+          }
+          if (from < 12) {
+            // Phase 24: GC inspection workflow data layer
+            // Create TaskInspections table for GC approve/reject audit trail
+            await m.createTable(taskInspections);
+            // Create SiteWalkFlags table for GC site walk issue capture
+            await m.createTable(siteWalkFlags);
+            // Create PunchListItems table for formal corrective action tracking
+            await m.createTable(punchListItems);
+            // Add inspectionChecklist column to TradeScopes for per-scope checklists
+            await m.addColumn(tradeScopes, tradeScopes.inspectionChecklist);
           }
         },
       );

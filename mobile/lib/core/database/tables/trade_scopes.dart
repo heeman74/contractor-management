@@ -48,6 +48,12 @@ class TradeScopes extends Table {
   /// Display order within the project's trade scope list.
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 
+  /// JSON array defining the checklist items a GC must evaluate when
+  /// inspecting tasks in this trade scope. Each item:
+  /// { "id": "...", "label": "...", "required": true/false }
+  /// Nullable — scopes without a checklist use a free-form inspection flow.
+  TextColumn get inspectionChecklist => text().nullable()();
+
   IntColumn get version => integer().withDefault(const Constant(1))();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
