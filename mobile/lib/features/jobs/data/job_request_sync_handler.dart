@@ -45,29 +45,35 @@ class JobRequestSyncHandler extends SyncHandler {
 
   @override
   Future<void> applyPulled(Map<String, dynamic> data) async {
+    final id = data['id'];
+    final companyId = data['company_id'];
+    if (id is! String || companyId is! String) {
+      throw FormatException('JobRequest missing required fields');
+    }
+
     final deletedAt = data['deleted_at'] != null
-        ? DateTime.parse(data['deleted_at'] as String)
+        ? DateTime.parse(data['deleted_at'].toString())
         : null;
 
     final companion = JobRequestsCompanion(
-      id: Value(data['id'] as String),
-      companyId: Value(data['company_id'] as String),
-      clientId: Value(data['client_id'] as String?),
-      description: Value(data['description'] as String),
-      tradeType: Value(data['trade_type'] as String?),
+      id: Value(id),
+      companyId: Value(companyId),
+      clientId: Value(data['client_id']?.toString()),
+      description: Value((data['description'] ?? '').toString()),
+      tradeType: Value(data['trade_type']?.toString()),
       urgency: data['urgency'] != null
-          ? Value(data['urgency'] as String)
+          ? Value(data['urgency'].toString())
           : const Value.absent(),
       preferredDateStart: data['preferred_date_start'] != null
-          ? Value(DateTime.parse(data['preferred_date_start'] as String))
+          ? Value(DateTime.parse(data['preferred_date_start'].toString()))
           : const Value.absent(),
       preferredDateEnd: data['preferred_date_end'] != null
-          ? Value(DateTime.parse(data['preferred_date_end'] as String))
+          ? Value(DateTime.parse(data['preferred_date_end'].toString()))
           : const Value.absent(),
-      budgetMin: data['budget_min'] != null
+      budgetMin: data['budget_min'] is num
           ? Value((data['budget_min'] as num).toDouble())
           : const Value.absent(),
-      budgetMax: data['budget_max'] != null
+      budgetMax: data['budget_max'] is num
           ? Value((data['budget_max'] as num).toDouble())
           : const Value.absent(),
       photos: data['photos'] != null
@@ -78,22 +84,22 @@ class JobRequestSyncHandler extends SyncHandler {
             )
           : const Value.absent(),
       requestStatus: data['status'] != null
-          ? Value(data['status'] as String)
+          ? Value(data['status'].toString())
           : const Value.absent(),
-      declineReason: Value(data['decline_reason'] as String?),
-      declineMessage: Value(data['decline_message'] as String?),
-      convertedJobId: Value(data['converted_job_id'] as String?),
-      submittedName: Value(data['submitted_name'] as String?),
-      submittedEmail: Value(data['submitted_email'] as String?),
-      submittedPhone: Value(data['submitted_phone'] as String?),
-      version: data['version'] != null
+      declineReason: Value(data['decline_reason']?.toString()),
+      declineMessage: Value(data['decline_message']?.toString()),
+      convertedJobId: Value(data['converted_job_id']?.toString()),
+      submittedName: Value(data['submitted_name']?.toString()),
+      submittedEmail: Value(data['submitted_email']?.toString()),
+      submittedPhone: Value(data['submitted_phone']?.toString()),
+      version: data['version'] is int
           ? Value(data['version'] as int)
           : const Value.absent(),
       createdAt: data['created_at'] != null
-          ? Value(DateTime.parse(data['created_at'] as String))
+          ? Value(DateTime.parse(data['created_at'].toString()))
           : const Value.absent(),
       updatedAt: data['updated_at'] != null
-          ? Value(DateTime.parse(data['updated_at'] as String))
+          ? Value(DateTime.parse(data['updated_at'].toString()))
           : const Value.absent(),
       deletedAt: Value(deletedAt),
     );

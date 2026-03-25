@@ -35,26 +35,32 @@ class CompanySyncHandler extends SyncHandler {
 
   @override
   Future<void> applyPulled(Map<String, dynamic> data) async {
+    final id = data['id'];
+    final name = data['name'];
+    if (id is! String || name is! String) {
+      throw FormatException('Company missing required fields');
+    }
+
     final deletedAt = data['deleted_at'] != null
-        ? DateTime.parse(data['deleted_at'] as String)
+        ? DateTime.parse(data['deleted_at'].toString())
         : null;
 
     final companion = CompaniesCompanion(
-      id: Value(data['id'] as String),
-      name: Value(data['name'] as String),
-      address: Value(data['address'] as String?),
-      phone: Value(data['phone'] as String?),
-      businessNumber: Value(data['business_number'] as String?),
-      logoUrl: Value(data['logo_url'] as String?),
-      tradeTypes: Value(data['trade_types'] as String?),
-      version: data['version'] != null
+      id: Value(id),
+      name: Value(name),
+      address: Value(data['address']?.toString()),
+      phone: Value(data['phone']?.toString()),
+      businessNumber: Value(data['business_number']?.toString()),
+      logoUrl: Value(data['logo_url']?.toString()),
+      tradeTypes: Value(data['trade_types']?.toString()),
+      version: data['version'] is int
           ? Value(data['version'] as int)
           : const Value.absent(),
       createdAt: data['created_at'] != null
-          ? Value(DateTime.parse(data['created_at'] as String))
+          ? Value(DateTime.parse(data['created_at'].toString()))
           : const Value.absent(),
       updatedAt: data['updated_at'] != null
-          ? Value(DateTime.parse(data['updated_at'] as String))
+          ? Value(DateTime.parse(data['updated_at'].toString()))
           : const Value.absent(),
       deletedAt: Value(deletedAt),
     );

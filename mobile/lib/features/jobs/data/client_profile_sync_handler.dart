@@ -43,7 +43,10 @@ class ClientProfileSyncHandler extends SyncHandler {
       case 'UPDATE':
         // userId is stored camelCase in the enqueued payload by job_dao.dart.
         // item.entityId is the profile UUID — do NOT use it as the user_id path param.
-        final userId = payload['userId'] as String;
+        final userId = payload['userId'];
+        if (userId is! String) {
+          throw StateError('ClientProfileSyncHandler: userId required in payload');
+        }
         await _dioClient.pushWithIdempotency(
           '/clients/$userId/profile',
           payload,
@@ -58,15 +61,22 @@ class ClientProfileSyncHandler extends SyncHandler {
 
   @override
   Future<void> applyPulled(Map<String, dynamic> data) async {
+    final id = data['id'];
+    final companyId = data['company_id'];
+    final userId = data['user_id'];
+    if (id is! String || companyId is! String || userId is! String) {
+      throw FormatException('ClientProfile missing required fields');
+    }
+
     final deletedAt = data['deleted_at'] != null
-        ? DateTime.parse(data['deleted_at'] as String)
+        ? DateTime.parse(data['deleted_at'].toString())
         : null;
 
     final companion = ClientProfilesCompanion(
-      id: Value(data['id'] as String),
-      companyId: Value(data['company_id'] as String),
-      userId: Value(data['user_id'] as String),
-      billingAddress: Value(data['billing_address'] as String?),
+      id: Value(id),
+      companyId: Value(companyId),
+      userId: Value(userId),
+      billingAddress: Value(data['billing_address']?.toString()),
       tags: data['tags'] != null
           ? Value(
               data['tags'] is String
@@ -74,23 +84,23 @@ class ClientProfileSyncHandler extends SyncHandler {
                   : jsonEncode(data['tags']),
             )
           : const Value.absent(),
-      adminNotes: Value(data['admin_notes'] as String?),
-      referralSource: Value(data['referral_source'] as String?),
+      adminNotes: Value(data['admin_notes']?.toString()),
+      referralSource: Value(data['referral_source']?.toString()),
       preferredContractorId:
-          Value(data['preferred_contractor_id'] as String?),
+          Value(data['preferred_contractor_id']?.toString()),
       preferredContactMethod:
-          Value(data['preferred_contact_method'] as String?),
-      averageRating: data['average_rating'] != null
+          Value(data['preferred_contact_method']?.toString()),
+      averageRating: data['average_rating'] is num
           ? Value((data['average_rating'] as num).toDouble())
           : const Value.absent(),
-      version: data['version'] != null
+      version: data['version'] is int
           ? Value(data['version'] as int)
           : const Value.absent(),
       createdAt: data['created_at'] != null
-          ? Value(DateTime.parse(data['created_at'] as String))
+          ? Value(DateTime.parse(data['created_at'].toString()))
           : const Value.absent(),
       updatedAt: data['updated_at'] != null
-          ? Value(DateTime.parse(data['updated_at'] as String))
+          ? Value(DateTime.parse(data['updated_at'].toString()))
           : const Value.absent(),
       deletedAt: Value(deletedAt),
     );

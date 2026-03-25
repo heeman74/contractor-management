@@ -26,7 +26,7 @@ from collections.abc import AsyncGenerator
 from datetime import date
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -442,8 +442,8 @@ async def suggest_dates(
 )
 async def set_weekly_schedule(
     contractor_id: uuid.UUID,
-    day_of_week: int,
-    schedule_data: WeeklyScheduleCreate,
+    day_of_week: int = Path(..., ge=0, le=6, description="Day of week: 0=Monday, 6=Sunday"),
+    schedule_data: WeeklyScheduleCreate = ...,
     current_user: CurrentUser = Depends(get_current_user),
     svc: SchedulingService = Depends(get_scheduling_service),
 ) -> list[dict]:
