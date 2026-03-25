@@ -11,15 +11,19 @@ import 'package:flutter/material.dart';
 ///   ProjectStatusBadge(status: scope.status)
 ///   ProjectStatusBadge(status: task.status)
 class ProjectStatusBadge extends StatelessWidget {
-  const ProjectStatusBadge({required this.status, super.key});
+  const ProjectStatusBadge({required this.status, this.dense = false, super.key});
 
   final String status;
+  final bool dense;
 
   @override
   Widget build(BuildContext context) {
     final (label, bgColor, textColor) = _colorForStatus(status);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: EdgeInsets.symmetric(
+        horizontal: dense ? 6 : 8,
+        vertical: dense ? 2 : 3,
+      ),
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(12),
@@ -27,7 +31,7 @@ class ProjectStatusBadge extends StatelessWidget {
       child: Text(
         label,
         style: TextStyle(
-          fontSize: 11,
+          fontSize: dense ? 9 : 11,
           fontWeight: FontWeight.w600,
           color: textColor,
           letterSpacing: 0.3,

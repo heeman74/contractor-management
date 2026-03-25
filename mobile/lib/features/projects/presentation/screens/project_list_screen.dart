@@ -7,14 +7,15 @@ import '../../../../features/auth/domain/auth_state.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
 import '../../../../shared/models/user_role.dart';
 import '../providers/project_providers.dart';
-import '../widgets/project_status_badge.dart';
+import '../widgets/project_card.dart';
 
 /// Project list screen — the Projects tab home.
 ///
+/// Displays projects as a responsive grid of rich cards showing
+/// name, status, progress bar, task counts, scope counts, and dates.
+///
 /// GC/admin role: sees all company projects ordered newest first.
 /// Contractor role: sees only projects with an assigned scope.
-///
-/// Empty state copy differs by role per UI-SPEC.
 class ProjectListScreen extends ConsumerWidget {
   const ProjectListScreen({super.key});
 
@@ -46,19 +47,28 @@ class ProjectListScreen extends ConsumerWidget {
           if (projects.isEmpty) {
             return _EmptyState(isContractorOnly: isContractorOnly);
           }
-          return ListView.separated(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: projects.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 4),
-            itemBuilder: (context, index) {
-              final project = projects[index];
-              return _ProjectListTile(
-                name: project.name,
-                status: project.status,
-                address: project.address,
-                onTap: () => context.push(
-                  RouteNames.projectDetailPath(project.id),
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              // Responsive: 2 columns on phones, 3 on tablets
+              final crossAxisCount = constraints.maxWidth > 600 ? 3 : 2;
+              return GridView.builder(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 88),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                  childAspectRatio: 0.85,
                 ),
+                itemCount: projects.length,
+                itemBuilder: (context, index) {
+                  final project = projects[index];
+                  return ProjectCard(
+                    project: project,
+                    onTap: () => context.push(
+                      RouteNames.projectDetailPath(project.id),
+                    ),
+                  );
+                },
               );
             },
           );
@@ -72,76 +82,6 @@ class ProjectListScreen extends ConsumerWidget {
               icon: const Icon(Icons.smart_toy),
               label: const Text('New AI Project'),
             ),
-    );
-  }
-}
-
-class _ProjectListTile extends StatelessWidget {
-  const _ProjectListTile({
-    required this.name,
-    required this.status,
-    required this.onTap,
-    this.address,
-  });
-
-  final String name;
-  final String status;
-  final String? address;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      name,
-                      style: textTheme.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    if (address != null && address!.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        address!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: textTheme.bodySmall?.copyWith(
-                          color:
-                              colorScheme.onSurface.withValues(alpha: 0.6),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              ProjectStatusBadge(status: status),
-              const SizedBox(width: 4),
-              Icon(
-                Icons.chevron_right,
-                size: 20,
-                color: colorScheme.onSurface.withValues(alpha: 0.4),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

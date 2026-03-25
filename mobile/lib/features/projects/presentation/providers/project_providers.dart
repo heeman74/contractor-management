@@ -104,6 +104,51 @@ final projectListProvider =
 );
 
 // ────────────────────────────────────────────────────────────────────────────
+// Project-level progress — aggregated task counts across all scopes
+// ────────────────────────────────────────────────────────────────────────────
+
+/// Aggregated progress for a single project (total + completed tasks + scope count).
+class ProjectProgress {
+  const ProjectProgress({
+    this.totalTasks = 0,
+    this.completedTasks = 0,
+    this.scopeCount = 0,
+  });
+  final int totalTasks;
+  final int completedTasks;
+  final int scopeCount;
+
+  double get fraction => totalTasks > 0 ? completedTasks / totalTasks : 0.0;
+  int get percentage => (fraction * 100).round();
+}
+
+/// Streams aggregated task progress for a project across all its trade scopes.
+///
+/// Watches scopes for the project, then fetches task counts for each.
+/// Re-emits when any scope's task list changes.
+final projectProgressProvider = StreamProvider.autoDispose
+    .family<ProjectProgress, String>((ref, projectId) {
+  final scopeDao = ref.watch(tradeScopeDaoProvider);
+  final taskDao = ref.watch(taskDaoProvider);
+
+  return scopeDao.watchScopesByProject(projectId).asyncMap((scopes) async {
+    if (scopes.isEmpty) return const ProjectProgress();
+
+    int total = 0;
+    int completed = 0;
+    for (final scope in scopes) {
+      total += await taskDao.countTasksByScope(scope.id);
+      completed += await taskDao.countCompletedTasksByScope(scope.id);
+    }
+    return ProjectProgress(
+      totalTasks: total,
+      completedTasks: completed,
+      scopeCount: scopes.length,
+    );
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
 // Trade scopes for a project — family provider parameterized by projectId
 // ────────────────────────────────────────────────────────────────────────────
 
