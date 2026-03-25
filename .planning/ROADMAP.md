@@ -49,7 +49,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 - [x] **Phase 21: AI Project Intake and Contractor Interview** — Claude API integration: GC describes project, AI structures by trade, AI interviews each contractor (completed 2026-03-24)
 - [x] **Phase 22: Task Execution and Photo Annotation** — Contractor daily checklists, task progress on mobile, non-destructive photo annotation on mobile and web (completed 2026-03-24)
 - [x] **Phase 23: Real-Time Chat** — Bidirectional GC-contractor chat with WebSocket, Redis pub/sub, file sharing, and FCM offline delivery
-- [ ] **Phase 24: GC Inspection Workflow** — Approve/reject/flag tasks, punch list, annotated photo evidence, FCM notifications to contractors
+- [x] **Phase 24: GC Inspection Workflow** — Approve/reject/flag tasks, punch list, annotated photo evidence, FCM notifications to contractors (completed 2026-03-25)
 - [ ] **Phase 25: Per-Trade Billing** — Trade-scoped quotes and invoices, project-level aggregation, progress billing at milestones
 - [ ] **Phase 26: AI Daily Checklists and Monitoring Dashboard** — Morning checklist push, AI schedule adaptation, cross-trade monitoring dashboard with AI alerts
 
@@ -264,13 +264,13 @@ Plans:
   2. GC can flag an issue discovered during a site walk by attaching an annotated photo and a description — the flag is stored independently of a specific task
   3. GC can create a punch list item assigned to a specific trade scope, and that item appears in the trade contractor's task view
   4. When a GC rejects a task, the assigned contractor receives an FCM push notification containing the GC's rejection reason within 30 seconds
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
 - [x] 24-01-PLAN.md — Backend: migration 0022 (3 new tables + task status extension), SQLAlchemy models, repositories, services, schemas, 7 REST endpoints, FCM rejection notification
 - [x] 24-02-PLAN.md — Mobile: Drift schema v12 (3 new tables + inspectionChecklist column), DAOs with sync queue dual-write, sync handlers, Riverpod providers
 - [x] 24-03-PLAN.md — Mobile UI: inspection checklist + approve/reject on TaskDetailScreen, rejection bottom sheet, site walk flag capture, punch list cards in trade scope view
-- [ ] 24-04-PLAN.md — E2E tests: 18+ backend integration tests + 22+ Flutter widget tests covering INSP-01 through INSP-04
+- [x] 24-04-PLAN.md — E2E tests: 18+ backend integration tests + 22+ Flutter widget tests covering INSP-01 through INSP-04
 
 ### Phase 25: Per-Trade Billing
 **Goal**: GCs can create quotes and invoices scoped to each trade, aggregate them to a project-level view for client approval, and invoice at milestones within a trade scope
@@ -328,6 +328,6 @@ Note: Phase 25 (Billing) depends only on Phase 19 and may start in parallel with
 | 21. AI Project Intake and Contractor Interview | v3.0 | 7/7 | Complete    | 2026-03-24 |
 | 22. Task Execution and Photo Annotation | v3.0 | 5/5 | Complete    | 2026-03-24 |
 | 23. Real-Time Chat | v3.0 | 5/6 | Complete    | 2026-03-24 |
-| 24. GC Inspection Workflow | v3.0 | 3/4 | In Progress|  |
+| 24. GC Inspection Workflow | v3.0 | 4/4 | Complete   | 2026-03-25 |
 | 25. Per-Trade Billing | v3.0 | 0/TBD | Not started | - |
 | 26. AI Daily Checklists and Monitoring Dashboard | v3.0 | 0/TBD | Not started | - |
