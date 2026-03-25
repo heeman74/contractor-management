@@ -495,6 +495,7 @@ async def list_job_requests_early(
 
     Declared here (before /jobs/{job_id}) to prevent route shadowing.
     """
+    _require_admin(current_user)
     svc = RequestService(db)
     requests = await svc.list_pending_requests(
         company_id=current_user.company_id,
@@ -510,10 +511,11 @@ async def get_job_request_early(
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> JobRequestResponse:
-    """Get a single job request by ID.
+    """Get a single job request by ID (admin only).
 
     Declared here (before /jobs/{job_id}) to prevent route shadowing.
     """
+    _require_admin(current_user)
     svc = RequestService(db)
     job_request = await svc.get_request(request_id)
     return JobRequestResponse.model_validate(job_request)
@@ -530,6 +532,7 @@ async def review_job_request_early(
 
     Declared here (before /jobs/{job_id}) to prevent route shadowing.
     """
+    _require_admin(current_user)
     svc = RequestService(db)
     result = await svc.review_request(
         request_id=request_id,

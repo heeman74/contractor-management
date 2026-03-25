@@ -95,7 +95,11 @@ class ChatWsClient {
 
   void _onData(dynamic raw) {
     try {
-      final decoded = jsonDecode(raw as String);
+      if (raw is! String) {
+        debugPrint('[ChatWsClient] Unexpected WS data type: ${raw.runtimeType}');
+        return;
+      }
+      final decoded = jsonDecode(raw);
       if (decoded is! Map<String, dynamic>) return;
 
       final type = decoded['type'] as String?;

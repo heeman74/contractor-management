@@ -97,8 +97,15 @@ async def upload_attachment(
     upload_dir.mkdir(parents=True, exist_ok=True)
     dest_path = upload_dir / unique_filename
 
-    # Write file content async
+    # Read and validate file size (max 25 MB for attachments)
     content = await file.read()
+    if len(content) > 25 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="File too large. Maximum size is 25 MB.",
+        )
+
+    # Write file content async
     async with aiofiles.open(dest_path, "wb") as f:
         await f.write(content)
 

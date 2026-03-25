@@ -81,14 +81,16 @@ def receive_after_begin(session, transaction, connection):
     tenant_id = get_current_tenant_id()
     if tenant_id is not None:
         # asyncpg does not support parameterized SET commands, so we use
-        # string formatting. This is safe because tenant_id is a UUID from
-        # our JWT decode, never from user input.
+        # string formatting. Defense-in-depth: re-validate UUID format before
+        # interpolation to prevent injection even if ContextVar is corrupted.
+        safe_tenant = str(UUID(str(tenant_id)))
         connection.execute(
-            text(f"SET LOCAL app.current_company_id = '{tenant_id}'"),
+            text(f"SET LOCAL app.current_company_id = '{safe_tenant}'"),
         )
 
     user_id = get_current_user_id()
     if user_id is not None:
+        safe_user = str(UUID(str(user_id)))
         connection.execute(
-            text(f"SET LOCAL app.current_user_id = '{user_id}'"),
+            text(f"SET LOCAL app.current_user_id = '{safe_user}'"),
         )

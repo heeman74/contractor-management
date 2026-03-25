@@ -60,17 +60,26 @@ class JobSyncHandler extends SyncHandler {
 
   @override
   Future<void> applyPulled(Map<String, dynamic> data) async {
+    // Validate required fields before building companion to give clear errors
+    final id = data['id'];
+    final companyId = data['company_id'];
+    if (id is! String || companyId is! String) {
+      throw FormatException(
+        'Job missing required fields: id=${id.runtimeType}, company_id=${companyId.runtimeType}',
+      );
+    }
+
     final deletedAt = data['deleted_at'] != null
-        ? DateTime.parse(data['deleted_at'] as String)
+        ? DateTime.parse(data['deleted_at'].toString())
         : null;
 
     final companion = JobsCompanion(
-      id: Value(data['id'] as String),
-      companyId: Value(data['company_id'] as String),
-      clientId: Value(data['client_id'] as String?),
-      contractorId: Value(data['contractor_id'] as String?),
-      description: Value(data['description'] as String),
-      tradeType: Value(data['trade_type'] as String),
+      id: Value(id),
+      companyId: Value(companyId),
+      clientId: Value(data['client_id']?.toString()),
+      contractorId: Value(data['contractor_id']?.toString()),
+      description: Value((data['description'] ?? '') as String),
+      tradeType: Value((data['trade_type'] ?? '') as String),
       status: data['status'] != null
           ? Value(data['status'] as String)
           : const Value.absent(),
@@ -105,20 +114,22 @@ class JobSyncHandler extends SyncHandler {
       quoteId: Value(data['quote_id'] as String?),
       invoiceId: Value(data['invoice_id'] as String?),
       estimatedDurationMinutes:
-          Value(data['estimated_duration_minutes'] as int?),
+          data['estimated_duration_minutes'] is int
+              ? Value(data['estimated_duration_minutes'] as int)
+              : const Value(null),
       scheduledCompletionDate: data['scheduled_completion_date'] != null
           ? Value(
-              DateTime.parse(data['scheduled_completion_date'] as String),
+              DateTime.parse(data['scheduled_completion_date'].toString()),
             )
           : const Value.absent(),
-      version: data['version'] != null
+      version: data['version'] is int
           ? Value(data['version'] as int)
           : const Value.absent(),
       createdAt: data['created_at'] != null
-          ? Value(DateTime.parse(data['created_at'] as String))
+          ? Value(DateTime.parse(data['created_at'].toString()))
           : const Value.absent(),
       updatedAt: data['updated_at'] != null
-          ? Value(DateTime.parse(data['updated_at'] as String))
+          ? Value(DateTime.parse(data['updated_at'].toString()))
           : const Value.absent(),
       deletedAt: Value(deletedAt),
     );
