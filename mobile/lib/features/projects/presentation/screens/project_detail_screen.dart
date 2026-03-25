@@ -4,8 +4,13 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/database/app_database.dart' show Project;
 import '../../../../core/routing/route_names.dart';
+import '../../../../features/auth/domain/auth_state.dart';
+import '../../../../features/auth/presentation/providers/auth_provider.dart';
+import '../../../../shared/models/user_role.dart';
 import '../providers/project_providers.dart';
+import '../widgets/flag_capture_sheet.dart';
 import '../widgets/project_status_badge.dart';
+import '../widgets/site_walk_flag_section.dart';
 import '../widgets/trade_progress_card.dart';
 
 /// Project detail screen — shows project info and trade scope cards.
@@ -25,6 +30,7 @@ class ProjectDetailScreen extends ConsumerWidget {
     // Get project info from the list provider (avoids a separate getById provider)
     final projectsAsync = ref.watch(projectListProvider);
     final scopesAsync = ref.watch(tradeScopesProvider(projectId));
+    final authState = ref.watch(authNotifierProvider);
 
     // Extract project from cached async state without triggering loading indicator
     Project? project;
@@ -36,6 +42,10 @@ class ProjectDetailScreen extends ConsumerWidget {
 
     final projectName = project?.name ?? 'Project';
     final projectStatus = project?.status ?? 'draft';
+
+    // GC/admin check: admin is the GC role in this app
+    final isGcOrAdmin = authState is AuthAuthenticated &&
+        authState.roles.contains(UserRole.admin);
 
     return Scaffold(
       appBar: AppBar(
@@ -94,32 +104,57 @@ class ProjectDetailScreen extends ConsumerWidget {
           return Column(
             children: [
               Expanded(
-                child: ListView.builder(
+                child: ListView(
                   padding: const EdgeInsets.only(top: 8, bottom: 80),
-                  itemCount: scopes.length,
-                  itemBuilder: (context, index) {
-                    final scope = scopes[index];
-                    return TradeProgressCard(
-                      scopeId: scope.id,
-                      tradeName: scope.tradeName,
-                      tradeColor: scope.tradeColor,
-                      onTap: () => context.push(
-                        RouteNames.tradeScopeDetailPath(projectId, scope.id),
-                      ),
-                    );
-                  },
+                  children: [
+                    // Trade scope progress cards
+                    ...scopes.map((scope) => TradeProgressCard(
+                          scopeId: scope.id,
+                          tradeName: scope.tradeName,
+                          tradeColor: scope.tradeColor,
+                          onTap: () => context.push(
+                            RouteNames.tradeScopeDetailPath(
+                                projectId, scope.id),
+                          ),
+                        )),
+                    // Site walk flags section — collapsible, GC-aware
+                    SiteWalkFlagSection(
+                      projectId: projectId,
+                      isGcOrAdmin: isGcOrAdmin,
+                    ),
+                  ],
                 ),
               ),
             ],
           );
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAddScopeStub(context),
-        icon: const Icon(Icons.add),
-        label: const Text('Add Trade Scope'),
-        backgroundColor: const Color(0xFF3949AB),
-        foregroundColor: Colors.white,
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          // Flag Issue button — only for GC/admin
+          if (isGcOrAdmin) ...[
+            FloatingActionButton.extended(
+              heroTag: 'flagIssue',
+              onPressed: () => showFlagCaptureFlow(context, projectId, ref),
+              icon: const Icon(Icons.flag),
+              label: const Text('Flag Issue'),
+              backgroundColor: const Color(0xFFD32F2F),
+              foregroundColor: Colors.white,
+            ),
+            const SizedBox(height: 8),
+          ],
+          // Add Trade Scope button
+          FloatingActionButton.extended(
+            heroTag: 'addScope',
+            onPressed: () => _showAddScopeStub(context),
+            icon: const Icon(Icons.add),
+            label: const Text('Add Trade Scope'),
+            backgroundColor: const Color(0xFF3949AB),
+            foregroundColor: Colors.white,
+          ),
+        ],
       ),
     );
   }
