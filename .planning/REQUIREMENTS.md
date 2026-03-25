@@ -36,10 +36,10 @@ Requirements for AI-Driven Construction Management milestone. Each maps to roadm
 
 ### GC Inspection
 
-- [ ] **INSP-01**: GC can inspect completed tasks and approve or reject them with comments
-- [ ] **INSP-02**: GC can flag issues discovered during site walks with photos and annotations
-- [ ] **INSP-03**: GC can create punch list items assigned to specific trades
-- [ ] **INSP-04**: Rejected tasks trigger notification to the trade contractor with GC's feedback
+- [x] **INSP-01**: GC can inspect completed tasks and approve or reject them with comments
+- [x] **INSP-02**: GC can flag issues discovered during site walks with photos and annotations
+- [x] **INSP-03**: GC can create punch list items assigned to specific trades
+- [x] **INSP-04**: Rejected tasks trigger notification to the trade contractor with GC's feedback
 
 ### Chat
 
@@ -117,10 +117,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TASK-05 | Phase 22 | Complete |
 | TASK-06 | Phase 22 | Complete |
 | TASK-07 | Phase 22 | Complete |
-| INSP-01 | Phase 24 | Pending |
-| INSP-02 | Phase 24 | Pending |
-| INSP-03 | Phase 24 | Pending |
-| INSP-04 | Phase 24 | Pending |
+| INSP-01 | Phase 24 | Complete |
+| INSP-02 | Phase 24 | Complete |
+| INSP-03 | Phase 24 | Complete |
+| INSP-04 | Phase 24 | Complete |
 | CHAT-01 | Phase 23 | Complete |
 | CHAT-02 | Phase 23 | Complete |
 | CHAT-03 | Phase 23 | Complete |

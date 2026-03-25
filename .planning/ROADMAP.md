@@ -264,11 +264,11 @@ Plans:
   2. GC can flag an issue discovered during a site walk by attaching an annotated photo and a description — the flag is stored independently of a specific task
   3. GC can create a punch list item assigned to a specific trade scope, and that item appears in the trade contractor's task view
   4. When a GC rejects a task, the assigned contractor receives an FCM push notification containing the GC's rejection reason within 30 seconds
-**Plans:** 4 plans
+**Plans:** 2/4 plans executed
 
 Plans:
-- [ ] 24-01-PLAN.md — Backend: migration 0022 (3 new tables + task status extension), SQLAlchemy models, repositories, services, schemas, 7 REST endpoints, FCM rejection notification
-- [ ] 24-02-PLAN.md — Mobile: Drift schema v12 (3 new tables + inspectionChecklist column), DAOs with sync queue dual-write, sync handlers, Riverpod providers
+- [x] 24-01-PLAN.md — Backend: migration 0022 (3 new tables + task status extension), SQLAlchemy models, repositories, services, schemas, 7 REST endpoints, FCM rejection notification
+- [x] 24-02-PLAN.md — Mobile: Drift schema v12 (3 new tables + inspectionChecklist column), DAOs with sync queue dual-write, sync handlers, Riverpod providers
 - [ ] 24-03-PLAN.md — Mobile UI: inspection checklist + approve/reject on TaskDetailScreen, rejection bottom sheet, site walk flag capture, punch list cards in trade scope view
 - [ ] 24-04-PLAN.md — E2E tests: 18+ backend integration tests + 22+ Flutter widget tests covering INSP-01 through INSP-04
 
@@ -328,6 +328,6 @@ Note: Phase 25 (Billing) depends only on Phase 19 and may start in parallel with
 | 21. AI Project Intake and Contractor Interview | v3.0 | 7/7 | Complete    | 2026-03-24 |
 | 22. Task Execution and Photo Annotation | v3.0 | 5/5 | Complete    | 2026-03-24 |
 | 23. Real-Time Chat | v3.0 | 5/6 | Complete    | 2026-03-24 |
-| 24. GC Inspection Workflow | v3.0 | 0/4 | In progress | - |
+| 24. GC Inspection Workflow | v3.0 | 2/4 | In Progress|  |
 | 25. Per-Trade Billing | v3.0 | 0/TBD | Not started | - |
 | 26. AI Daily Checklists and Monitoring Dashboard | v3.0 | 0/TBD | Not started | - |
