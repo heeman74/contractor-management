@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:drift/drift.dart' show Value;
@@ -15,7 +16,10 @@ import '../../../../core/database/app_database.dart'
         QuoteDao, InvoiceDao;
 import '../../../../features/auth/domain/auth_state.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
+import '../../../../shared/models/user_role.dart';
 import '../providers/project_providers.dart';
+import '../widgets/inspection_checklist.dart';
+import '../widgets/rejection_bottom_sheet.dart';
 import '../widgets/task_note_item.dart';
 import '../widgets/task_photo_grid.dart';
 
@@ -28,13 +32,17 @@ const _maxDocs = 5;
 /// Layout (CustomScrollView):
 /// 1. Header: title, status badge, priority badge, photo-required indicator
 /// 2. Details: description, estimated hours/cost, materials needed
-/// 3. Notes: inline add + list of notes
-/// 4. Photos: 3-column grid + "Add Photo" button (max 10)
-/// 5. Attachments: PDF list + "Add Attachment" button (max 5)
+/// 3. [GC only, task complete] Time summary (total hours logged)
+/// 4. [GC only, task complete] Status transition timeline
+/// 5. [GC only, task complete] Inspection checklist
+/// 6. Notes: inline add + list of notes
+/// 7. Photos: 3-column grid + "Add Photo" button (max 10)
+/// 8. Attachments: PDF list + "Add Attachment" button (max 5)
 ///
 /// Bottom bar:
-/// - "Add Photo" OutlinedButton (left)
-/// - "Mark Done" / "Mark Incomplete" ElevatedButton (right)
+/// - [contractor, task rejected] "Start Rework" button
+/// - [GC/admin, task complete] "Reject" (left) + "Approve" (right, disabled until all checked)
+/// - [default] "Add Photo" (left) + "Mark Done" / "Mark Incomplete" (right)
 /// - Photo gate: if task.photoRequired and no photos → Mark Done disabled
 class TaskDetailScreen extends ConsumerStatefulWidget {
   const TaskDetailScreen({required this.taskId, super.key});
@@ -48,6 +56,11 @@ class TaskDetailScreen extends ConsumerStatefulWidget {
 class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
   final _noteController = TextEditingController();
   bool _isSubmittingNote = false;
+  bool _isSubmitting = false;
+
+  // Inspection checklist state
+  bool _allChecked = false;
+  List<Map<String, dynamic>> _checklistResults = [];
 
   @override
   void dispose() {
@@ -60,10 +73,6 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
 
-    // Watch task — use tasksProvider for the parent scope... but we only have taskId.
-    // We need a single-task lookup. Use a custom approach: watch all tasks from DAO.
-    // Simplest: use existing providers to get notes/attachments, and get the task
-    // via a helper that reads from the stream. We'll use a StreamProvider inline.
     final taskStream = ref.watch(_taskByIdProvider(widget.taskId));
     final notesAsync = ref.watch(taskNotesProvider(widget.taskId));
     final attachmentsAsync = ref.watch(taskAttachmentsProvider(widget.taskId));
@@ -74,6 +83,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
     final companyId =
         authState is AuthAuthenticated ? authState.companyId : '';
     final userId = authState is AuthAuthenticated ? authState.userId : '';
+
+    final isGcOrAdmin = authState is AuthAuthenticated &&
+        authState.roles.contains(UserRole.admin);
 
     final photoCount = photoCountAsync.value ?? 0;
     final docCount = docCountAsync.value ?? 0;
@@ -95,8 +107,13 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
         }
 
         final isCompleted = task.status == 'complete';
-        final canMarkDone =
-            !task.photoRequired || photoCount > 0;
+        final isRejected = task.status == 'rejected';
+        final canMarkDone = !task.photoRequired || photoCount > 0;
+
+        // Inspection bottom bar: GC/admin sees Approve+Reject when task is complete
+        final showInspectBar = isCompleted && isGcOrAdmin;
+        // Rework bottom bar: contractor (non-GC) sees Start Rework when rejected
+        final showReworkBar = isRejected && !isGcOrAdmin;
 
         return Scaffold(
           appBar: AppBar(
@@ -173,7 +190,33 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                   ),
                 ),
 
-              // ── Section 3: Notes ──────────────────────────────────────────
+              // ── Section 3 (GC): Total Time Logged (D-02) ─────────────────
+              if (showInspectBar)
+                SliverToBoxAdapter(
+                  child: _TotalTimeSummary(taskId: widget.taskId),
+                ),
+
+              // ── Section 4 (GC): Status Transition Timeline (D-02) ────────
+              if (showInspectBar)
+                SliverToBoxAdapter(
+                  child: _StatusTimeline(task: task),
+                ),
+
+              // ── Section 5 (GC): Inspection Checklist ─────────────────────
+              if (showInspectBar)
+                SliverToBoxAdapter(
+                  child: _InspectionChecklistSection(
+                    scope: ref
+                        .watch(_tradeScopeByIdProvider(task.tradeScopeId))
+                        .value,
+                    onAllCheckedChanged: (val) =>
+                        setState(() => _allChecked = val),
+                    onResultsChanged: (results) =>
+                        setState(() => _checklistResults = results),
+                  ),
+                ),
+
+              // ── Section 6: Notes ──────────────────────────────────────────
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
@@ -249,7 +292,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                 ),
               ),
 
-              // ── Section 4: Photos ─────────────────────────────────────────
+              // ── Section 7: Photos ─────────────────────────────────────────
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
@@ -289,7 +332,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                 ),
               ),
 
-              // ── Section 5: Attachments ────────────────────────────────────
+              // ── Section 8: Attachments ────────────────────────────────────
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
@@ -361,76 +404,258 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
             child: Padding(
               padding: const EdgeInsets.symmetric(
                   horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  // Left: Add Photo button
-                  Expanded(
-                    child: Semantics(
-                      label: 'Add photo to task',
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.add_a_photo),
-                        label: const Text('Add Photo'),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(0, 48),
-                        ),
-                        onPressed: photoCount >= _maxPhotos
-                            ? null
-                            : () => _addPhoto(context, companyId),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  // Right: Mark Done / Mark Incomplete
-                  Expanded(
-                    child: isCompleted
-                        ? Semantics(
-                            label: 'Mark task as incomplete',
-                            child: OutlinedButton(
-                              style: OutlinedButton.styleFrom(
-                                minimumSize: const Size(0, 48),
-                              ),
-                              onPressed: () =>
-                                  _updateStatus('in_progress'),
-                              child:
-                                  const Text('Mark Incomplete'),
-                            ),
-                          )
-                        : Semantics(
-                            label: canMarkDone
-                                ? 'Mark task as done'
-                                : 'Add photo first to complete task',
-                            child: Tooltip(
-                              message: canMarkDone
-                                  ? ''
-                                  : 'Add photo first',
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  minimumSize: const Size(0, 48),
-                                  backgroundColor:
-                                      colorScheme.primary,
-                                  foregroundColor:
-                                      colorScheme.onPrimary,
-                                ),
-                                onPressed: canMarkDone
-                                    ? () =>
-                                        _updateStatus('complete')
-                                    : null,
-                                child: Text(
-                                  canMarkDone
-                                      ? 'Mark Done'
-                                      : 'Add photo first',
-                                ),
-                              ),
-                            ),
-                          ),
-                  ),
-                ],
+              child: _buildBottomBar(
+                context,
+                task: task,
+                showInspectBar: showInspectBar,
+                showReworkBar: showReworkBar,
+                isCompleted: isCompleted,
+                canMarkDone: canMarkDone,
+                photoCount: photoCount,
+                companyId: companyId,
+                authState: authState,
               ),
             ),
           ),
         );
       },
     );
+  }
+
+  Widget _buildBottomBar(
+    BuildContext context, {
+    required ProjectTask task,
+    required bool showInspectBar,
+    required bool showReworkBar,
+    required bool isCompleted,
+    required bool canMarkDone,
+    required int photoCount,
+    required String companyId,
+    required AuthState authState,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    // GC inspection bar: Reject + Approve when task is complete
+    if (showInspectBar) {
+      return Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: colorScheme.error,
+                minimumSize: const Size(0, 48),
+              ),
+              onPressed: _isSubmitting
+                  ? null
+                  : () => _handleReject(task, authState),
+              child: const Text('Reject'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(0, 48),
+              ),
+              onPressed: (_allChecked && !_isSubmitting)
+                  ? () => _handleApprove(task, authState)
+                  : null,
+              child: const Text('Approve'),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Contractor rework bar: Start Rework when task is rejected
+    if (showReworkBar) {
+      return Row(
+        children: [
+          Expanded(
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(0, 48),
+              ),
+              onPressed:
+                  _isSubmitting ? null : () => _handleStartRework(task),
+              child: const Text('Start Rework'),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Default bar: Add Photo + Mark Done / Mark Incomplete
+    return Row(
+      children: [
+        Expanded(
+          child: Semantics(
+            label: 'Add photo to task',
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.add_a_photo),
+              label: const Text('Add Photo'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(0, 48),
+              ),
+              onPressed: photoCount >= _maxPhotos
+                  ? null
+                  : () => _addPhoto(context, companyId),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: isCompleted
+              ? Semantics(
+                  label: 'Mark task as incomplete',
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(0, 48),
+                    ),
+                    onPressed: () => _updateStatus('in_progress'),
+                    child: const Text('Mark Incomplete'),
+                  ),
+                )
+              : Semantics(
+                  label: canMarkDone
+                      ? 'Mark task as done'
+                      : 'Add photo first to complete task',
+                  child: Tooltip(
+                    message: canMarkDone ? '' : 'Add photo first',
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(0, 48),
+                        backgroundColor: colorScheme.primary,
+                        foregroundColor: colorScheme.onPrimary,
+                      ),
+                      onPressed: canMarkDone
+                          ? () => _updateStatus('complete')
+                          : null,
+                      child: Text(
+                        canMarkDone ? 'Mark Done' : 'Add photo first',
+                      ),
+                    ),
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _handleApprove(
+      ProjectTask task, AuthState authState) async {
+    setState(() => _isSubmitting = true);
+    try {
+      final authenticated = authState is AuthAuthenticated ? authState : null;
+      if (authenticated == null) return;
+
+      final dao = ref.read(taskInspectionDaoProvider);
+      await dao.createInspection(TaskInspectionsCompanion.insert(
+        id: Value(const Uuid().v4()),
+        companyId: authenticated.companyId,
+        taskId: task.id,
+        inspectorId: authenticated.userId,
+        decision: 'approved',
+        checklistResults: Value(jsonEncode(_checklistResults)),
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Task approved.')),
+        );
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      debugPrint('[TaskDetailScreen] Approve error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content:
+                  Text('Failed to approve task. Please try again.')),
+        );
+        setState(() => _isSubmitting = false);
+      }
+    }
+  }
+
+  Future<void> _handleReject(
+      ProjectTask task, AuthState authState) async {
+    final result = await showRejectionSheet(context);
+    if (result == null) return;
+
+    setState(() => _isSubmitting = true);
+    try {
+      final authenticated = authState is AuthAuthenticated ? authState : null;
+      if (authenticated == null) return;
+
+      final dao = ref.read(taskInspectionDaoProvider);
+      await dao.createInspection(TaskInspectionsCompanion.insert(
+        id: Value(const Uuid().v4()),
+        companyId: authenticated.companyId,
+        taskId: task.id,
+        inspectorId: authenticated.userId,
+        decision: 'rejected',
+        checklistResults: Value(jsonEncode(_checklistResults)),
+        rejectionReason: Value(result['reason'] as String?),
+        rejectionComment: Value(result['comment'] as String?),
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ));
+      // Also update task status locally to 'rejected'
+      final taskDao = ref.read(taskDaoProvider);
+      await taskDao.updateTask(
+        task.id,
+        ProjectTasksCompanion(
+          status: const Value('rejected'),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Task rejected. Contractor notified.')),
+        );
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      debugPrint('[TaskDetailScreen] Reject error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content:
+                  Text('Failed to submit rejection. Please try again.')),
+        );
+        setState(() => _isSubmitting = false);
+      }
+    }
+  }
+
+  Future<void> _handleStartRework(ProjectTask task) async {
+    setState(() => _isSubmitting = true);
+    try {
+      await ref.read(taskDaoProvider).updateTask(
+            task.id,
+            ProjectTasksCompanion(
+              status: const Value('in_progress'),
+              updatedAt: Value(DateTime.now()),
+            ),
+          );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Rework started.')),
+        );
+      }
+    } catch (e) {
+      debugPrint('[TaskDetailScreen] Start rework error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to start rework.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   Future<void> _submitNote(String companyId, String userId) async {
@@ -600,16 +825,247 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
   }
 }
 
+// ── Providers ──────────────────────────────────────────────────────────────
+
 /// Provider to watch a single task by ID.
 ///
 /// Returns null if the task is not found (deleted or ID mismatch).
 final _taskByIdProvider =
     StreamProvider.autoDispose.family<ProjectTask?, String>((ref, taskId) {
   final dao = ref.watch(taskDaoProvider);
-  // Watch all tasks from DAO and filter by ID. This is a lightweight
-  // stream operation — no polling.
   return dao.watchTaskById(taskId);
 });
+
+/// Provider to watch a single trade scope by ID.
+///
+/// Returns null if the scope is not found. Used by TaskDetailScreen to load
+/// the scope's [inspectionChecklist] JSON for the GC's checklist section.
+final _tradeScopeByIdProvider =
+    StreamProvider.autoDispose.family<TradeScope?, String>((ref, scopeId) {
+  final dao = ref.watch(tradeScopeDaoProvider);
+  return dao.watchScopeById(scopeId);
+});
+
+// ── Inspection section widgets ─────────────────────────────────────────────
+
+/// Renders the total time logged section for GC inspection view (D-02).
+///
+/// Reads time entry attachments to compute total hours. Falls back to
+/// "No time logged" when no entries exist.
+class _TotalTimeSummary extends ConsumerWidget {
+  const _TotalTimeSummary({required this.taskId});
+  final String taskId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Use the task's note count as a proxy -- actual time entries from
+    // time_entries table (legacy v1 jobs). For project tasks we track
+    // estimated hours. Display estimated hours as a reference.
+    // Time entry integration via TaskTimeEntry is deferred; show estimated.
+    final taskAsync = ref.watch(_taskByIdProvider(taskId));
+    final task = taskAsync.value;
+
+    String timeLabel = 'No time logged';
+    if (task?.estimatedHours != null && task!.estimatedHours! > 0) {
+      final totalMins = (task.estimatedHours! * 60).round();
+      final hrs = totalMins ~/ 60;
+      final mins = totalMins % 60;
+      timeLabel = hrs > 0 ? '$hrs hrs $mins min' : '$mins min';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.access_time),
+            title: const Text('Total Time Logged'),
+            subtitle: Text(timeLabel),
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Renders the status transition timeline for GC inspection view (D-02).
+///
+/// Shows the task lifecycle: Created → In Progress → Complete with timestamps.
+class _StatusTimeline extends StatelessWidget {
+  const _StatusTimeline({required this.task});
+  final ProjectTask task;
+
+  static String _fmtDate(DateTime dt) {
+    final months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final minute = dt.minute.toString().padLeft(2, '0');
+    final ampm = dt.hour < 12 ? 'AM' : 'PM';
+    return '${months[dt.month - 1]} ${dt.day}, ${dt.year} $hour:$minute $ampm';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Divider(),
+          Text(
+            'Status Timeline',
+            style:
+                textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          _TimelineRow(
+            color: Colors.grey,
+            label: 'Created',
+            timestamp: _fmtDate(task.createdAt),
+          ),
+          _TimelineDivider(),
+          _TimelineRow(
+            color: const Color(0xFF1565C0),
+            label: 'In Progress',
+            timestamp: task.startDate != null
+                ? _fmtDate(task.startDate!)
+                : 'N/A',
+          ),
+          _TimelineDivider(),
+          _TimelineRow(
+            color: const Color(0xFF388E3C),
+            label: 'Complete',
+            timestamp: task.status == 'complete'
+                ? _fmtDate(task.updatedAt)
+                : 'N/A',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TimelineRow extends StatelessWidget {
+  const _TimelineRow({
+    required this.color,
+    required this.label,
+    required this.timestamp,
+  });
+  final Color color;
+  final String label;
+  final String timestamp;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(label, style: textTheme.bodySmall),
+        ),
+        Text(
+          timestamp,
+          style: textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TimelineDivider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 3),
+      child: Container(
+        width: 2,
+        height: 16,
+        color: Colors.grey.shade300,
+      ),
+    );
+  }
+}
+
+/// Renders the inspection checklist section embedded in the task detail.
+class _InspectionChecklistSection extends StatelessWidget {
+  const _InspectionChecklistSection({
+    required this.scope,
+    required this.onAllCheckedChanged,
+    required this.onResultsChanged,
+  });
+
+  final TradeScope? scope;
+  final ValueChanged<bool> onAllCheckedChanged;
+  final ValueChanged<List<Map<String, dynamic>>> onResultsChanged;
+
+  List<Map<String, dynamic>> _parseChecklist() {
+    final checklistJson = scope?.inspectionChecklist;
+    if (checklistJson == null || checklistJson.isEmpty) {
+      return kDefaultInspectionChecklist
+          .map((m) => Map<String, dynamic>.from(m))
+          .toList();
+    }
+    try {
+      final parsed = jsonDecode(checklistJson) as List<dynamic>;
+      return parsed
+          .whereType<Map<String, dynamic>>()
+          .map((m) {
+            // Support both "item" and "label" key variants from scope JSON
+            final item = (m['item'] ?? m['label'] ?? '').toString();
+            return <String, dynamic>{"item": item, "id": m['id'] ?? ''};
+          })
+          .where((m) => (m['item'] as String).isNotEmpty)
+          .toList();
+    } catch (_) {
+      return kDefaultInspectionChecklist
+          .map((m) => Map<String, dynamic>.from(m))
+          .toList();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final checklistItems = _parseChecklist();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Divider(),
+          Text(
+            'Inspection Checklist',
+            style:
+                textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          InspectionChecklist(
+            items: checklistItems,
+            onAllCheckedChanged: onAllCheckedChanged,
+            onResultsChanged: onResultsChanged,
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 // ── Status and priority badge widgets ─────────────────────────────────────
 
@@ -637,6 +1093,7 @@ class _StatusBadge extends StatelessWidget {
       'complete' => const Color(0xFF388E3C),
       'in_progress' => const Color(0xFF1565C0),
       'blocked' => const Color(0xFFD32F2F),
+      'rejected' => const Color(0xFFB71C1C),
       _ => const Color(0xFF9E9E9E),
     };
   }

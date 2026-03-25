@@ -46,6 +46,20 @@ class TradeScopeDao extends DatabaseAccessor<AppDatabase>
         .watch();
   }
 
+  /// Reactive stream for a single trade scope by its ID.
+  ///
+  /// Returns a stream emitting [TradeScope?] — null if the scope is not found
+  /// or has been soft-deleted. Used by TaskDetailScreen to load the scope's
+  /// [inspectionChecklist] JSON for the GC's inspection checklist section.
+  Stream<TradeScope?> watchScopeById(String scopeId) {
+    return (select(tradeScopes)
+          ..where(
+            (tbl) => tbl.id.equals(scopeId) & tbl.deletedAt.isNull(),
+          )
+          ..limit(1))
+        .watchSingleOrNull();
+  }
+
   /// Insert a new trade scope and atomically enqueue a CREATE sync item.
   Future<void> insertScope(TradeScopesCompanion entry) async {
     await db.transaction(() async {
