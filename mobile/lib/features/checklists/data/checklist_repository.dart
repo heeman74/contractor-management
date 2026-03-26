@@ -1,6 +1,5 @@
-import 'package:flutter/foundation.dart' show debugPrint;
-
 import '../../../core/database/app_database.dart';
+import '../../../core/logging/app_logger.dart';
 import '../../../core/network/dio_client.dart';
 import 'checklist_parsing.dart';
 
@@ -65,7 +64,8 @@ class ChecklistRepository {
       } else if (data is Map<String, dynamic> && data['items'] is List) {
         items = data['items'] as List<dynamic>;
       } else {
-        debugPrint('ChecklistRepository: unexpected response shape — $data');
+        AppLogger.warning('ChecklistRepository',
+            'Unexpected response shape — ${data.runtimeType}');
         return;
       }
 
@@ -77,14 +77,16 @@ class ChecklistRepository {
             await _dao.upsertChecklist(companion);
           } catch (e) {
             final id = raw['id'] ?? 'unknown';
-            debugPrint('ChecklistRepository: skip checklist $id — $e');
+            AppLogger.warning('ChecklistRepository',
+                'Skip checklist $id', error: e);
           }
         }
       });
     } catch (e) {
       // Non-fatal: offline or backend unavailable.
       // Local Drift cache is still available to the UI stream.
-      debugPrint('ChecklistRepository.fetchTodayChecklist error: $e');
+      AppLogger.warning('ChecklistRepository',
+          'fetchTodayChecklist failed (offline or unavailable)', error: e);
     }
   }
 

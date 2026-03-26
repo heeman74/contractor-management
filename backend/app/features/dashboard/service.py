@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 import uuid
 from datetime import date, datetime, timezone
 from typing import Any
@@ -37,6 +36,7 @@ from app.core.ai_utils import (
     strip_fences,
 )
 from app.core.base_service import TenantScopedService
+from app.core.logging_config import get_logger
 from app.features.dashboard.models import DashboardAlert
 from app.features.dashboard.prompts.alert_system import ALERT_SYSTEM_PROMPT
 from app.features.dashboard.repository import AlertRepository
@@ -50,7 +50,7 @@ from app.features.dashboard.schemas import (
 )
 from app.features.projects.models import Project, Task, TaskDependency, TradeScope
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _compute_trade_status(tasks: list[Task], today: date) -> str:

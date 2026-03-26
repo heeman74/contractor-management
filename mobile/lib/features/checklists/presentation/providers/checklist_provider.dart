@@ -1,8 +1,8 @@
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/di/service_locator.dart';
+import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/dio_client.dart';
 import '../../../../features/auth/domain/auth_state.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
@@ -55,7 +55,8 @@ final todayChecklistProvider =
     try {
       await repository.fetchTodayChecklist();
     } catch (e) {
-      debugPrint('todayChecklistProvider: fetch error — $e');
+      AppLogger.warning('ChecklistProvider',
+          'Background fetch error', error: e);
     }
   });
 

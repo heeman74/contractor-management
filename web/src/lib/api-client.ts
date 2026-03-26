@@ -11,6 +11,11 @@
  * original request. If refresh fails, redirects to /login.
  */
 
+import { tracedFetch } from "@/lib/api/withTracing";
+import { logger } from "@/lib/logger";
+
+const TAG = "ApiClient";
+
 // Singleton refresh promise to prevent concurrent refresh requests
 let refreshPromise: Promise<boolean> | null = null;
 
@@ -44,10 +49,11 @@ export async function apiClient<T>(
 ): Promise<T> {
   const proxyUrl = `/api/proxy?path=${encodeURIComponent(path)}`;
 
-  const resp = await fetch(proxyUrl, init);
+  const resp = await tracedFetch(proxyUrl, init);
 
   if (resp.status === 401 && retry) {
     // Attempt token refresh (coalesced across concurrent 401s)
+    logger.info(TAG, "401 received, attempting token refresh", { path });
     const refreshed = await ensureRefreshed();
 
     if (refreshed) {
@@ -55,6 +61,7 @@ export async function apiClient<T>(
       return apiClient<T>(path, init, false);
     } else {
       // Refresh failed — redirect to login
+      logger.warn(TAG, "Token refresh failed, redirecting to login", { path });
       window.location.href = "/login?reason=session_expired";
       throw new ApiError(401, "Session expired");
     }
@@ -121,13 +128,15 @@ export async function apiFetchRaw(
   retry = true
 ): Promise<Response> {
   const proxyUrl = `/api/proxy?path=${encodeURIComponent(path)}`;
-  const resp = await fetch(proxyUrl, init);
+  const resp = await tracedFetch(proxyUrl, init);
 
   if (resp.status === 401 && retry) {
+    logger.info(TAG, "401 received on raw fetch, attempting token refresh", { path });
     const refreshed = await ensureRefreshed();
     if (refreshed) {
       return apiFetchRaw(path, init, false);
     } else {
+      logger.warn(TAG, "Token refresh failed on raw fetch, redirecting to login", { path });
       window.location.href = "/login?reason=session_expired";
       throw new ApiError(401, "Session expired");
     }

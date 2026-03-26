@@ -1,9 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:dio_smart_retry/dio_smart_retry.dart';
-import 'package:flutter/foundation.dart';
 
 import '../auth/auth_repository.dart';
 import '../auth/token_storage.dart';
+import '../logging/trace_interceptor.dart';
 
 /// Base URL — configurable via --dart-define=BASE_URL=...
 /// Defaults to Android emulator accessing host machine.
@@ -43,8 +43,11 @@ class DioClient {
     // Must be before RetryInterceptor so 401s are refreshed before retry logic.
     _dio.interceptors.add(_AuthInterceptor(this));
 
-    // RetryInterceptor must be added BEFORE LogInterceptor so that retries
-    // are logged individually — helps debug exponential backoff in practice.
+    // TraceInterceptor: adds X-Request-ID, logs method/path/status/duration.
+    // Safe for release — never logs bodies. Runs AFTER auth, BEFORE retry.
+    _dio.interceptors.add(TraceInterceptor());
+
+    // RetryInterceptor — retries 5xx / timeout with exponential backoff.
     _dio.interceptors.add(
       RetryInterceptor(
         dio: _dio,
@@ -59,18 +62,6 @@ class DioClient {
         },
       ),
     );
-
-    // Conditional logging: no LogInterceptor in release builds.
-    // In debug: log headers only (no request/response body to avoid leaking tokens).
-    if (kDebugMode) {
-      _dio.interceptors.add(
-        LogInterceptor(
-          requestBody: false,
-          responseBody: false,
-          logPrint: (obj) => debugPrint('[DIO] $obj'),
-        ),
-      );
-    }
   }
 
   /// Wire up auth dependencies after service locator setup.

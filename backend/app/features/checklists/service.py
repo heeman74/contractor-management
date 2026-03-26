@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 import uuid
 from datetime import date
 from typing import Any
@@ -32,12 +31,13 @@ from app.core.ai_utils import (
     strip_fences,
 )
 from app.core.base_service import TenantScopedService
+from app.core.logging_config import get_logger
 from app.features.checklists.models import DailyChecklist
 from app.features.checklists.prompts.checklist_system import CHECKLIST_SYSTEM_PROMPT
 from app.features.checklists.repository import ChecklistRepository
 from app.features.projects.models import Project, Task, TradeScope
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ChecklistService(TenantScopedService[DailyChecklist]):

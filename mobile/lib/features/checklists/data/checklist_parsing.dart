@@ -1,7 +1,7 @@
 import 'package:drift/drift.dart' show Value;
-import 'package:flutter/foundation.dart' show debugPrint;
 
 import '../../../core/database/app_database.dart';
+import '../../../core/logging/app_logger.dart';
 
 /// Shared parsing utilities for DailyChecklist companion creation.
 ///
@@ -58,8 +58,9 @@ class ChecklistParsing {
         createdAt = parsed;
       } else {
         createdAt = DateTime.now();
-        debugPrint(
-          'ChecklistParsing: invalid created_at "$rawCreatedAt", using now()',
+        AppLogger.warning(
+          'ChecklistParsing',
+          'Invalid created_at "$rawCreatedAt", using now()',
         );
       }
     } else {
@@ -73,8 +74,9 @@ class ChecklistParsing {
       if (DateTime.tryParse(rawDeletedAt) != null) {
         deletedAt = rawDeletedAt;
       } else {
-        debugPrint(
-          'ChecklistParsing: invalid deleted_at "$rawDeletedAt", storing null',
+        AppLogger.warning(
+          'ChecklistParsing',
+          'Invalid deleted_at "$rawDeletedAt", storing null',
         );
       }
     }

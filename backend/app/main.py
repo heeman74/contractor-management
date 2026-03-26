@@ -9,6 +9,8 @@ from starlette.types import Scope, Send
 
 from app.core.base_middleware import ASGIMiddleware
 from app.core.config import settings
+from app.core.logging_config import setup_logging
+from app.core.middleware import ExceptionHandlerMiddleware, RequestLoggingMiddleware
 from app.core.rate_limit import limiter
 from app.core.scheduler import lifespan
 from app.core.tenant import TenantMiddleware
@@ -33,6 +35,11 @@ from app.features.reports.router import router as reports_router
 from app.features.scheduling.router import router as scheduling_router
 from app.features.sync.router import router as sync_router
 from app.features.users.router import router as users_router
+
+# ---------------------------------------------------------------------------
+# Structured logging — must be configured before any logger is used
+# ---------------------------------------------------------------------------
+setup_logging()
 
 # Ensure the uploads directory exists on startup
 _UPLOADS_DIR = Path("uploads")
@@ -109,8 +116,14 @@ app.add_middleware(
 # Security headers
 app.add_middleware(SecurityHeadersMiddleware)
 
+# Request logging (after CORS, before tenant — logs timing and sets trace context)
+app.add_middleware(RequestLoggingMiddleware)
+
 # Tenant context reset
 app.add_middleware(TenantMiddleware)
+
+# Exception handler — outermost middleware, catches unhandled exceptions
+app.add_middleware(ExceptionHandlerMiddleware)
 
 # ---------------------------------------------------------------------------
 # Feature routers

@@ -13,7 +13,6 @@ The `lifespan` async context manager is wired into FastAPI(lifespan=lifespan) in
 from __future__ import annotations
 
 import asyncio
-import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
@@ -22,7 +21,9 @@ from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI
 from sqlalchemy import select
 
-logger = logging.getLogger(__name__)
+from app.core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # Module-level scheduler instance — shared across the application
 scheduler = AsyncIOScheduler(timezone="UTC")

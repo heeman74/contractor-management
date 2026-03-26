@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { logger } from "@/lib/logger";
 
 interface ErrorProps {
   error: Error & { digest?: string };
@@ -9,8 +10,11 @@ interface ErrorProps {
 
 export default function MonitoringError({ error, reset }: ErrorProps) {
   useEffect(() => {
-    // Log the error to an error reporting service
-    console.error("[MonitoringError]", error);
+    logger.error("MonitoringError", error.message, {
+      name: error.name,
+      digest: error.digest,
+      stack: error.stack,
+    });
   }, [error]);
 
   return (
