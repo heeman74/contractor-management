@@ -12,7 +12,15 @@ import 'line_item_entity.dart';
 class QuoteEntity {
   final String id;
   final String companyId;
-  final String jobId;
+
+  /// FK to Jobs.id — the job this quote belongs to.
+  /// Nullable for trade-scoped quotes that are not tied to a specific job.
+  final String? jobId;
+
+  /// Soft FK to TradeScopes.id — the trade scope this quote belongs to.
+  /// Populated for per-trade quotes; null for legacy job-based quotes.
+  final String? tradeScopeId;
+
   final String status;
   final int revisionNumber;
   final double taxRate;
@@ -33,7 +41,6 @@ class QuoteEntity {
   const QuoteEntity({
     required this.id,
     required this.companyId,
-    required this.jobId,
     required this.status,
     required this.revisionNumber,
     required this.taxRate,
@@ -41,6 +48,8 @@ class QuoteEntity {
     required this.lineItems,
     required this.createdAt,
     required this.updatedAt,
+    this.jobId,
+    this.tradeScopeId,
     this.discountType,
     this.expiryDate,
     this.sentAt,
@@ -105,6 +114,7 @@ class QuoteEntity {
     String? id,
     String? companyId,
     String? jobId,
+    String? tradeScopeId,
     String? status,
     int? revisionNumber,
     double? taxRate,
@@ -126,6 +136,7 @@ class QuoteEntity {
       id: id ?? this.id,
       companyId: companyId ?? this.companyId,
       jobId: jobId ?? this.jobId,
+      tradeScopeId: tradeScopeId ?? this.tradeScopeId,
       status: status ?? this.status,
       revisionNumber: revisionNumber ?? this.revisionNumber,
       taxRate: taxRate ?? this.taxRate,

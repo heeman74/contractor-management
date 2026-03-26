@@ -53,6 +53,23 @@ class QuoteDao extends DatabaseAccessor<AppDatabase> with _$QuoteDaoMixin {
     return parentQuery.asyncMap(_populateLineItems);
   }
 
+  /// Reactive stream of all non-deleted quotes for a trade scope.
+  ///
+  /// Ordered by revisionNumber descending (latest revision first).
+  /// Each [QuoteEntity] is populated with its line items via a two-query
+  /// approach (parent + children) to avoid duplicate parent rows from JOIN.
+  Stream<List<QuoteEntity>> watchQuotesForScope(String scopeId) {
+    final parentQuery = (select(quotes)
+          ..where(
+            (tbl) =>
+                tbl.tradeScopeId.equals(scopeId) & tbl.deletedAt.isNull(),
+          )
+          ..orderBy([(tbl) => OrderingTerm.desc(tbl.revisionNumber)]))
+        .watch();
+
+    return parentQuery.asyncMap(_populateLineItems);
+  }
+
   /// Reactive stream of a single quote with its line items.
   ///
   /// Emits null if the quote is not found or has been soft-deleted.
@@ -98,7 +115,8 @@ class QuoteDao extends DatabaseAccessor<AppDatabase> with _$QuoteDaoMixin {
         QuotesCompanion.insert(
           id: Value(entity.id),
           companyId: entity.companyId,
-          jobId: entity.jobId,
+          jobId: Value(entity.jobId),
+          tradeScopeId: Value(entity.tradeScopeId),
           status: Value(entity.status),
           revisionNumber: Value(entity.revisionNumber),
           taxRate: Value(entity.taxRate),
@@ -286,18 +304,18 @@ class QuoteDao extends DatabaseAccessor<AppDatabase> with _$QuoteDaoMixin {
   Future<void> upsertFromSync(Map<String, dynamic> data) async {
     final id = data['id'];
     final companyId = data['company_id'];
-    final jobId = data['job_id'];
-    if (id is! String || companyId is! String || jobId is! String) {
+    if (id is! String || companyId is! String) {
       throw FormatException(
         'Quote missing required fields: id=${id.runtimeType}, '
-        'company_id=${companyId.runtimeType}, job_id=${jobId.runtimeType}',
+        'company_id=${companyId.runtimeType}',
       );
     }
     await db.transaction(() async {
       final companion = QuotesCompanion(
         id: Value(id),
         companyId: Value(companyId),
-        jobId: Value(jobId),
+        jobId: Value(data['job_id'] as String?),
+        tradeScopeId: Value(data['trade_scope_id'] as String?),
         status: data['status'] != null ? Value(data['status'] as String) : const Value.absent(),
         revisionNumber: data['revision_number'] != null ? Value(data['revision_number'] as int) : const Value.absent(),
         taxRate: data['tax_rate'] != null ? Value((data['tax_rate'] as num).toDouble()) : const Value.absent(),
@@ -378,6 +396,7 @@ class QuoteDao extends DatabaseAccessor<AppDatabase> with _$QuoteDaoMixin {
         id: quoteRow.id,
         companyId: quoteRow.companyId,
         jobId: quoteRow.jobId,
+        tradeScopeId: quoteRow.tradeScopeId,
         status: quoteRow.status,
         revisionNumber: quoteRow.revisionNumber,
         taxRate: quoteRow.taxRate,
@@ -414,6 +433,7 @@ class QuoteDao extends DatabaseAccessor<AppDatabase> with _$QuoteDaoMixin {
       'id': entity.id,
       'company_id': entity.companyId,
       'job_id': entity.jobId,
+      'trade_scope_id': entity.tradeScopeId,
       'status': entity.status,
       'revision_number': entity.revisionNumber,
       'tax_rate': entity.taxRate,

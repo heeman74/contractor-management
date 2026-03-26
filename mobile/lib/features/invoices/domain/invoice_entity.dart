@@ -12,10 +12,21 @@ import '../../quotes/domain/line_item_entity.dart';
 class InvoiceEntity {
   final String id;
   final String companyId;
-  final String jobId;
+
+  /// FK to Jobs.id — the job this invoice belongs to.
+  /// Nullable for trade-scoped invoices not tied to a specific job.
+  final String? jobId;
 
   /// FK to the quote that generated this invoice, if any.
   final String? quoteId;
+
+  /// Soft FK to TradeScopes.id — the trade scope this invoice belongs to.
+  /// Populated for per-trade invoices; null for legacy job-based invoices.
+  final String? tradeScopeId;
+
+  /// Soft FK to BillingMilestones.id — the milestone this invoice was raised against.
+  /// Null for invoices not tied to a billing milestone.
+  final String? milestoneId;
   final String invoiceNumber;
   final String status;
   final double taxRate;
@@ -31,7 +42,6 @@ class InvoiceEntity {
   const InvoiceEntity({
     required this.id,
     required this.companyId,
-    required this.jobId,
     required this.invoiceNumber,
     required this.status,
     required this.taxRate,
@@ -40,7 +50,10 @@ class InvoiceEntity {
     required this.lineItems,
     required this.createdAt,
     required this.updatedAt,
+    this.jobId,
     this.quoteId,
+    this.tradeScopeId,
+    this.milestoneId,
     this.discountType,
     this.dueDate,
     this.finalizedAt,
@@ -100,6 +113,8 @@ class InvoiceEntity {
     String? companyId,
     String? jobId,
     String? quoteId,
+    String? tradeScopeId,
+    String? milestoneId,
     String? invoiceNumber,
     String? status,
     double? taxRate,
@@ -117,6 +132,8 @@ class InvoiceEntity {
       companyId: companyId ?? this.companyId,
       jobId: jobId ?? this.jobId,
       quoteId: quoteId ?? this.quoteId,
+      tradeScopeId: tradeScopeId ?? this.tradeScopeId,
+      milestoneId: milestoneId ?? this.milestoneId,
       invoiceNumber: invoiceNumber ?? this.invoiceNumber,
       status: status ?? this.status,
       taxRate: taxRate ?? this.taxRate,

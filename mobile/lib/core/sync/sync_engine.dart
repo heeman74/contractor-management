@@ -330,6 +330,7 @@ class SyncEngine {
         ('quote_line_items', 'quote_line_item'),
         ('invoices', 'invoice'),
         ('invoice_line_items', 'invoice_line_item'),
+        ('billing_milestones', 'billing_milestone'),
       ];
 
       int totalPulled = 0;

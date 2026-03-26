@@ -47,6 +47,22 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase> with _$InvoiceDaoMixin {
     return parentQuery.asyncMap(_populateLineItems);
   }
 
+  /// Reactive stream of all non-deleted invoices for a trade scope.
+  ///
+  /// Ordered by issuedAt descending (most recently issued first).
+  /// Each [InvoiceEntity] is populated with its line items.
+  Stream<List<InvoiceEntity>> watchInvoicesForScope(String scopeId) {
+    final parentQuery = (select(invoices)
+          ..where(
+            (tbl) =>
+                tbl.tradeScopeId.equals(scopeId) & tbl.deletedAt.isNull(),
+          )
+          ..orderBy([(tbl) => OrderingTerm.desc(tbl.issuedAt)]))
+        .watch();
+
+    return parentQuery.asyncMap(_populateLineItems);
+  }
+
   /// Reactive stream of a single invoice with its line items.
   ///
   /// Emits null if the invoice is not found or has been soft-deleted.
@@ -91,8 +107,10 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase> with _$InvoiceDaoMixin {
         InvoicesCompanion.insert(
           id: Value(entity.id),
           companyId: entity.companyId,
-          jobId: entity.jobId,
+          jobId: Value(entity.jobId),
           quoteId: Value(entity.quoteId),
+          tradeScopeId: Value(entity.tradeScopeId),
+          milestoneId: Value(entity.milestoneId),
           invoiceNumber: entity.invoiceNumber,
           status: Value(entity.status),
           taxRate: Value(entity.taxRate),
@@ -243,19 +261,20 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase> with _$InvoiceDaoMixin {
   Future<void> upsertFromSync(Map<String, dynamic> data) async {
     final id = data['id'];
     final companyId = data['company_id'];
-    final jobId = data['job_id'];
-    if (id is! String || companyId is! String || jobId is! String) {
+    if (id is! String || companyId is! String) {
       throw FormatException(
         'Invoice missing required fields: id=${id.runtimeType}, '
-        'company_id=${companyId.runtimeType}, job_id=${jobId.runtimeType}',
+        'company_id=${companyId.runtimeType}',
       );
     }
     await db.transaction(() async {
       final companion = InvoicesCompanion(
         id: Value(id),
         companyId: Value(companyId),
-        jobId: Value(jobId),
+        jobId: Value(data['job_id'] as String?),
         quoteId: Value(data['quote_id'] as String?),
+        tradeScopeId: Value(data['trade_scope_id'] as String?),
+        milestoneId: Value(data['milestone_id'] as String?),
         invoiceNumber: data['invoice_number'] != null ? Value(data['invoice_number'] as String) : const Value.absent(),
         status: data['status'] != null ? Value(data['status'] as String) : const Value.absent(),
         taxRate: data['tax_rate'] != null ? Value((data['tax_rate'] as num).toDouble()) : const Value.absent(),
@@ -329,6 +348,8 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase> with _$InvoiceDaoMixin {
         companyId: invoiceRow.companyId,
         jobId: invoiceRow.jobId,
         quoteId: invoiceRow.quoteId,
+        tradeScopeId: invoiceRow.tradeScopeId,
+        milestoneId: invoiceRow.milestoneId,
         invoiceNumber: invoiceRow.invoiceNumber,
         status: invoiceRow.status,
         taxRate: invoiceRow.taxRate,
@@ -361,6 +382,8 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase> with _$InvoiceDaoMixin {
       'company_id': entity.companyId,
       'job_id': entity.jobId,
       'quote_id': entity.quoteId,
+      'trade_scope_id': entity.tradeScopeId,
+      'milestone_id': entity.milestoneId,
       'invoice_number': entity.invoiceNumber,
       'status': entity.status,
       'tax_rate': entity.taxRate,

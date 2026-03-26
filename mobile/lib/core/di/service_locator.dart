@@ -36,6 +36,8 @@ import '../sync/handlers/trade_catalog_sync_handler.dart';
 import '../sync/handlers/trade_scope_sync_handler.dart';
 import '../sync/handlers/site_walk_flag_sync_handler.dart';
 import '../sync/handlers/punch_list_item_sync_handler.dart';
+import '../sync/handlers/billing_milestone_sync_handler.dart';
+import '../../features/billing_milestones/data/billing_milestone_dao.dart';
 import '../../features/projects/data/project_zone_dao.dart';
 import '../../features/projects/data/task_dependency_dao.dart';
 import '../../features/ai/data/ai_conversation_dao.dart';
@@ -111,6 +113,8 @@ Future<void> setupServiceLocator() async {
   registry.register(TaskInspectionSyncHandler(dioClient, db));
   registry.register(SiteWalkFlagSyncHandler(dioClient, db));
   registry.register(PunchListItemSyncHandler(dioClient, db));
+  // Phase 25: Per-trade billing sync handlers
+  registry.register(BillingMilestoneSyncHandler(dioClient, db));
 
   getIt.registerSingleton<SyncRegistry>(registry);
 
@@ -157,6 +161,9 @@ Future<void> setupServiceLocator() async {
   getIt.registerSingleton<TaskInspectionDao>(db.taskInspectionDao);
   getIt.registerSingleton<SiteWalkFlagDao>(db.siteWalkFlagDao);
   getIt.registerSingleton<PunchListItemDao>(db.punchListItemDao);
+
+  // Phase 25 DAOs — registered for per-trade billing features
+  getIt.registerSingleton<BillingMilestoneDao>(db.billingMilestoneDao);
 
   // Phase 20 DAOs — registered for dependency engine features
   getIt.registerSingleton<TaskDependencyDao>(taskDepDao);
