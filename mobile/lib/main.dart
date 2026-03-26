@@ -15,28 +15,29 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load();
 
-  // Initialize Firebase before any Firebase service is used.
-  // This reads google-services.json (Android) to configure the Firebase app.
-  // If google-services.json is missing (dev without Firebase project),
-  // the app will fail to build — place a placeholder file or configure
-  // Firebase per the user_setup instructions in 07-03-PLAN.md.
-  await Firebase.initializeApp();
-
-  // Register the top-level background message handler BEFORE runApp.
-  // Must be a top-level function (not a class method) — FCM requirement.
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  // Initialize Firebase — optional. If google-services.json is missing or
+  // Firebase is not configured, the app runs without push notifications.
+  var firebaseAvailable = false;
+  try {
+    await Firebase.initializeApp();
+    firebaseAvailable = true;
+    // Register the top-level background message handler BEFORE runApp.
+    // Must be a top-level function (not a class method) — FCM requirement.
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  } catch (e) {
+    debugPrint('[Firebase] Initialization failed — running without FCM: $e');
+  }
 
   await setupServiceLocator();
 
   // Register FcmService in GetIt so it can be accessed from auth flow
   // and router setup without passing it through the widget tree.
-  final fcmService = FcmService();
+  // When Firebase is unavailable, all FCM operations are no-ops.
+  final fcmService = FcmService(enabled: firebaseAvailable);
   getIt.registerSingleton<FcmService>(fcmService);
 
   // Check for a cold-start deep link (app launched by tapping a notification
-  // while terminated). Returns null if app was opened normally.
-  // Stored as initialLocation for GoRouter — passed via GetIt to avoid
-  // passing state through runApp arguments.
+  // while terminated). Returns null if app was opened normally or Firebase unavailable.
   final initialRoute = await fcmService.getInitialRoute();
   if (initialRoute != null) {
     getIt.registerSingleton<String>(initialRoute, instanceName: 'fcmInitialRoute');
