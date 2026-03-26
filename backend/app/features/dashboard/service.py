@@ -360,7 +360,11 @@ class DashboardService(TenantScopedService[DashboardAlert]):
         result = await self.db.execute(stmt)
         projects = list(result.scalars().all())
 
-        # BP-9: Pre-fetch existing unread alerts to avoid duplicates
+        # BP-9: Pre-fetch recent alerts (last 24h, read or unread) to avoid duplicates.
+        # Checking only unread would re-create alerts hourly after a GC reads them.
+        from datetime import timedelta as _td
+
+        dedup_cutoff = datetime.now(timezone.utc) - _td(hours=24)
         existing_alerts_stmt = (
             select(
                 DashboardAlert.project_id,
@@ -369,9 +373,9 @@ class DashboardService(TenantScopedService[DashboardAlert]):
             )
             .where(
                 DashboardAlert.company_id == company_id,
-                DashboardAlert.is_read.is_(False),
                 DashboardAlert.deleted_at.is_(None),
                 DashboardAlert.alert_type == "schedule_slip",
+                DashboardAlert.created_at >= dedup_cutoff,
             )
         )
         existing_result = await self.db.execute(existing_alerts_stmt)
@@ -521,6 +525,10 @@ class DashboardService(TenantScopedService[DashboardAlert]):
             messages=[{"role": "user", "content": user_content}],
         )
 
+        if not response.content:
+            raise ValueError(
+                f"Empty response from Claude for scope {item['scope_id']}"
+            )
         raw_text = response.content[0].text
         cleaned = strip_fences(raw_text)
 

@@ -16,7 +16,7 @@ and return deterministic JSON responses.
 
 import json
 import uuid
-from datetime import date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -72,7 +72,7 @@ async def _setup_project(
     assert elec_resp.status_code == 201, f"Create electrical scope failed: {elec_resp.text}"
     electrical_scope_id = elec_resp.json()["id"]
 
-    today = date.today()
+    today = datetime.now(timezone.utc).date()
     past_due = (today - timedelta(days=5)).isoformat()
     future_due = (today + timedelta(days=10)).isoformat()
 
@@ -213,7 +213,7 @@ async def test_checklist_generation_creates_records(
             svc = ChecklistService(db)
             count = await svc.generate_daily_checklists(
                 company_id=uuid.UUID(company_id),
-                target_date=date.today(),
+                target_date=datetime.now(timezone.utc).date(),
             )
             await db.commit()
 
@@ -281,7 +281,7 @@ async def test_checklist_generation_skips_blocked_tasks(
             svc = ChecklistService(db)
             await svc.generate_daily_checklists(
                 company_id=uuid.UUID(company_id),
-                target_date=date.today(),
+                target_date=datetime.now(timezone.utc).date(),
             )
             await db.commit()
 
@@ -335,7 +335,7 @@ async def test_checklist_generation_skips_completed_tasks(
             svc = ChecklistService(db)
             await svc.generate_daily_checklists(
                 company_id=uuid.UUID(company_id),
-                target_date=date.today(),
+                target_date=datetime.now(timezone.utc).date(),
             )
             await db.commit()
 
@@ -378,7 +378,7 @@ async def test_checklist_idempotent(
             svc = ChecklistService(db)
             count1 = await svc.generate_daily_checklists(
                 company_id=uuid.UUID(company_id),
-                target_date=date.today(),
+                target_date=datetime.now(timezone.utc).date(),
             )
             await db.commit()
 
@@ -390,7 +390,7 @@ async def test_checklist_idempotent(
             svc = ChecklistService(db)
             count2 = await svc.generate_daily_checklists(
                 company_id=uuid.UUID(company_id),
-                target_date=date.today(),
+                target_date=datetime.now(timezone.utc).date(),
             )
             await db.commit()
 
@@ -441,7 +441,7 @@ async def test_checklist_fcm_push_fired(
             svc = ChecklistService(db)
             await svc.generate_daily_checklists(
                 company_id=uuid.UUID(company_id),
-                target_date=date.today(),
+                target_date=datetime.now(timezone.utc).date(),
             )
             await db.commit()
 
@@ -506,7 +506,7 @@ async def test_get_today_checklist_endpoint(
             svc = ChecklistService(db)
             await svc.generate_daily_checklists(
                 company_id=uuid.UUID(company_id),
-                target_date=date.today(),
+                target_date=datetime.now(timezone.utc).date(),
             )
             await db.commit()
 
@@ -559,8 +559,8 @@ async def test_alert_detection_creates_alert_for_late_trade(
         "rescheduling_suggestions": [
             {
                 "task_id": str(fixtures["plumbing_task_ids"][1]),
-                "new_start_date": date.today().isoformat(),
-                "new_due_date": (date.today() + timedelta(days=3)).isoformat(),
+                "new_start_date": datetime.now(timezone.utc).date().isoformat(),
+                "new_due_date": (datetime.now(timezone.utc).date() + timedelta(days=3)).isoformat(),
                 "reason": "Extend deadline to account for current delay",
             }
         ],
@@ -584,7 +584,7 @@ async def test_alert_detection_creates_alert_for_late_trade(
             svc = DashboardService(db)
             count = await svc.detect_schedule_slips(
                 company_id=uuid.UUID(company_id),
-                target_date=date.today(),
+                target_date=datetime.now(timezone.utc).date(),
             )
             await db.commit()
 
@@ -624,7 +624,7 @@ async def test_alert_detection_no_alert_for_on_track(
     assert scope_resp.status_code == 201
     scope_id = scope_resp.json()["id"]
 
-    future_due = (date.today() + timedelta(days=15)).isoformat()
+    future_due = (datetime.now(timezone.utc).date() + timedelta(days=15)).isoformat()
     t = await tenant_a_client.post(
         "/api/v1/tasks/",
         json={
@@ -632,7 +632,7 @@ async def test_alert_detection_no_alert_for_on_track(
             "title": "Install HVAC",
             "priority": "medium",
             "due_date": future_due,
-            "start_date": date.today().isoformat(),
+            "start_date": datetime.now(timezone.utc).date().isoformat(),
         },
     )
     assert t.status_code == 201
@@ -653,7 +653,7 @@ async def test_alert_detection_no_alert_for_on_track(
             svc = DashboardService(db)
             count = await svc.detect_schedule_slips(
                 company_id=uuid.UUID(company_id),
-                target_date=date.today(),
+                target_date=datetime.now(timezone.utc).date(),
             )
             await db.commit()
 
@@ -674,8 +674,8 @@ async def test_alert_accept_reschedule_updates_dates(
     fixtures = await _setup_project(tenant_a_client, project_name="Reschedule Test")
     task_id = fixtures["plumbing_task_ids"][1]  # The in_progress task with past due date
 
-    new_due = (date.today() + timedelta(days=7)).isoformat()
-    new_start = date.today().isoformat()
+    new_due = (datetime.now(timezone.utc).date() + timedelta(days=7)).isoformat()
+    new_start = datetime.now(timezone.utc).date().isoformat()
 
     mock_alert_response = {
         "impact_text": "Plumbing is behind schedule.",
@@ -707,7 +707,7 @@ async def test_alert_accept_reschedule_updates_dates(
             svc = DashboardService(db)
             await svc.detect_schedule_slips(
                 company_id=uuid.UUID(company_id),
-                target_date=date.today(),
+                target_date=datetime.now(timezone.utc).date(),
             )
             await db.commit()
 
@@ -755,7 +755,7 @@ async def test_alert_dismiss_does_not_change_dates(
     assert original_task is not None
     original_due_date = original_task["due_date"]
 
-    new_due = (date.today() + timedelta(days=14)).isoformat()
+    new_due = (datetime.now(timezone.utc).date() + timedelta(days=14)).isoformat()
     mock_alert_response = {
         "impact_text": "Plumbing delay detected.",
         "remediation_text": "Consider extending timeline.",
@@ -763,7 +763,7 @@ async def test_alert_dismiss_does_not_change_dates(
         "rescheduling_suggestions": [
             {
                 "task_id": task_id,
-                "new_start_date": date.today().isoformat(),
+                "new_start_date": datetime.now(timezone.utc).date().isoformat(),
                 "new_due_date": new_due,
                 "reason": "Extend timeline",
             }
@@ -786,7 +786,7 @@ async def test_alert_dismiss_does_not_change_dates(
             svc = DashboardService(db)
             await svc.detect_schedule_slips(
                 company_id=uuid.UUID(company_id),
-                target_date=date.today(),
+                target_date=datetime.now(timezone.utc).date(),
             )
             await db.commit()
 
@@ -952,7 +952,7 @@ async def test_alert_severity_warning_for_1_to_3_days(
     scope_id = scope_resp.json()["id"]
 
     # 2 days overdue
-    two_days_ago = (date.today() - timedelta(days=2)).isoformat()
+    two_days_ago = (datetime.now(timezone.utc).date() - timedelta(days=2)).isoformat()
     t = await tenant_a_client.post(
         "/api/v1/tasks/",
         json={
@@ -960,7 +960,7 @@ async def test_alert_severity_warning_for_1_to_3_days(
             "title": "Roof installation",
             "priority": "high",
             "due_date": two_days_ago,
-            "start_date": (date.today() - timedelta(days=10)).isoformat(),
+            "start_date": (datetime.now(timezone.utc).date() - timedelta(days=10)).isoformat(),
         },
     )
     assert t.status_code == 201
@@ -988,7 +988,7 @@ async def test_alert_severity_warning_for_1_to_3_days(
             svc = DashboardService(db)
             count = await svc.detect_schedule_slips(
                 company_id=uuid.UUID(company_id),
-                target_date=date.today(),
+                target_date=datetime.now(timezone.utc).date(),
             )
             await db.commit()
 
@@ -1024,7 +1024,7 @@ async def test_alert_severity_critical_for_over_3_days(
     scope_id = scope_resp.json()["id"]
 
     # 5 days overdue
-    five_days_ago = (date.today() - timedelta(days=5)).isoformat()
+    five_days_ago = (datetime.now(timezone.utc).date() - timedelta(days=5)).isoformat()
     t = await tenant_a_client.post(
         "/api/v1/tasks/",
         json={
@@ -1032,7 +1032,7 @@ async def test_alert_severity_critical_for_over_3_days(
             "title": "Frame structure",
             "priority": "high",
             "due_date": five_days_ago,
-            "start_date": (date.today() - timedelta(days=15)).isoformat(),
+            "start_date": (datetime.now(timezone.utc).date() - timedelta(days=15)).isoformat(),
         },
     )
     assert t.status_code == 201
@@ -1060,7 +1060,7 @@ async def test_alert_severity_critical_for_over_3_days(
             svc = DashboardService(db)
             count = await svc.detect_schedule_slips(
                 company_id=uuid.UUID(company_id),
-                target_date=date.today(),
+                target_date=datetime.now(timezone.utc).date(),
             )
             await db.commit()
 

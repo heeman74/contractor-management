@@ -163,9 +163,13 @@ export function AlertPanel({ projectId }: AlertPanelProps) {
   const acceptRescheduling = useAcceptRescheduling();
   const dismissAlert = useDismissAlert();
 
-  // Issue 1: Use a ref for the mutate function to keep flushMarkRead stable
+  // Use refs for all mutation functions to keep callbacks stable across renders
   const markReadMutateRef = useRef(markRead.mutate);
   markReadMutateRef.current = markRead.mutate;
+  const acceptMutateRef = useRef(acceptRescheduling.mutate);
+  acceptMutateRef.current = acceptRescheduling.mutate;
+  const dismissMutateRef = useRef(dismissAlert.mutate);
+  dismissMutateRef.current = dismissAlert.mutate;
 
   // Issue 3: Batch mark-as-read with debounce
   const pendingMarkReadIds = useRef<Set<string>>(new Set());
@@ -202,13 +206,13 @@ export function AlertPanel({ projectId }: AlertPanelProps) {
   }, [projectId]);
 
   const handleAccept = useCallback(
-    (alertId: string) => acceptRescheduling.mutate(alertId),
-    [acceptRescheduling]
+    (alertId: string) => acceptMutateRef.current(alertId),
+    []
   );
 
   const handleDismiss = useCallback(
-    (alertId: string) => dismissAlert.mutate(alertId),
-    [dismissAlert]
+    (alertId: string) => dismissMutateRef.current(alertId),
+    []
   );
 
   // Issue 20: Memoize unread count

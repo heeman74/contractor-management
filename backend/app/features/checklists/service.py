@@ -250,6 +250,10 @@ class ChecklistService(TenantScopedService[DailyChecklist]):
             messages=[{"role": "user", "content": user_content}],
         )
 
+        if not response.content:
+            raise ValueError(
+                f"Empty response from Claude for scope {item['scope_id']}"
+            )
         raw_text = response.content[0].text
         cleaned = strip_fences(raw_text)
 
@@ -289,7 +293,11 @@ class ChecklistService(TenantScopedService[DailyChecklist]):
             due_str = f" (due {task['due_date']})" if task.get("due_date") else ""
             status_str = f" [{task['status']}]" if task["status"] != "not_started" else ""
             priority_str = f" priority={task['priority']}"
-            dep_status = "blocked" if task["status"] == "blocked" else "clear"
+            dep_status = (
+                "blocked" if task["status"] == "blocked"
+                else "waiting" if task["status"] == "waiting"
+                else "clear"
+            )
             lines.append(
                 f"- task_id={task['id']} | {task['title']}{due_str}{status_str}{priority_str} "
                 f"| dep={dep_status}"
