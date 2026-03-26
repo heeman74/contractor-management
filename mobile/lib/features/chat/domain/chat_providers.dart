@@ -8,13 +8,12 @@ import '../data/chat_repository.dart';
 import '../data/chat_sync_service.dart';
 import '../data/chat_ws_client.dart';
 
-/// Base WebSocket URL derived from the HTTP base URL.
-///
+/// Base WebSocket URL derived from the single BASE_URL dart-define.
 /// Converts 'http://...' → 'ws://...' and strips '/api/v1' path suffix.
-const _baseWsUrl = String.fromEnvironment(
-  'BASE_WS_URL',
-  defaultValue: 'ws://localhost:8000',
-);
+final _baseWsUrl = const String.fromEnvironment(
+  'BASE_URL',
+  defaultValue: 'http://10.0.2.2:8000/api/v1',
+).replaceAll('/api/v1', '').replaceFirst('http', 'ws');
 
 // ---------------------------------------------------------------------------
 // Infrastructure providers

@@ -43,6 +43,13 @@ import '../../features/ai/data/ai_sse_client.dart';
 
 final getIt = GetIt.instance;
 
+/// Derive API base URL from the same BASE_URL used by DioClient.
+/// Strips '/api/v1' suffix so SSE client can append its own paths.
+final _apiBaseUrl = const String.fromEnvironment(
+  'BASE_URL',
+  defaultValue: 'http://10.0.2.2:8000/api/v1',
+).replaceAll('/api/v1', '');
+
 Future<void> setupServiceLocator() async {
   // Database — single SQLite instance for the entire app lifetime
   getIt.registerSingleton<AppDatabase>(AppDatabase());
@@ -170,10 +177,7 @@ Future<void> setupServiceLocator() async {
   // Phase 21: AI chat SSE client — bypasses Dio for text/event-stream streaming.
   // Uses dart:io HttpClient directly since Dio cannot handle SSE responses.
   getIt.registerLazySingleton<AiSseClient>(() => AiSseClient(
-        baseUrl: const String.fromEnvironment(
-          'API_BASE_URL',
-          defaultValue: 'http://localhost:8000',
-        ),
+        baseUrl: _apiBaseUrl,
         getAccessToken: () => tokenStorage.readAccessToken(),
       ));
 
