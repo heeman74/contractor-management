@@ -206,13 +206,18 @@ final routerProvider = Provider.autoDispose<GoRouter>((ref) {
       ),
       // Quote builder — admin creates/edits a quote for a specific job.
       // Push via: context.push(RouteNames.quoteBuilderPath(jobId))
+      // For trade-scoped quotes (Phase 25): pass extra: {'tradeScopeId': scopeId}
       GoRoute(
         path: RouteNames.quoteBuilder,
         builder: (context, state) {
           final jobId = state.pathParameters['jobId']!;
           final extra = state.extra;
+          final tradeScopeId = extra is Map<String, dynamic>
+              ? extra['tradeScopeId'] as String?
+              : null;
           return QuoteBuilderScreen(
             jobId: jobId,
+            tradeScopeId: tradeScopeId,
             existingQuote: extra is Map<String, dynamic>
                 ? extra['existingQuote'] as dynamic
                 : null,

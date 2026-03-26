@@ -29,10 +29,18 @@ class QuoteBuilderScreen extends ConsumerStatefulWidget {
   /// When editing an existing quote, pass the current [QuoteEntity].
   final QuoteEntity? existingQuote;
 
+  /// Optional trade scope ID for per-trade quotes (Phase 25).
+  ///
+  /// When set, the created [QuoteEntity] will have [jobId] = null and
+  /// [tradeScopeId] = this value — creating a trade-scoped quote rather than
+  /// a job-level quote.
+  final String? tradeScopeId;
+
   const QuoteBuilderScreen({
-    super.key,
     required this.jobId,
+    super.key,
     this.existingQuote,
+    this.tradeScopeId,
   });
 
   @override
@@ -446,10 +454,14 @@ class _QuoteBuilderScreenState extends ConsumerState<QuoteBuilderScreen> {
         updatedAt: now,
       );
     }
+    // Trade-scoped quote: jobId is null, tradeScopeId is set.
+    // Job-level quote: jobId is set, tradeScopeId is null.
+    final isScopeQuote = widget.tradeScopeId != null;
     return QuoteEntity(
       id: const Uuid().v4(),
       companyId: companyId,
-      jobId: widget.jobId,
+      jobId: isScopeQuote ? null : widget.jobId,
+      tradeScopeId: isScopeQuote ? widget.tradeScopeId : null,
       status: 'draft',
       revisionNumber: 1,
       taxRate: state.taxRate,

@@ -8,6 +8,7 @@ import '../../../../features/auth/domain/auth_state.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
 import '../../../../shared/models/user_role.dart';
 import '../providers/project_providers.dart';
+import '../widgets/billing_summary_card.dart';
 import '../widgets/flag_capture_sheet.dart';
 import '../widgets/project_status_badge.dart';
 import '../widgets/site_walk_flag_section.dart';
@@ -122,6 +123,20 @@ class ProjectDetailScreen extends ConsumerWidget {
                       projectId: projectId,
                       isGcOrAdmin: isGcOrAdmin,
                     ),
+
+                    // ── Phase 25: Billing summary cards (GC/admin only) ──
+                    if (isGcOrAdmin) ...[
+                      // quote-summary
+                      BillingSummaryCard(
+                        projectId: projectId,
+                        type: BillingSummaryType.quote,
+                      ),
+                      // invoice-summary
+                      BillingSummaryCard(
+                        projectId: projectId,
+                        type: BillingSummaryType.invoice,
+                      ),
+                    ],
                   ],
                 ),
               ),
