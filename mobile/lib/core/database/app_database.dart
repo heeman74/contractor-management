@@ -235,7 +235,8 @@ class AppDatabase extends _$AppDatabase {
             // Create TaskNotes table for per-task field notes
             await m.createTable(taskNotes);
             // Add annotationData column to TaskAttachments for photo markup
-            await m.addColumn(taskAttachments, taskAttachments.annotationData);
+            await _addColumnIfMissing(m, 'task_attachments', 'annotation_data',
+                taskAttachments, taskAttachments.annotationData);
           }
           if (from < 11) {
             // Phase 23: Real-time chat data layer
@@ -255,7 +256,8 @@ class AppDatabase extends _$AppDatabase {
             // Create PunchListItems table for formal corrective action tracking
             await m.createTable(punchListItems);
             // Add inspectionChecklist column to TradeScopes for per-scope checklists
-            await m.addColumn(tradeScopes, tradeScopes.inspectionChecklist);
+            await _addColumnIfMissing(m, 'trade_scopes', 'inspection_checklist',
+                tradeScopes, tradeScopes.inspectionChecklist);
           }
         },
       );
