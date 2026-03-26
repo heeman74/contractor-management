@@ -45,6 +45,7 @@ import '../../core/database/app_database.dart'
     show TaskAttachment;
 import '../../features/chat/presentation/screens/chat_screen.dart';
 import '../../features/chat/presentation/screens/chat_thread_screen.dart';
+import '../../features/checklists/presentation/screens/daily_checklist_screen.dart';
 import '../../features/projects/presentation/screens/my_tasks_screen.dart';
 import '../../features/projects/presentation/screens/photo_annotation_screen.dart';
 import '../../features/projects/presentation/screens/task_detail_screen.dart';
@@ -268,6 +269,12 @@ final routerProvider = Provider.autoDispose<GoRouter>((ref) {
       GoRoute(
         path: RouteNames.myTasks,
         builder: (context, state) => const MyTasksScreen(),
+      ),
+      // Phase 26: AI daily checklist screen — contractor morning task list.
+      // Push via: context.push(RouteNames.dailyChecklist)
+      GoRoute(
+        path: RouteNames.dailyChecklist,
+        builder: (context, state) => const DailyChecklistScreen(),
       ),
       // Phase 22: Task detail — notes, photos, annotation, status controls.
       // Push via: context.push(RouteNames.taskDetailPath(taskId))
