@@ -50,7 +50,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 - [x] **Phase 22: Task Execution and Photo Annotation** — Contractor daily checklists, task progress on mobile, non-destructive photo annotation on mobile and web (completed 2026-03-24)
 - [x] **Phase 23: Real-Time Chat** — Bidirectional GC-contractor chat with WebSocket, Redis pub/sub, file sharing, and FCM offline delivery
 - [x] **Phase 24: GC Inspection Workflow** — Approve/reject/flag tasks, punch list, annotated photo evidence, FCM notifications to contractors (completed 2026-03-25)
-- [ ] **Phase 25: Per-Trade Billing** — Trade-scoped quotes and invoices, project-level aggregation, progress billing at milestones
+- [x] **Phase 25: Per-Trade Billing** — Trade-scoped quotes and invoices, project-level aggregation, progress billing at milestones (completed 2026-03-26)
 - [ ] **Phase 26: AI Daily Checklists and Monitoring Dashboard** — Morning checklist push, AI schedule adaptation, cross-trade monitoring dashboard with AI alerts
 
 ## Phase Details
@@ -282,7 +282,7 @@ Plans:
   3. GC can generate an invoice for a trade scope from completed work items on that scope
   4. GC can view a project-level invoice summary showing the total billed, paid, and outstanding across all trades
   5. GC can create a progress invoice for a partial milestone within a trade scope (not only at trade completion)
-**Plans:** 3/5 plans executed
+**Plans:** 3/5 plans complete
 
 Plans:
 - [x] 25-01-PLAN.md — Backend: migration 0023 (trade_scope_id on quotes/invoices, billing_milestones table with RLS), model extensions, BillingMilestone feature module
@@ -336,5 +336,5 @@ Note: Phase 25 (Billing) depends only on Phase 19 and may start in parallel with
 | 22. Task Execution and Photo Annotation | v3.0 | 5/5 | Complete    | 2026-03-24 |
 | 23. Real-Time Chat | v3.0 | 5/6 | Complete    | 2026-03-24 |
 | 24. GC Inspection Workflow | v3.0 | 4/4 | Complete    | 2026-03-25 |
-| 25. Per-Trade Billing | v3.0 | 3/5 | In Progress|  |
+| 25. Per-Trade Billing | v3.0 | 3/5 | Complete    | 2026-03-26 |
 | 26. AI Daily Checklists and Monitoring Dashboard | v3.0 | 0/TBD | Not started | - |
