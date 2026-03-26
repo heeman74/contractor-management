@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo, useCallback, memo } from "react";
 import { Info, AlertTriangle, AlertOctagon, CheckCircle2 } from "lucide-react";
 import {
   useDashboardAlerts,
@@ -35,15 +35,28 @@ const severityConfig = {
 
 interface AlertCardProps {
   alert: DashboardAlert;
+  onMarkRead: (alertId: string) => void;
+  onAcceptRescheduling: (alertId: string) => void;
+  onDismiss: (alertId: string) => void;
+  isAccepting: boolean;
+  isDismissing: boolean;
 }
 
-function AlertCard({ alert }: AlertCardProps) {
-  const markRead = useMarkAlertRead();
-  const acceptRescheduling = useAcceptRescheduling();
-  const dismissAlert = useDismissAlert();
+const AlertCard = memo(function AlertCard({
+  alert,
+  onMarkRead,
+  onAcceptRescheduling,
+  onDismiss,
+  isAccepting,
+  isDismissing,
+}: AlertCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
 
-  // Mark as read when card scrolls into view
+  // Use a ref for the mark-read callback to avoid re-creating the observer
+  const onMarkReadRef = useRef(onMarkRead);
+  onMarkReadRef.current = onMarkRead;
+
+  // Mark as read when card scrolls into view (batched via parent)
   useEffect(() => {
     if (alert.is_read) return;
     const el = cardRef.current;
@@ -52,7 +65,7 @@ function AlertCard({ alert }: AlertCardProps) {
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting) {
-          markRead.mutate(alert.id);
+          onMarkReadRef.current(alert.id);
           observer.disconnect();
         }
       },
@@ -60,7 +73,7 @@ function AlertCard({ alert }: AlertCardProps) {
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [alert.id, alert.is_read, markRead]);
+  }, [alert.id, alert.is_read]);
 
   const config =
     severityConfig[alert.severity] ?? severityConfig.info;
@@ -78,7 +91,10 @@ function AlertCard({ alert }: AlertCardProps) {
       }`}
     >
       <div className="flex items-start gap-2">
-        <Icon className={`mt-0.5 h-4 w-4 flex-shrink-0 ${iconClass}`} />
+        <Icon
+          className={`mt-0.5 h-4 w-4 flex-shrink-0 ${iconClass}`}
+          aria-label={`${alert.severity} severity`}
+        />
         <div className="flex-1 min-w-0">
           {/* Impact text */}
           <p className="text-xs font-medium text-gray-900 leading-snug">
@@ -103,15 +119,15 @@ function AlertCard({ alert }: AlertCardProps) {
           {isPendingRescheduling && (
             <div className="mt-2 flex gap-2">
               <button
-                onClick={() => acceptRescheduling.mutate(alert.id)}
-                disabled={acceptRescheduling.isPending}
+                onClick={() => onAcceptRescheduling(alert.id)}
+                disabled={isAccepting}
                 className="rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
               >
-                {acceptRescheduling.isPending ? "Applying..." : "Accept Rescheduling"}
+                {isAccepting ? "Applying..." : "Accept Rescheduling"}
               </button>
               <button
-                onClick={() => dismissAlert.mutate(alert.id)}
-                disabled={dismissAlert.isPending}
+                onClick={() => onDismiss(alert.id)}
+                disabled={isDismissing}
                 className="rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
               >
                 Dismiss
@@ -135,12 +151,59 @@ function AlertCard({ alert }: AlertCardProps) {
       </div>
     </div>
   );
-}
+});
 
 export function AlertPanel({ projectId }: AlertPanelProps) {
   const { data: alerts, isLoading, isError } = useDashboardAlerts(projectId);
 
-  const unreadCount = alerts?.filter((a) => !a.is_read).length ?? 0;
+  // Issue 2: Lift mutation hooks to parent
+  const markRead = useMarkAlertRead();
+  const acceptRescheduling = useAcceptRescheduling();
+  const dismissAlert = useDismissAlert();
+
+  // Issue 3: Batch mark-as-read with debounce
+  const pendingMarkReadIds = useRef<Set<string>>(new Set());
+  const batchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushMarkRead = useCallback(() => {
+    const ids = Array.from(pendingMarkReadIds.current);
+    pendingMarkReadIds.current.clear();
+    for (const id of ids) {
+      markRead.mutate(id);
+    }
+  }, [markRead]);
+
+  const handleMarkRead = useCallback(
+    (alertId: string) => {
+      pendingMarkReadIds.current.add(alertId);
+      if (batchTimerRef.current) clearTimeout(batchTimerRef.current);
+      batchTimerRef.current = setTimeout(flushMarkRead, 300);
+    },
+    [flushMarkRead]
+  );
+
+  // Cleanup batch timer on unmount
+  useEffect(() => {
+    return () => {
+      if (batchTimerRef.current) clearTimeout(batchTimerRef.current);
+    };
+  }, []);
+
+  const handleAccept = useCallback(
+    (alertId: string) => acceptRescheduling.mutate(alertId),
+    [acceptRescheduling]
+  );
+
+  const handleDismiss = useCallback(
+    (alertId: string) => dismissAlert.mutate(alertId),
+    [dismissAlert]
+  );
+
+  // Issue 20: Memoize unread count
+  const unreadCount = useMemo(
+    () => alerts?.filter((a) => !a.is_read).length ?? 0,
+    [alerts]
+  );
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
@@ -174,7 +237,17 @@ export function AlertPanel({ projectId }: AlertPanelProps) {
             </p>
           </div>
         ) : (
-          alerts.map((alert) => <AlertCard key={alert.id} alert={alert} />)
+          alerts.map((alert) => (
+            <AlertCard
+              key={alert.id}
+              alert={alert}
+              onMarkRead={handleMarkRead}
+              onAcceptRescheduling={handleAccept}
+              onDismiss={handleDismiss}
+              isAccepting={acceptRescheduling.isPending}
+              isDismissing={dismissAlert.isPending}
+            />
+          ))
         )}
       </div>
     </div>

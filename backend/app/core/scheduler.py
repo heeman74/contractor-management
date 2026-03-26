@@ -12,9 +12,10 @@ The `lifespan` async context manager is wired into FastAPI(lifespan=lifespan) in
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import datetime, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -35,13 +36,16 @@ async def run_morning_checklists() -> None:
 
     Each company runs in its own DB session with tenant context set.
     Errors per company are caught and logged — execution continues to next company.
+
+    SCALE-4: Companies are processed with bounded concurrency via asyncio.Semaphore(5).
     """
     from app.core.database import async_session_factory
     from app.core.tenant import set_current_tenant_id
     from app.features.checklists.service import ChecklistService
     from app.features.companies.models import Company
 
-    today = date.today()
+    # BUG-6: Use UTC date instead of server-local date.today()
+    today = datetime.now(timezone.utc).date()
     logger.info("run_morning_checklists: starting for date %s", today)
 
     # Fetch all companies in a separate session (no RLS for admin-level iteration)
@@ -55,21 +59,33 @@ async def run_morning_checklists() -> None:
             logger.exception("run_morning_checklists: failed to fetch companies")
             return
 
-    for company in companies:
-        async with async_session_factory() as db:
-            try:
-                set_current_tenant_id(company.id)
-                svc = ChecklistService(db)
-                await svc.generate_daily_checklists(company_id=company.id, target_date=today)
-                await db.commit()
-                logger.info(
-                    "run_morning_checklists: completed for company %s", company.id
-                )
-            except Exception:
-                await db.rollback()
-                logger.exception(
-                    "run_morning_checklists: failed for company %s — continuing", company.id
-                )
+    # SCALE-4: Bounded concurrency for company processing
+    semaphore = asyncio.Semaphore(5)
+
+    async def _process_company(company):  # type: ignore[no-untyped-def]
+        async with semaphore:
+            async with async_session_factory() as db:
+                try:
+                    set_current_tenant_id(company.id)
+                    svc = ChecklistService(db)
+                    await svc.generate_daily_checklists(
+                        company_id=company.id, target_date=today
+                    )
+                    # BP-5: db.commit() is called here because these sessions are created
+                    # directly by the scheduler (not managed by FastAPI's get_db dependency),
+                    # so there is no auto-commit middleware. We must commit explicitly.
+                    await db.commit()
+                    logger.info(
+                        "run_morning_checklists: completed for company %s", company.id
+                    )
+                except Exception:
+                    await db.rollback()
+                    logger.exception(
+                        "run_morning_checklists: failed for company %s — continuing",
+                        company.id,
+                    )
+
+    await asyncio.gather(*[_process_company(c) for c in companies])
 
 
 async def run_alert_detection() -> None:
@@ -80,13 +96,16 @@ async def run_alert_detection() -> None:
 
     Each company runs in its own DB session with tenant context set.
     Errors per company are caught and logged — execution continues to next company.
+
+    SCALE-4: Companies are processed with bounded concurrency via asyncio.Semaphore(5).
     """
     from app.core.database import async_session_factory
     from app.core.tenant import set_current_tenant_id
     from app.features.companies.models import Company
     from app.features.dashboard.service import DashboardService
 
-    today = date.today()
+    # BUG-6: Use UTC date instead of server-local date.today()
+    today = datetime.now(timezone.utc).date()
     logger.info("run_alert_detection: starting for date %s", today)
 
     async with async_session_factory() as admin_session:
@@ -99,21 +118,33 @@ async def run_alert_detection() -> None:
             logger.exception("run_alert_detection: failed to fetch companies")
             return
 
-    for company in companies:
-        async with async_session_factory() as db:
-            try:
-                set_current_tenant_id(company.id)
-                svc = DashboardService(db)
-                await svc.detect_schedule_slips(company_id=company.id, target_date=today)
-                await db.commit()
-                logger.info(
-                    "run_alert_detection: completed for company %s", company.id
-                )
-            except Exception:
-                await db.rollback()
-                logger.exception(
-                    "run_alert_detection: failed for company %s — continuing", company.id
-                )
+    # SCALE-4: Bounded concurrency for company processing
+    semaphore = asyncio.Semaphore(5)
+
+    async def _process_company(company):  # type: ignore[no-untyped-def]
+        async with semaphore:
+            async with async_session_factory() as db:
+                try:
+                    set_current_tenant_id(company.id)
+                    svc = DashboardService(db)
+                    await svc.detect_schedule_slips(
+                        company_id=company.id, target_date=today
+                    )
+                    # BP-5: db.commit() is called here because these sessions are created
+                    # directly by the scheduler (not managed by FastAPI's get_db dependency),
+                    # so there is no auto-commit middleware. We must commit explicitly.
+                    await db.commit()
+                    logger.info(
+                        "run_alert_detection: completed for company %s", company.id
+                    )
+                except Exception:
+                    await db.rollback()
+                    logger.exception(
+                        "run_alert_detection: failed for company %s — continuing",
+                        company.id,
+                    )
+
+    await asyncio.gather(*[_process_company(c) for c in companies])
 
 
 @asynccontextmanager

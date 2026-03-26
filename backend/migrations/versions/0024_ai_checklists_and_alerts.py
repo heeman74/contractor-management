@@ -59,13 +59,14 @@ def upgrade() -> None:
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["company_id"], ["companies.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
-        sa.UniqueConstraint(
-            "company_id",
-            "contractor_id",
-            "trade_scope_id",
-            "checklist_date",
-            name="uq_daily_checklist_contractor_scope_date",
-        ),
+    )
+
+    # BP-8: Partial unique index with WHERE deleted_at IS NULL instead of plain unique constraint.
+    # This allows soft-deleted rows to coexist (e.g., regenerating after soft-delete).
+    op.execute(
+        "CREATE UNIQUE INDEX uq_daily_checklist_contractor_scope_date "
+        "ON daily_checklists (company_id, contractor_id, trade_scope_id, checklist_date) "
+        "WHERE deleted_at IS NULL"
     )
 
     # Indexes for daily_checklists
@@ -179,4 +180,6 @@ def downgrade() -> None:
     op.drop_index(
         "ix_daily_checklists_company_contractor_date", table_name="daily_checklists"
     )
+    # BP-8: Drop partial unique index (was plain constraint, now a partial index)
+    op.execute("DROP INDEX IF EXISTS uq_daily_checklist_contractor_scope_date")
     op.drop_table("daily_checklists")

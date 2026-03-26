@@ -1,9 +1,10 @@
 "use client";
 
-import type { TradeStatusBadge as TradeStatusBadgeType } from "@/lib/types/dashboard";
+import { memo } from "react";
+import type { TradeStatusBadgeData } from "@/lib/types/dashboard";
 
 interface TradeStatusBadgeProps {
-  badge: TradeStatusBadgeType;
+  badge: TradeStatusBadgeData;
 }
 
 const statusConfig = {
@@ -21,8 +22,9 @@ const statusConfig = {
   },
 } as const;
 
-export function TradeStatusBadge({ badge }: TradeStatusBadgeProps) {
+export const TradeStatusBadge = memo(function TradeStatusBadge({ badge }: TradeStatusBadgeProps) {
   const config = statusConfig[badge.status] ?? statusConfig.on_track;
+  const clampedPct = Math.min(100, Math.max(0, badge.completion_pct));
 
   return (
     <div className="flex items-center gap-2 py-1">
@@ -32,10 +34,17 @@ export function TradeStatusBadge({ badge }: TradeStatusBadgeProps) {
       </span>
 
       {/* Mini progress bar */}
-      <div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+      <div
+        className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden"
+        role="progressbar"
+        aria-valuenow={clampedPct}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={`${badge.trade_name} progress: ${clampedPct}%`}
+      >
         <div
           className="h-full rounded-full bg-indigo-500 transition-all"
-          style={{ width: `${Math.min(100, Math.max(0, badge.completion_pct))}%` }}
+          style={{ width: `${clampedPct}%` }}
         />
       </div>
 
@@ -57,4 +66,4 @@ export function TradeStatusBadge({ badge }: TradeStatusBadgeProps) {
       </span>
     </div>
   );
-}
+});

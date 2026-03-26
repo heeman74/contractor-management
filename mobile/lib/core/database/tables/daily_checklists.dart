@@ -12,6 +12,7 @@ import 'package:uuid/uuid.dart';
 ///
 /// Offline-first: checklists are pulled from the backend via sync/delta pull
 /// and stored locally. Contractors can view their daily tasks even when offline.
+@TableIndex(name: 'idx_checklists_contractor_date', columns: {#contractorId, #checklistDate, #deletedAt})
 class DailyChecklists extends Table {
   TextColumn get id => text().clientDefault(() => const Uuid().v4())();
 

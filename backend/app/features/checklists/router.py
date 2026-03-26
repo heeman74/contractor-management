@@ -10,9 +10,9 @@ cron job (06:00 UTC) and stored in daily_checklists. These endpoints are read-on
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -25,18 +25,23 @@ router = APIRouter(prefix="/checklists", tags=["checklists"])
 
 @router.get("/today", response_model=list[ChecklistResponse])
 async def get_today_checklist(
+    target_date: date | None = Query(None, description="Override date (default: today UTC)"),
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> list[ChecklistResponse]:
     """Return today's AI-generated checklist(s) for the authenticated contractor.
 
+    Accepts an optional target_date query parameter; defaults to today (UTC).
     Returns a list because a contractor can have multiple trade scopes on the same date.
     Returns an empty list (200) if no checklist has been generated yet for today.
     """
+    # BUG-6: Use UTC date instead of server-local date.today()
+    effective_date = target_date if target_date is not None else datetime.now(timezone.utc).date()
+
     svc = ChecklistService(db)
     checklists = await svc.get_today_checklist(
         contractor_id=current_user.user_id,
-        target_date=date.today(),
+        target_date=effective_date,
     )
     return [ChecklistResponse.model_validate(c) for c in checklists]
 

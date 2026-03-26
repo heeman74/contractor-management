@@ -81,12 +81,12 @@ class _FakeChecklistRepository implements ChecklistRepository {
   }
 
   @override
-  Stream<List<DailyChecklist>> watchTodayChecklist(String contractorId) {
+  Stream<List<DailyChecklist>> watchTodayChecklist(
+    String contractorId, {
+    String? companyId,
+  }) {
     return Stream.value([]);
   }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 // ---------------------------------------------------------------------------

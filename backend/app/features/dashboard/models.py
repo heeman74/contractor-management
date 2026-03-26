@@ -7,12 +7,16 @@ and optional rescheduling suggestions that the GC can accept or dismiss.
 from __future__ import annotations
 
 import uuid
+from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, CheckConstraint, Integer, Text
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Integer, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_models import TenantScopedModel
+
+if TYPE_CHECKING:
+    from app.features.projects.models import Project, TradeScope
 
 
 class DashboardAlert(TenantScopedModel):
@@ -32,9 +36,14 @@ class DashboardAlert(TenantScopedModel):
 
     project_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
         nullable=False,
     )
-    trade_scope_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    trade_scope_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("trade_scopes.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     severity: Mapped[str] = mapped_column(Text, nullable=False)
     alert_type: Mapped[str] = mapped_column(Text, nullable=False)
     days_behind: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -56,4 +65,16 @@ class DashboardAlert(TenantScopedModel):
             "alert_type IN ('schedule_slip','rescheduling_suggestion','dependency_risk')",
             name="dashboard_alerts_alert_type_check",
         ),
+    )
+
+    # BP-1: Relationships with lazy="raise" per CLAUDE.md rules
+    project: Mapped[Project] = relationship(  # type: ignore[name-defined]
+        "Project",
+        foreign_keys=[project_id],
+        lazy="raise",
+    )
+    trade_scope: Mapped[TradeScope | None] = relationship(  # type: ignore[name-defined]
+        "TradeScope",
+        foreign_keys=[trade_scope_id],
+        lazy="raise",
     )

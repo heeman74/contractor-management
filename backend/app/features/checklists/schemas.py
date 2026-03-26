@@ -24,7 +24,8 @@ class ChecklistItemSchema(BaseModel):
     - dependency_status: 'clear' | 'blocked' | 'waiting' for the contractor to understand blockers
     """
 
-    task_id: str
+    # BP-6: Use uuid.UUID instead of str for type safety
+    task_id: uuid.UUID
     title: str
     priority: int = 1
     materials_needed: list[str] = []
@@ -34,6 +35,15 @@ class ChecklistItemSchema(BaseModel):
     dependency_status: str = "clear"
 
 
+class ChecklistPayload(BaseModel):
+    """BP-7: Validated structure for checklist_json instead of untyped dict.
+
+    The AI generates a JSON object with a 'tasks' list matching ChecklistItemSchema.
+    """
+
+    tasks: list[ChecklistItemSchema] = []
+
+
 class ChecklistResponse(TenantResponseSchema):
     """Full daily checklist response including all tasks for the contractor today."""
 
@@ -41,6 +51,7 @@ class ChecklistResponse(TenantResponseSchema):
     project_id: uuid.UUID
     trade_scope_id: uuid.UUID
     checklist_date: date
-    checklist_json: dict
+    # BP-7: Use validated ChecklistPayload instead of plain dict
+    checklist_json: ChecklistPayload
     summary_text: str
     is_pushed: bool

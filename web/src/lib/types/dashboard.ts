@@ -1,6 +1,6 @@
 // Dashboard monitoring types — GC cross-trade project monitoring
 
-export interface TradeStatusBadge {
+export interface TradeStatusBadgeData {
   trade_scope_id: string;
   trade_name: string;
   status: "on_track" | "at_risk" | "blocked";
@@ -9,12 +9,12 @@ export interface TradeStatusBadge {
   completed_count: number;
 }
 
-export interface ProjectStatusCard {
+export interface ProjectStatusCardData {
   project_id: string;
   project_name: string;
   status: string;
   overall_completion_pct: number;
-  trade_statuses: TradeStatusBadge[];
+  trade_statuses: TradeStatusBadgeData[];
   active_alert_count: number;
 }
 

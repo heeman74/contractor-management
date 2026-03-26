@@ -1,21 +1,24 @@
 "use client";
 
+import { memo } from "react";
 import { AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { ProjectStatusCard as ProjectStatusCardType } from "@/lib/types/dashboard";
+import type { ProjectStatusCardData } from "@/lib/types/dashboard";
 import { TradeStatusBadge } from "./TradeStatusBadge";
 
 interface ProjectStatusCardProps {
-  project: ProjectStatusCardType;
+  project: ProjectStatusCardData;
   isSelected: boolean;
   onSelect: () => void;
 }
 
-export function ProjectStatusCard({
+export const ProjectStatusCard = memo(function ProjectStatusCard({
   project,
   isSelected,
   onSelect,
 }: ProjectStatusCardProps) {
+  const clampedPct = Math.min(100, Math.max(0, project.overall_completion_pct));
+
   return (
     <button
       onClick={onSelect}
@@ -42,12 +45,17 @@ export function ProjectStatusCard({
         <span>Overall progress</span>
         <span>{project.overall_completion_pct}%</span>
       </div>
-      <div className="h-2 rounded-full bg-gray-100 overflow-hidden mb-3">
+      <div
+        className="h-2 rounded-full bg-gray-100 overflow-hidden mb-3"
+        role="progressbar"
+        aria-valuenow={clampedPct}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={`Overall progress: ${clampedPct}%`}
+      >
         <div
           className="h-full rounded-full bg-indigo-500 transition-all"
-          style={{
-            width: `${Math.min(100, Math.max(0, project.overall_completion_pct))}%`,
-          }}
+          style={{ width: `${clampedPct}%` }}
         />
       </div>
 
@@ -72,4 +80,4 @@ export function ProjectStatusCard({
       )}
     </button>
   );
-}
+});

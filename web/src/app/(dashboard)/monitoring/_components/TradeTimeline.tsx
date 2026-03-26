@@ -30,20 +30,26 @@ export function TradeTimeline({ projectId }: TradeTimelineProps) {
   // Map trade scopes to SVAR ITask format
   const ganttTasks = useMemo((): ITask[] => {
     if (!timelineData?.scopes) return [];
-    return timelineData.scopes.map((scope) => {
-      const start = new Date(scope.start_date);
-      const end = new Date(scope.end_date);
-      // Ensure end >= start (min 1 day)
-      if (end <= start) end.setTime(start.getTime() + 24 * 60 * 60 * 1000);
-      return {
-        id: scope.id,
-        text: scope.trade_name,
-        start,
-        end,
-        progress: Math.min(100, Math.max(0, scope.progress)),
-        type: "task" as const,
-      };
-    });
+    return timelineData.scopes
+      .filter((scope) => {
+        const start = new Date(scope.start_date);
+        const end = new Date(scope.end_date);
+        return !isNaN(start.getTime()) && !isNaN(end.getTime());
+      })
+      .map((scope) => {
+        const start = new Date(scope.start_date);
+        const end = new Date(scope.end_date);
+        // Ensure end >= start (min 1 day)
+        if (end <= start) end.setTime(start.getTime() + 24 * 60 * 60 * 1000);
+        return {
+          id: scope.id,
+          text: scope.trade_name,
+          start,
+          end,
+          progress: Math.min(100, Math.max(0, scope.progress)),
+          type: "task" as const,
+        };
+      });
   }, [timelineData]);
 
   // Map dependencies to SVAR ILink format (finish-to-start = type 0)

@@ -1,8 +1,8 @@
-import 'package:drift/drift.dart' show Value;
 import 'package:flutter/foundation.dart' show debugPrint;
 
 import '../../../core/database/app_database.dart';
 import '../../../core/network/dio_client.dart';
+import 'checklist_parsing.dart';
 
 /// Repository for daily checklist data.
 ///
@@ -26,11 +26,18 @@ class ChecklistRepository {
 
   /// Reactive stream of today's checklists for [contractorId].
   ///
+  /// [companyId] — optional tenant filter. When provided, only checklists
+  /// for the given company are returned (multi-tenant safety).
+  ///
   /// Delegates to [DailyChecklistDao.watchTodayForContractor] with today's
   /// ISO date string (YYYY-MM-DD).
-  Stream<List<DailyChecklist>> watchTodayChecklist(String contractorId) {
+  Stream<List<DailyChecklist>> watchTodayChecklist(
+    String contractorId, {
+    String? companyId,
+  }) {
     final dateStr = _todayDateStr();
-    return _dao.watchTodayForContractor(contractorId, dateStr);
+    return _dao.watchTodayForContractor(contractorId, dateStr,
+        companyId: companyId);
   }
 
   // ────────────────────────────────────────────────────────────────────────
@@ -62,16 +69,18 @@ class ChecklistRepository {
         return;
       }
 
-      for (final raw in items) {
-        if (raw is! Map<String, dynamic>) continue;
-        try {
-          final companion = _toCompanion(raw);
-          await _dao.upsertChecklist(companion);
-        } catch (e) {
-          final id = raw['id'] ?? 'unknown';
-          debugPrint('ChecklistRepository: skip checklist $id — $e');
+      await _dao.attachedDatabase.transaction(() async {
+        for (final raw in items) {
+          if (raw is! Map<String, dynamic>) continue;
+          try {
+            final companion = ChecklistParsing.toCompanion(raw);
+            await _dao.upsertChecklist(companion);
+          } catch (e) {
+            final id = raw['id'] ?? 'unknown';
+            debugPrint('ChecklistRepository: skip checklist $id — $e');
+          }
         }
-      }
+      });
     } catch (e) {
       // Non-fatal: offline or backend unavailable.
       // Local Drift cache is still available to the UI stream.
@@ -91,48 +100,4 @@ class ChecklistRepository {
         '-${now.day.toString().padLeft(2, '0')}';
   }
 
-  /// Parse a raw server JSON map into a [DailyChecklistsCompanion].
-  DailyChecklistsCompanion _toCompanion(Map<String, dynamic> data) {
-    final id = data['id'];
-    final companyId = data['company_id'];
-    final contractorId = data['contractor_id'];
-    final projectId = data['project_id'];
-    final tradeScopeId = data['trade_scope_id'];
-    final checklistDate = data['checklist_date'];
-    final checklistJson = data['checklist_json'];
-    final summaryText = data['summary_text'];
-
-    if (id is! String ||
-        companyId is! String ||
-        contractorId is! String ||
-        projectId is! String ||
-        tradeScopeId is! String ||
-        checklistDate is! String ||
-        checklistJson is! String ||
-        summaryText is! String) {
-      throw FormatException(
-        'DailyChecklist missing required fields: '
-        'id=${id.runtimeType}, company_id=${companyId.runtimeType}, '
-        'contractor_id=${contractorId.runtimeType}',
-      );
-    }
-
-    return DailyChecklistsCompanion(
-      id: Value(id),
-      companyId: Value(companyId),
-      contractorId: Value(contractorId),
-      projectId: Value(projectId),
-      tradeScopeId: Value(tradeScopeId),
-      checklistDate: Value(checklistDate),
-      checklistJson: Value(checklistJson),
-      summaryText: Value(summaryText),
-      isPushed: data['is_pushed'] != null
-          ? Value(data['is_pushed'] as bool)
-          : const Value(false),
-      createdAt: data['created_at'] != null
-          ? Value(DateTime.parse(data['created_at'] as String))
-          : Value(DateTime.now()),
-      deletedAt: Value(data['deleted_at'] as String?),
-    );
-  }
 }

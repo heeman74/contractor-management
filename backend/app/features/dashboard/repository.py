@@ -4,10 +4,18 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import case, select
 
 from app.core.base_repository import TenantScopedRepository
 from app.features.dashboard.models import DashboardAlert
+
+# BUG-4: CASE expression for correct severity ordering (not alphabetical)
+_severity_order = case(
+    (DashboardAlert.severity == "critical", 3),
+    (DashboardAlert.severity == "warning", 2),
+    (DashboardAlert.severity == "info", 1),
+    else_=0,
+)
 
 
 class AlertRepository(TenantScopedRepository[DashboardAlert]):
@@ -19,7 +27,8 @@ class AlertRepository(TenantScopedRepository[DashboardAlert]):
         """Return unread alerts for the current tenant, ordered by severity then recency.
 
         RLS automatically scopes to the current company via app.current_company_id.
-        Severity ordering: critical (highest) → warning → info.
+        Severity ordering: critical (highest) -> warning -> info.
+        Uses CASE expression to avoid alphabetical ordering bug.
         """
         stmt = (
             select(DashboardAlert)
@@ -28,8 +37,8 @@ class AlertRepository(TenantScopedRepository[DashboardAlert]):
                 DashboardAlert.deleted_at.is_(None),
             )
             .order_by(
-                # Severity descending: critical > warning > info
-                DashboardAlert.severity.desc(),
+                # BUG-4: Use CASE expression for correct severity ordering
+                _severity_order.desc(),
                 DashboardAlert.created_at.desc(),
             )
         )

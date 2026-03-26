@@ -5,10 +5,11 @@ Generates structured JSON daily task checklists per contractor using Claude API
 
 Design notes:
 - Non-streaming Claude API call (messages.create, not messages.stream) — used for batch jobs
-- Module-level AsyncAnthropic client reads ANTHROPIC_API_KEY from environment
+- Lazy singleton AsyncAnthropic client via get_anthropic_client()
 - Each contractor's generation is wrapped in try/except — errors logged, continue to next
-- asyncio.sleep(0.5) between Claude API calls per contractor to respect rate limits
-- FCM push fires via asyncio.create_task (fire-and-forget — never blocks checklist generation)
+- asyncio.Semaphore(5) for bounded concurrency on Claude API calls
+- BUG-1 fix: FCM push uses only primitive data, not the DB session
+- THRU-2: DB data extracted into plain dicts before Claude API calls
 """
 
 from __future__ import annotations
@@ -16,15 +17,20 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import re
 import uuid
 from datetime import date
 from typing import Any
 
-from anthropic import AsyncAnthropic
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from app.core.ai_utils import (
+    CLAUDE_MAX_TOKENS,
+    CLAUDE_MODEL,
+    DONE_STATUSES,
+    get_anthropic_client,
+    strip_fences,
+)
 from app.core.base_service import TenantScopedService
 from app.features.checklists.models import DailyChecklist
 from app.features.checklists.prompts.checklist_system import CHECKLIST_SYSTEM_PROMPT
@@ -32,26 +38,6 @@ from app.features.checklists.repository import ChecklistRepository
 from app.features.projects.models import Project, Task, TradeScope
 
 logger = logging.getLogger(__name__)
-
-_CLAUDE_MODEL = "claude-sonnet-4-6"
-_MAX_TOKENS = 2048
-
-# Module-level Anthropic client — reads ANTHROPIC_API_KEY from environment
-_anthropic_client = AsyncAnthropic()
-
-# Task statuses that mean "done" — skip these when building checklist
-_DONE_STATUSES = frozenset({"complete", "cancelled"})
-
-# Strip markdown code fences if Claude wraps JSON despite instructions
-_JSON_FENCE_PATTERN = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL)
-
-
-def _strip_fences(text: str) -> str:
-    """Remove markdown code fences from AI response text if present."""
-    match = _JSON_FENCE_PATTERN.search(text)
-    if match:
-        return match.group(1).strip()
-    return text.strip()
 
 
 class ChecklistService(TenantScopedService[DailyChecklist]):
@@ -77,12 +63,10 @@ class ChecklistService(TenantScopedService[DailyChecklist]):
 
         Design:
         - selectinload for all relationships — no lazy loads
-        - asyncio.sleep(0.5) between contractors to avoid Claude rate limits
-        - Each contractor's generation wrapped in try/except — log and continue on error
-        - FCM push via asyncio.create_task (fire-and-forget)
+        - THRU-2: Extracts all DB data into plain dicts before AI calls
+        - SCALE-2: asyncio.Semaphore(5) for bounded concurrency on Claude calls
+        - BUG-1: FCM push uses only primitive data, no stale DB session reference
         """
-        from app.features.notifications.service import NotificationService
-
         # Single query: all active projects for this company with full hierarchy
         stmt = (
             select(Project)
@@ -98,9 +82,8 @@ class ChecklistService(TenantScopedService[DailyChecklist]):
         result = await self.db.execute(stmt)
         projects = list(result.scalars().all())
 
-        notification_svc = NotificationService(self.db)
-        generated_count = 0
-        first = True
+        # THRU-2: Extract all needed data from DB into plain dicts before AI calls
+        scope_items: list[dict[str, Any]] = []
 
         for project in projects:
             for scope in project.trade_scopes:
@@ -111,7 +94,7 @@ class ChecklistService(TenantScopedService[DailyChecklist]):
                 eligible_tasks = [
                     t
                     for t in scope.tasks
-                    if t.status not in _DONE_STATUSES
+                    if t.status not in DONE_STATUSES
                     and t.deleted_at is None
                     and (t.start_date is None or t.start_date <= target_date)
                 ]
@@ -119,37 +102,91 @@ class ChecklistService(TenantScopedService[DailyChecklist]):
                 if not eligible_tasks:
                     continue
 
-                # Rate-limit: sleep between contractors (not before first)
-                if not first:
-                    await asyncio.sleep(0.5)
-                first = False
+                # Serialize task data to plain dicts
+                task_dicts = [
+                    {
+                        "id": str(t.id),
+                        "title": t.title,
+                        "due_date": t.due_date.isoformat() if t.due_date else None,
+                        "status": t.status,
+                        "priority": t.priority,
+                        "materials_needed": t.materials_needed,
+                    }
+                    for t in eligible_tasks
+                ]
 
+                scope_items.append(
+                    {
+                        "company_id": company_id,
+                        "project_id": project.id,
+                        "project_name": project.name,
+                        "project_description": project.description,
+                        "scope_id": scope.id,
+                        "trade_name": scope.trade_name,
+                        "contractor_id": scope.contractor_id,
+                        "tasks": task_dicts,
+                        "target_date": target_date,
+                    }
+                )
+
+        # SCALE-2: Make AI calls with bounded concurrency
+        semaphore = asyncio.Semaphore(5)
+
+        async def _generate_one(item: dict[str, Any]) -> dict[str, Any] | None:
+            async with semaphore:
                 try:
-                    checklist = await self._generate_for_scope(
-                        company_id=company_id,
-                        project=project,
-                        scope=scope,
-                        tasks=eligible_tasks,
-                        target_date=target_date,
-                    )
-                    generated_count += 1
-
-                    # Fire FCM push — fire-and-forget (never block checklist generation)
-                    asyncio.create_task(
-                        notification_svc.send_checklist_notification(
-                            contractor_id=scope.contractor_id,
-                            summary_text=checklist.summary_text,
-                            checklist_id=checklist.id,
-                        )
-                    )
+                    return await self._call_claude_for_checklist(item)
                 except Exception:
                     logger.exception(
-                        "generate_daily_checklists: failed for contractor %s scope %s "
-                        "project %s — continuing",
-                        scope.contractor_id,
-                        scope.id,
-                        project.id,
+                        "generate_daily_checklists: Claude call failed for contractor %s "
+                        "scope %s project %s — continuing",
+                        item["contractor_id"],
+                        item["scope_id"],
+                        item["project_id"],
                     )
+                    return None
+
+        ai_results = await asyncio.gather(*[_generate_one(item) for item in scope_items])
+
+        # Write results back to DB and collect notification data
+        generated_count = 0
+        # BUG-1: Collect notification data as primitives (not ORM objects)
+        notifications_to_send: list[dict[str, Any]] = []
+
+        for item, ai_result in zip(scope_items, ai_results):
+            if ai_result is None:
+                continue
+
+            checklist = await self.repository.upsert_checklist(
+                company_id=item["company_id"],
+                contractor_id=item["contractor_id"],
+                project_id=item["project_id"],
+                trade_scope_id=item["scope_id"],
+                checklist_date=item["target_date"],
+                checklist_json=ai_result["checklist_data"],
+                summary_text=ai_result["summary_text"],
+            )
+            generated_count += 1
+
+            # BUG-1: Store only primitive data for fire-and-forget notification
+            notifications_to_send.append(
+                {
+                    "contractor_id": item["contractor_id"],
+                    "summary_text": ai_result["summary_text"],
+                    "checklist_id": checklist.id,
+                }
+            )
+
+        # BUG-1: Fire FCM notifications after DB work, using only primitive data.
+        # Each notification creates its own DB session via NotificationService.
+        for notif in notifications_to_send:
+            asyncio.create_task(
+                self._send_notification_safe(
+                    contractor_id=notif["contractor_id"],
+                    summary_text=notif["summary_text"],
+                    checklist_id=notif["checklist_id"],
+                )
+            )
 
         logger.info(
             "generate_daily_checklists: generated %d checklists for company %s date %s",
@@ -159,38 +196,60 @@ class ChecklistService(TenantScopedService[DailyChecklist]):
         )
         return generated_count
 
-    async def _generate_for_scope(
-        self,
-        company_id: uuid.UUID,
-        project: Project,
-        scope: TradeScope,
-        tasks: list[Task],
-        target_date: date,
-    ) -> DailyChecklist:
-        """Generate and store a single checklist for a trade scope's contractor.
+    @staticmethod
+    async def _send_notification_safe(
+        contractor_id: uuid.UUID,
+        summary_text: str,
+        checklist_id: uuid.UUID,
+    ) -> None:
+        """Fire-and-forget FCM notification using its own DB session.
 
-        Builds user_content with project/trade context, calls Claude, parses JSON,
-        builds summary_text, and upserts via repository.
+        BUG-1 fix: Creates a fresh DB session for the notification service
+        instead of reusing the request session which may be closed.
         """
-        user_content = self._build_user_content(project, scope, tasks, target_date)
+        try:
+            from app.core.database import async_session_factory
+            from app.features.notifications.service import NotificationService
 
-        response = await _anthropic_client.messages.create(
-            model=_CLAUDE_MODEL,
-            max_tokens=_MAX_TOKENS,
+            async with async_session_factory() as db:
+                notification_svc = NotificationService(db)
+                await notification_svc.send_checklist_notification(
+                    contractor_id=contractor_id,
+                    summary_text=summary_text,
+                    checklist_id=checklist_id,
+                )
+                await db.commit()
+        except Exception:
+            logger.exception(
+                "send_checklist_notification failed for contractor %s — continuing",
+                contractor_id,
+            )
+
+    async def _call_claude_for_checklist(self, item: dict[str, Any]) -> dict[str, Any]:
+        """Call Claude API for a single checklist generation.
+
+        Takes plain dict data (no ORM objects), returns parsed checklist data.
+        """
+        user_content = self._build_user_content_from_dict(item)
+
+        client = get_anthropic_client()
+        response = await client.messages.create(
+            model=CLAUDE_MODEL,
+            max_tokens=CLAUDE_MAX_TOKENS,
             system=CHECKLIST_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_content}],
         )
 
         raw_text = response.content[0].text
-        cleaned = _strip_fences(raw_text)
+        cleaned = strip_fences(raw_text)
 
         try:
             checklist_data = json.loads(cleaned)
         except json.JSONDecodeError:
             logger.warning(
-                "_generate_for_scope: Claude returned invalid JSON for scope %s — "
+                "_call_claude_for_checklist: Claude returned invalid JSON for scope %s — "
                 "using empty checklist. Raw: %s...",
-                scope.id,
+                item["scope_id"],
                 cleaned[:200],
             )
             checklist_data = {"tasks": []}
@@ -201,51 +260,40 @@ class ChecklistService(TenantScopedService[DailyChecklist]):
         top_titles = [t.get("title", "Task") for t in task_items[:3]]
         summary_text = self._build_summary(len(task_items), top_titles)
 
-        # Upsert via repository (idempotent — safe to re-run)
-        return await self.repository.upsert_checklist(
-            company_id=company_id,
-            contractor_id=scope.contractor_id,  # type: ignore[arg-type]
-            project_id=project.id,
-            trade_scope_id=scope.id,
-            checklist_date=target_date,
-            checklist_json=checklist_data,
-            summary_text=summary_text,
-        )
+        return {
+            "checklist_data": checklist_data,
+            "summary_text": summary_text,
+        }
 
-    def _build_user_content(
-        self,
-        project: Project,
-        scope: TradeScope,
-        tasks: list[Task],
-        target_date: date,
-    ) -> str:
-        """Build the user message content for Claude's checklist generation."""
+    def _build_user_content_from_dict(self, item: dict[str, Any]) -> str:
+        """Build the user message content for Claude from plain dict data."""
         lines = [
-            f"Project: {project.name}",
-            f"Trade: {scope.trade_name}",
-            f"Date: {target_date.isoformat()}",
+            f"Project: {item['project_name']}",
+            f"Trade: {item['trade_name']}",
+            f"Date: {item['target_date'].isoformat()}",
             "",
             "Tasks to include in today's checklist:",
         ]
 
-        for task in tasks:
-            due_str = f" (due {task.due_date.isoformat()})" if task.due_date else ""
-            status_str = f" [{task.status}]" if task.status != "not_started" else ""
-            priority_str = f" priority={task.priority}"
-            dep_status = "blocked" if task.status == "blocked" else "clear"
+        for task in item["tasks"]:
+            due_str = f" (due {task['due_date']})" if task.get("due_date") else ""
+            status_str = f" [{task['status']}]" if task["status"] != "not_started" else ""
+            priority_str = f" priority={task['priority']}"
+            dep_status = "blocked" if task["status"] == "blocked" else "clear"
             lines.append(
-                f"- task_id={task.id} | {task.title}{due_str}{status_str}{priority_str} "
+                f"- task_id={task['id']} | {task['title']}{due_str}{status_str}{priority_str} "
                 f"| dep={dep_status}"
             )
-            if task.materials_needed:
-                materials = [
-                    m.get("name", str(m)) if isinstance(m, dict) else str(m)
-                    for m in task.materials_needed
+            materials = task.get("materials_needed", [])
+            if materials:
+                material_names = [
+                    m.get("name", str(m)) if isinstance(m, dict) else str(m) for m in materials
                 ]
-                lines.append(f"  materials: {', '.join(materials)}")
+                lines.append(f"  materials: {', '.join(material_names)}")
 
-        if project.description:
-            lines.extend(["", f"Project notes: {project.description}"])
+        desc = item.get("project_description")
+        if desc:
+            lines.extend(["", f"Project notes: {desc}"])
 
         return "\n".join(lines)
 

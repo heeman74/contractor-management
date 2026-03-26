@@ -28,18 +28,26 @@ class DailyChecklistDao extends DatabaseAccessor<AppDatabase>
   ///
   /// [contractorId] — the contractor's user ID.
   /// [dateStr] — ISO date string (YYYY-MM-DD) for today's date.
+  /// [companyId] — optional tenant filter. When provided, only checklists
+  ///   for the given company are returned (multi-tenant safety).
   ///
   /// Ordered by [createdAt] DESC (most recent first).
   Stream<List<DailyChecklist>> watchTodayForContractor(
     String contractorId,
-    String dateStr,
-  ) {
+    String dateStr, {
+    String? companyId,
+  }) {
     return (select(dailyChecklists)
           ..where(
-            (tbl) =>
-                tbl.contractorId.equals(contractorId) &
-                tbl.checklistDate.equals(dateStr) &
-                tbl.deletedAt.isNull(),
+            (tbl) {
+              var condition = tbl.contractorId.equals(contractorId) &
+                  tbl.checklistDate.equals(dateStr) &
+                  tbl.deletedAt.isNull();
+              if (companyId != null) {
+                condition = condition & tbl.companyId.equals(companyId);
+              }
+              return condition;
+            },
           )
           ..orderBy([(tbl) => OrderingTerm.desc(tbl.createdAt)]))
         .watch();

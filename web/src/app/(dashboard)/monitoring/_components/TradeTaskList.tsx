@@ -9,6 +9,18 @@ interface TradeTaskListProps {
   onClose: () => void;
 }
 
+/** Consistent date formatter — explicit locale & options to avoid cross-browser drift. */
+function formatDate(dateStr: string | null): string | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 const statusConfig: Record<string, { label: string; className: string }> = {
   complete: { label: "Complete", className: "bg-green-100 text-green-800" },
   completed: { label: "Complete", className: "bg-green-100 text-green-800" },
@@ -61,7 +73,7 @@ export function TradeTaskList({ projectId, tradeScopeId, onClose }: TradeTaskLis
             No tasks found for this trade.
           </p>
         ) : (
-          <table className="w-full text-xs">
+          <table className="w-full text-xs" aria-label="Trade tasks">
             <thead className="bg-gray-50 text-gray-500">
               <tr>
                 <th className="px-3 py-2 text-left font-medium">Title</th>
@@ -92,18 +104,14 @@ export function TradeTaskList({ projectId, tradeScopeId, onClose }: TradeTaskLis
                       {task.assignee_name ?? <span className="text-gray-400">—</span>}
                     </td>
                     <td className="px-3 py-2 text-gray-600">
-                      {task.start_date
-                        ? new Date(task.start_date).toLocaleDateString()
-                        : <span className="text-gray-400">—</span>}
+                      {formatDate(task.start_date) ?? <span className="text-gray-400">—</span>}
                     </td>
                     <td
                       className={`px-3 py-2 ${
                         pastDue ? "text-red-600 font-medium" : "text-gray-600"
                       }`}
                     >
-                      {task.due_date
-                        ? new Date(task.due_date).toLocaleDateString()
-                        : <span className="text-gray-400">—</span>}
+                      {formatDate(task.due_date) ?? <span className="text-gray-400">—</span>}
                     </td>
                     <td className="px-3 py-2 text-gray-600">
                       {task.dependency_status || <span className="text-gray-400">—</span>}

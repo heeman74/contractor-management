@@ -11,9 +11,10 @@ Provides:
 Design notes:
 - All queries use selectinload — N+1 safe
 - Claude API calls are non-streaming (batch alert generation)
-- asyncio.sleep(0.5) between Claude calls to respect rate limits
+- asyncio.Semaphore(5) for bounded concurrency on AI calls
 - Each scope's alert generation wrapped in try/except — errors logged, continue
 - No db.commit() — caller (cron job or get_db) handles transaction lifecycle
+- DB session is released before Claude API calls to avoid holding connections
 """
 
 from __future__ import annotations
@@ -21,15 +22,20 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import re
 import uuid
 from datetime import date
 from typing import Any
 
-from anthropic import AsyncAnthropic
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
+from app.core.ai_utils import (
+    CLAUDE_MAX_TOKENS,
+    CLAUDE_MODEL,
+    DONE_STATUSES,
+    get_anthropic_client,
+    strip_fences,
+)
 from app.core.base_service import TenantScopedService
 from app.features.dashboard.models import DashboardAlert
 from app.features.dashboard.prompts.alert_system import ALERT_SYSTEM_PROMPT
@@ -46,23 +52,6 @@ from app.features.projects.models import Project, Task, TaskDependency, TradeSco
 
 logger = logging.getLogger(__name__)
 
-_CLAUDE_MODEL = "claude-sonnet-4-6"
-_MAX_TOKENS = 2048
-
-_anthropic_client = AsyncAnthropic()
-
-_DONE_STATUSES = frozenset({"complete", "cancelled"})
-
-_JSON_FENCE_PATTERN = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL)
-
-
-def _strip_fences(text: str) -> str:
-    """Remove markdown code fences from AI response if present."""
-    match = _JSON_FENCE_PATTERN.search(text)
-    if match:
-        return match.group(1).strip()
-    return text.strip()
-
 
 def _compute_trade_status(tasks: list[Task], today: date) -> str:
     """Compute a trade scope's status badge from its tasks.
@@ -77,7 +66,7 @@ def _compute_trade_status(tasks: list[Task], today: date) -> str:
             return "blocked"
 
     for task in tasks:
-        if task.status not in _DONE_STATUSES and task.due_date and task.due_date < today:
+        if task.status not in DONE_STATUSES and task.due_date and task.due_date < today:
             return "at_risk"
 
     return "on_track"
@@ -99,7 +88,8 @@ class DashboardService(TenantScopedService[DashboardAlert]):
         """Aggregate per-project and per-trade status for the GC dashboard overview.
 
         Single query with full hierarchy. Computes completion percentages and status
-        badges per trade scope, then queries alert counts per project.
+        badges per trade scope. Alert counts fetched in a single GROUP BY query
+        (SCALE-1: avoids N+1 per-project count queries).
 
         Returns list of ProjectStatusCard — each card is fully self-contained.
         """
@@ -118,6 +108,23 @@ class DashboardService(TenantScopedService[DashboardAlert]):
         )
         result = await self.db.execute(stmt)
         projects = list(result.scalars().all())
+
+        # SCALE-1: Batch-fetch alert counts for all projects in one GROUP BY query
+        project_ids = [p.id for p in projects]
+        alert_counts: dict[uuid.UUID, int] = {}
+        if project_ids:
+            alert_stmt = (
+                select(DashboardAlert.project_id, func.count())
+                .where(
+                    DashboardAlert.project_id.in_(project_ids),
+                    DashboardAlert.is_read.is_(False),
+                    DashboardAlert.deleted_at.is_(None),
+                )
+                .group_by(DashboardAlert.project_id)
+            )
+            alert_result = await self.db.execute(alert_stmt)
+            for pid, cnt in alert_result.all():
+                alert_counts[pid] = cnt
 
         cards: list[ProjectStatusCard] = []
         for project in projects:
@@ -154,8 +161,6 @@ class DashboardService(TenantScopedService[DashboardAlert]):
 
             overall_pct = round(completed_tasks / total_tasks * 100, 1) if total_tasks > 0 else 0.0
 
-            alert_count = await self.repository.count_active_for_project(project.id)
-
             cards.append(
                 ProjectStatusCard(
                     project_id=project.id,
@@ -163,7 +168,7 @@ class DashboardService(TenantScopedService[DashboardAlert]):
                     status=project.status,
                     overall_completion_pct=overall_pct,
                     trade_statuses=trade_statuses,
-                    active_alert_count=alert_count,
+                    active_alert_count=alert_counts.get(project.id, 0),
                 )
             )
 
@@ -246,6 +251,10 @@ class DashboardService(TenantScopedService[DashboardAlert]):
             )
 
         scope_entries: list[TradeTimelineScope] = []
+        # Build task_id -> scope_id map from loaded project tasks
+        task_scope_map: dict[uuid.UUID, uuid.UUID] = {}
+        task_ids: list[uuid.UUID] = []
+
         for scope in project.trade_scopes:
             if scope.deleted_at is not None:
                 continue
@@ -253,6 +262,10 @@ class DashboardService(TenantScopedService[DashboardAlert]):
             scope_tasks = [t for t in scope.tasks if t.deleted_at is None]
             task_count = len(scope_tasks)
             completed_count = sum(1 for t in scope_tasks if t.status == "complete")
+
+            for task in scope_tasks:
+                task_scope_map[task.id] = scope.id
+                task_ids.append(task.id)
 
             # Compute date range from task dates
             start_dates = [t.start_date for t in scope_tasks if t.start_date]
@@ -273,28 +286,26 @@ class DashboardService(TenantScopedService[DashboardAlert]):
                 )
             )
 
-        # Fetch cross-scope dependency links (scope-to-scope links via TaskDependency)
-        # We look for any task dependency where the two tasks are in different scopes
-        scope_ids = [s.trade_scope_id for s in scope_entries]
+        # BUG-5: Filter dependencies to only those involving tasks in this project
         dep_links: list[DependencyLink] = []
 
-        if scope_ids:
+        if task_ids:
+            # BUG-2: Use correct field names (predecessor_task_id, successor_task_id)
             dep_stmt = select(TaskDependency).where(
                 TaskDependency.deleted_at.is_(None),
+                (
+                    TaskDependency.predecessor_task_id.in_(task_ids)
+                    | TaskDependency.successor_task_id.in_(task_ids)
+                ),
             )
             dep_result = await self.db.execute(dep_stmt)
             all_deps = list(dep_result.scalars().all())
 
-            # Build task_id -> scope_id map from loaded project tasks
-            task_scope_map: dict[uuid.UUID, uuid.UUID] = {}
-            for scope in project.trade_scopes:
-                for task in scope.tasks:
-                    task_scope_map[task.id] = scope.id
-
             seen_links: set[tuple[uuid.UUID, uuid.UUID]] = set()
             for dep in all_deps:
-                from_scope = task_scope_map.get(dep.task_id)
-                to_scope = task_scope_map.get(dep.depends_on_task_id)
+                # BUG-2: Use correct field names
+                from_scope = task_scope_map.get(dep.predecessor_task_id)
+                to_scope = task_scope_map.get(dep.successor_task_id)
                 if from_scope and to_scope and from_scope != to_scope:
                     link_key = (from_scope, to_scope)
                     if link_key not in seen_links:
@@ -329,6 +340,10 @@ class DashboardService(TenantScopedService[DashboardAlert]):
         calls Claude to generate an impact/remediation alert and stores it in
         dashboard_alerts.
 
+        BP-9: Checks for existing unread alerts before creating duplicates.
+        THRU-2: Extracts all DB data first, then makes AI calls.
+        SCALE-2: Uses asyncio.Semaphore(5) for bounded concurrency.
+
         Returns the number of alerts generated.
         """
         stmt = (
@@ -345,13 +360,31 @@ class DashboardService(TenantScopedService[DashboardAlert]):
         result = await self.db.execute(stmt)
         projects = list(result.scalars().all())
 
-        generated_count = 0
-        first = True
+        # BP-9: Pre-fetch existing unread alerts to avoid duplicates
+        existing_alerts_stmt = (
+            select(
+                DashboardAlert.project_id,
+                DashboardAlert.trade_scope_id,
+                DashboardAlert.alert_type,
+            )
+            .where(
+                DashboardAlert.company_id == company_id,
+                DashboardAlert.is_read.is_(False),
+                DashboardAlert.deleted_at.is_(None),
+                DashboardAlert.alert_type == "schedule_slip",
+            )
+        )
+        existing_result = await self.db.execute(existing_alerts_stmt)
+        existing_alert_keys: set[tuple[uuid.UUID, uuid.UUID | None, str]] = {
+            (row[0], row[1], row[2]) for row in existing_result.all()
+        }
+
+        # THRU-2: Extract all needed data from DB into plain dicts/lists before AI calls
+        slip_items: list[dict[str, Any]] = []
 
         for project in projects:
-            # Build a map of scope_id -> max_days_behind for affected scope analysis
             scope_days_behind: dict[uuid.UUID, int] = {}
-            scope_overdue_tasks: dict[uuid.UUID, list[Task]] = {}
+            scope_overdue_tasks: dict[uuid.UUID, list[dict[str, Any]]] = {}
 
             for scope in project.trade_scopes:
                 if scope.deleted_at is not None:
@@ -360,7 +393,7 @@ class DashboardService(TenantScopedService[DashboardAlert]):
                 overdue_tasks = [
                     t
                     for t in scope.tasks
-                    if t.status not in _DONE_STATUSES
+                    if t.status not in DONE_STATUSES
                     and t.deleted_at is None
                     and t.due_date is not None
                     and t.due_date < target_date
@@ -371,44 +404,99 @@ class DashboardService(TenantScopedService[DashboardAlert]):
 
                 max_days = max((target_date - t.due_date).days for t in overdue_tasks)
                 if max_days <= 1:
-                    continue  # Only 1 day behind — below threshold
+                    continue
 
                 scope_days_behind[scope.id] = max_days
-                scope_overdue_tasks[scope.id] = overdue_tasks
+                # Serialize task data to plain dicts so we don't need the session later
+                scope_overdue_tasks[scope.id] = [
+                    {
+                        "id": str(t.id),
+                        "title": t.title,
+                        "due_date": t.due_date.isoformat() if t.due_date else None,
+                        "status": t.status,
+                    }
+                    for t in overdue_tasks
+                ]
 
             for scope in project.trade_scopes:
                 if scope.id not in scope_days_behind:
                     continue
 
-                days_behind = scope_days_behind[scope.id]
-                overdue_tasks = scope_overdue_tasks[scope.id]
+                # BP-9: Skip if unread alert already exists for this project+scope+type
+                alert_key = (project.id, scope.id, "schedule_slip")
+                if alert_key in existing_alert_keys:
+                    logger.debug(
+                        "detect_schedule_slips: skipping duplicate alert for "
+                        "project=%s scope=%s",
+                        project.id,
+                        scope.id,
+                    )
+                    continue
 
-                # Find affected downstream scopes (scopes that depend on this one)
+                days_behind = scope_days_behind[scope.id]
+                overdue_task_dicts = scope_overdue_tasks[scope.id]
+
                 affected_scope_ids = self._find_affected_downstream_scopes(
                     scope.id, project.trade_scopes, scope_days_behind
                 )
 
-                # Rate limit: sleep between Claude calls (not before first)
-                if not first:
-                    await asyncio.sleep(0.5)
-                first = False
+                slip_items.append(
+                    {
+                        "company_id": company_id,
+                        "project_id": project.id,
+                        "project_name": project.name,
+                        "project_description": project.description,
+                        "scope_id": scope.id,
+                        "trade_name": scope.trade_name,
+                        "overdue_tasks": overdue_task_dicts,
+                        "days_behind": days_behind,
+                        "affected_scope_ids": affected_scope_ids,
+                    }
+                )
 
+        # THRU-2/SCALE-2: Make AI calls with bounded concurrency (no DB session needed)
+        semaphore = asyncio.Semaphore(5)
+        generated_count = 0
+
+        async def _process_slip(item: dict[str, Any]) -> dict[str, Any] | None:
+            async with semaphore:
                 try:
-                    await self._generate_slip_alert(
-                        company_id=company_id,
-                        project=project,
-                        scope=scope,
-                        overdue_tasks=overdue_tasks,
-                        days_behind=days_behind,
-                        affected_scope_ids=affected_scope_ids,
-                    )
-                    generated_count += 1
+                    return await self._call_claude_for_slip(item)
                 except Exception:
                     logger.exception(
-                        "detect_schedule_slips: failed for scope %s project %s — continuing",
-                        scope.id,
-                        project.id,
+                        "detect_schedule_slips: Claude call failed for scope %s project %s",
+                        item["scope_id"],
+                        item["project_id"],
                     )
+                    return None
+
+        ai_results = await asyncio.gather(*[_process_slip(item) for item in slip_items])
+
+        # Write all results back to DB
+        for item, ai_result in zip(slip_items, ai_results):
+            if ai_result is None:
+                continue
+
+            alert = DashboardAlert(
+                company_id=item["company_id"],
+                project_id=item["project_id"],
+                trade_scope_id=item["scope_id"],
+                severity=ai_result["severity"],
+                alert_type="schedule_slip",
+                days_behind=item["days_behind"],
+                impact_text=ai_result["impact_text"],
+                remediation_text=ai_result.get("remediation_text"),
+                affected_scope_ids=item["affected_scope_ids"],
+                is_read=False,
+                rescheduling_payload=ai_result.get("rescheduling_payload"),
+                rescheduling_accepted=None,
+            )
+
+            self.db.add(alert)
+            generated_count += 1
+
+        if generated_count > 0:
+            await self.db.flush()
 
         logger.info(
             "detect_schedule_slips: generated %d alerts for company %s date %s",
@@ -417,6 +505,55 @@ class DashboardService(TenantScopedService[DashboardAlert]):
             target_date,
         )
         return generated_count
+
+    async def _call_claude_for_slip(self, item: dict[str, Any]) -> dict[str, Any]:
+        """Call Claude API for a single schedule slip analysis.
+
+        Takes plain dict data (no ORM objects), returns parsed alert data dict.
+        """
+        user_content = self._build_slip_content_from_dict(item)
+
+        client = get_anthropic_client()
+        response = await client.messages.create(
+            model=CLAUDE_MODEL,
+            max_tokens=CLAUDE_MAX_TOKENS,
+            system=ALERT_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": user_content}],
+        )
+
+        raw_text = response.content[0].text
+        cleaned = strip_fences(raw_text)
+
+        try:
+            alert_data: dict[str, Any] = json.loads(cleaned)
+        except json.JSONDecodeError:
+            logger.warning(
+                "_call_claude_for_slip: Claude returned invalid JSON for scope %s — "
+                "using default alert. Raw: %s...",
+                item["scope_id"],
+                cleaned[:200],
+            )
+            days_behind = item["days_behind"]
+            alert_data = {
+                "impact_text": f"{item['trade_name']} is {days_behind} days behind schedule.",
+                "remediation_text": "Review overdue tasks and update the schedule.",
+                "severity": "warning" if days_behind <= 7 else "critical",
+                "rescheduling_suggestions": [],
+            }
+
+        severity = alert_data.get("severity", "warning")
+        if severity not in ("info", "warning", "critical"):
+            severity = "warning"
+
+        rescheduling = alert_data.get("rescheduling_suggestions", [])
+        rescheduling_payload = {"suggestions": rescheduling} if rescheduling else None
+
+        return {
+            "severity": severity,
+            "impact_text": alert_data.get("impact_text", ""),
+            "remediation_text": alert_data.get("remediation_text"),
+            "rescheduling_payload": rescheduling_payload,
+        }
 
     def _find_affected_downstream_scopes(
         self,
@@ -446,104 +583,32 @@ class DashboardService(TenantScopedService[DashboardAlert]):
 
         return affected
 
-    async def _generate_slip_alert(
-        self,
-        company_id: uuid.UUID,
-        project: Project,
-        scope: TradeScope,
-        overdue_tasks: list[Task],
-        days_behind: int,
-        affected_scope_ids: list[str],
-    ) -> DashboardAlert:
-        """Generate AI alert for a schedule slip and store in dashboard_alerts."""
-        user_content = self._build_slip_content(
-            project, scope, overdue_tasks, days_behind, affected_scope_ids
-        )
-
-        response = await _anthropic_client.messages.create(
-            model=_CLAUDE_MODEL,
-            max_tokens=_MAX_TOKENS,
-            system=ALERT_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_content}],
-        )
-
-        raw_text = response.content[0].text
-        cleaned = _strip_fences(raw_text)
-
-        try:
-            alert_data: dict[str, Any] = json.loads(cleaned)
-        except json.JSONDecodeError:
-            logger.warning(
-                "_generate_slip_alert: Claude returned invalid JSON for scope %s — "
-                "using default alert. Raw: %s...",
-                scope.id,
-                cleaned[:200],
-            )
-            alert_data = {
-                "impact_text": f"{scope.trade_name} is {days_behind} days behind schedule.",
-                "remediation_text": "Review overdue tasks and update the schedule.",
-                "severity": "warning" if days_behind <= 7 else "critical",
-                "rescheduling_suggestions": [],
-            }
-
-        severity = alert_data.get("severity", "warning")
-        if severity not in ("info", "warning", "critical"):
-            severity = "warning"
-
-        rescheduling = alert_data.get("rescheduling_suggestions", [])
-        rescheduling_payload = {"suggestions": rescheduling} if rescheduling else None
-
-        alert = DashboardAlert(
-            company_id=company_id,
-            project_id=project.id,
-            trade_scope_id=scope.id,
-            severity=severity,
-            alert_type="schedule_slip",
-            days_behind=days_behind,
-            impact_text=alert_data.get("impact_text", ""),
-            remediation_text=alert_data.get("remediation_text"),
-            affected_scope_ids=affected_scope_ids,
-            is_read=False,
-            rescheduling_payload=rescheduling_payload,
-            rescheduling_accepted=None,
-        )
-
-        self.db.add(alert)
-        await self.db.flush()
-        await self.db.refresh(alert)
-        return alert
-
-    def _build_slip_content(
-        self,
-        project: Project,
-        scope: TradeScope,
-        overdue_tasks: list[Task],
-        days_behind: int,
-        affected_scope_ids: list[str],
-    ) -> str:
-        """Build the user message content for Claude's schedule slip analysis."""
+    def _build_slip_content_from_dict(self, item: dict[str, Any]) -> str:
+        """Build the user message content for Claude from plain dict data."""
         lines = [
-            f"Project: {project.name}",
-            f"Trade scope: {scope.trade_name}",
-            f"Days behind schedule: {days_behind}",
+            f"Project: {item['project_name']}",
+            f"Trade scope: {item['trade_name']}",
+            f"Days behind schedule: {item['days_behind']}",
             "",
             "Overdue tasks:",
         ]
 
-        for task in overdue_tasks:
-            due_str = f"(due {task.due_date.isoformat()})" if task.due_date else ""
-            lines.append(f"- task_id={task.id} | {task.title} {due_str} [{task.status}]")
+        for task in item["overdue_tasks"]:
+            due_str = f"(due {task['due_date']})" if task.get("due_date") else ""
+            lines.append(f"- task_id={task['id']} | {task['title']} {due_str} [{task['status']}]")
 
-        if affected_scope_ids:
+        affected = item.get("affected_scope_ids", [])
+        if affected:
             lines.extend(
                 [
                     "",
-                    f"Downstream scopes potentially affected: {len(affected_scope_ids)} scope(s)",
+                    f"Downstream scopes potentially affected: {len(affected)} scope(s)",
                 ]
             )
 
-        if project.description:
-            lines.extend(["", f"Project context: {project.description}"])
+        desc = item.get("project_description")
+        if desc:
+            lines.extend(["", f"Project context: {desc}"])
 
         return "\n".join(lines)
 
@@ -562,6 +627,7 @@ class DashboardService(TenantScopedService[DashboardAlert]):
     async def accept_rescheduling(self, alert_id: uuid.UUID) -> DashboardAlert | None:
         """Accept rescheduling suggestions — update task dates and mark alert accepted.
 
+        BUG-3: Batch-fetches all tasks in a single query instead of per-suggestion db.get().
         Loads the alert's rescheduling_payload and applies each suggestion's
         new_start_date / new_due_date to the corresponding task. Marks the alert
         as accepted (rescheduling_accepted=True).
@@ -573,52 +639,67 @@ class DashboardService(TenantScopedService[DashboardAlert]):
         payload = alert.rescheduling_payload
         if payload and "suggestions" in payload:
             suggestions = payload["suggestions"]
+
+            # BUG-3: Collect all valid task IDs first, then batch-fetch
+            task_id_map: dict[uuid.UUID, str | None] = {}  # task_uuid -> suggestion index
+            valid_suggestions: list[tuple[uuid.UUID, dict]] = []
+
             for suggestion in suggestions:
                 task_id_str = suggestion.get("task_id")
-                new_start_str = suggestion.get("new_start_date")
-                new_due_str = suggestion.get("new_due_date")
-
                 if not task_id_str:
                     continue
-
                 try:
-                    task_id = uuid.UUID(task_id_str)
+                    task_uuid = uuid.UUID(task_id_str)
+                    valid_suggestions.append((task_uuid, suggestion))
+                    task_id_map[task_uuid] = None
                 except ValueError:
                     logger.warning(
                         "accept_rescheduling: invalid task_id '%s' in alert %s",
                         task_id_str,
                         alert_id,
                     )
-                    continue
 
-                from app.features.projects.models import Task
+            if valid_suggestions:
+                # Single query to fetch all tasks
+                task_ids = list(task_id_map.keys())
+                task_stmt = select(Task).where(Task.id.in_(task_ids))
+                task_result = await self.db.execute(task_stmt)
+                tasks_by_id: dict[uuid.UUID, Task] = {
+                    t.id: t for t in task_result.scalars().all()
+                }
 
-                task = await self.db.get(Task, task_id)
-                if task is None:
-                    logger.warning(
-                        "accept_rescheduling: task %s not found for alert %s",
-                        task_id,
-                        alert_id,
-                    )
-                    continue
-
-                if new_start_str:
-                    try:
-                        task.start_date = date.fromisoformat(new_start_str)
-                    except ValueError:
+                for task_uuid, suggestion in valid_suggestions:
+                    task = tasks_by_id.get(task_uuid)
+                    if task is None:
                         logger.warning(
-                            "accept_rescheduling: invalid new_start_date '%s'", new_start_str
+                            "accept_rescheduling: task %s not found for alert %s",
+                            task_uuid,
+                            alert_id,
                         )
+                        continue
 
-                if new_due_str:
-                    try:
-                        task.due_date = date.fromisoformat(new_due_str)
-                    except ValueError:
-                        logger.warning(
-                            "accept_rescheduling: invalid new_due_date '%s'", new_due_str
-                        )
+                    new_start_str = suggestion.get("new_start_date")
+                    new_due_str = suggestion.get("new_due_date")
 
-            await self.db.flush()
+                    if new_start_str:
+                        try:
+                            task.start_date = date.fromisoformat(new_start_str)
+                        except ValueError:
+                            logger.warning(
+                                "accept_rescheduling: invalid new_start_date '%s'",
+                                new_start_str,
+                            )
+
+                    if new_due_str:
+                        try:
+                            task.due_date = date.fromisoformat(new_due_str)
+                        except ValueError:
+                            logger.warning(
+                                "accept_rescheduling: invalid new_due_date '%s'",
+                                new_due_str,
+                            )
+
+                await self.db.flush()
 
         return await self.repository.accept_rescheduling(alert_id)
 

@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost } from "@/lib/api-client";
 import type {
-  ProjectStatusCard,
+  ProjectStatusCardData,
   DashboardAlert,
   TradeTimelineData,
   TradeTaskDetail,
@@ -13,28 +13,34 @@ import type {
 
 /**
  * Fetch all active project status cards for the monitoring overview.
- * Polls every 60 seconds.
+ * Polls every 60 seconds. Limited to 50 projects.
  */
 export function useDashboardProjects() {
-  return useQuery<ProjectStatusCard[]>({
+  return useQuery<ProjectStatusCardData[]>({
     queryKey: ["dashboard-projects"],
-    queryFn: () => apiGet<ProjectStatusCard[]>("/api/dashboard"),
+    queryFn: () => apiGet<ProjectStatusCardData[]>("/api/dashboard?limit=50"),
     refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
+    staleTime: 30_000,
   });
 }
 
 /**
  * Fetch AI alerts, optionally filtered by project.
  * Polls every 30 seconds for near-real-time alert visibility.
+ * Limited to 30 alerts, unread first.
  */
 export function useDashboardAlerts(projectId?: string) {
-  const url = projectId
-    ? `/api/dashboard/alerts?project_id=${encodeURIComponent(projectId)}`
-    : "/api/dashboard/alerts";
+  const params = new URLSearchParams({ limit: "30", unread_first: "true" });
+  if (projectId) params.set("project_id", projectId);
+  const url = `/api/dashboard/alerts?${params.toString()}`;
+
   return useQuery<DashboardAlert[]>({
     queryKey: ["dashboard-alerts", projectId],
     queryFn: () => apiGet<DashboardAlert[]>(url),
     refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    staleTime: 15_000,
   });
 }
 
@@ -71,14 +77,40 @@ export function useTradeTasks(projectId: string, tradeScopeId: string) {
 // --- Mutation hooks ---
 
 /**
- * Mark an alert as read. Invalidates alert cache.
+ * Mark an alert as read. Uses optimistic update to immediately reflect in UI.
  */
 export function useMarkAlertRead() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (alertId: string) =>
       apiPost<void>(`/api/dashboard/alerts/${encodeURIComponent(alertId)}/read`, {}),
-    onSuccess: () => {
+    onMutate: async (alertId: string) => {
+      // Cancel outgoing refetches so they don't overwrite our optimistic update
+      await queryClient.cancelQueries({ queryKey: ["dashboard-alerts"] });
+
+      // Snapshot previous value
+      const previousAlerts = queryClient.getQueriesData<DashboardAlert[]>({
+        queryKey: ["dashboard-alerts"],
+      });
+
+      // Optimistically mark as read
+      queryClient.setQueriesData<DashboardAlert[]>(
+        { queryKey: ["dashboard-alerts"] },
+        (old) =>
+          old?.map((a) => (a.id === alertId ? { ...a, is_read: true } : a))
+      );
+
+      return { previousAlerts };
+    },
+    onError: (_err, _alertId, context) => {
+      // Rollback on error
+      if (context?.previousAlerts) {
+        for (const [queryKey, data] of context.previousAlerts) {
+          queryClient.setQueryData(queryKey, data);
+        }
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["dashboard-alerts"] });
     },
   });

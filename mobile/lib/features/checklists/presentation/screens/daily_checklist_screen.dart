@@ -116,9 +116,13 @@ class _ChecklistBody extends StatelessWidget {
   const _ChecklistBody({required this.checklists});
   final List<DailyChecklist> checklists;
 
-  @override
-  Widget build(BuildContext context) {
-    // Parse all task items from all checklist records, grouped by project.
+  /// Parse checklist JSON into task items grouped by project name.
+  ///
+  /// Separated from [build] so jsonDecode is not called on every frame rebuild.
+  /// The result is computed once per new [checklists] list (Drift stream emission).
+  static Map<String, List<_ChecklistTaskItem>> parseChecklists(
+    List<DailyChecklist> checklists,
+  ) {
     final Map<String, List<_ChecklistTaskItem>> byProject = {};
 
     for (final checklist in checklists) {
@@ -144,13 +148,20 @@ class _ChecklistBody extends StatelessWidget {
       }
     }
 
-    if (byProject.isEmpty) {
-      return _EmptyState();
-    }
-
     // Sort items within each project by priority (1=urgent first)
     for (final group in byProject.values) {
       group.sort((a, b) => a.priority.compareTo(b.priority));
+    }
+
+    return byProject;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final byProject = parseChecklists(checklists);
+
+    if (byProject.isEmpty) {
+      return _EmptyState();
     }
 
     final projectNames = byProject.keys.toList();
@@ -432,14 +443,20 @@ class _ChecklistTaskItem {
         : <String>[];
 
     return _ChecklistTaskItem(
-      taskId: (json['task_id'] as String?) ?? '',
-      title: (json['title'] as String?) ?? 'Unnamed task',
-      priority: (json['priority'] as int?) ?? 3,
-      estimatedDuration: (json['estimated_duration'] as String?) ?? '',
+      taskId: json['task_id'] is String ? json['task_id'] as String : '',
+      title: json['title'] is String ? json['title'] as String : 'Unnamed task',
+      priority: json['priority'] is int ? json['priority'] as int : 3,
+      estimatedDuration: json['estimated_duration'] is String
+          ? json['estimated_duration'] as String
+          : '',
       materials: materials,
-      photoRequired: (json['photo_required'] as bool?) ?? false,
-      dependencyStatus: (json['dependency_status'] as String?) ?? 'ok',
-      projectName: (json['project_name'] as String?) ?? 'Project',
+      photoRequired: json['photo_required'] is bool && json['photo_required'] as bool,
+      dependencyStatus: json['dependency_status'] is String
+          ? json['dependency_status'] as String
+          : 'ok',
+      projectName: json['project_name'] is String
+          ? json['project_name'] as String
+          : 'Project',
     );
   }
 }
