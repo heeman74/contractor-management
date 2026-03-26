@@ -66,6 +66,12 @@ import app.features.users.models  # noqa: E402, F401
 
 router = APIRouter(prefix="/quotes", tags=["quotes"])
 
+# ---------------------------------------------------------------------------
+# Trade-scope quote router — Phase 25
+# Separate router so /api/trade-scopes/{scope_id}/quotes doesn't shadow /quotes
+# ---------------------------------------------------------------------------
+scope_quote_router = APIRouter(prefix="/trade-scopes/{scope_id}", tags=["trade-scope-quotes"])
+
 
 def _require_admin(current_user: CurrentUser) -> None:
     """Raise 403 if the current user is not an admin."""
@@ -328,3 +334,50 @@ async def download_quote_pdf(
             "Content-Length": str(len(pdf_bytes)),
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Trade-scope quote endpoints (Phase 25)
+# ---------------------------------------------------------------------------
+
+
+@scope_quote_router.post("/quotes", response_model=QuoteResponse, status_code=201)
+async def create_scope_quote(
+    scope_id: uuid.UUID,
+    data: QuoteCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> QuoteResponse:
+    """Create a draft quote scoped to a trade scope (admin only).
+
+    The quote is linked to the trade scope, not a job. scope_id in the URL
+    overrides any trade_scope_id or job_id in the request body.
+    """
+    _require_admin(current_user)
+    # Provide a dummy trade_scope_id to satisfy the QuoteCreate model_validator;
+    # create_for_scope overrides it with the URL scope_id anyway.
+    data_with_scope = QuoteCreate(
+        trade_scope_id=scope_id,
+        tax_rate=data.tax_rate,
+        discount_type=data.discount_type,
+        discount_value=data.discount_value,
+        expiry_date=data.expiry_date,
+        admin_notes=data.admin_notes,
+        line_items=data.line_items,
+    )
+    svc = QuoteService(db)
+    quote = await svc.create_for_scope(scope_id, data_with_scope, current_user.user_id)
+    return QuoteResponse.from_orm_with_totals(quote)
+
+
+@scope_quote_router.get("/quotes", response_model=list[QuoteResponse])
+async def list_scope_quotes(
+    scope_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> list[QuoteResponse]:
+    """List all quotes for a trade scope (admin only)."""
+    _require_admin(current_user)
+    svc = QuoteService(db)
+    quotes = await svc.list_by_scope(scope_id)
+    return [QuoteResponse.from_orm_with_totals(q) for q in quotes]

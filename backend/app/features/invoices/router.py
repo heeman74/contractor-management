@@ -24,6 +24,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -44,7 +45,20 @@ import app.features.quotes.models  # noqa: F401
 import app.features.scheduling.models  # noqa: F401
 import app.features.users.models  # noqa: F401
 
+
+class ProgressInvoiceRequest(BaseModel):
+    """Request body for generating a progress invoice from a milestone."""
+
+    milestone_id: uuid.UUID
+
+
 router = APIRouter(prefix="/invoices", tags=["invoices"])
+
+# ---------------------------------------------------------------------------
+# Trade-scope invoice router — Phase 25
+# Separate router so /api/trade-scopes/{scope_id}/invoices/* doesn't shadow /invoices
+# ---------------------------------------------------------------------------
+scope_invoice_router = APIRouter(prefix="/trade-scopes/{scope_id}", tags=["trade-scope-invoices"])
 
 
 def _require_admin(current_user: CurrentUser) -> None:
@@ -222,3 +236,69 @@ async def download_invoice_pdf(
             "Content-Length": str(len(pdf_bytes)),
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Trade-scope invoice endpoints (Phase 25)
+# ---------------------------------------------------------------------------
+
+
+@scope_invoice_router.post("/invoices/generate", response_model=InvoiceResponse, status_code=201)
+async def generate_scope_invoice(
+    scope_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> InvoiceResponse:
+    """Generate an invoice from completed tasks in a trade scope (admin only).
+
+    Each completed task becomes a line item with unit_price=0.00 for GC to fill in.
+    Inherits tax_rate from the approved quote if one exists.
+    """
+    _require_admin(current_user)
+    svc = InvoiceService(db)
+    invoice = await svc.generate_from_scope(scope_id, current_user.user_id)
+    return InvoiceResponse.from_orm_with_totals(invoice)
+
+
+@scope_invoice_router.post("/invoices/progress", response_model=InvoiceResponse, status_code=201)
+async def generate_progress_invoice(
+    scope_id: uuid.UUID,
+    data: ProgressInvoiceRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> InvoiceResponse:
+    """Generate a milestone-based progress invoice for a trade scope (admin only).
+
+    Returns 409 if the milestone was already invoiced (double-billing prevention).
+    Returns 400 if no approved quote exists for the scope.
+    """
+    _require_admin(current_user)
+    svc = InvoiceService(db)
+    invoice = await svc.generate_progress_invoice(scope_id, data.milestone_id, current_user.user_id)
+    return InvoiceResponse.from_orm_with_totals(invoice)
+
+
+@scope_invoice_router.get("/invoices", response_model=list[InvoiceResponse])
+async def list_scope_invoices(
+    scope_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> list[InvoiceResponse]:
+    """List all non-deleted invoices for a trade scope (admin only)."""
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    from app.features.invoices.models import Invoice
+
+    _require_admin(current_user)
+    result = await db.execute(
+        select(Invoice)
+        .where(
+            Invoice.trade_scope_id == scope_id,
+            Invoice.deleted_at.is_(None),
+        )
+        .options(selectinload(Invoice.line_items))
+        .order_by(Invoice.created_at.desc())
+    )
+    invoices = list(result.scalars().all())
+    return [InvoiceResponse.from_orm_with_totals(i) for i in invoices]

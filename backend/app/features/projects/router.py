@@ -172,6 +172,43 @@ async def delete_project(
         )
 
 
+@projects_router.get("/{project_id}/quote-summary")
+async def project_quote_summary(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> dict:
+    """Return per-trade quote totals and grand total for a project (admin only).
+
+    Returns {project_id, scopes: [{scope_id, trade_name, quote_count, subtotal}], grand_total}.
+    """
+    if "admin" not in current_user.roles:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
+    from app.features.quotes.service import QuoteService
+
+    svc = QuoteService(db)
+    return await svc.aggregate_by_project(project_id)
+
+
+@projects_router.get("/{project_id}/invoice-summary")
+async def project_invoice_summary(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> dict:
+    """Return per-trade invoice totals for a project (admin only).
+
+    Returns {project_id, scopes: [{scope_id, trade_name, invoice_count, total_billed, total_paid, total_outstanding}],
+    total_billed, total_paid, total_outstanding}.
+    """
+    if "admin" not in current_user.roles:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
+    from app.features.invoices.service import InvoiceService
+
+    svc = InvoiceService(db)
+    return await svc.aggregate_by_project(project_id)
+
+
 # ---------------------------------------------------------------------------
 # Trade Catalog router
 # ---------------------------------------------------------------------------

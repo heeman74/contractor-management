@@ -27,13 +27,16 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import UTC, date, datetime
+from decimal import Decimal
 
 from fastapi import HTTPException, status
-from sqlalchemy import delete
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.base_service import TenantScopedService
 from app.features.jobs.models import Job
+from app.features.projects.models import TradeScope
 from app.features.quotes.models import Quote, QuoteLineItem, QuoteTemplate
 from app.features.quotes.repository import QuoteRepository, QuoteTemplateRepository
 from app.features.quotes.schemas import (
@@ -510,3 +513,129 @@ class QuoteService(TenantScopedService[Quote]):
     async def delete_template(self, template_id: uuid.UUID) -> bool:
         """Delete a template. Returns False if not found."""
         return await self._template_repo.delete_template(template_id)
+
+    # -------------------------------------------------------------------------
+    # Trade-scope quoting (Phase 25)
+    # -------------------------------------------------------------------------
+
+    async def create_for_scope(
+        self,
+        trade_scope_id: uuid.UUID,
+        data: QuoteCreate,
+        user_id: uuid.UUID,
+    ) -> Quote:
+        """Create a draft quote scoped to a specific trade scope.
+
+        Validates that the trade scope exists. Overrides data.trade_scope_id
+        and sets job_id=None regardless of what was in the request body.
+        """
+        trade_scope = await self.db.get(TradeScope, trade_scope_id)
+        if trade_scope is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"TradeScope {trade_scope_id} not found",
+            )
+
+        company_id = self._require_tenant_id()
+
+        quote = Quote(
+            company_id=company_id,
+            job_id=None,
+            trade_scope_id=trade_scope_id,
+            status="draft",
+            revision_number=1,
+            tax_rate=data.tax_rate,
+            discount_type=data.discount_type,
+            discount_value=data.discount_value,
+            expiry_date=data.expiry_date,
+            admin_notes=data.admin_notes,
+        )
+        self.db.add(quote)
+        await self.db.flush()  # get quote.id
+
+        for item in data.line_items:
+            self.db.add(
+                QuoteLineItem(
+                    quote_id=quote.id,
+                    company_id=company_id,
+                    item_type=item.item_type,
+                    description=item.description,
+                    quantity=item.quantity,
+                    unit=item.unit,
+                    unit_price=item.unit_price,
+                    sort_order=item.sort_order,
+                )
+            )
+
+        await self.db.flush()
+        await self.db.refresh(quote)
+        result = await self.db.execute(
+            select(Quote).where(Quote.id == quote.id).options(selectinload(Quote.line_items))
+        )
+        return result.scalars().first()  # type: ignore[return-value]
+
+    async def list_by_scope(self, trade_scope_id: uuid.UUID) -> list[Quote]:
+        """List all non-deleted quotes for a trade scope, newest first."""
+        result = await self.db.execute(
+            select(Quote)
+            .where(
+                Quote.trade_scope_id == trade_scope_id,
+                Quote.deleted_at.is_(None),
+            )
+            .options(selectinload(Quote.line_items))
+            .order_by(Quote.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    async def aggregate_by_project(self, project_id: uuid.UUID) -> dict:
+        """Return per-scope quote totals and grand total for a project.
+
+        Returns:
+            dict with keys:
+            - scopes: list of {scope_id, trade_name, quote_count, subtotal}
+            - grand_total: sum of all scope subtotals
+        """
+        result = await self.db.execute(
+            select(
+                TradeScope.id.label("scope_id"),
+                TradeScope.trade_name,
+                func.count(Quote.id).label("quote_count"),
+                func.coalesce(
+                    func.sum(QuoteLineItem.quantity * QuoteLineItem.unit_price),
+                    Decimal("0"),
+                ).label("subtotal"),
+            )
+            .select_from(TradeScope)
+            .outerjoin(
+                Quote,
+                (Quote.trade_scope_id == TradeScope.id) & Quote.deleted_at.is_(None),
+            )
+            .outerjoin(
+                QuoteLineItem,
+                (QuoteLineItem.quote_id == Quote.id) & QuoteLineItem.deleted_at.is_(None),
+            )
+            .where(
+                TradeScope.project_id == project_id,
+                TradeScope.deleted_at.is_(None),
+            )
+            .group_by(TradeScope.id, TradeScope.trade_name)
+            .order_by(TradeScope.trade_name)
+        )
+        rows = result.all()
+
+        scopes = [
+            {
+                "scope_id": str(row.scope_id),
+                "trade_name": row.trade_name,
+                "quote_count": row.quote_count,
+                "subtotal": float(row.subtotal or 0),
+            }
+            for row in rows
+        ]
+        grand_total = sum(s["subtotal"] for s in scopes)
+
+        return {
+            "project_id": str(project_id),
+            "scopes": scopes,
+            "grand_total": grand_total,
+        }

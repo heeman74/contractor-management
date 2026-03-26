@@ -19,11 +19,13 @@ from app.features.companies.router import router as companies_router
 from app.features.files.router import router as files_router
 from app.features.inspection.router import inspection_router
 from app.features.invoices.router import router as invoices_router
+from app.features.invoices.router import scope_invoice_router
 from app.features.jobs.crm_router import router as crm_router
 from app.features.jobs.router import router as jobs_router
 from app.features.notifications.router import router as notifications_router
 from app.features.projects.router import router as projects_router
 from app.features.quotes.router import router as quotes_router
+from app.features.quotes.router import scope_quote_router
 from app.features.reports.router import router as reports_router
 from app.features.scheduling.router import router as scheduling_router
 from app.features.sync.router import router as sync_router
@@ -134,6 +136,9 @@ app.include_router(billing_milestones_router, prefix="/api/v1")
 # Phase 8: business operations — quotes, invoices, and reporting
 app.include_router(quotes_router, prefix="/api/v1")
 app.include_router(invoices_router, prefix="/api/v1")
+# Phase 25: trade-scope billing endpoints
+app.include_router(scope_quote_router, prefix="/api/v1")
+app.include_router(scope_invoice_router, prefix="/api/v1")
 app.include_router(reports_router, prefix="/api/v1")
 
 # Serve uploaded files (job request photos, note attachments etc.)

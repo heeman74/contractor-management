@@ -20,6 +20,7 @@ from app.core.base_repository import TenantScopedRepository
 # isort: split
 # Side-effect imports: ensure related mappers are registered before configure_mappers()
 # triggers on Quote model access (same pattern as jobs/router.py Phase 4 fix).
+import app.features.billing_milestones.models  # noqa: F401 — BillingMilestone mapper (Invoice.milestone FK)
 import app.features.invoices.models  # noqa: F401 — Invoice mapper (Quote.invoices FK)
 import app.features.scheduling.models  # noqa: F401 — Booking mapper
 import app.features.users.models  # noqa: F401 — User mapper (Job.client_id)
