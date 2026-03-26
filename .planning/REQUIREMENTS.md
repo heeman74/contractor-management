@@ -51,11 +51,11 @@ Requirements for AI-Driven Construction Management milestone. Each maps to roadm
 
 ### Per-Trade Billing
 
-- [ ] **BILL-01**: GC can create a quote per trade scope with line items
+- [x] **BILL-01**: GC can create a quote per trade scope with line items
 - [ ] **BILL-02**: Trade quotes aggregate to a project-level quote for client approval
 - [ ] **BILL-03**: GC can generate invoices per trade scope from completed work
 - [ ] **BILL-04**: Trade invoices aggregate to a project-level invoice
-- [ ] **BILL-05**: GC can do progress billing — invoice at milestones within a trade scope
+- [x] **BILL-05**: GC can do progress billing — invoice at milestones within a trade scope
 
 ### Monitoring Dashboard
 
@@ -126,11 +126,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CHAT-03 | Phase 23 | Complete |
 | CHAT-04 | Phase 23 | Complete |
 | CHAT-05 | Phase 23 | Complete |
-| BILL-01 | Phase 25 | Pending |
+| BILL-01 | Phase 25 | Complete |
 | BILL-02 | Phase 25 | Pending |
 | BILL-03 | Phase 25 | Pending |
 | BILL-04 | Phase 25 | Pending |
-| BILL-05 | Phase 25 | Pending |
+| BILL-05 | Phase 25 | Complete |
 | DASH-01 | Phase 26 | Pending |
 | DASH-02 | Phase 26 | Pending |
 | DASH-03 | Phase 26 | Pending |

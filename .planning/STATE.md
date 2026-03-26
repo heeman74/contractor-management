@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: AI-Driven Construction Management
-status: Ready to plan
-stopped_at: Phase 25 context gathered
-last_updated: "2026-03-26T03:43:00.981Z"
+status: Ready to execute
+stopped_at: Completed 25-per-trade-billing-01-PLAN.md
+last_updated: "2026-03-26T04:07:02.964Z"
 progress:
   total_phases: 14
   completed_phases: 11
-  total_plans: 58
-  completed_plans: 57
+  total_plans: 63
+  completed_plans: 58
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** AI eliminates the chaos of multi-trade coordination — GCs always know where every trade stands, contractors always know what to do today, projects stay on track.
-**Current focus:** Phase 24 — gc-inspection-workflow
+**Current focus:** Phase 25 — per-trade-billing
 
 ## Current Position
 
-Phase: 25
-Plan: Not started
+Phase: 25 (per-trade-billing) — EXECUTING
+Plan: 2 of 5
 
 ## Performance Metrics
 
@@ -68,6 +68,7 @@ Plan: Not started
 | Phase 24 P02 | 15min | 2 tasks | 9 files |
 | Phase 24-gc-inspection-workflow P03 | 20min | 3 tasks | 9 files |
 | Phase 24 P04 | ~2 sessions | 2 tasks | 8 files |
+| Phase 25-per-trade-billing P01 | 306 | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -160,6 +161,8 @@ Plan: Not started
 - [Phase 24]: watchScopeById added to TradeScopeDao to support single-scope stream lookup for inspection checklist loading
 - [Phase 24]: Fake DAOs with Stream.value() for Flutter widget tests (avoids Drift pending timer errors)
 - [Phase 24]: _get_task_status() helper via list endpoint (no single-task GET exists in tasks API)
+- [Phase 25-per-trade-billing]: Pydantic v2 model_validator: combine job/scope linkage + discount validation in single method — Pydantic only runs last validator with same name
+- [Phase 25-per-trade-billing]: mark_invoiced uses raw SQL UPDATE ... WHERE is_invoiced=FALSE RETURNING id — atomic double-billing prevention; 0 rows = already invoiced (409 Conflict)
 
 ### Pending Todos
 
@@ -173,7 +176,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-26T03:43:00.968Z
-Stopped at: Phase 25 context gathered
+Last session: 2026-03-26T04:07:02.956Z
+Stopped at: Completed 25-per-trade-billing-01-PLAN.md
 Stopped at: Completed 23-real-time-chat-05-PLAN.md
-Resume file: .planning/phases/25-per-trade-billing/25-CONTEXT.md
+Resume file: None
