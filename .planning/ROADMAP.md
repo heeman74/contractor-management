@@ -282,11 +282,11 @@ Plans:
   3. GC can generate an invoice for a trade scope from completed work items on that scope
   4. GC can view a project-level invoice summary showing the total billed, paid, and outstanding across all trades
   5. GC can create a progress invoice for a partial milestone within a trade scope (not only at trade completion)
-**Plans:** 1/5 plans executed
+**Plans:** 2/5 plans executed
 
 Plans:
 - [x] 25-01-PLAN.md — Backend: migration 0023 (trade_scope_id on quotes/invoices, billing_milestones table with RLS), model extensions, BillingMilestone feature module
-- [ ] 25-02-PLAN.md — Mobile: Drift schema v13 (BillingMilestones table, tradeScopeId columns), DAOs, entities, sync handler
+- [x] 25-02-PLAN.md — Mobile: Drift schema v13 (BillingMilestones table, tradeScopeId columns), DAOs, entities, sync handler
 - [ ] 25-03-PLAN.md — Backend: trade-scoped billing endpoints (quote/invoice per scope), progress billing, project-level aggregation endpoints
 - [ ] 25-04-PLAN.md — Mobile UI: TradeScopeDetailScreen billing sections, milestone management, ProjectDetailScreen aggregation summaries
 - [ ] 25-05-PLAN.md — E2E tests: backend integration tests + Flutter widget/DAO tests covering BILL-01 through BILL-05
@@ -336,5 +336,5 @@ Note: Phase 25 (Billing) depends only on Phase 19 and may start in parallel with
 | 22. Task Execution and Photo Annotation | v3.0 | 5/5 | Complete    | 2026-03-24 |
 | 23. Real-Time Chat | v3.0 | 5/6 | Complete    | 2026-03-24 |
 | 24. GC Inspection Workflow | v3.0 | 4/4 | Complete    | 2026-03-25 |
-| 25. Per-Trade Billing | v3.0 | 1/5 | In Progress|  |
+| 25. Per-Trade Billing | v3.0 | 2/5 | In Progress|  |
 | 26. AI Daily Checklists and Monitoring Dashboard | v3.0 | 0/TBD | Not started | - |

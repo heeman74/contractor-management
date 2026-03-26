@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: AI-Driven Construction Management
 status: Ready to execute
-stopped_at: Completed 25-per-trade-billing-01-PLAN.md
-last_updated: "2026-03-26T04:07:02.964Z"
+stopped_at: Completed 25-per-trade-billing-02-PLAN.md
+last_updated: "2026-03-26T04:08:58.630Z"
 progress:
   total_phases: 14
   completed_phases: 11
   total_plans: 63
-  completed_plans: 58
+  completed_plans: 59
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-19)
 ## Current Position
 
 Phase: 25 (per-trade-billing) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 
 ## Performance Metrics
 
@@ -69,6 +69,7 @@ Plan: 2 of 5
 | Phase 24-gc-inspection-workflow P03 | 20min | 3 tasks | 9 files |
 | Phase 24 P04 | ~2 sessions | 2 tasks | 8 files |
 | Phase 25-per-trade-billing P01 | 306 | 2 tasks | 12 files |
+| Phase 25-per-trade-billing P02 | 397 | 2 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -163,6 +164,9 @@ Plan: 2 of 5
 - [Phase 24]: _get_task_status() helper via list endpoint (no single-task GET exists in tasks API)
 - [Phase 25-per-trade-billing]: Pydantic v2 model_validator: combine job/scope linkage + discount validation in single method — Pydantic only runs last validator with same name
 - [Phase 25-per-trade-billing]: mark_invoiced uses raw SQL UPDATE ... WHERE is_invoiced=FALSE RETURNING id — atomic double-billing prevention; 0 rows = already invoiced (409 Conflict)
+- [Phase 25-per-trade-billing]: [Phase 25 P02]: BillingMilestones uses soft FK for tradeScopeId (no .references()) — keeps table definitions decoupled, consistent with PunchListItems pattern
+- [Phase 25-per-trade-billing]: [Phase 25 P02]: jobId made nullable on Invoices/Quotes via alterTable rewrite — SQLite cannot ALTER COLUMN; alterTable rewrites table with current column definitions
+- [Phase 25-per-trade-billing]: [Phase 25 P02]: sync handler registered via service_locator.dart + sync_engine.dart entity types list — project uses individual handler files pattern (not monolithic sync_handlers.dart)
 
 ### Pending Todos
 
@@ -176,7 +180,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-26T04:07:02.956Z
-Stopped at: Completed 25-per-trade-billing-01-PLAN.md
+Last session: 2026-03-26T04:08:58.623Z
+Stopped at: Completed 25-per-trade-billing-02-PLAN.md
 Stopped at: Completed 23-real-time-chat-05-PLAN.md
 Resume file: None
