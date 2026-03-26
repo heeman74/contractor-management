@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.core.base_repository import TenantScopedRepository
@@ -67,7 +67,8 @@ class ChecklistRepository(TenantScopedRepository[DailyChecklist]):
                 is_pushed=False,
             )
             .on_conflict_do_update(
-                constraint="uq_daily_checklist_contractor_scope_date",
+                index_elements=["company_id", "contractor_id", "trade_scope_id", "checklist_date"],
+                index_where=text("deleted_at IS NULL"),
                 set_={
                     "checklist_json": checklist_json,
                     "summary_text": summary_text,

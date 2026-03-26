@@ -171,6 +171,7 @@ class ChecklistService(TenantScopedService[DailyChecklist]):
             # BUG-1: Store only primitive data for fire-and-forget notification
             notifications_to_send.append(
                 {
+                    "company_id": item["company_id"],
                     "contractor_id": item["contractor_id"],
                     "summary_text": ai_result["summary_text"],
                     "checklist_id": checklist.id,
@@ -179,14 +180,19 @@ class ChecklistService(TenantScopedService[DailyChecklist]):
 
         # BUG-1: Fire FCM notifications after DB work, using only primitive data.
         # Each notification creates its own DB session via NotificationService.
+        # Store task references to prevent garbage collection of fire-and-forget tasks.
+        background_tasks: set[asyncio.Task[None]] = set()
         for notif in notifications_to_send:
-            asyncio.create_task(
+            task = asyncio.create_task(
                 self._send_notification_safe(
+                    company_id=notif["company_id"],
                     contractor_id=notif["contractor_id"],
                     summary_text=notif["summary_text"],
                     checklist_id=notif["checklist_id"],
                 )
             )
+            background_tasks.add(task)
+            task.add_done_callback(background_tasks.discard)
 
         logger.info(
             "generate_daily_checklists: generated %d checklists for company %s date %s",
@@ -198,6 +204,7 @@ class ChecklistService(TenantScopedService[DailyChecklist]):
 
     @staticmethod
     async def _send_notification_safe(
+        company_id: uuid.UUID,
         contractor_id: uuid.UUID,
         summary_text: str,
         checklist_id: uuid.UUID,
@@ -206,11 +213,14 @@ class ChecklistService(TenantScopedService[DailyChecklist]):
 
         BUG-1 fix: Creates a fresh DB session for the notification service
         instead of reusing the request session which may be closed.
+        Issue-8: Sets tenant context so RLS policies work in the background task.
         """
         try:
             from app.core.database import async_session_factory
+            from app.core.tenant import set_current_tenant_id
             from app.features.notifications.service import NotificationService
 
+            set_current_tenant_id(company_id)
             async with async_session_factory() as db:
                 notification_svc = NotificationService(db)
                 await notification_svc.send_checklist_notification(

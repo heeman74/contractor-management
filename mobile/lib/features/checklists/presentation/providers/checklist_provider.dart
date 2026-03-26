@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -35,8 +33,6 @@ final checklistRepositoryProvider = Provider<ChecklistRepository>((ref) {
 /// - Watches [DailyChecklists] rows for the current user's contractor ID and company ID.
 /// - On first subscription, triggers a background API fetch to refresh data.
 /// - Auto-disposed when no widgets are watching.
-/// - Uses a [Completer]-based guard to prevent concurrent fetches.
-///
 /// Usage:
 /// ```dart
 /// final checklists = ref.watch(todayChecklistProvider);
@@ -53,19 +49,13 @@ final todayChecklistProvider =
   final companyId = authState.companyId;
   final repository = ref.watch(checklistRepositoryProvider);
 
-  // Deduplicated background fetch — prevents concurrent API calls when
-  // multiple widgets subscribe or the provider rebuilds rapidly.
-  Completer<void>? fetchGuard;
+  // Fire-and-forget background fetch to refresh data from the API.
+  // Non-fatal — the stream from Drift already provides cached data.
   Future.microtask(() async {
-    if (fetchGuard != null) return; // already in flight
-    fetchGuard = Completer<void>();
     try {
       await repository.fetchTodayChecklist();
     } catch (e) {
       debugPrint('todayChecklistProvider: fetch error — $e');
-    } finally {
-      fetchGuard?.complete();
-      fetchGuard = null;
     }
   });
 

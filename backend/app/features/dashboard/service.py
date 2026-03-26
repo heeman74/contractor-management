@@ -23,7 +23,7 @@ import asyncio
 import json
 import logging
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Any
 
 from sqlalchemy import func, select
@@ -93,7 +93,7 @@ class DashboardService(TenantScopedService[DashboardAlert]):
 
         Returns list of ProjectStatusCard — each card is fully self-contained.
         """
-        today = date.today()
+        today = datetime.now(timezone.utc).date()
 
         stmt = (
             select(Project)
@@ -660,9 +660,19 @@ class DashboardService(TenantScopedService[DashboardAlert]):
                     )
 
             if valid_suggestions:
-                # Single query to fetch all tasks
+                # Single query to fetch all tasks, filtered to the alert's project
                 task_ids = list(task_id_map.keys())
-                task_stmt = select(Task).where(Task.id.in_(task_ids))
+                task_stmt = (
+                    select(Task)
+                    .where(
+                        Task.id.in_(task_ids),
+                        Task.trade_scope_id.in_(
+                            select(TradeScope.id).where(
+                                TradeScope.project_id == alert.project_id
+                            )
+                        ),
+                    )
+                )
                 task_result = await self.db.execute(task_stmt)
                 tasks_by_id: dict[uuid.UUID, Task] = {
                     t.id: t for t in task_result.scalars().all()

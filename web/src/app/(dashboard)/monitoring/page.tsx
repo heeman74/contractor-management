@@ -58,7 +58,7 @@ export default function MonitoringPage() {
                   key={project.project_id}
                   project={project}
                   isSelected={selectedProjectId === project.project_id}
-                  onSelect={() => handleSelectProject(project.project_id)}
+                  onSelect={handleSelectProject}
                 />
               ))}
             </div>

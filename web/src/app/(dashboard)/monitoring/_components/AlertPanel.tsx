@@ -38,8 +38,8 @@ interface AlertCardProps {
   onMarkRead: (alertId: string) => void;
   onAcceptRescheduling: (alertId: string) => void;
   onDismiss: (alertId: string) => void;
-  isAccepting: boolean;
-  isDismissing: boolean;
+  acceptingAlertId: string | null;
+  dismissingAlertId: string | null;
 }
 
 const AlertCard = memo(function AlertCard({
@@ -47,9 +47,11 @@ const AlertCard = memo(function AlertCard({
   onMarkRead,
   onAcceptRescheduling,
   onDismiss,
-  isAccepting,
-  isDismissing,
+  acceptingAlertId,
+  dismissingAlertId,
 }: AlertCardProps) {
+  const isAccepting = acceptingAlertId === alert.id;
+  const isDismissing = dismissingAlertId === alert.id;
   const cardRef = useRef<HTMLDivElement>(null);
 
   // Use a ref for the mark-read callback to avoid re-creating the observer
@@ -161,6 +163,10 @@ export function AlertPanel({ projectId }: AlertPanelProps) {
   const acceptRescheduling = useAcceptRescheduling();
   const dismissAlert = useDismissAlert();
 
+  // Issue 1: Use a ref for the mutate function to keep flushMarkRead stable
+  const markReadMutateRef = useRef(markRead.mutate);
+  markReadMutateRef.current = markRead.mutate;
+
   // Issue 3: Batch mark-as-read with debounce
   const pendingMarkReadIds = useRef<Set<string>>(new Set());
   const batchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -169,9 +175,9 @@ export function AlertPanel({ projectId }: AlertPanelProps) {
     const ids = Array.from(pendingMarkReadIds.current);
     pendingMarkReadIds.current.clear();
     for (const id of ids) {
-      markRead.mutate(id);
+      markReadMutateRef.current(id);
     }
-  }, [markRead]);
+  }, []);
 
   const handleMarkRead = useCallback(
     (alertId: string) => {
@@ -188,6 +194,12 @@ export function AlertPanel({ projectId }: AlertPanelProps) {
       if (batchTimerRef.current) clearTimeout(batchTimerRef.current);
     };
   }, []);
+
+  // Issue 4: Clear stale alert IDs when projectId changes
+  useEffect(() => {
+    pendingMarkReadIds.current.clear();
+    if (batchTimerRef.current) clearTimeout(batchTimerRef.current);
+  }, [projectId]);
 
   const handleAccept = useCallback(
     (alertId: string) => acceptRescheduling.mutate(alertId),
@@ -244,8 +256,8 @@ export function AlertPanel({ projectId }: AlertPanelProps) {
               onMarkRead={handleMarkRead}
               onAcceptRescheduling={handleAccept}
               onDismiss={handleDismiss}
-              isAccepting={acceptRescheduling.isPending}
-              isDismissing={dismissAlert.isPending}
+              acceptingAlertId={acceptRescheduling.isPending ? (acceptRescheduling.variables ?? null) : null}
+              dismissingAlertId={dismissAlert.isPending ? (dismissAlert.variables ?? null) : null}
             />
           ))
         )}

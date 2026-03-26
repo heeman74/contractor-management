@@ -58,7 +58,9 @@ def upgrade() -> None:
         ),
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["company_id"], ["companies.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["contractor_id"], ["users.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["trade_scope_id"], ["trade_scopes.id"], ondelete="CASCADE"),
     )
 
     # BP-8: Partial unique index with WHERE deleted_at IS NULL instead of plain unique constraint.
@@ -133,6 +135,9 @@ def upgrade() -> None:
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["company_id"], ["companies.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["trade_scope_id"], ["trade_scopes.id"], ondelete="SET NULL"
+        ),
         sa.CheckConstraint(
             "severity IN ('info','warning','critical')",
             name="dashboard_alerts_severity_check",

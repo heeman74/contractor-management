@@ -24,8 +24,8 @@ class ChecklistItemSchema(BaseModel):
     - dependency_status: 'clear' | 'blocked' | 'waiting' for the contractor to understand blockers
     """
 
-    # BP-6: Use uuid.UUID instead of str for type safety
-    task_id: uuid.UUID
+    # Issue-7: Use str instead of uuid.UUID — AI may generate non-UUID identifiers
+    task_id: str
     title: str
     priority: int = 1
     materials_needed: list[str] = []
@@ -51,7 +51,7 @@ class ChecklistResponse(TenantResponseSchema):
     project_id: uuid.UUID
     trade_scope_id: uuid.UUID
     checklist_date: date
-    # BP-7: Use validated ChecklistPayload instead of plain dict
-    checklist_json: ChecklistPayload
+    # Issue-7: Use plain dict for safe passthrough — AI responses may not match strict schema
+    checklist_json: dict
     summary_text: str
     is_pushed: bool

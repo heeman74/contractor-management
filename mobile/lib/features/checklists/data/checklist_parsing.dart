@@ -53,8 +53,11 @@ class ChecklistParsing {
     final rawCreatedAt = data['created_at'];
     DateTime createdAt;
     if (rawCreatedAt is String) {
-      createdAt = DateTime.tryParse(rawCreatedAt) ?? DateTime.now();
-      if (DateTime.tryParse(rawCreatedAt) == null) {
+      final parsed = DateTime.tryParse(rawCreatedAt);
+      if (parsed != null) {
+        createdAt = parsed;
+      } else {
+        createdAt = DateTime.now();
         debugPrint(
           'ChecklistParsing: invalid created_at "$rawCreatedAt", using now()',
         );
@@ -63,9 +66,18 @@ class ChecklistParsing {
       createdAt = DateTime.now();
     }
 
-    // deleted_at: type-safe nullable string check
+    // deleted_at: type-safe nullable string check with DateTime validation
     final rawDeletedAt = data['deleted_at'];
-    final String? deletedAt = rawDeletedAt is String ? rawDeletedAt : null;
+    String? deletedAt;
+    if (rawDeletedAt is String) {
+      if (DateTime.tryParse(rawDeletedAt) != null) {
+        deletedAt = rawDeletedAt;
+      } else {
+        debugPrint(
+          'ChecklistParsing: invalid deleted_at "$rawDeletedAt", storing null',
+        );
+      }
+    }
 
     return DailyChecklistsCompanion(
       id: Value(id),

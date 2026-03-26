@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import type { ITask, ILink } from "@svar-ui/react-gantt";
 import { useTradeTimeline } from "@/lib/hooks/useDashboard";
 import { TradeTaskList } from "./TradeTaskList";
@@ -63,10 +63,12 @@ export function TradeTimeline({ projectId }: TradeTimelineProps) {
     }));
   }, [timelineData]);
 
-  const handleTaskClick = (ev: { id?: string | number }) => {
+  const handleTaskClick = useCallback((ev: { id?: string | number }) => {
     const id = ev?.id ? String(ev.id) : null;
     setExpandedTradeId((prev) => (prev === id ? null : id));
-  };
+  }, []);
+
+  const handleCloseTaskList = useCallback(() => setExpandedTradeId(null), []);
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
@@ -108,7 +110,7 @@ export function TradeTimeline({ projectId }: TradeTimelineProps) {
           <TradeTaskList
             projectId={projectId}
             tradeScopeId={expandedTradeId}
-            onClose={() => setExpandedTradeId(null)}
+            onClose={handleCloseTaskList}
           />
         </div>
       )}

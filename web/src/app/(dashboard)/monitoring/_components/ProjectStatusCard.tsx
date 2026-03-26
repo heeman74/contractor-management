@@ -9,7 +9,7 @@ import { TradeStatusBadge } from "./TradeStatusBadge";
 interface ProjectStatusCardProps {
   project: ProjectStatusCardData;
   isSelected: boolean;
-  onSelect: () => void;
+  onSelect: (projectId: string) => void;
 }
 
 export const ProjectStatusCard = memo(function ProjectStatusCard({
@@ -21,7 +21,7 @@ export const ProjectStatusCard = memo(function ProjectStatusCard({
 
   return (
     <button
-      onClick={onSelect}
+      onClick={() => onSelect(project.project_id)}
       className={cn(
         "w-full text-left rounded-xl bg-white border p-4 shadow-sm hover:shadow-md transition-all focus:outline-none",
         isSelected
