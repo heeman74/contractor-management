@@ -301,7 +301,13 @@ Plans:
   3. When a trade falls behind schedule or a dependency is at risk, the GC sees an AI-generated alert on the dashboard explaining the impact and a suggested remediation
   4. GC can drill down from the project overview to an individual trade's task list without leaving the web dashboard
   5. AI adapts task schedules based on actual progress — a delayed task triggers a rescheduling suggestion for all dependent tasks across all trades
-**Plans**: TBD
+**Plans:** 4 plans
+
+Plans:
+- [ ] 26-01-PLAN.md — Backend: migration 0024, APScheduler, checklist + dashboard services, AI prompts, REST endpoints
+- [ ] 26-02-PLAN.md — Mobile: Drift schema v14, DailyChecklistDao, sync handler, DailyChecklistScreen
+- [ ] 26-03-PLAN.md — Web: monitoring dashboard with project cards, trade timeline, alert panel, drill-down
+- [ ] 26-04-PLAN.md — E2E tests: 19 backend integration + 11 Flutter widget tests
 
 ## Progress
 
@@ -337,4 +343,4 @@ Note: Phase 25 (Billing) depends only on Phase 19 and may start in parallel with
 | 23. Real-Time Chat | v3.0 | 5/6 | Complete    | 2026-03-24 |
 | 24. GC Inspection Workflow | v3.0 | 4/4 | Complete    | 2026-03-25 |
 | 25. Per-Trade Billing | v3.0 | 3/5 | Complete    | 2026-03-26 |
-| 26. AI Daily Checklists and Monitoring Dashboard | v3.0 | 0/TBD | Not started | - |
+| 26. AI Daily Checklists and Monitoring Dashboard | v3.0 | 0/4 | Planned | - |
