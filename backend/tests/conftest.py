@@ -177,6 +177,10 @@ async def clean_tables(test_engine):
                 "site_walk_flags, "
                 # Phase 25 billing tables (reference trade_scopes)
                 "billing_milestones, "
+                # Phase 26 AI checklists and dashboard alert tables
+                # daily_checklists references projects; dashboard_alerts references projects
+                "daily_checklists, "
+                "dashboard_alerts, "
                 # Auth + core tables
                 "refresh_tokens, "
                 "user_roles, "
