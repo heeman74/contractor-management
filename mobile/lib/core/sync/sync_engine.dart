@@ -331,6 +331,7 @@ class SyncEngine {
         ('invoices', 'invoice'),
         ('invoice_line_items', 'invoice_line_item'),
         ('billing_milestones', 'billing_milestone'),
+        ('daily_checklists', 'daily_checklist'),
       ];
 
       int totalPulled = 0;

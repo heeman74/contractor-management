@@ -27908,6 +27908,705 @@ class BillingMilestonesCompanion extends UpdateCompanion<BillingMilestone> {
   }
 }
 
+class $DailyChecklistsTable extends DailyChecklists
+    with TableInfo<$DailyChecklistsTable, DailyChecklist> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DailyChecklistsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    clientDefault: () => const Uuid().v4(),
+  );
+  static const VerificationMeta _companyIdMeta = const VerificationMeta(
+    'companyId',
+  );
+  @override
+  late final GeneratedColumn<String> companyId = GeneratedColumn<String>(
+    'company_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contractorIdMeta = const VerificationMeta(
+    'contractorId',
+  );
+  @override
+  late final GeneratedColumn<String> contractorId = GeneratedColumn<String>(
+    'contractor_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _projectIdMeta = const VerificationMeta(
+    'projectId',
+  );
+  @override
+  late final GeneratedColumn<String> projectId = GeneratedColumn<String>(
+    'project_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _tradeScopeIdMeta = const VerificationMeta(
+    'tradeScopeId',
+  );
+  @override
+  late final GeneratedColumn<String> tradeScopeId = GeneratedColumn<String>(
+    'trade_scope_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _checklistDateMeta = const VerificationMeta(
+    'checklistDate',
+  );
+  @override
+  late final GeneratedColumn<String> checklistDate = GeneratedColumn<String>(
+    'checklist_date',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _checklistJsonMeta = const VerificationMeta(
+    'checklistJson',
+  );
+  @override
+  late final GeneratedColumn<String> checklistJson = GeneratedColumn<String>(
+    'checklist_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _summaryTextMeta = const VerificationMeta(
+    'summaryText',
+  );
+  @override
+  late final GeneratedColumn<String> summaryText = GeneratedColumn<String>(
+    'summary_text',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _isPushedMeta = const VerificationMeta(
+    'isPushed',
+  );
+  @override
+  late final GeneratedColumn<bool> isPushed = GeneratedColumn<bool>(
+    'is_pushed',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_pushed" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<String> deletedAt = GeneratedColumn<String>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    companyId,
+    contractorId,
+    projectId,
+    tradeScopeId,
+    checklistDate,
+    checklistJson,
+    summaryText,
+    isPushed,
+    createdAt,
+    deletedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'daily_checklists';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DailyChecklist> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('company_id')) {
+      context.handle(
+        _companyIdMeta,
+        companyId.isAcceptableOrUnknown(data['company_id']!, _companyIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_companyIdMeta);
+    }
+    if (data.containsKey('contractor_id')) {
+      context.handle(
+        _contractorIdMeta,
+        contractorId.isAcceptableOrUnknown(
+          data['contractor_id']!,
+          _contractorIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_contractorIdMeta);
+    }
+    if (data.containsKey('project_id')) {
+      context.handle(
+        _projectIdMeta,
+        projectId.isAcceptableOrUnknown(data['project_id']!, _projectIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_projectIdMeta);
+    }
+    if (data.containsKey('trade_scope_id')) {
+      context.handle(
+        _tradeScopeIdMeta,
+        tradeScopeId.isAcceptableOrUnknown(
+          data['trade_scope_id']!,
+          _tradeScopeIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_tradeScopeIdMeta);
+    }
+    if (data.containsKey('checklist_date')) {
+      context.handle(
+        _checklistDateMeta,
+        checklistDate.isAcceptableOrUnknown(
+          data['checklist_date']!,
+          _checklistDateMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_checklistDateMeta);
+    }
+    if (data.containsKey('checklist_json')) {
+      context.handle(
+        _checklistJsonMeta,
+        checklistJson.isAcceptableOrUnknown(
+          data['checklist_json']!,
+          _checklistJsonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_checklistJsonMeta);
+    }
+    if (data.containsKey('summary_text')) {
+      context.handle(
+        _summaryTextMeta,
+        summaryText.isAcceptableOrUnknown(
+          data['summary_text']!,
+          _summaryTextMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_summaryTextMeta);
+    }
+    if (data.containsKey('is_pushed')) {
+      context.handle(
+        _isPushedMeta,
+        isPushed.isAcceptableOrUnknown(data['is_pushed']!, _isPushedMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DailyChecklist map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DailyChecklist(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      companyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}company_id'],
+      )!,
+      contractorId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}contractor_id'],
+      )!,
+      projectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}project_id'],
+      )!,
+      tradeScopeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}trade_scope_id'],
+      )!,
+      checklistDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}checklist_date'],
+      )!,
+      checklistJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}checklist_json'],
+      )!,
+      summaryText: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}summary_text'],
+      )!,
+      isPushed: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_pushed'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}deleted_at'],
+      ),
+    );
+  }
+
+  @override
+  $DailyChecklistsTable createAlias(String alias) {
+    return $DailyChecklistsTable(attachedDatabase, alias);
+  }
+}
+
+class DailyChecklist extends DataClass implements Insertable<DailyChecklist> {
+  final String id;
+
+  /// FK to Companies.id — tenant scope.
+  final String companyId;
+
+  /// Soft FK to Users.id — the contractor this checklist belongs to.
+  final String contractorId;
+
+  /// Soft FK to Projects.id — the project associated with this checklist.
+  final String projectId;
+
+  /// Soft FK to TradeScopes.id — the trade scope this checklist is for.
+  final String tradeScopeId;
+
+  /// ISO date string (YYYY-MM-DD) — the date this checklist is for.
+  final String checklistDate;
+
+  /// Full AI-generated checklist JSON.
+  /// Contains task objects with: task_id, title, priority, estimated_duration,
+  /// materials_needed (list), photo_required (bool), dependency_status (string).
+  final String checklistJson;
+
+  /// Short summary text for the FCM push notification body.
+  final String summaryText;
+
+  /// Whether the FCM push notification has been sent for this checklist.
+  final bool isPushed;
+  final DateTime createdAt;
+
+  /// ISO date string for soft-delete tombstone propagation.
+  final String? deletedAt;
+  const DailyChecklist({
+    required this.id,
+    required this.companyId,
+    required this.contractorId,
+    required this.projectId,
+    required this.tradeScopeId,
+    required this.checklistDate,
+    required this.checklistJson,
+    required this.summaryText,
+    required this.isPushed,
+    required this.createdAt,
+    this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['company_id'] = Variable<String>(companyId);
+    map['contractor_id'] = Variable<String>(contractorId);
+    map['project_id'] = Variable<String>(projectId);
+    map['trade_scope_id'] = Variable<String>(tradeScopeId);
+    map['checklist_date'] = Variable<String>(checklistDate);
+    map['checklist_json'] = Variable<String>(checklistJson);
+    map['summary_text'] = Variable<String>(summaryText);
+    map['is_pushed'] = Variable<bool>(isPushed);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<String>(deletedAt);
+    }
+    return map;
+  }
+
+  DailyChecklistsCompanion toCompanion(bool nullToAbsent) {
+    return DailyChecklistsCompanion(
+      id: Value(id),
+      companyId: Value(companyId),
+      contractorId: Value(contractorId),
+      projectId: Value(projectId),
+      tradeScopeId: Value(tradeScopeId),
+      checklistDate: Value(checklistDate),
+      checklistJson: Value(checklistJson),
+      summaryText: Value(summaryText),
+      isPushed: Value(isPushed),
+      createdAt: Value(createdAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory DailyChecklist.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DailyChecklist(
+      id: serializer.fromJson<String>(json['id']),
+      companyId: serializer.fromJson<String>(json['companyId']),
+      contractorId: serializer.fromJson<String>(json['contractorId']),
+      projectId: serializer.fromJson<String>(json['projectId']),
+      tradeScopeId: serializer.fromJson<String>(json['tradeScopeId']),
+      checklistDate: serializer.fromJson<String>(json['checklistDate']),
+      checklistJson: serializer.fromJson<String>(json['checklistJson']),
+      summaryText: serializer.fromJson<String>(json['summaryText']),
+      isPushed: serializer.fromJson<bool>(json['isPushed']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      deletedAt: serializer.fromJson<String?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'companyId': serializer.toJson<String>(companyId),
+      'contractorId': serializer.toJson<String>(contractorId),
+      'projectId': serializer.toJson<String>(projectId),
+      'tradeScopeId': serializer.toJson<String>(tradeScopeId),
+      'checklistDate': serializer.toJson<String>(checklistDate),
+      'checklistJson': serializer.toJson<String>(checklistJson),
+      'summaryText': serializer.toJson<String>(summaryText),
+      'isPushed': serializer.toJson<bool>(isPushed),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'deletedAt': serializer.toJson<String?>(deletedAt),
+    };
+  }
+
+  DailyChecklist copyWith({
+    String? id,
+    String? companyId,
+    String? contractorId,
+    String? projectId,
+    String? tradeScopeId,
+    String? checklistDate,
+    String? checklistJson,
+    String? summaryText,
+    bool? isPushed,
+    DateTime? createdAt,
+    Value<String?> deletedAt = const Value.absent(),
+  }) => DailyChecklist(
+    id: id ?? this.id,
+    companyId: companyId ?? this.companyId,
+    contractorId: contractorId ?? this.contractorId,
+    projectId: projectId ?? this.projectId,
+    tradeScopeId: tradeScopeId ?? this.tradeScopeId,
+    checklistDate: checklistDate ?? this.checklistDate,
+    checklistJson: checklistJson ?? this.checklistJson,
+    summaryText: summaryText ?? this.summaryText,
+    isPushed: isPushed ?? this.isPushed,
+    createdAt: createdAt ?? this.createdAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+  );
+  DailyChecklist copyWithCompanion(DailyChecklistsCompanion data) {
+    return DailyChecklist(
+      id: data.id.present ? data.id.value : this.id,
+      companyId: data.companyId.present ? data.companyId.value : this.companyId,
+      contractorId: data.contractorId.present
+          ? data.contractorId.value
+          : this.contractorId,
+      projectId: data.projectId.present ? data.projectId.value : this.projectId,
+      tradeScopeId: data.tradeScopeId.present
+          ? data.tradeScopeId.value
+          : this.tradeScopeId,
+      checklistDate: data.checklistDate.present
+          ? data.checklistDate.value
+          : this.checklistDate,
+      checklistJson: data.checklistJson.present
+          ? data.checklistJson.value
+          : this.checklistJson,
+      summaryText: data.summaryText.present
+          ? data.summaryText.value
+          : this.summaryText,
+      isPushed: data.isPushed.present ? data.isPushed.value : this.isPushed,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DailyChecklist(')
+          ..write('id: $id, ')
+          ..write('companyId: $companyId, ')
+          ..write('contractorId: $contractorId, ')
+          ..write('projectId: $projectId, ')
+          ..write('tradeScopeId: $tradeScopeId, ')
+          ..write('checklistDate: $checklistDate, ')
+          ..write('checklistJson: $checklistJson, ')
+          ..write('summaryText: $summaryText, ')
+          ..write('isPushed: $isPushed, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    companyId,
+    contractorId,
+    projectId,
+    tradeScopeId,
+    checklistDate,
+    checklistJson,
+    summaryText,
+    isPushed,
+    createdAt,
+    deletedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DailyChecklist &&
+          other.id == this.id &&
+          other.companyId == this.companyId &&
+          other.contractorId == this.contractorId &&
+          other.projectId == this.projectId &&
+          other.tradeScopeId == this.tradeScopeId &&
+          other.checklistDate == this.checklistDate &&
+          other.checklistJson == this.checklistJson &&
+          other.summaryText == this.summaryText &&
+          other.isPushed == this.isPushed &&
+          other.createdAt == this.createdAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class DailyChecklistsCompanion extends UpdateCompanion<DailyChecklist> {
+  final Value<String> id;
+  final Value<String> companyId;
+  final Value<String> contractorId;
+  final Value<String> projectId;
+  final Value<String> tradeScopeId;
+  final Value<String> checklistDate;
+  final Value<String> checklistJson;
+  final Value<String> summaryText;
+  final Value<bool> isPushed;
+  final Value<DateTime> createdAt;
+  final Value<String?> deletedAt;
+  final Value<int> rowid;
+  const DailyChecklistsCompanion({
+    this.id = const Value.absent(),
+    this.companyId = const Value.absent(),
+    this.contractorId = const Value.absent(),
+    this.projectId = const Value.absent(),
+    this.tradeScopeId = const Value.absent(),
+    this.checklistDate = const Value.absent(),
+    this.checklistJson = const Value.absent(),
+    this.summaryText = const Value.absent(),
+    this.isPushed = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DailyChecklistsCompanion.insert({
+    this.id = const Value.absent(),
+    required String companyId,
+    required String contractorId,
+    required String projectId,
+    required String tradeScopeId,
+    required String checklistDate,
+    required String checklistJson,
+    required String summaryText,
+    this.isPushed = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : companyId = Value(companyId),
+       contractorId = Value(contractorId),
+       projectId = Value(projectId),
+       tradeScopeId = Value(tradeScopeId),
+       checklistDate = Value(checklistDate),
+       checklistJson = Value(checklistJson),
+       summaryText = Value(summaryText);
+  static Insertable<DailyChecklist> custom({
+    Expression<String>? id,
+    Expression<String>? companyId,
+    Expression<String>? contractorId,
+    Expression<String>? projectId,
+    Expression<String>? tradeScopeId,
+    Expression<String>? checklistDate,
+    Expression<String>? checklistJson,
+    Expression<String>? summaryText,
+    Expression<bool>? isPushed,
+    Expression<DateTime>? createdAt,
+    Expression<String>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (companyId != null) 'company_id': companyId,
+      if (contractorId != null) 'contractor_id': contractorId,
+      if (projectId != null) 'project_id': projectId,
+      if (tradeScopeId != null) 'trade_scope_id': tradeScopeId,
+      if (checklistDate != null) 'checklist_date': checklistDate,
+      if (checklistJson != null) 'checklist_json': checklistJson,
+      if (summaryText != null) 'summary_text': summaryText,
+      if (isPushed != null) 'is_pushed': isPushed,
+      if (createdAt != null) 'created_at': createdAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DailyChecklistsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? companyId,
+    Value<String>? contractorId,
+    Value<String>? projectId,
+    Value<String>? tradeScopeId,
+    Value<String>? checklistDate,
+    Value<String>? checklistJson,
+    Value<String>? summaryText,
+    Value<bool>? isPushed,
+    Value<DateTime>? createdAt,
+    Value<String?>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return DailyChecklistsCompanion(
+      id: id ?? this.id,
+      companyId: companyId ?? this.companyId,
+      contractorId: contractorId ?? this.contractorId,
+      projectId: projectId ?? this.projectId,
+      tradeScopeId: tradeScopeId ?? this.tradeScopeId,
+      checklistDate: checklistDate ?? this.checklistDate,
+      checklistJson: checklistJson ?? this.checklistJson,
+      summaryText: summaryText ?? this.summaryText,
+      isPushed: isPushed ?? this.isPushed,
+      createdAt: createdAt ?? this.createdAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (companyId.present) {
+      map['company_id'] = Variable<String>(companyId.value);
+    }
+    if (contractorId.present) {
+      map['contractor_id'] = Variable<String>(contractorId.value);
+    }
+    if (projectId.present) {
+      map['project_id'] = Variable<String>(projectId.value);
+    }
+    if (tradeScopeId.present) {
+      map['trade_scope_id'] = Variable<String>(tradeScopeId.value);
+    }
+    if (checklistDate.present) {
+      map['checklist_date'] = Variable<String>(checklistDate.value);
+    }
+    if (checklistJson.present) {
+      map['checklist_json'] = Variable<String>(checklistJson.value);
+    }
+    if (summaryText.present) {
+      map['summary_text'] = Variable<String>(summaryText.value);
+    }
+    if (isPushed.present) {
+      map['is_pushed'] = Variable<bool>(isPushed.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<String>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DailyChecklistsCompanion(')
+          ..write('id: $id, ')
+          ..write('companyId: $companyId, ')
+          ..write('contractorId: $contractorId, ')
+          ..write('projectId: $projectId, ')
+          ..write('tradeScopeId: $tradeScopeId, ')
+          ..write('checklistDate: $checklistDate, ')
+          ..write('checklistJson: $checklistJson, ')
+          ..write('summaryText: $summaryText, ')
+          ..write('isPushed: $isPushed, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -27965,6 +28664,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $PunchListItemsTable punchListItems = $PunchListItemsTable(this);
   late final $BillingMilestonesTable billingMilestones =
       $BillingMilestonesTable(this);
+  late final $DailyChecklistsTable dailyChecklists = $DailyChecklistsTable(
+    this,
+  );
   late final Index idxBookingsContractorTime = Index(
     'idx_bookings_contractor_time',
     'CREATE INDEX idx_bookings_contractor_time ON bookings (contractor_id, time_range_start, deleted_at)',
@@ -28020,6 +28722,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final BillingMilestoneDao billingMilestoneDao = BillingMilestoneDao(
     this as AppDatabase,
   );
+  late final DailyChecklistDao dailyChecklistDao = DailyChecklistDao(
+    this as AppDatabase,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -28062,6 +28767,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     siteWalkFlags,
     punchListItems,
     billingMilestones,
+    dailyChecklists,
     idxBookingsContractorTime,
     idxBookingsCompanyTime,
     idxBookingsJobId,
@@ -48661,6 +49367,336 @@ typedef $$BillingMilestonesTableProcessedTableManager =
       BillingMilestone,
       PrefetchHooks Function({bool companyId})
     >;
+typedef $$DailyChecklistsTableCreateCompanionBuilder =
+    DailyChecklistsCompanion Function({
+      Value<String> id,
+      required String companyId,
+      required String contractorId,
+      required String projectId,
+      required String tradeScopeId,
+      required String checklistDate,
+      required String checklistJson,
+      required String summaryText,
+      Value<bool> isPushed,
+      Value<DateTime> createdAt,
+      Value<String?> deletedAt,
+      Value<int> rowid,
+    });
+typedef $$DailyChecklistsTableUpdateCompanionBuilder =
+    DailyChecklistsCompanion Function({
+      Value<String> id,
+      Value<String> companyId,
+      Value<String> contractorId,
+      Value<String> projectId,
+      Value<String> tradeScopeId,
+      Value<String> checklistDate,
+      Value<String> checklistJson,
+      Value<String> summaryText,
+      Value<bool> isPushed,
+      Value<DateTime> createdAt,
+      Value<String?> deletedAt,
+      Value<int> rowid,
+    });
+
+class $$DailyChecklistsTableFilterComposer
+    extends Composer<_$AppDatabase, $DailyChecklistsTable> {
+  $$DailyChecklistsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get companyId => $composableBuilder(
+    column: $table.companyId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contractorId => $composableBuilder(
+    column: $table.contractorId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get projectId => $composableBuilder(
+    column: $table.projectId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tradeScopeId => $composableBuilder(
+    column: $table.tradeScopeId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get checklistDate => $composableBuilder(
+    column: $table.checklistDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get checklistJson => $composableBuilder(
+    column: $table.checklistJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get summaryText => $composableBuilder(
+    column: $table.summaryText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isPushed => $composableBuilder(
+    column: $table.isPushed,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$DailyChecklistsTableOrderingComposer
+    extends Composer<_$AppDatabase, $DailyChecklistsTable> {
+  $$DailyChecklistsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get companyId => $composableBuilder(
+    column: $table.companyId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get contractorId => $composableBuilder(
+    column: $table.contractorId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get projectId => $composableBuilder(
+    column: $table.projectId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get tradeScopeId => $composableBuilder(
+    column: $table.tradeScopeId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get checklistDate => $composableBuilder(
+    column: $table.checklistDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get checklistJson => $composableBuilder(
+    column: $table.checklistJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get summaryText => $composableBuilder(
+    column: $table.summaryText,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isPushed => $composableBuilder(
+    column: $table.isPushed,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$DailyChecklistsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DailyChecklistsTable> {
+  $$DailyChecklistsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get companyId =>
+      $composableBuilder(column: $table.companyId, builder: (column) => column);
+
+  GeneratedColumn<String> get contractorId => $composableBuilder(
+    column: $table.contractorId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get projectId =>
+      $composableBuilder(column: $table.projectId, builder: (column) => column);
+
+  GeneratedColumn<String> get tradeScopeId => $composableBuilder(
+    column: $table.tradeScopeId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get checklistDate => $composableBuilder(
+    column: $table.checklistDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get checklistJson => $composableBuilder(
+    column: $table.checklistJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get summaryText => $composableBuilder(
+    column: $table.summaryText,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isPushed =>
+      $composableBuilder(column: $table.isPushed, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<String> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$DailyChecklistsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DailyChecklistsTable,
+          DailyChecklist,
+          $$DailyChecklistsTableFilterComposer,
+          $$DailyChecklistsTableOrderingComposer,
+          $$DailyChecklistsTableAnnotationComposer,
+          $$DailyChecklistsTableCreateCompanionBuilder,
+          $$DailyChecklistsTableUpdateCompanionBuilder,
+          (
+            DailyChecklist,
+            BaseReferences<
+              _$AppDatabase,
+              $DailyChecklistsTable,
+              DailyChecklist
+            >,
+          ),
+          DailyChecklist,
+          PrefetchHooks Function()
+        > {
+  $$DailyChecklistsTableTableManager(
+    _$AppDatabase db,
+    $DailyChecklistsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DailyChecklistsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DailyChecklistsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DailyChecklistsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> companyId = const Value.absent(),
+                Value<String> contractorId = const Value.absent(),
+                Value<String> projectId = const Value.absent(),
+                Value<String> tradeScopeId = const Value.absent(),
+                Value<String> checklistDate = const Value.absent(),
+                Value<String> checklistJson = const Value.absent(),
+                Value<String> summaryText = const Value.absent(),
+                Value<bool> isPushed = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<String?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DailyChecklistsCompanion(
+                id: id,
+                companyId: companyId,
+                contractorId: contractorId,
+                projectId: projectId,
+                tradeScopeId: tradeScopeId,
+                checklistDate: checklistDate,
+                checklistJson: checklistJson,
+                summaryText: summaryText,
+                isPushed: isPushed,
+                createdAt: createdAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                required String companyId,
+                required String contractorId,
+                required String projectId,
+                required String tradeScopeId,
+                required String checklistDate,
+                required String checklistJson,
+                required String summaryText,
+                Value<bool> isPushed = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<String?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DailyChecklistsCompanion.insert(
+                id: id,
+                companyId: companyId,
+                contractorId: contractorId,
+                projectId: projectId,
+                tradeScopeId: tradeScopeId,
+                checklistDate: checklistDate,
+                checklistJson: checklistJson,
+                summaryText: summaryText,
+                isPushed: isPushed,
+                createdAt: createdAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$DailyChecklistsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DailyChecklistsTable,
+      DailyChecklist,
+      $$DailyChecklistsTableFilterComposer,
+      $$DailyChecklistsTableOrderingComposer,
+      $$DailyChecklistsTableAnnotationComposer,
+      $$DailyChecklistsTableCreateCompanionBuilder,
+      $$DailyChecklistsTableUpdateCompanionBuilder,
+      (
+        DailyChecklist,
+        BaseReferences<_$AppDatabase, $DailyChecklistsTable, DailyChecklist>,
+      ),
+      DailyChecklist,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -48738,4 +49774,6 @@ class $AppDatabaseManager {
       $$PunchListItemsTableTableManager(_db, _db.punchListItems);
   $$BillingMilestonesTableTableManager get billingMilestones =>
       $$BillingMilestonesTableTableManager(_db, _db.billingMilestones);
+  $$DailyChecklistsTableTableManager get dailyChecklists =>
+      $$DailyChecklistsTableTableManager(_db, _db.dailyChecklists);
 }

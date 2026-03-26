@@ -37,11 +37,13 @@ import '../sync/handlers/trade_scope_sync_handler.dart';
 import '../sync/handlers/site_walk_flag_sync_handler.dart';
 import '../sync/handlers/punch_list_item_sync_handler.dart';
 import '../sync/handlers/billing_milestone_sync_handler.dart';
+import '../sync/handlers/checklist_sync_handler.dart';
 import '../../features/billing_milestones/data/billing_milestone_dao.dart';
 import '../../features/projects/data/project_zone_dao.dart';
 import '../../features/projects/data/task_dependency_dao.dart';
 import '../../features/ai/data/ai_conversation_dao.dart';
 import '../../features/ai/data/ai_sse_client.dart';
+import '../../features/checklists/data/checklist_dao.dart';
 
 final getIt = GetIt.instance;
 
@@ -115,6 +117,8 @@ Future<void> setupServiceLocator() async {
   registry.register(PunchListItemSyncHandler(dioClient, db));
   // Phase 25: Per-trade billing sync handlers
   registry.register(BillingMilestoneSyncHandler(dioClient, db));
+  // Phase 26: AI daily checklists sync handler (pull-only, server-generated)
+  registry.register(ChecklistSyncHandler(dioClient, db));
 
   getIt.registerSingleton<SyncRegistry>(registry);
 
@@ -164,6 +168,9 @@ Future<void> setupServiceLocator() async {
 
   // Phase 25 DAOs — registered for per-trade billing features
   getIt.registerSingleton<BillingMilestoneDao>(db.billingMilestoneDao);
+
+  // Phase 26 DAOs — registered for AI daily checklist features
+  getIt.registerSingleton<DailyChecklistDao>(db.dailyChecklistDao);
 
   // Phase 20 DAOs — registered for dependency engine features
   getIt.registerSingleton<TaskDependencyDao>(taskDepDao);

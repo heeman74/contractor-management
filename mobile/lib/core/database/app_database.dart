@@ -19,6 +19,7 @@ import '../../features/projects/data/task_note_dao.dart';
 import '../../features/projects/data/site_walk_flag_dao.dart';
 import '../../features/projects/data/punch_list_item_dao.dart';
 import '../../features/billing_milestones/data/billing_milestone_dao.dart';
+import '../../features/checklists/data/checklist_dao.dart';
 import '../../features/projects/data/trade_catalog_dao.dart';
 import '../../features/projects/data/trade_scope_dao.dart';
 import '../../features/quotes/data/quote_dao.dart';
@@ -65,6 +66,7 @@ import 'tables/task_inspections.dart';
 import 'tables/site_walk_flags.dart';
 import 'tables/punch_list_items.dart';
 import 'tables/billing_milestones.dart';
+import 'tables/daily_checklists.dart';
 
 export '../../features/company/data/company_dao.dart';
 export '../../features/invoices/data/invoice_dao.dart';
@@ -82,6 +84,7 @@ export '../../features/projects/data/task_note_dao.dart';
 export '../../features/projects/data/site_walk_flag_dao.dart';
 export '../../features/projects/data/punch_list_item_dao.dart';
 export '../../features/billing_milestones/data/billing_milestone_dao.dart';
+export '../../features/checklists/data/checklist_dao.dart';
 export '../../features/projects/data/trade_catalog_dao.dart';
 export '../../features/projects/data/trade_scope_dao.dart';
 export '../../features/quotes/data/quote_dao.dart';
@@ -131,6 +134,7 @@ part 'app_database.g.dart';
     SiteWalkFlags,
     PunchListItems,
     BillingMilestones,
+    DailyChecklists,
   ],
   daos: [
     CompanyDao,
@@ -158,6 +162,7 @@ part 'app_database.g.dart';
     SiteWalkFlagDao,
     PunchListItemDao,
     BillingMilestoneDao,
+    DailyChecklistDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -165,7 +170,7 @@ class AppDatabase extends _$AppDatabase {
       : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 14;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -282,6 +287,11 @@ class AppDatabase extends _$AppDatabase {
             // constraint is relaxed by alterTable rewrite.
             await m.alterTable(TableMigration(quotes));
             await m.alterTable(TableMigration(invoices));
+          }
+          if (from < 14) {
+            // Phase 26: AI daily checklists data layer
+            // Create DailyChecklists table for contractor morning task checklists
+            await m.createTable(dailyChecklists);
           }
         },
       );
