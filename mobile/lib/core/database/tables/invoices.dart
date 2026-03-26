@@ -21,7 +21,16 @@ class Invoices extends Table {
   TextColumn get companyId => text().references(Companies, #id)();
 
   /// FK to Jobs.id — the job this invoice belongs to.
-  TextColumn get jobId => text()();
+  /// Nullable for trade-scoped invoices that are not tied to a specific job.
+  TextColumn get jobId => text().nullable()();
+
+  /// Soft FK to TradeScopes.id — the trade scope this invoice belongs to.
+  /// Populated for per-trade invoices; null for legacy job-based invoices.
+  TextColumn get tradeScopeId => text().nullable()();
+
+  /// Soft FK to BillingMilestones.id — the milestone this invoice was raised against.
+  /// Null for invoices not tied to a billing milestone.
+  TextColumn get milestoneId => text().nullable()();
 
   /// FK to Quotes.id — the quote this invoice was created from. Nullable if
   /// the invoice was created independently without a quote.

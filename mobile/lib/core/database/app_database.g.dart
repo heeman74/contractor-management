@@ -10298,9 +10298,20 @@ class $QuotesTable extends Quotes with TableInfo<$QuotesTable, Quote> {
   late final GeneratedColumn<String> jobId = GeneratedColumn<String>(
     'job_id',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.string,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _tradeScopeIdMeta = const VerificationMeta(
+    'tradeScopeId',
+  );
+  @override
+  late final GeneratedColumn<String> tradeScopeId = GeneratedColumn<String>(
+    'trade_scope_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
   );
   static const VerificationMeta _statusMeta = const VerificationMeta('status');
   @override
@@ -10495,6 +10506,7 @@ class $QuotesTable extends Quotes with TableInfo<$QuotesTable, Quote> {
     id,
     companyId,
     jobId,
+    tradeScopeId,
     status,
     revisionNumber,
     taxRate,
@@ -10541,8 +10553,15 @@ class $QuotesTable extends Quotes with TableInfo<$QuotesTable, Quote> {
         _jobIdMeta,
         jobId.isAcceptableOrUnknown(data['job_id']!, _jobIdMeta),
       );
-    } else if (isInserting) {
-      context.missing(_jobIdMeta);
+    }
+    if (data.containsKey('trade_scope_id')) {
+      context.handle(
+        _tradeScopeIdMeta,
+        tradeScopeId.isAcceptableOrUnknown(
+          data['trade_scope_id']!,
+          _tradeScopeIdMeta,
+        ),
+      );
     }
     if (data.containsKey('status')) {
       context.handle(
@@ -10685,7 +10704,11 @@ class $QuotesTable extends Quotes with TableInfo<$QuotesTable, Quote> {
       jobId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}job_id'],
-      )!,
+      ),
+      tradeScopeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}trade_scope_id'],
+      ),
       status: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}status'],
@@ -10770,7 +10793,12 @@ class Quote extends DataClass implements Insertable<Quote> {
   final String companyId;
 
   /// FK to Jobs.id — the job this quote belongs to.
-  final String jobId;
+  /// Nullable for trade-scoped quotes that are not tied to a specific job.
+  final String? jobId;
+
+  /// Soft FK to TradeScopes.id — the trade scope this quote belongs to.
+  /// Populated for per-trade quotes; null for legacy job-based quotes.
+  final String? tradeScopeId;
 
   /// Lifecycle state: draft | sent | viewed | approved | declined | expired.
   final String status;
@@ -10819,7 +10847,8 @@ class Quote extends DataClass implements Insertable<Quote> {
   const Quote({
     required this.id,
     required this.companyId,
-    required this.jobId,
+    this.jobId,
+    this.tradeScopeId,
     required this.status,
     required this.revisionNumber,
     required this.taxRate,
@@ -10843,7 +10872,12 @@ class Quote extends DataClass implements Insertable<Quote> {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
     map['company_id'] = Variable<String>(companyId);
-    map['job_id'] = Variable<String>(jobId);
+    if (!nullToAbsent || jobId != null) {
+      map['job_id'] = Variable<String>(jobId);
+    }
+    if (!nullToAbsent || tradeScopeId != null) {
+      map['trade_scope_id'] = Variable<String>(tradeScopeId);
+    }
     map['status'] = Variable<String>(status);
     map['revision_number'] = Variable<int>(revisionNumber);
     map['tax_rate'] = Variable<double>(taxRate);
@@ -10888,7 +10922,12 @@ class Quote extends DataClass implements Insertable<Quote> {
     return QuotesCompanion(
       id: Value(id),
       companyId: Value(companyId),
-      jobId: Value(jobId),
+      jobId: jobId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(jobId),
+      tradeScopeId: tradeScopeId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(tradeScopeId),
       status: Value(status),
       revisionNumber: Value(revisionNumber),
       taxRate: Value(taxRate),
@@ -10937,7 +10976,8 @@ class Quote extends DataClass implements Insertable<Quote> {
     return Quote(
       id: serializer.fromJson<String>(json['id']),
       companyId: serializer.fromJson<String>(json['companyId']),
-      jobId: serializer.fromJson<String>(json['jobId']),
+      jobId: serializer.fromJson<String?>(json['jobId']),
+      tradeScopeId: serializer.fromJson<String?>(json['tradeScopeId']),
       status: serializer.fromJson<String>(json['status']),
       revisionNumber: serializer.fromJson<int>(json['revisionNumber']),
       taxRate: serializer.fromJson<double>(json['taxRate']),
@@ -10963,7 +11003,8 @@ class Quote extends DataClass implements Insertable<Quote> {
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
       'companyId': serializer.toJson<String>(companyId),
-      'jobId': serializer.toJson<String>(jobId),
+      'jobId': serializer.toJson<String?>(jobId),
+      'tradeScopeId': serializer.toJson<String?>(tradeScopeId),
       'status': serializer.toJson<String>(status),
       'revisionNumber': serializer.toJson<int>(revisionNumber),
       'taxRate': serializer.toJson<double>(taxRate),
@@ -10987,7 +11028,8 @@ class Quote extends DataClass implements Insertable<Quote> {
   Quote copyWith({
     String? id,
     String? companyId,
-    String? jobId,
+    Value<String?> jobId = const Value.absent(),
+    Value<String?> tradeScopeId = const Value.absent(),
     String? status,
     int? revisionNumber,
     double? taxRate,
@@ -11008,7 +11050,8 @@ class Quote extends DataClass implements Insertable<Quote> {
   }) => Quote(
     id: id ?? this.id,
     companyId: companyId ?? this.companyId,
-    jobId: jobId ?? this.jobId,
+    jobId: jobId.present ? jobId.value : this.jobId,
+    tradeScopeId: tradeScopeId.present ? tradeScopeId.value : this.tradeScopeId,
     status: status ?? this.status,
     revisionNumber: revisionNumber ?? this.revisionNumber,
     taxRate: taxRate ?? this.taxRate,
@@ -11036,6 +11079,9 @@ class Quote extends DataClass implements Insertable<Quote> {
       id: data.id.present ? data.id.value : this.id,
       companyId: data.companyId.present ? data.companyId.value : this.companyId,
       jobId: data.jobId.present ? data.jobId.value : this.jobId,
+      tradeScopeId: data.tradeScopeId.present
+          ? data.tradeScopeId.value
+          : this.tradeScopeId,
       status: data.status.present ? data.status.value : this.status,
       revisionNumber: data.revisionNumber.present
           ? data.revisionNumber.value
@@ -11080,6 +11126,7 @@ class Quote extends DataClass implements Insertable<Quote> {
           ..write('id: $id, ')
           ..write('companyId: $companyId, ')
           ..write('jobId: $jobId, ')
+          ..write('tradeScopeId: $tradeScopeId, ')
           ..write('status: $status, ')
           ..write('revisionNumber: $revisionNumber, ')
           ..write('taxRate: $taxRate, ')
@@ -11102,10 +11149,11 @@ class Quote extends DataClass implements Insertable<Quote> {
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     companyId,
     jobId,
+    tradeScopeId,
     status,
     revisionNumber,
     taxRate,
@@ -11123,7 +11171,7 @@ class Quote extends DataClass implements Insertable<Quote> {
     createdAt,
     updatedAt,
     deletedAt,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -11131,6 +11179,7 @@ class Quote extends DataClass implements Insertable<Quote> {
           other.id == this.id &&
           other.companyId == this.companyId &&
           other.jobId == this.jobId &&
+          other.tradeScopeId == this.tradeScopeId &&
           other.status == this.status &&
           other.revisionNumber == this.revisionNumber &&
           other.taxRate == this.taxRate &&
@@ -11153,7 +11202,8 @@ class Quote extends DataClass implements Insertable<Quote> {
 class QuotesCompanion extends UpdateCompanion<Quote> {
   final Value<String> id;
   final Value<String> companyId;
-  final Value<String> jobId;
+  final Value<String?> jobId;
+  final Value<String?> tradeScopeId;
   final Value<String> status;
   final Value<int> revisionNumber;
   final Value<double> taxRate;
@@ -11176,6 +11226,7 @@ class QuotesCompanion extends UpdateCompanion<Quote> {
     this.id = const Value.absent(),
     this.companyId = const Value.absent(),
     this.jobId = const Value.absent(),
+    this.tradeScopeId = const Value.absent(),
     this.status = const Value.absent(),
     this.revisionNumber = const Value.absent(),
     this.taxRate = const Value.absent(),
@@ -11198,7 +11249,8 @@ class QuotesCompanion extends UpdateCompanion<Quote> {
   QuotesCompanion.insert({
     this.id = const Value.absent(),
     required String companyId,
-    required String jobId,
+    this.jobId = const Value.absent(),
+    this.tradeScopeId = const Value.absent(),
     this.status = const Value.absent(),
     this.revisionNumber = const Value.absent(),
     this.taxRate = const Value.absent(),
@@ -11218,13 +11270,13 @@ class QuotesCompanion extends UpdateCompanion<Quote> {
     this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : companyId = Value(companyId),
-       jobId = Value(jobId),
        createdAt = Value(createdAt),
        updatedAt = Value(updatedAt);
   static Insertable<Quote> custom({
     Expression<String>? id,
     Expression<String>? companyId,
     Expression<String>? jobId,
+    Expression<String>? tradeScopeId,
     Expression<String>? status,
     Expression<int>? revisionNumber,
     Expression<double>? taxRate,
@@ -11248,6 +11300,7 @@ class QuotesCompanion extends UpdateCompanion<Quote> {
       if (id != null) 'id': id,
       if (companyId != null) 'company_id': companyId,
       if (jobId != null) 'job_id': jobId,
+      if (tradeScopeId != null) 'trade_scope_id': tradeScopeId,
       if (status != null) 'status': status,
       if (revisionNumber != null) 'revision_number': revisionNumber,
       if (taxRate != null) 'tax_rate': taxRate,
@@ -11272,7 +11325,8 @@ class QuotesCompanion extends UpdateCompanion<Quote> {
   QuotesCompanion copyWith({
     Value<String>? id,
     Value<String>? companyId,
-    Value<String>? jobId,
+    Value<String?>? jobId,
+    Value<String?>? tradeScopeId,
     Value<String>? status,
     Value<int>? revisionNumber,
     Value<double>? taxRate,
@@ -11296,6 +11350,7 @@ class QuotesCompanion extends UpdateCompanion<Quote> {
       id: id ?? this.id,
       companyId: companyId ?? this.companyId,
       jobId: jobId ?? this.jobId,
+      tradeScopeId: tradeScopeId ?? this.tradeScopeId,
       status: status ?? this.status,
       revisionNumber: revisionNumber ?? this.revisionNumber,
       taxRate: taxRate ?? this.taxRate,
@@ -11328,6 +11383,9 @@ class QuotesCompanion extends UpdateCompanion<Quote> {
     }
     if (jobId.present) {
       map['job_id'] = Variable<String>(jobId.value);
+    }
+    if (tradeScopeId.present) {
+      map['trade_scope_id'] = Variable<String>(tradeScopeId.value);
     }
     if (status.present) {
       map['status'] = Variable<String>(status.value);
@@ -11392,6 +11450,7 @@ class QuotesCompanion extends UpdateCompanion<Quote> {
           ..write('id: $id, ')
           ..write('companyId: $companyId, ')
           ..write('jobId: $jobId, ')
+          ..write('tradeScopeId: $tradeScopeId, ')
           ..write('status: $status, ')
           ..write('revisionNumber: $revisionNumber, ')
           ..write('taxRate: $taxRate, ')
@@ -12845,9 +12904,31 @@ class $InvoicesTable extends Invoices with TableInfo<$InvoicesTable, Invoice> {
   late final GeneratedColumn<String> jobId = GeneratedColumn<String>(
     'job_id',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.string,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _tradeScopeIdMeta = const VerificationMeta(
+    'tradeScopeId',
+  );
+  @override
+  late final GeneratedColumn<String> tradeScopeId = GeneratedColumn<String>(
+    'trade_scope_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _milestoneIdMeta = const VerificationMeta(
+    'milestoneId',
+  );
+  @override
+  late final GeneratedColumn<String> milestoneId = GeneratedColumn<String>(
+    'milestone_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
   );
   static const VerificationMeta _quoteIdMeta = const VerificationMeta(
     'quoteId',
@@ -12999,6 +13080,8 @@ class $InvoicesTable extends Invoices with TableInfo<$InvoicesTable, Invoice> {
     id,
     companyId,
     jobId,
+    tradeScopeId,
+    milestoneId,
     quoteId,
     invoiceNumber,
     status,
@@ -13041,8 +13124,24 @@ class $InvoicesTable extends Invoices with TableInfo<$InvoicesTable, Invoice> {
         _jobIdMeta,
         jobId.isAcceptableOrUnknown(data['job_id']!, _jobIdMeta),
       );
-    } else if (isInserting) {
-      context.missing(_jobIdMeta);
+    }
+    if (data.containsKey('trade_scope_id')) {
+      context.handle(
+        _tradeScopeIdMeta,
+        tradeScopeId.isAcceptableOrUnknown(
+          data['trade_scope_id']!,
+          _tradeScopeIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('milestone_id')) {
+      context.handle(
+        _milestoneIdMeta,
+        milestoneId.isAcceptableOrUnknown(
+          data['milestone_id']!,
+          _milestoneIdMeta,
+        ),
+      );
     }
     if (data.containsKey('quote_id')) {
       context.handle(
@@ -13162,7 +13261,15 @@ class $InvoicesTable extends Invoices with TableInfo<$InvoicesTable, Invoice> {
       jobId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}job_id'],
-      )!,
+      ),
+      tradeScopeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}trade_scope_id'],
+      ),
+      milestoneId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}milestone_id'],
+      ),
       quoteId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}quote_id'],
@@ -13231,7 +13338,16 @@ class Invoice extends DataClass implements Insertable<Invoice> {
   final String companyId;
 
   /// FK to Jobs.id — the job this invoice belongs to.
-  final String jobId;
+  /// Nullable for trade-scoped invoices that are not tied to a specific job.
+  final String? jobId;
+
+  /// Soft FK to TradeScopes.id — the trade scope this invoice belongs to.
+  /// Populated for per-trade invoices; null for legacy job-based invoices.
+  final String? tradeScopeId;
+
+  /// Soft FK to BillingMilestones.id — the milestone this invoice was raised against.
+  /// Null for invoices not tied to a billing milestone.
+  final String? milestoneId;
 
   /// FK to Quotes.id — the quote this invoice was created from. Nullable if
   /// the invoice was created independently without a quote.
@@ -13269,7 +13385,9 @@ class Invoice extends DataClass implements Insertable<Invoice> {
   const Invoice({
     required this.id,
     required this.companyId,
-    required this.jobId,
+    this.jobId,
+    this.tradeScopeId,
+    this.milestoneId,
     this.quoteId,
     required this.invoiceNumber,
     required this.status,
@@ -13289,7 +13407,15 @@ class Invoice extends DataClass implements Insertable<Invoice> {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
     map['company_id'] = Variable<String>(companyId);
-    map['job_id'] = Variable<String>(jobId);
+    if (!nullToAbsent || jobId != null) {
+      map['job_id'] = Variable<String>(jobId);
+    }
+    if (!nullToAbsent || tradeScopeId != null) {
+      map['trade_scope_id'] = Variable<String>(tradeScopeId);
+    }
+    if (!nullToAbsent || milestoneId != null) {
+      map['milestone_id'] = Variable<String>(milestoneId);
+    }
     if (!nullToAbsent || quoteId != null) {
       map['quote_id'] = Variable<String>(quoteId);
     }
@@ -13320,7 +13446,15 @@ class Invoice extends DataClass implements Insertable<Invoice> {
     return InvoicesCompanion(
       id: Value(id),
       companyId: Value(companyId),
-      jobId: Value(jobId),
+      jobId: jobId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(jobId),
+      tradeScopeId: tradeScopeId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(tradeScopeId),
+      milestoneId: milestoneId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(milestoneId),
       quoteId: quoteId == null && nullToAbsent
           ? const Value.absent()
           : Value(quoteId),
@@ -13355,7 +13489,9 @@ class Invoice extends DataClass implements Insertable<Invoice> {
     return Invoice(
       id: serializer.fromJson<String>(json['id']),
       companyId: serializer.fromJson<String>(json['companyId']),
-      jobId: serializer.fromJson<String>(json['jobId']),
+      jobId: serializer.fromJson<String?>(json['jobId']),
+      tradeScopeId: serializer.fromJson<String?>(json['tradeScopeId']),
+      milestoneId: serializer.fromJson<String?>(json['milestoneId']),
       quoteId: serializer.fromJson<String?>(json['quoteId']),
       invoiceNumber: serializer.fromJson<String>(json['invoiceNumber']),
       status: serializer.fromJson<String>(json['status']),
@@ -13377,7 +13513,9 @@ class Invoice extends DataClass implements Insertable<Invoice> {
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
       'companyId': serializer.toJson<String>(companyId),
-      'jobId': serializer.toJson<String>(jobId),
+      'jobId': serializer.toJson<String?>(jobId),
+      'tradeScopeId': serializer.toJson<String?>(tradeScopeId),
+      'milestoneId': serializer.toJson<String?>(milestoneId),
       'quoteId': serializer.toJson<String?>(quoteId),
       'invoiceNumber': serializer.toJson<String>(invoiceNumber),
       'status': serializer.toJson<String>(status),
@@ -13397,7 +13535,9 @@ class Invoice extends DataClass implements Insertable<Invoice> {
   Invoice copyWith({
     String? id,
     String? companyId,
-    String? jobId,
+    Value<String?> jobId = const Value.absent(),
+    Value<String?> tradeScopeId = const Value.absent(),
+    Value<String?> milestoneId = const Value.absent(),
     Value<String?> quoteId = const Value.absent(),
     String? invoiceNumber,
     String? status,
@@ -13414,7 +13554,9 @@ class Invoice extends DataClass implements Insertable<Invoice> {
   }) => Invoice(
     id: id ?? this.id,
     companyId: companyId ?? this.companyId,
-    jobId: jobId ?? this.jobId,
+    jobId: jobId.present ? jobId.value : this.jobId,
+    tradeScopeId: tradeScopeId.present ? tradeScopeId.value : this.tradeScopeId,
+    milestoneId: milestoneId.present ? milestoneId.value : this.milestoneId,
     quoteId: quoteId.present ? quoteId.value : this.quoteId,
     invoiceNumber: invoiceNumber ?? this.invoiceNumber,
     status: status ?? this.status,
@@ -13434,6 +13576,12 @@ class Invoice extends DataClass implements Insertable<Invoice> {
       id: data.id.present ? data.id.value : this.id,
       companyId: data.companyId.present ? data.companyId.value : this.companyId,
       jobId: data.jobId.present ? data.jobId.value : this.jobId,
+      tradeScopeId: data.tradeScopeId.present
+          ? data.tradeScopeId.value
+          : this.tradeScopeId,
+      milestoneId: data.milestoneId.present
+          ? data.milestoneId.value
+          : this.milestoneId,
       quoteId: data.quoteId.present ? data.quoteId.value : this.quoteId,
       invoiceNumber: data.invoiceNumber.present
           ? data.invoiceNumber.value
@@ -13464,6 +13612,8 @@ class Invoice extends DataClass implements Insertable<Invoice> {
           ..write('id: $id, ')
           ..write('companyId: $companyId, ')
           ..write('jobId: $jobId, ')
+          ..write('tradeScopeId: $tradeScopeId, ')
+          ..write('milestoneId: $milestoneId, ')
           ..write('quoteId: $quoteId, ')
           ..write('invoiceNumber: $invoiceNumber, ')
           ..write('status: $status, ')
@@ -13486,6 +13636,8 @@ class Invoice extends DataClass implements Insertable<Invoice> {
     id,
     companyId,
     jobId,
+    tradeScopeId,
+    milestoneId,
     quoteId,
     invoiceNumber,
     status,
@@ -13507,6 +13659,8 @@ class Invoice extends DataClass implements Insertable<Invoice> {
           other.id == this.id &&
           other.companyId == this.companyId &&
           other.jobId == this.jobId &&
+          other.tradeScopeId == this.tradeScopeId &&
+          other.milestoneId == this.milestoneId &&
           other.quoteId == this.quoteId &&
           other.invoiceNumber == this.invoiceNumber &&
           other.status == this.status &&
@@ -13525,7 +13679,9 @@ class Invoice extends DataClass implements Insertable<Invoice> {
 class InvoicesCompanion extends UpdateCompanion<Invoice> {
   final Value<String> id;
   final Value<String> companyId;
-  final Value<String> jobId;
+  final Value<String?> jobId;
+  final Value<String?> tradeScopeId;
+  final Value<String?> milestoneId;
   final Value<String?> quoteId;
   final Value<String> invoiceNumber;
   final Value<String> status;
@@ -13544,6 +13700,8 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
     this.id = const Value.absent(),
     this.companyId = const Value.absent(),
     this.jobId = const Value.absent(),
+    this.tradeScopeId = const Value.absent(),
+    this.milestoneId = const Value.absent(),
     this.quoteId = const Value.absent(),
     this.invoiceNumber = const Value.absent(),
     this.status = const Value.absent(),
@@ -13562,7 +13720,9 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
   InvoicesCompanion.insert({
     this.id = const Value.absent(),
     required String companyId,
-    required String jobId,
+    this.jobId = const Value.absent(),
+    this.tradeScopeId = const Value.absent(),
+    this.milestoneId = const Value.absent(),
     this.quoteId = const Value.absent(),
     required String invoiceNumber,
     this.status = const Value.absent(),
@@ -13578,7 +13738,6 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
     this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : companyId = Value(companyId),
-       jobId = Value(jobId),
        invoiceNumber = Value(invoiceNumber),
        issuedAt = Value(issuedAt),
        createdAt = Value(createdAt),
@@ -13587,6 +13746,8 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
     Expression<String>? id,
     Expression<String>? companyId,
     Expression<String>? jobId,
+    Expression<String>? tradeScopeId,
+    Expression<String>? milestoneId,
     Expression<String>? quoteId,
     Expression<String>? invoiceNumber,
     Expression<String>? status,
@@ -13606,6 +13767,8 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
       if (id != null) 'id': id,
       if (companyId != null) 'company_id': companyId,
       if (jobId != null) 'job_id': jobId,
+      if (tradeScopeId != null) 'trade_scope_id': tradeScopeId,
+      if (milestoneId != null) 'milestone_id': milestoneId,
       if (quoteId != null) 'quote_id': quoteId,
       if (invoiceNumber != null) 'invoice_number': invoiceNumber,
       if (status != null) 'status': status,
@@ -13626,7 +13789,9 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
   InvoicesCompanion copyWith({
     Value<String>? id,
     Value<String>? companyId,
-    Value<String>? jobId,
+    Value<String?>? jobId,
+    Value<String?>? tradeScopeId,
+    Value<String?>? milestoneId,
     Value<String?>? quoteId,
     Value<String>? invoiceNumber,
     Value<String>? status,
@@ -13646,6 +13811,8 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
       id: id ?? this.id,
       companyId: companyId ?? this.companyId,
       jobId: jobId ?? this.jobId,
+      tradeScopeId: tradeScopeId ?? this.tradeScopeId,
+      milestoneId: milestoneId ?? this.milestoneId,
       quoteId: quoteId ?? this.quoteId,
       invoiceNumber: invoiceNumber ?? this.invoiceNumber,
       status: status ?? this.status,
@@ -13674,6 +13841,12 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
     }
     if (jobId.present) {
       map['job_id'] = Variable<String>(jobId.value);
+    }
+    if (tradeScopeId.present) {
+      map['trade_scope_id'] = Variable<String>(tradeScopeId.value);
+    }
+    if (milestoneId.present) {
+      map['milestone_id'] = Variable<String>(milestoneId.value);
     }
     if (quoteId.present) {
       map['quote_id'] = Variable<String>(quoteId.value);
@@ -13726,6 +13899,8 @@ class InvoicesCompanion extends UpdateCompanion<Invoice> {
           ..write('id: $id, ')
           ..write('companyId: $companyId, ')
           ..write('jobId: $jobId, ')
+          ..write('tradeScopeId: $tradeScopeId, ')
+          ..write('milestoneId: $milestoneId, ')
           ..write('quoteId: $quoteId, ')
           ..write('invoiceNumber: $invoiceNumber, ')
           ..write('status: $status, ')
@@ -26999,6 +27174,740 @@ class PunchListItemsCompanion extends UpdateCompanion<PunchListItem> {
   }
 }
 
+class $BillingMilestonesTable extends BillingMilestones
+    with TableInfo<$BillingMilestonesTable, BillingMilestone> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BillingMilestonesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    clientDefault: () => const Uuid().v4(),
+  );
+  static const VerificationMeta _companyIdMeta = const VerificationMeta(
+    'companyId',
+  );
+  @override
+  late final GeneratedColumn<String> companyId = GeneratedColumn<String>(
+    'company_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES companies (id)',
+    ),
+  );
+  static const VerificationMeta _tradeScopeIdMeta = const VerificationMeta(
+    'tradeScopeId',
+  );
+  @override
+  late final GeneratedColumn<String> tradeScopeId = GeneratedColumn<String>(
+    'trade_scope_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _percentageMeta = const VerificationMeta(
+    'percentage',
+  );
+  @override
+  late final GeneratedColumn<double> percentage = GeneratedColumn<double>(
+    'percentage',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _descriptionMeta = const VerificationMeta(
+    'description',
+  );
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+    'description',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _isInvoicedMeta = const VerificationMeta(
+    'isInvoiced',
+  );
+  @override
+  late final GeneratedColumn<bool> isInvoiced = GeneratedColumn<bool>(
+    'is_invoiced',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_invoiced" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta(
+    'sortOrder',
+  );
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+    'sort_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _versionMeta = const VerificationMeta(
+    'version',
+  );
+  @override
+  late final GeneratedColumn<int> version = GeneratedColumn<int>(
+    'version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    companyId,
+    tradeScopeId,
+    name,
+    percentage,
+    description,
+    isInvoiced,
+    sortOrder,
+    version,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'billing_milestones';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<BillingMilestone> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('company_id')) {
+      context.handle(
+        _companyIdMeta,
+        companyId.isAcceptableOrUnknown(data['company_id']!, _companyIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_companyIdMeta);
+    }
+    if (data.containsKey('trade_scope_id')) {
+      context.handle(
+        _tradeScopeIdMeta,
+        tradeScopeId.isAcceptableOrUnknown(
+          data['trade_scope_id']!,
+          _tradeScopeIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_tradeScopeIdMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('percentage')) {
+      context.handle(
+        _percentageMeta,
+        percentage.isAcceptableOrUnknown(data['percentage']!, _percentageMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_percentageMeta);
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+        _descriptionMeta,
+        description.isAcceptableOrUnknown(
+          data['description']!,
+          _descriptionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('is_invoiced')) {
+      context.handle(
+        _isInvoicedMeta,
+        isInvoiced.isAcceptableOrUnknown(data['is_invoiced']!, _isInvoicedMeta),
+      );
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(
+        _sortOrderMeta,
+        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
+      );
+    }
+    if (data.containsKey('version')) {
+      context.handle(
+        _versionMeta,
+        version.isAcceptableOrUnknown(data['version']!, _versionMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  BillingMilestone map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BillingMilestone(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      companyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}company_id'],
+      )!,
+      tradeScopeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}trade_scope_id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      percentage: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}percentage'],
+      )!,
+      description: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}description'],
+      ),
+      isInvoiced: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_invoiced'],
+      )!,
+      sortOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sort_order'],
+      )!,
+      version: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}version'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+    );
+  }
+
+  @override
+  $BillingMilestonesTable createAlias(String alias) {
+    return $BillingMilestonesTable(attachedDatabase, alias);
+  }
+}
+
+class BillingMilestone extends DataClass
+    implements Insertable<BillingMilestone> {
+  final String id;
+
+  /// FK to Companies.id — tenant scope.
+  final String companyId;
+
+  /// Soft FK to TradeScopes.id — the trade scope these milestones belong to.
+  /// No hard reference to avoid cross-feature coupling.
+  final String tradeScopeId;
+
+  /// Human-readable milestone name (e.g., 'Mobilisation', 'Completion').
+  final String name;
+
+  /// Percentage of total contract value this milestone represents (0.0-100.0).
+  final double percentage;
+
+  /// Optional description providing more detail about the milestone.
+  final String? description;
+
+  /// Whether an invoice has been raised against this milestone.
+  final bool isInvoiced;
+
+  /// Display order within the trade scope's milestone list (0-indexed).
+  final int sortOrder;
+  final int version;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  /// Soft-delete for sync tombstone propagation across devices.
+  final DateTime? deletedAt;
+  const BillingMilestone({
+    required this.id,
+    required this.companyId,
+    required this.tradeScopeId,
+    required this.name,
+    required this.percentage,
+    this.description,
+    required this.isInvoiced,
+    required this.sortOrder,
+    required this.version,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['company_id'] = Variable<String>(companyId);
+    map['trade_scope_id'] = Variable<String>(tradeScopeId);
+    map['name'] = Variable<String>(name);
+    map['percentage'] = Variable<double>(percentage);
+    if (!nullToAbsent || description != null) {
+      map['description'] = Variable<String>(description);
+    }
+    map['is_invoiced'] = Variable<bool>(isInvoiced);
+    map['sort_order'] = Variable<int>(sortOrder);
+    map['version'] = Variable<int>(version);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    return map;
+  }
+
+  BillingMilestonesCompanion toCompanion(bool nullToAbsent) {
+    return BillingMilestonesCompanion(
+      id: Value(id),
+      companyId: Value(companyId),
+      tradeScopeId: Value(tradeScopeId),
+      name: Value(name),
+      percentage: Value(percentage),
+      description: description == null && nullToAbsent
+          ? const Value.absent()
+          : Value(description),
+      isInvoiced: Value(isInvoiced),
+      sortOrder: Value(sortOrder),
+      version: Value(version),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory BillingMilestone.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BillingMilestone(
+      id: serializer.fromJson<String>(json['id']),
+      companyId: serializer.fromJson<String>(json['companyId']),
+      tradeScopeId: serializer.fromJson<String>(json['tradeScopeId']),
+      name: serializer.fromJson<String>(json['name']),
+      percentage: serializer.fromJson<double>(json['percentage']),
+      description: serializer.fromJson<String?>(json['description']),
+      isInvoiced: serializer.fromJson<bool>(json['isInvoiced']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
+      version: serializer.fromJson<int>(json['version']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'companyId': serializer.toJson<String>(companyId),
+      'tradeScopeId': serializer.toJson<String>(tradeScopeId),
+      'name': serializer.toJson<String>(name),
+      'percentage': serializer.toJson<double>(percentage),
+      'description': serializer.toJson<String?>(description),
+      'isInvoiced': serializer.toJson<bool>(isInvoiced),
+      'sortOrder': serializer.toJson<int>(sortOrder),
+      'version': serializer.toJson<int>(version),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+    };
+  }
+
+  BillingMilestone copyWith({
+    String? id,
+    String? companyId,
+    String? tradeScopeId,
+    String? name,
+    double? percentage,
+    Value<String?> description = const Value.absent(),
+    bool? isInvoiced,
+    int? sortOrder,
+    int? version,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+  }) => BillingMilestone(
+    id: id ?? this.id,
+    companyId: companyId ?? this.companyId,
+    tradeScopeId: tradeScopeId ?? this.tradeScopeId,
+    name: name ?? this.name,
+    percentage: percentage ?? this.percentage,
+    description: description.present ? description.value : this.description,
+    isInvoiced: isInvoiced ?? this.isInvoiced,
+    sortOrder: sortOrder ?? this.sortOrder,
+    version: version ?? this.version,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+  );
+  BillingMilestone copyWithCompanion(BillingMilestonesCompanion data) {
+    return BillingMilestone(
+      id: data.id.present ? data.id.value : this.id,
+      companyId: data.companyId.present ? data.companyId.value : this.companyId,
+      tradeScopeId: data.tradeScopeId.present
+          ? data.tradeScopeId.value
+          : this.tradeScopeId,
+      name: data.name.present ? data.name.value : this.name,
+      percentage: data.percentage.present
+          ? data.percentage.value
+          : this.percentage,
+      description: data.description.present
+          ? data.description.value
+          : this.description,
+      isInvoiced: data.isInvoiced.present
+          ? data.isInvoiced.value
+          : this.isInvoiced,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+      version: data.version.present ? data.version.value : this.version,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BillingMilestone(')
+          ..write('id: $id, ')
+          ..write('companyId: $companyId, ')
+          ..write('tradeScopeId: $tradeScopeId, ')
+          ..write('name: $name, ')
+          ..write('percentage: $percentage, ')
+          ..write('description: $description, ')
+          ..write('isInvoiced: $isInvoiced, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('version: $version, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    companyId,
+    tradeScopeId,
+    name,
+    percentage,
+    description,
+    isInvoiced,
+    sortOrder,
+    version,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BillingMilestone &&
+          other.id == this.id &&
+          other.companyId == this.companyId &&
+          other.tradeScopeId == this.tradeScopeId &&
+          other.name == this.name &&
+          other.percentage == this.percentage &&
+          other.description == this.description &&
+          other.isInvoiced == this.isInvoiced &&
+          other.sortOrder == this.sortOrder &&
+          other.version == this.version &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class BillingMilestonesCompanion extends UpdateCompanion<BillingMilestone> {
+  final Value<String> id;
+  final Value<String> companyId;
+  final Value<String> tradeScopeId;
+  final Value<String> name;
+  final Value<double> percentage;
+  final Value<String?> description;
+  final Value<bool> isInvoiced;
+  final Value<int> sortOrder;
+  final Value<int> version;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<int> rowid;
+  const BillingMilestonesCompanion({
+    this.id = const Value.absent(),
+    this.companyId = const Value.absent(),
+    this.tradeScopeId = const Value.absent(),
+    this.name = const Value.absent(),
+    this.percentage = const Value.absent(),
+    this.description = const Value.absent(),
+    this.isInvoiced = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.version = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  BillingMilestonesCompanion.insert({
+    this.id = const Value.absent(),
+    required String companyId,
+    required String tradeScopeId,
+    required String name,
+    required double percentage,
+    this.description = const Value.absent(),
+    this.isInvoiced = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.version = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : companyId = Value(companyId),
+       tradeScopeId = Value(tradeScopeId),
+       name = Value(name),
+       percentage = Value(percentage),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<BillingMilestone> custom({
+    Expression<String>? id,
+    Expression<String>? companyId,
+    Expression<String>? tradeScopeId,
+    Expression<String>? name,
+    Expression<double>? percentage,
+    Expression<String>? description,
+    Expression<bool>? isInvoiced,
+    Expression<int>? sortOrder,
+    Expression<int>? version,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (companyId != null) 'company_id': companyId,
+      if (tradeScopeId != null) 'trade_scope_id': tradeScopeId,
+      if (name != null) 'name': name,
+      if (percentage != null) 'percentage': percentage,
+      if (description != null) 'description': description,
+      if (isInvoiced != null) 'is_invoiced': isInvoiced,
+      if (sortOrder != null) 'sort_order': sortOrder,
+      if (version != null) 'version': version,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  BillingMilestonesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? companyId,
+    Value<String>? tradeScopeId,
+    Value<String>? name,
+    Value<double>? percentage,
+    Value<String?>? description,
+    Value<bool>? isInvoiced,
+    Value<int>? sortOrder,
+    Value<int>? version,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return BillingMilestonesCompanion(
+      id: id ?? this.id,
+      companyId: companyId ?? this.companyId,
+      tradeScopeId: tradeScopeId ?? this.tradeScopeId,
+      name: name ?? this.name,
+      percentage: percentage ?? this.percentage,
+      description: description ?? this.description,
+      isInvoiced: isInvoiced ?? this.isInvoiced,
+      sortOrder: sortOrder ?? this.sortOrder,
+      version: version ?? this.version,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (companyId.present) {
+      map['company_id'] = Variable<String>(companyId.value);
+    }
+    if (tradeScopeId.present) {
+      map['trade_scope_id'] = Variable<String>(tradeScopeId.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (percentage.present) {
+      map['percentage'] = Variable<double>(percentage.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (isInvoiced.present) {
+      map['is_invoiced'] = Variable<bool>(isInvoiced.value);
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
+    if (version.present) {
+      map['version'] = Variable<int>(version.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BillingMilestonesCompanion(')
+          ..write('id: $id, ')
+          ..write('companyId: $companyId, ')
+          ..write('tradeScopeId: $tradeScopeId, ')
+          ..write('name: $name, ')
+          ..write('percentage: $percentage, ')
+          ..write('description: $description, ')
+          ..write('isInvoiced: $isInvoiced, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('version: $version, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -27054,6 +27963,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   );
   late final $SiteWalkFlagsTable siteWalkFlags = $SiteWalkFlagsTable(this);
   late final $PunchListItemsTable punchListItems = $PunchListItemsTable(this);
+  late final $BillingMilestonesTable billingMilestones =
+      $BillingMilestonesTable(this);
   late final Index idxBookingsContractorTime = Index(
     'idx_bookings_contractor_time',
     'CREATE INDEX idx_bookings_contractor_time ON bookings (contractor_id, time_range_start, deleted_at)',
@@ -27106,6 +28017,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final PunchListItemDao punchListItemDao = PunchListItemDao(
     this as AppDatabase,
   );
+  late final BillingMilestoneDao billingMilestoneDao = BillingMilestoneDao(
+    this as AppDatabase,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -27147,6 +28061,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     taskInspections,
     siteWalkFlags,
     punchListItems,
+    billingMilestones,
     idxBookingsContractorTime,
     idxBookingsCompanyTime,
     idxBookingsJobId,
@@ -27681,6 +28596,30 @@ final class $$CompaniesTableReferences
     ).filter((f) => f.companyId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_punchListItemsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$BillingMilestonesTable, List<BillingMilestone>>
+  _billingMilestonesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.billingMilestones,
+        aliasName: $_aliasNameGenerator(
+          db.companies.id,
+          db.billingMilestones.companyId,
+        ),
+      );
+
+  $$BillingMilestonesTableProcessedTableManager get billingMilestonesRefs {
+    final manager = $$BillingMilestonesTableTableManager(
+      $_db,
+      $_db.billingMilestones,
+    ).filter((f) => f.companyId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _billingMilestonesRefsTable($_db),
+    );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -28342,6 +29281,31 @@ class $$CompaniesTableFilterComposer
           }) => $$PunchListItemsTableFilterComposer(
             $db: $db,
             $table: $db.punchListItems,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> billingMilestonesRefs(
+    Expression<bool> Function($$BillingMilestonesTableFilterComposer f) f,
+  ) {
+    final $$BillingMilestonesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.billingMilestones,
+      getReferencedColumn: (t) => t.companyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BillingMilestonesTableFilterComposer(
+            $db: $db,
+            $table: $db.billingMilestones,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -29064,6 +30028,32 @@ class $$CompaniesTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> billingMilestonesRefs<T extends Object>(
+    Expression<T> Function($$BillingMilestonesTableAnnotationComposer a) f,
+  ) {
+    final $$BillingMilestonesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.billingMilestones,
+          getReferencedColumn: (t) => t.companyId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$BillingMilestonesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.billingMilestones,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$CompaniesTableTableManager
@@ -29104,6 +30094,7 @@ class $$CompaniesTableTableManager
             bool taskInspectionsRefs,
             bool siteWalkFlagsRefs,
             bool punchListItemsRefs,
+            bool billingMilestonesRefs,
           })
         > {
   $$CompaniesTableTableManager(_$AppDatabase db, $CompaniesTable table)
@@ -29207,6 +30198,7 @@ class $$CompaniesTableTableManager
                 taskInspectionsRefs = false,
                 siteWalkFlagsRefs = false,
                 punchListItemsRefs = false,
+                billingMilestonesRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -29235,6 +30227,7 @@ class $$CompaniesTableTableManager
                     if (taskInspectionsRefs) db.taskInspections,
                     if (siteWalkFlagsRefs) db.siteWalkFlags,
                     if (punchListItemsRefs) db.punchListItems,
+                    if (billingMilestonesRefs) db.billingMilestones,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -29743,6 +30736,27 @@ class $$CompaniesTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (billingMilestonesRefs)
+                        await $_getPrefetchedData<
+                          Company,
+                          $CompaniesTable,
+                          BillingMilestone
+                        >(
+                          currentTable: table,
+                          referencedTable: $$CompaniesTableReferences
+                              ._billingMilestonesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$CompaniesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).billingMilestonesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.companyId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -29788,6 +30802,7 @@ typedef $$CompaniesTableProcessedTableManager =
         bool taskInspectionsRefs,
         bool siteWalkFlagsRefs,
         bool punchListItemsRefs,
+        bool billingMilestonesRefs,
       })
     >;
 typedef $$UsersTableCreateCompanionBuilder =
@@ -35275,7 +36290,8 @@ typedef $$QuotesTableCreateCompanionBuilder =
     QuotesCompanion Function({
       Value<String> id,
       required String companyId,
-      required String jobId,
+      Value<String?> jobId,
+      Value<String?> tradeScopeId,
       Value<String> status,
       Value<int> revisionNumber,
       Value<double> taxRate,
@@ -35299,7 +36315,8 @@ typedef $$QuotesTableUpdateCompanionBuilder =
     QuotesCompanion Function({
       Value<String> id,
       Value<String> companyId,
-      Value<String> jobId,
+      Value<String?> jobId,
+      Value<String?> tradeScopeId,
       Value<String> status,
       Value<int> revisionNumber,
       Value<double> taxRate,
@@ -35358,6 +36375,11 @@ class $$QuotesTableFilterComposer
 
   ColumnFilters<String> get jobId => $composableBuilder(
     column: $table.jobId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tradeScopeId => $composableBuilder(
+    column: $table.tradeScopeId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -35489,6 +36511,11 @@ class $$QuotesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get tradeScopeId => $composableBuilder(
+    column: $table.tradeScopeId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get status => $composableBuilder(
     column: $table.status,
     builder: (column) => ColumnOrderings(column),
@@ -35613,6 +36640,11 @@ class $$QuotesTableAnnotationComposer
   GeneratedColumn<String> get jobId =>
       $composableBuilder(column: $table.jobId, builder: (column) => column);
 
+  GeneratedColumn<String> get tradeScopeId => $composableBuilder(
+    column: $table.tradeScopeId,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get status =>
       $composableBuilder(column: $table.status, builder: (column) => column);
 
@@ -35736,7 +36768,8 @@ class $$QuotesTableTableManager
               ({
                 Value<String> id = const Value.absent(),
                 Value<String> companyId = const Value.absent(),
-                Value<String> jobId = const Value.absent(),
+                Value<String?> jobId = const Value.absent(),
+                Value<String?> tradeScopeId = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 Value<int> revisionNumber = const Value.absent(),
                 Value<double> taxRate = const Value.absent(),
@@ -35759,6 +36792,7 @@ class $$QuotesTableTableManager
                 id: id,
                 companyId: companyId,
                 jobId: jobId,
+                tradeScopeId: tradeScopeId,
                 status: status,
                 revisionNumber: revisionNumber,
                 taxRate: taxRate,
@@ -35782,7 +36816,8 @@ class $$QuotesTableTableManager
               ({
                 Value<String> id = const Value.absent(),
                 required String companyId,
-                required String jobId,
+                Value<String?> jobId = const Value.absent(),
+                Value<String?> tradeScopeId = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 Value<int> revisionNumber = const Value.absent(),
                 Value<double> taxRate = const Value.absent(),
@@ -35805,6 +36840,7 @@ class $$QuotesTableTableManager
                 id: id,
                 companyId: companyId,
                 jobId: jobId,
+                tradeScopeId: tradeScopeId,
                 status: status,
                 revisionNumber: revisionNumber,
                 taxRate: taxRate,
@@ -36798,7 +37834,9 @@ typedef $$InvoicesTableCreateCompanionBuilder =
     InvoicesCompanion Function({
       Value<String> id,
       required String companyId,
-      required String jobId,
+      Value<String?> jobId,
+      Value<String?> tradeScopeId,
+      Value<String?> milestoneId,
       Value<String?> quoteId,
       required String invoiceNumber,
       Value<String> status,
@@ -36818,7 +37856,9 @@ typedef $$InvoicesTableUpdateCompanionBuilder =
     InvoicesCompanion Function({
       Value<String> id,
       Value<String> companyId,
-      Value<String> jobId,
+      Value<String?> jobId,
+      Value<String?> tradeScopeId,
+      Value<String?> milestoneId,
       Value<String?> quoteId,
       Value<String> invoiceNumber,
       Value<String> status,
@@ -36875,6 +37915,16 @@ class $$InvoicesTableFilterComposer
 
   ColumnFilters<String> get jobId => $composableBuilder(
     column: $table.jobId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tradeScopeId => $composableBuilder(
+    column: $table.tradeScopeId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get milestoneId => $composableBuilder(
+    column: $table.milestoneId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -36986,6 +38036,16 @@ class $$InvoicesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get tradeScopeId => $composableBuilder(
+    column: $table.tradeScopeId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get milestoneId => $composableBuilder(
+    column: $table.milestoneId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get quoteId => $composableBuilder(
     column: $table.quoteId,
     builder: (column) => ColumnOrderings(column),
@@ -37090,6 +38150,16 @@ class $$InvoicesTableAnnotationComposer
   GeneratedColumn<String> get jobId =>
       $composableBuilder(column: $table.jobId, builder: (column) => column);
 
+  GeneratedColumn<String> get tradeScopeId => $composableBuilder(
+    column: $table.tradeScopeId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get milestoneId => $composableBuilder(
+    column: $table.milestoneId,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get quoteId =>
       $composableBuilder(column: $table.quoteId, builder: (column) => column);
 
@@ -37191,7 +38261,9 @@ class $$InvoicesTableTableManager
               ({
                 Value<String> id = const Value.absent(),
                 Value<String> companyId = const Value.absent(),
-                Value<String> jobId = const Value.absent(),
+                Value<String?> jobId = const Value.absent(),
+                Value<String?> tradeScopeId = const Value.absent(),
+                Value<String?> milestoneId = const Value.absent(),
                 Value<String?> quoteId = const Value.absent(),
                 Value<String> invoiceNumber = const Value.absent(),
                 Value<String> status = const Value.absent(),
@@ -37210,6 +38282,8 @@ class $$InvoicesTableTableManager
                 id: id,
                 companyId: companyId,
                 jobId: jobId,
+                tradeScopeId: tradeScopeId,
+                milestoneId: milestoneId,
                 quoteId: quoteId,
                 invoiceNumber: invoiceNumber,
                 status: status,
@@ -37229,7 +38303,9 @@ class $$InvoicesTableTableManager
               ({
                 Value<String> id = const Value.absent(),
                 required String companyId,
-                required String jobId,
+                Value<String?> jobId = const Value.absent(),
+                Value<String?> tradeScopeId = const Value.absent(),
+                Value<String?> milestoneId = const Value.absent(),
                 Value<String?> quoteId = const Value.absent(),
                 required String invoiceNumber,
                 Value<String> status = const Value.absent(),
@@ -37248,6 +38324,8 @@ class $$InvoicesTableTableManager
                 id: id,
                 companyId: companyId,
                 jobId: jobId,
+                tradeScopeId: tradeScopeId,
+                milestoneId: milestoneId,
                 quoteId: quoteId,
                 invoiceNumber: invoiceNumber,
                 status: status,
@@ -47107,6 +48185,482 @@ typedef $$PunchListItemsTableProcessedTableManager =
         bool tradeScopeId,
       })
     >;
+typedef $$BillingMilestonesTableCreateCompanionBuilder =
+    BillingMilestonesCompanion Function({
+      Value<String> id,
+      required String companyId,
+      required String tradeScopeId,
+      required String name,
+      required double percentage,
+      Value<String?> description,
+      Value<bool> isInvoiced,
+      Value<int> sortOrder,
+      Value<int> version,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+typedef $$BillingMilestonesTableUpdateCompanionBuilder =
+    BillingMilestonesCompanion Function({
+      Value<String> id,
+      Value<String> companyId,
+      Value<String> tradeScopeId,
+      Value<String> name,
+      Value<double> percentage,
+      Value<String?> description,
+      Value<bool> isInvoiced,
+      Value<int> sortOrder,
+      Value<int> version,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+
+final class $$BillingMilestonesTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $BillingMilestonesTable,
+          BillingMilestone
+        > {
+  $$BillingMilestonesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $CompaniesTable _companyIdTable(_$AppDatabase db) =>
+      db.companies.createAlias(
+        $_aliasNameGenerator(db.billingMilestones.companyId, db.companies.id),
+      );
+
+  $$CompaniesTableProcessedTableManager get companyId {
+    final $_column = $_itemColumn<String>('company_id')!;
+
+    final manager = $$CompaniesTableTableManager(
+      $_db,
+      $_db.companies,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_companyIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$BillingMilestonesTableFilterComposer
+    extends Composer<_$AppDatabase, $BillingMilestonesTable> {
+  $$BillingMilestonesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tradeScopeId => $composableBuilder(
+    column: $table.tradeScopeId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get percentage => $composableBuilder(
+    column: $table.percentage,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isInvoiced => $composableBuilder(
+    column: $table.isInvoiced,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$CompaniesTableFilterComposer get companyId {
+    final $$CompaniesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.companyId,
+      referencedTable: $db.companies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CompaniesTableFilterComposer(
+            $db: $db,
+            $table: $db.companies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$BillingMilestonesTableOrderingComposer
+    extends Composer<_$AppDatabase, $BillingMilestonesTable> {
+  $$BillingMilestonesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get tradeScopeId => $composableBuilder(
+    column: $table.tradeScopeId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get percentage => $composableBuilder(
+    column: $table.percentage,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isInvoiced => $composableBuilder(
+    column: $table.isInvoiced,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$CompaniesTableOrderingComposer get companyId {
+    final $$CompaniesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.companyId,
+      referencedTable: $db.companies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CompaniesTableOrderingComposer(
+            $db: $db,
+            $table: $db.companies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$BillingMilestonesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BillingMilestonesTable> {
+  $$BillingMilestonesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get tradeScopeId => $composableBuilder(
+    column: $table.tradeScopeId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<double> get percentage => $composableBuilder(
+    column: $table.percentage,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isInvoiced => $composableBuilder(
+    column: $table.isInvoiced,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  GeneratedColumn<int> get version =>
+      $composableBuilder(column: $table.version, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  $$CompaniesTableAnnotationComposer get companyId {
+    final $$CompaniesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.companyId,
+      referencedTable: $db.companies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CompaniesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.companies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$BillingMilestonesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $BillingMilestonesTable,
+          BillingMilestone,
+          $$BillingMilestonesTableFilterComposer,
+          $$BillingMilestonesTableOrderingComposer,
+          $$BillingMilestonesTableAnnotationComposer,
+          $$BillingMilestonesTableCreateCompanionBuilder,
+          $$BillingMilestonesTableUpdateCompanionBuilder,
+          (BillingMilestone, $$BillingMilestonesTableReferences),
+          BillingMilestone,
+          PrefetchHooks Function({bool companyId})
+        > {
+  $$BillingMilestonesTableTableManager(
+    _$AppDatabase db,
+    $BillingMilestonesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BillingMilestonesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BillingMilestonesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$BillingMilestonesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> companyId = const Value.absent(),
+                Value<String> tradeScopeId = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<double> percentage = const Value.absent(),
+                Value<String?> description = const Value.absent(),
+                Value<bool> isInvoiced = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<int> version = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => BillingMilestonesCompanion(
+                id: id,
+                companyId: companyId,
+                tradeScopeId: tradeScopeId,
+                name: name,
+                percentage: percentage,
+                description: description,
+                isInvoiced: isInvoiced,
+                sortOrder: sortOrder,
+                version: version,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                required String companyId,
+                required String tradeScopeId,
+                required String name,
+                required double percentage,
+                Value<String?> description = const Value.absent(),
+                Value<bool> isInvoiced = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<int> version = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => BillingMilestonesCompanion.insert(
+                id: id,
+                companyId: companyId,
+                tradeScopeId: tradeScopeId,
+                name: name,
+                percentage: percentage,
+                description: description,
+                isInvoiced: isInvoiced,
+                sortOrder: sortOrder,
+                version: version,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$BillingMilestonesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({companyId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (companyId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.companyId,
+                                referencedTable:
+                                    $$BillingMilestonesTableReferences
+                                        ._companyIdTable(db),
+                                referencedColumn:
+                                    $$BillingMilestonesTableReferences
+                                        ._companyIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$BillingMilestonesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $BillingMilestonesTable,
+      BillingMilestone,
+      $$BillingMilestonesTableFilterComposer,
+      $$BillingMilestonesTableOrderingComposer,
+      $$BillingMilestonesTableAnnotationComposer,
+      $$BillingMilestonesTableCreateCompanionBuilder,
+      $$BillingMilestonesTableUpdateCompanionBuilder,
+      (BillingMilestone, $$BillingMilestonesTableReferences),
+      BillingMilestone,
+      PrefetchHooks Function({bool companyId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -47182,4 +48736,6 @@ class $AppDatabaseManager {
       $$SiteWalkFlagsTableTableManager(_db, _db.siteWalkFlags);
   $$PunchListItemsTableTableManager get punchListItems =>
       $$PunchListItemsTableTableManager(_db, _db.punchListItems);
+  $$BillingMilestonesTableTableManager get billingMilestones =>
+      $$BillingMilestonesTableTableManager(_db, _db.billingMilestones);
 }

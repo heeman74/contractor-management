@@ -21,7 +21,12 @@ class Quotes extends Table {
   TextColumn get companyId => text().references(Companies, #id)();
 
   /// FK to Jobs.id — the job this quote belongs to.
-  TextColumn get jobId => text()();
+  /// Nullable for trade-scoped quotes that are not tied to a specific job.
+  TextColumn get jobId => text().nullable()();
+
+  /// Soft FK to TradeScopes.id — the trade scope this quote belongs to.
+  /// Populated for per-trade quotes; null for legacy job-based quotes.
+  TextColumn get tradeScopeId => text().nullable()();
 
   /// Lifecycle state: draft | sent | viewed | approved | declined | expired.
   TextColumn get status => text().withDefault(const Constant('draft'))();

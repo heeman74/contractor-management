@@ -18,6 +18,7 @@ import '../../features/projects/data/task_inspection_dao.dart';
 import '../../features/projects/data/task_note_dao.dart';
 import '../../features/projects/data/site_walk_flag_dao.dart';
 import '../../features/projects/data/punch_list_item_dao.dart';
+import '../../features/billing_milestones/data/billing_milestone_dao.dart';
 import '../../features/projects/data/trade_catalog_dao.dart';
 import '../../features/projects/data/trade_scope_dao.dart';
 import '../../features/quotes/data/quote_dao.dart';
@@ -63,6 +64,7 @@ import 'tables/chat_read_receipts.dart';
 import 'tables/task_inspections.dart';
 import 'tables/site_walk_flags.dart';
 import 'tables/punch_list_items.dart';
+import 'tables/billing_milestones.dart';
 
 export '../../features/company/data/company_dao.dart';
 export '../../features/invoices/data/invoice_dao.dart';
@@ -79,6 +81,7 @@ export '../../features/projects/data/task_inspection_dao.dart';
 export '../../features/projects/data/task_note_dao.dart';
 export '../../features/projects/data/site_walk_flag_dao.dart';
 export '../../features/projects/data/punch_list_item_dao.dart';
+export '../../features/billing_milestones/data/billing_milestone_dao.dart';
 export '../../features/projects/data/trade_catalog_dao.dart';
 export '../../features/projects/data/trade_scope_dao.dart';
 export '../../features/quotes/data/quote_dao.dart';
@@ -127,6 +130,7 @@ part 'app_database.g.dart';
     TaskInspections,
     SiteWalkFlags,
     PunchListItems,
+    BillingMilestones,
   ],
   daos: [
     CompanyDao,
@@ -153,6 +157,7 @@ part 'app_database.g.dart';
     TaskInspectionDao,
     SiteWalkFlagDao,
     PunchListItemDao,
+    BillingMilestoneDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -160,7 +165,7 @@ class AppDatabase extends _$AppDatabase {
       : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -258,6 +263,25 @@ class AppDatabase extends _$AppDatabase {
             // Add inspectionChecklist column to TradeScopes for per-scope checklists
             await _addColumnIfMissing(m, 'trade_scopes', 'inspection_checklist',
                 tradeScopes, tradeScopes.inspectionChecklist);
+          }
+          if (from < 13) {
+            // Phase 25: Per-trade billing data layer
+            // Create BillingMilestones table for trade-scoped payment trigger points
+            await m.createTable(billingMilestones);
+            // Add tradeScopeId to quotes for per-trade quoting
+            await customStatement(
+                'ALTER TABLE quotes ADD COLUMN trade_scope_id TEXT');
+            // Add tradeScopeId to invoices for per-trade invoicing
+            await customStatement(
+                'ALTER TABLE invoices ADD COLUMN trade_scope_id TEXT');
+            // Add milestoneId to invoices for milestone-linked invoice generation
+            await customStatement(
+                'ALTER TABLE invoices ADD COLUMN milestone_id TEXT');
+            // Note: jobId is now nullable on quotes and invoices.
+            // SQLite TEXT columns are inherently nullable — existing NOT NULL
+            // constraint is relaxed by alterTable rewrite.
+            await m.alterTable(TableMigration(quotes));
+            await m.alterTable(TableMigration(invoices));
           }
         },
       );
