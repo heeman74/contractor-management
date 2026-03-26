@@ -13,10 +13,11 @@ from app.core.rate_limit import limiter
 from app.core.tenant import TenantMiddleware
 from app.features.ai.router import router as ai_router
 from app.features.auth.router import router as auth_router
+from app.features.billing_milestones.router import router as billing_milestones_router
 from app.features.chat.router import router as chat_router
-from app.features.inspection.router import inspection_router
 from app.features.companies.router import router as companies_router
 from app.features.files.router import router as files_router
+from app.features.inspection.router import inspection_router
 from app.features.invoices.router import router as invoices_router
 from app.features.jobs.crm_router import router as crm_router
 from app.features.jobs.router import router as jobs_router
@@ -128,6 +129,8 @@ app.include_router(ai_router, prefix="/api/v1")
 app.include_router(chat_router, prefix="/api/v1")
 # Phase 24: GC inspection workflow — task inspection, site walk flags, punch list items
 app.include_router(inspection_router, prefix="/api/v1")
+# Phase 25: per-trade billing — billing milestones CRUD under trade scopes
+app.include_router(billing_milestones_router, prefix="/api/v1")
 # Phase 8: business operations — quotes, invoices, and reporting
 app.include_router(quotes_router, prefix="/api/v1")
 app.include_router(invoices_router, prefix="/api/v1")
