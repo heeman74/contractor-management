@@ -274,4 +274,12 @@ abstract final class RouteNames {
   /// Build the photo annotation path for a specific task attachment.
   static String photoAnnotationPath(String taskId, String attachmentId) =>
       '/tasks/$taskId/photos/$attachmentId/annotate';
+
+  // --- Phase 26: AI daily checklist routes ---
+
+  /// Contractor daily checklist — AI-generated morning task list.
+  ///
+  /// Shows today's tasks with priority, materials, photo requirements.
+  /// Navigate via: context.push(RouteNames.dailyChecklist)
+  static const dailyChecklist = '/daily-checklist';
 }

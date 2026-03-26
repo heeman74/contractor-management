@@ -116,6 +116,12 @@ class _AuthenticatedHome extends StatelessWidget {
           if (roles.contains(UserRole.contractor)) ...[
             const _SectionHeader('Contractor Features'),
             _QuickLink(
+              icon: Icons.checklist_outlined,
+              title: "Today's Checklist",
+              subtitle: "View your AI-generated daily task list",
+              onTap: () => context.push(RouteNames.dailyChecklist),
+            ),
+            _QuickLink(
               icon: Icons.work_outline,
               title: 'My Jobs',
               subtitle: 'View assigned jobs and update status',
