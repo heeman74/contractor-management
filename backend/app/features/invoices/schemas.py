@@ -58,9 +58,15 @@ class InvoiceLineItemResponse(BaseResponseSchema):
 
 
 class InvoiceCreate(BaseModel):
-    """Schema for creating a new invoice on a job."""
+    """Schema for creating a new invoice on a job or trade scope.
 
-    job_id: uuid.UUID
+    Either job_id or trade_scope_id must be provided (not both None).
+    Phase 25: trade_scope_id and milestone_id enable per-trade invoicing.
+    """
+
+    job_id: uuid.UUID | None = None
+    trade_scope_id: uuid.UUID | None = None
+    milestone_id: uuid.UUID | None = None
     quote_id: uuid.UUID | None = None
     tax_rate: Decimal = Field(default=Decimal("0"), ge=0, le=100, decimal_places=2)
     discount_type: Literal["percent", "fixed"] | None = None
@@ -70,8 +76,10 @@ class InvoiceCreate(BaseModel):
     line_items: list[InvoiceLineItemCreate] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def validate_discount(self) -> "InvoiceCreate":
-        """If discount_value > 0, discount_type must be set."""
+    def validate_fields(self) -> "InvoiceCreate":
+        """Validate job/scope linkage and discount consistency."""
+        if self.job_id is None and self.trade_scope_id is None:
+            raise ValueError("Either job_id or trade_scope_id must be provided")
         if self.discount_value > 0 and self.discount_type is None:
             raise ValueError("discount_type is required when discount_value is set")
         if self.discount_type == "percent" and self.discount_value > 100:
@@ -120,7 +128,9 @@ class InvoiceResponse(BaseResponseSchema):
     """Full invoice response including all audit fields and computed totals."""
 
     company_id: uuid.UUID
-    job_id: uuid.UUID
+    job_id: uuid.UUID | None
+    trade_scope_id: uuid.UUID | None = None
+    milestone_id: uuid.UUID | None = None
     quote_id: uuid.UUID | None
     invoice_number: str
     status: str

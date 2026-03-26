@@ -58,9 +58,14 @@ class QuoteLineItemResponse(BaseResponseSchema):
 
 
 class QuoteCreate(BaseModel):
-    """Schema for creating a new quote on a job."""
+    """Schema for creating a new quote on a job or trade scope.
 
-    job_id: uuid.UUID
+    Either job_id or trade_scope_id must be provided (not both None).
+    Phase 25: trade_scope_id enables per-trade quoting.
+    """
+
+    job_id: uuid.UUID | None = None
+    trade_scope_id: uuid.UUID | None = None
     tax_rate: Decimal = Field(default=Decimal("0"), ge=0, le=100, decimal_places=2)
     discount_type: Literal["percent", "fixed"] | None = None
     discount_value: Decimal = Field(default=Decimal("0"), ge=0, decimal_places=2)
@@ -69,8 +74,10 @@ class QuoteCreate(BaseModel):
     line_items: list[QuoteLineItemCreate] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def validate_discount(self) -> "QuoteCreate":
-        """If discount_value > 0, discount_type must be set."""
+    def validate_fields(self) -> "QuoteCreate":
+        """Validate job/scope linkage and discount consistency."""
+        if self.job_id is None and self.trade_scope_id is None:
+            raise ValueError("Either job_id or trade_scope_id must be provided")
         if self.discount_value > 0 and self.discount_type is None:
             raise ValueError("discount_type is required when discount_value is set")
         if self.discount_type == "percent" and self.discount_value > 100:
@@ -120,7 +127,8 @@ class QuoteResponse(BaseResponseSchema):
     """Full quote response including all audit fields and computed totals."""
 
     company_id: uuid.UUID
-    job_id: uuid.UUID
+    job_id: uuid.UUID | None
+    trade_scope_id: uuid.UUID | None = None
     status: str
     revision_number: int
     tax_rate: Decimal

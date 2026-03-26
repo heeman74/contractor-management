@@ -27,6 +27,7 @@ from app.core.base_models import TenantScopedModel
 if TYPE_CHECKING:
     from app.features.invoices.models import Invoice
     from app.features.jobs.models import Job
+    from app.features.projects.models import TradeScope
 
 
 class Quote(TenantScopedModel):
@@ -37,18 +38,27 @@ class Quote(TenantScopedModel):
     discount_type: 'percent' or 'fixed' (NULL = no discount applied)
     discount_value: amount or percent depending on discount_type
 
+    job_id: nullable — either job_id or trade_scope_id must be set (schema validator enforces this)
+    trade_scope_id: nullable — set for per-trade quotes (Phase 25)
+
     Relationships:
-    - job: many-to-one — each quote belongs to one job
+    - job: many-to-one (nullable) — each quote may belong to one job
+    - trade_scope: many-to-one (nullable) — or to one trade scope
     - line_items: one-to-many — items ordered by sort_order
     - invoices: one-to-many — invoices generated from this quote (may be zero)
     """
 
     __tablename__ = "quotes"
 
-    job_id: Mapped[uuid.UUID] = mapped_column(
+    job_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("jobs.id"),
-        nullable=False,
+        nullable=True,
+    )
+    trade_scope_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("trade_scopes.id", ondelete="SET NULL"),
+        nullable=True,
     )
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="draft")
     revision_number: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
@@ -78,9 +88,14 @@ class Quote(TenantScopedModel):
     )
 
     # Relationships — lazy="raise" to surface accidental lazy loads loudly
-    job: Mapped[Job] = relationship(  # type: ignore[name-defined]
+    job: Mapped[Job | None] = relationship(  # type: ignore[name-defined]
         "Job",
         foreign_keys=[job_id],
+        lazy="raise",
+    )
+    trade_scope: Mapped[TradeScope | None] = relationship(  # type: ignore[name-defined]
+        "TradeScope",
+        foreign_keys=[trade_scope_id],
         lazy="raise",
     )
     line_items: Mapped[list[QuoteLineItem]] = relationship(
