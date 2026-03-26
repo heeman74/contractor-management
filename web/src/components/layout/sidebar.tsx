@@ -13,6 +13,7 @@ import {
   Users,
   HardHat,
   BarChart3,
+  Activity,
   ChevronLeft,
   ChevronRight,
   Menu,
@@ -34,6 +35,7 @@ import {
 
 const navItems = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
+  { label: "Monitoring", href: "/monitoring", icon: Activity },
   { label: "Jobs", href: "/jobs", icon: Briefcase },
   { label: "Projects", href: "/projects", icon: FolderKanban },
   { label: "Schedule", href: "/schedule", icon: Calendar },
