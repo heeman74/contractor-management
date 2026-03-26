@@ -175,6 +175,8 @@ async def clean_tables(test_engine):
                 "task_inspections, "
                 "punch_list_items, "
                 "site_walk_flags, "
+                # Phase 25 billing tables (reference trade_scopes)
+                "billing_milestones, "
                 # Auth + core tables
                 "refresh_tokens, "
                 "user_roles, "
