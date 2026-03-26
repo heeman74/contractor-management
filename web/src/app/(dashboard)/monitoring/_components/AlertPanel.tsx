@@ -1,0 +1,182 @@
+"use client";
+
+import { useEffect, useRef } from "react";
+import { Info, AlertTriangle, AlertOctagon, CheckCircle2 } from "lucide-react";
+import {
+  useDashboardAlerts,
+  useMarkAlertRead,
+  useAcceptRescheduling,
+  useDismissAlert,
+} from "@/lib/hooks/useDashboard";
+import type { DashboardAlert } from "@/lib/types/dashboard";
+
+interface AlertPanelProps {
+  projectId?: string;
+}
+
+// Severity icon config
+const severityConfig = {
+  info: {
+    Icon: Info,
+    iconClass: "text-blue-500",
+    borderClass: "border-l-blue-400",
+  },
+  warning: {
+    Icon: AlertTriangle,
+    iconClass: "text-amber-500",
+    borderClass: "border-l-amber-400",
+  },
+  critical: {
+    Icon: AlertOctagon,
+    iconClass: "text-red-500",
+    borderClass: "border-l-red-400",
+  },
+} as const;
+
+interface AlertCardProps {
+  alert: DashboardAlert;
+}
+
+function AlertCard({ alert }: AlertCardProps) {
+  const markRead = useMarkAlertRead();
+  const acceptRescheduling = useAcceptRescheduling();
+  const dismissAlert = useDismissAlert();
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  // Mark as read when card scrolls into view
+  useEffect(() => {
+    if (alert.is_read) return;
+    const el = cardRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          markRead.mutate(alert.id);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.5 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [alert.id, alert.is_read, markRead]);
+
+  const config =
+    severityConfig[alert.severity] ?? severityConfig.info;
+  const { Icon, iconClass, borderClass } = config;
+
+  const isPendingRescheduling =
+    alert.alert_type === "rescheduling_suggestion" &&
+    alert.rescheduling_accepted === null;
+
+  return (
+    <div
+      ref={cardRef}
+      className={`rounded-lg border border-gray-200 border-l-4 ${borderClass} bg-white p-3 shadow-sm ${
+        !alert.is_read ? "bg-indigo-50/30" : ""
+      }`}
+    >
+      <div className="flex items-start gap-2">
+        <Icon className={`mt-0.5 h-4 w-4 flex-shrink-0 ${iconClass}`} />
+        <div className="flex-1 min-w-0">
+          {/* Impact text */}
+          <p className="text-xs font-medium text-gray-900 leading-snug">
+            {alert.impact_text}
+          </p>
+
+          {/* Days behind */}
+          {alert.days_behind !== null && alert.days_behind > 0 && (
+            <p className="mt-0.5 text-xs text-red-600">
+              {alert.days_behind} day{alert.days_behind !== 1 ? "s" : ""} behind schedule
+            </p>
+          )}
+
+          {/* Remediation text */}
+          {alert.remediation_text && (
+            <p className="mt-1 text-xs italic text-gray-500 leading-snug">
+              {alert.remediation_text}
+            </p>
+          )}
+
+          {/* Rescheduling action buttons */}
+          {isPendingRescheduling && (
+            <div className="mt-2 flex gap-2">
+              <button
+                onClick={() => acceptRescheduling.mutate(alert.id)}
+                disabled={acceptRescheduling.isPending}
+                className="rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+              >
+                {acceptRescheduling.isPending ? "Applying..." : "Accept Rescheduling"}
+              </button>
+              <button
+                onClick={() => dismissAlert.mutate(alert.id)}
+                disabled={dismissAlert.isPending}
+                className="rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+
+          {/* Applied state */}
+          {alert.rescheduling_accepted === true && (
+            <div className="mt-2 flex items-center gap-1 text-xs text-green-600 font-medium">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              <span>Applied</span>
+            </div>
+          )}
+
+          {/* Dismissed state */}
+          {alert.rescheduling_accepted === false && (
+            <p className="mt-1 text-xs text-gray-400">Dismissed</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function AlertPanel({ projectId }: AlertPanelProps) {
+  const { data: alerts, isLoading, isError } = useDashboardAlerts(projectId);
+
+  const unreadCount = alerts?.filter((a) => !a.is_read).length ?? 0;
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+        <h2 className="text-sm font-semibold text-gray-900">AI Alerts</h2>
+        {unreadCount > 0 && (
+          <span className="inline-flex items-center rounded-full bg-indigo-600 px-2 py-0.5 text-xs font-medium text-white">
+            {unreadCount} new
+          </span>
+        )}
+      </div>
+
+      {/* Alert list */}
+      <div className="max-h-[600px] overflow-y-auto p-3 space-y-2">
+        {isLoading ? (
+          <>
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-20 animate-pulse rounded-lg bg-gray-100" />
+            ))}
+          </>
+        ) : isError ? (
+          <p className="py-4 text-center text-xs text-red-500">
+            Failed to load alerts.
+          </p>
+        ) : !alerts || alerts.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-8 text-center">
+            <CheckCircle2 className="h-8 w-8 text-green-400" />
+            <p className="text-sm text-gray-500">
+              No alerts — all projects on track
+            </p>
+          </div>
+        ) : (
+          alerts.map((alert) => <AlertCard key={alert.id} alert={alert} />)
+        )}
+      </div>
+    </div>
+  );
+}
