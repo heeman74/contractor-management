@@ -416,6 +416,82 @@ class NotificationService(BaseService[DeviceToken]):
                 task_id,
             )
 
+    async def send_checklist_notification(
+        self,
+        contractor_id: uuid.UUID,
+        summary_text: str,
+        checklist_id: uuid.UUID,
+    ) -> None:
+        """Fire-and-forget FCM to contractor with their AI-generated daily checklist.
+
+        Follows the exact fire-and-forget pattern of send_task_rejection_notification:
+        - Skips gracefully if GOOGLE_APPLICATION_CREDENTIALS is not set.
+        - UnregisteredError: cleans up stale token.
+        - Any other error: logged but never raised (never blocks checklist generation).
+
+        Args:
+            contractor_id:  UUID of the contractor assigned to this checklist.
+            summary_text:   Short text for FCM body ("You have 5 tasks today: ...").
+            checklist_id:   UUID of the DailyChecklist record (for deep-link data payload).
+        """
+        firebase_app = _get_firebase_app()
+        if firebase_app is None:
+            logger.debug(
+                "FCM not configured — skipping checklist notification for contractor %s",
+                contractor_id,
+            )
+            return
+        try:
+            from firebase_admin import messaging
+
+            tokens = await self.repository.get_tokens_for_user(contractor_id)
+            if not tokens:
+                logger.debug(
+                    "No device tokens for contractor %s — skipping checklist notification",
+                    contractor_id,
+                )
+                return
+
+            title = "Your Daily Checklist is Ready"
+            data_payload = {
+                "type": "daily_checklist",
+                "checklist_id": str(checklist_id),
+            }
+
+            loop = asyncio.get_event_loop()
+            for device_token in tokens:
+                try:
+                    message = messaging.Message(
+                        notification=messaging.Notification(title=title, body=summary_text),
+                        data=data_payload,
+                        token=device_token.token,
+                    )
+                    await loop.run_in_executor(_fcm_executor, messaging.send, message)
+                    logger.debug(
+                        "Checklist FCM sent to contractor %s token %s... checklist %s",
+                        contractor_id,
+                        device_token.token[:12],
+                        checklist_id,
+                    )
+                except messaging.UnregisteredError:
+                    logger.info(
+                        "FCM token unregistered — removing %s... for contractor %s",
+                        device_token.token[:12],
+                        contractor_id,
+                    )
+                    await self.repository.delete_token(device_token.token)
+                except Exception:  # noqa: BLE001
+                    logger.exception(
+                        "FCM checklist send failed for token %s... contractor %s",
+                        device_token.token[:12],
+                        contractor_id,
+                    )
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                "send_checklist_notification failed for contractor %s — continuing",
+                contractor_id,
+            )
+
     async def _send_to_token(
         self,
         *,

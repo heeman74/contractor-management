@@ -10,12 +10,15 @@ from starlette.types import Scope, Send
 from app.core.base_middleware import ASGIMiddleware
 from app.core.config import settings
 from app.core.rate_limit import limiter
+from app.core.scheduler import lifespan
 from app.core.tenant import TenantMiddleware
 from app.features.ai.router import router as ai_router
 from app.features.auth.router import router as auth_router
 from app.features.billing_milestones.router import router as billing_milestones_router
 from app.features.chat.router import router as chat_router
+from app.features.checklists.router import router as checklists_router
 from app.features.companies.router import router as companies_router
+from app.features.dashboard.router import router as dashboard_router
 from app.features.files.router import router as files_router
 from app.features.inspection.router import inspection_router
 from app.features.invoices.router import router as invoices_router
@@ -48,6 +51,7 @@ app = FastAPI(
     # Disable Swagger/ReDoc in production
     docs_url="/docs" if settings.debug else None,
     redoc_url="/redoc" if settings.debug else None,
+    lifespan=lifespan,
 )
 
 app.state.limiter = limiter
@@ -133,6 +137,9 @@ app.include_router(chat_router, prefix="/api/v1")
 app.include_router(inspection_router, prefix="/api/v1")
 # Phase 25: per-trade billing — billing milestones CRUD under trade scopes
 app.include_router(billing_milestones_router, prefix="/api/v1")
+# Phase 26: AI daily checklists and GC monitoring dashboard
+app.include_router(checklists_router, prefix="/api/v1")
+app.include_router(dashboard_router, prefix="/api/v1")
 # Phase 8: business operations — quotes, invoices, and reporting
 app.include_router(quotes_router, prefix="/api/v1")
 app.include_router(invoices_router, prefix="/api/v1")
