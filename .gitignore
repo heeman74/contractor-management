@@ -12,3 +12,9 @@ __pycache__/
 
 # OS
 .DS_Store
+
+# User uploads (runtime data, not source code)
+backend/uploads/
+
+# Claude Code agent worktrees (temporary parallel execution copies)
+.claude/worktrees/
