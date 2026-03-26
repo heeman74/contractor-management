@@ -20,7 +20,7 @@ Requirements for AI-Driven Construction Management milestone. Each maps to roadm
 - [x] **AI-01**: GC can describe a project in natural language and AI breaks it into trade scopes with suggested sequencing
 - [x] **AI-02**: AI asks follow-up questions to clarify project scope before generating trade breakdown
 - [x] **AI-03**: AI interviews each trade contractor with trade-specific questions to generate detailed task plans
-- [ ] **AI-04**: AI generates daily checklists per trade with tasks, materials needed, and photo requirements
+- [x] **AI-04**: AI generates daily checklists per trade with tasks, materials needed, and photo requirements
 - [ ] **AI-05**: AI adapts schedules based on actual progress — flags delays and suggests rescheduling
 - [x] **AI-06**: AI detects cross-trade conflicts (e.g., two trades needing same space on same day)
 
@@ -107,7 +107,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AI-01 | Phase 21 | Complete |
 | AI-02 | Phase 21 | Complete |
 | AI-03 | Phase 21 | Complete |
-| AI-04 | Phase 26 | Pending |
+| AI-04 | Phase 26 | Complete |
 | AI-05 | Phase 26 | Pending |
 | AI-06 | Phase 20 | Complete |
 | TASK-01 | Phase 22 | Complete |

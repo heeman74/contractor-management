@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: AI-Driven Construction Management
-status: Ready to plan
-stopped_at: Phase 26 context gathered
-last_updated: "2026-03-26T06:02:36.724Z"
+status: Ready to execute
+stopped_at: Completed 26-ai-daily-checklists-and-monitoring-dashboard-01-PLAN.md
+last_updated: "2026-03-26T17:55:56.279Z"
 progress:
   total_phases: 14
   completed_phases: 11
-  total_plans: 63
-  completed_plans: 60
+  total_plans: 67
+  completed_plans: 62
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** AI eliminates the chaos of multi-trade coordination — GCs always know where every trade stands, contractors always know what to do today, projects stay on track.
-**Current focus:** Phase 25 — per-trade-billing
+**Current focus:** Phase 26 — ai-daily-checklists-and-monitoring-dashboard
 
 ## Current Position
 
-Phase: 26
-Plan: Not started
+Phase: 26 (ai-daily-checklists-and-monitoring-dashboard) — EXECUTING
+Plan: 3 of 4
 
 ## Performance Metrics
 
@@ -71,6 +71,8 @@ Plan: Not started
 | Phase 25-per-trade-billing P01 | 306 | 2 tasks | 12 files |
 | Phase 25-per-trade-billing P02 | 397 | 2 tasks | 14 files |
 | Phase 25-per-trade-billing P05 | 120 | 2 tasks | 5 files |
+| Phase 26 P02 | 532 | 2 tasks | 12 files |
+| Phase 26 P01 | 550 | 2 tasks | 21 files |
 
 ## Accumulated Context
 
@@ -170,6 +172,12 @@ Plan: Not started
 - [Phase 25-per-trade-billing]: [Phase 25 P02]: sync handler registered via service_locator.dart + sync_engine.dart entity types list — project uses individual handler files pattern (not monolithic sync_handlers.dart)
 - [Phase 25-per-trade-billing]: Drift stream.first must be inside tester.runAsync() in testWidgets — async context required for Drift SQLite queries to resolve
 - [Phase 25-per-trade-billing]: BillingMilestoneCreate and QuoteCreate require FK fields in request body — Pydantic validates before endpoint logic can inject URL path params
+- [Phase 26]: ChecklistSyncHandler is pull-only — daily checklists are server-generated; push throws UnsupportedError to fail loudly if misused
+- [Phase 26]: DailyChecklists deletedAt is TEXT (not DateTimeColumn) to match ISO date string pattern used by checklistDate
+- [Phase 26]: todayChecklistProvider uses Future.microtask for background API fetch — avoids blocking the stream while refreshing on subscribe
+- [Phase 26]: Non-streaming Claude API for cron batch jobs — streaming SSE is only for interactive chat
+- [Phase 26]: FORCE ROW LEVEL SECURITY on daily_checklists and dashboard_alerts — prevents superuser bypass
+- [Phase 26]: Checklist upsert via PostgreSQL INSERT ON CONFLICT DO UPDATE — cron re-runs are idempotent
 
 ### Pending Todos
 
@@ -183,7 +191,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-26T06:02:36.716Z
-Stopped at: Phase 26 context gathered
+Last session: 2026-03-26T17:55:56.273Z
+Stopped at: Completed 26-ai-daily-checklists-and-monitoring-dashboard-01-PLAN.md
 Stopped at: Completed 23-real-time-chat-05-PLAN.md
-Resume file: .planning/phases/26-ai-daily-checklists-and-monitoring-dashboard/26-CONTEXT.md
+Resume file: None
