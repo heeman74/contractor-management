@@ -21,7 +21,7 @@ Requirements for AI-Driven Construction Management milestone. Each maps to roadm
 - [x] **AI-02**: AI asks follow-up questions to clarify project scope before generating trade breakdown
 - [x] **AI-03**: AI interviews each trade contractor with trade-specific questions to generate detailed task plans
 - [x] **AI-04**: AI generates daily checklists per trade with tasks, materials needed, and photo requirements
-- [ ] **AI-05**: AI adapts schedules based on actual progress — flags delays and suggests rescheduling
+- [x] **AI-05**: AI adapts schedules based on actual progress — flags delays and suggests rescheduling
 - [x] **AI-06**: AI detects cross-trade conflicts (e.g., two trades needing same space on same day)
 
 ### Task Execution
@@ -59,10 +59,10 @@ Requirements for AI-Driven Construction Management milestone. Each maps to roadm
 
 ### Monitoring Dashboard
 
-- [ ] **DASH-01**: GC can view all active projects with trade status summary on web dashboard
-- [ ] **DASH-02**: GC can see cross-trade timeline with dependency arrows and progress indicators
-- [ ] **DASH-03**: AI generates alerts when trades fall behind schedule or dependencies are at risk
-- [ ] **DASH-04**: GC can drill down from project overview to individual trade tasks
+- [x] **DASH-01**: GC can view all active projects with trade status summary on web dashboard
+- [x] **DASH-02**: GC can see cross-trade timeline with dependency arrows and progress indicators
+- [x] **DASH-03**: AI generates alerts when trades fall behind schedule or dependencies are at risk
+- [x] **DASH-04**: GC can drill down from project overview to individual trade tasks
 
 ## Future Requirements
 
@@ -108,7 +108,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AI-02 | Phase 21 | Complete |
 | AI-03 | Phase 21 | Complete |
 | AI-04 | Phase 26 | Complete |
-| AI-05 | Phase 26 | Pending |
+| AI-05 | Phase 26 | Complete |
 | AI-06 | Phase 20 | Complete |
 | TASK-01 | Phase 22 | Complete |
 | TASK-02 | Phase 22 | Complete |
@@ -131,10 +131,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | BILL-03 | Phase 25 | Complete |
 | BILL-04 | Phase 25 | Complete |
 | BILL-05 | Phase 25 | Complete |
-| DASH-01 | Phase 26 | Pending |
-| DASH-02 | Phase 26 | Pending |
-| DASH-03 | Phase 26 | Pending |
-| DASH-04 | Phase 26 | Pending |
+| DASH-01 | Phase 26 | Complete |
+| DASH-02 | Phase 26 | Complete |
+| DASH-03 | Phase 26 | Complete |
+| DASH-04 | Phase 26 | Complete |
 
 **Coverage:**
 - v3.0 requirements: 36 total (5 PROJ + 6 AI + 7 TASK + 4 INSP + 5 CHAT + 5 BILL + 4 DASH)
