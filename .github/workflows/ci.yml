@@ -92,6 +92,8 @@ jobs:
           flutter-version: "3.41.4"
           channel: stable
           cache: true
+      - name: Create placeholder .env for asset bundling
+        run: echo "# CI placeholder" > .env
       - name: Install dependencies
         run: flutter pub get
       - name: Generate code
