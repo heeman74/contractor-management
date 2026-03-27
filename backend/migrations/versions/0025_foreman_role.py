@@ -52,6 +52,7 @@ def upgrade() -> None:
 
     # RLS for project_assignments
     op.execute("ALTER TABLE project_assignments ENABLE ROW LEVEL SECURITY")
+    op.execute("ALTER TABLE project_assignments FORCE ROW LEVEL SECURITY")
     op.execute("""
         CREATE POLICY project_assignments_tenant_isolation
         ON project_assignments
@@ -89,6 +90,7 @@ def upgrade() -> None:
 
     # RLS for project_status_updates
     op.execute("ALTER TABLE project_status_updates ENABLE ROW LEVEL SECURITY")
+    op.execute("ALTER TABLE project_status_updates FORCE ROW LEVEL SECURITY")
     op.execute("""
         CREATE POLICY project_status_updates_tenant_isolation
         ON project_status_updates
