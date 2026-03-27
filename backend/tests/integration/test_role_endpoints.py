@@ -108,7 +108,7 @@ async def test_user_roles_are_tenant_scoped(tenant_a_client, tenant_b_client, se
     # Create user in Tenant A and assign admin role
     create_resp = await tenant_a_client.post(
         "/api/v1/users/",
-        json={"email": "admin@tenant-a.com"},
+        json={"email": "role-test-user@tenant-a.com"},
     )
     assert create_resp.status_code == 201
     user_a_id = create_resp.json()["id"]
