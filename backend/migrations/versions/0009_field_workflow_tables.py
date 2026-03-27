@@ -119,8 +119,7 @@ def upgrade() -> None:
     # Indexes for attachments
     op.execute(
         text(
-            "CREATE INDEX idx_attachments_note_id ON attachments (note_id) "
-            "WHERE deleted_at IS NULL"
+            "CREATE INDEX idx_attachments_note_id ON attachments (note_id) WHERE deleted_at IS NULL"
         )
     )
 
@@ -172,8 +171,7 @@ def upgrade() -> None:
     # Indexes for time_entries
     op.execute(
         text(
-            "CREATE INDEX idx_time_entries_job_id ON time_entries (job_id) "
-            "WHERE deleted_at IS NULL"
+            "CREATE INDEX idx_time_entries_job_id ON time_entries (job_id) WHERE deleted_at IS NULL"
         )
     )
     op.execute(

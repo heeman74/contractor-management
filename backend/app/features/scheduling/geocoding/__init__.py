@@ -15,8 +15,8 @@ from app.features.scheduling.geocoding.provider import (
 )
 
 __all__ = [
+    "GeocodingError",
     "GeocodingProvider",
     "GeocodingResult",
     "ORSGeocodingProvider",
-    "GeocodingError",
 ]

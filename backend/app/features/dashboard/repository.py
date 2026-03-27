@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import case, func, select
@@ -81,6 +82,31 @@ class AlertRepository(TenantScopedRepository[DashboardAlert]):
     async def dismiss_alert(self, alert_id: uuid.UUID) -> DashboardAlert | None:
         """Set rescheduling_accepted=False (dismissed without applying). Returns updated alert."""
         return await self._update_alert_fields(alert_id, rescheduling_accepted=False, is_read=True)
+
+    async def get_recent_alert_keys(
+        self,
+        company_id: uuid.UUID,
+        hours: int = 24,
+    ) -> set[tuple[uuid.UUID, uuid.UUID | None, str]]:
+        """Return (project_id, trade_scope_id, alert_type) keys for recent alerts.
+
+        Used to deduplicate schedule slip alerts — checks both read and unread
+        alerts within the given window so we don't re-create alerts hourly
+        after a GC reads them.
+        """
+        dedup_cutoff = datetime.now(UTC) - timedelta(hours=hours)
+        stmt = select(
+            DashboardAlert.project_id,
+            DashboardAlert.trade_scope_id,
+            DashboardAlert.alert_type,
+        ).where(
+            DashboardAlert.company_id == company_id,
+            DashboardAlert.deleted_at.is_(None),
+            DashboardAlert.alert_type == "schedule_slip",
+            DashboardAlert.created_at >= dedup_cutoff,
+        )
+        result = await self.db.execute(stmt)
+        return {(row[0], row[1], row[2]) for row in result.all()}
 
     async def count_active_for_project(self, project_id: uuid.UUID) -> int:
         """Count unread alerts for a project (used in ProjectStatusCard)."""

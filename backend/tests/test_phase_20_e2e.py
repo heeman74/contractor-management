@@ -79,11 +79,10 @@ async def create_dependency(
     dep_type: str = "FS",
 ) -> dict:
     """Create a dependency edge and return the response JSON."""
-    resp = await client.post(
+    return await client.post(
         f"/api/v1/tasks/{successor_id}/dependencies",
         json={"predecessor_task_id": predecessor_id, "dependency_type": dep_type},
     )
-    return resp
 
 
 # ---------------------------------------------------------------------------
@@ -94,9 +93,7 @@ async def create_dependency(
 class TestDependencyCreation:
     """Basic dependency CRUD."""
 
-    async def test_create_fs_dependency(
-        self, tenant_a_client: AsyncClient, seed_two_tenants: dict
-    ):
+    async def test_create_fs_dependency(self, tenant_a_client: AsyncClient, seed_two_tenants: dict):
         """POST creates an FS dependency edge, returns 201 with edge record."""
         project_id = await create_project(tenant_a_client, "Dep Test Project")
         scope_id = await create_scope(tenant_a_client, project_id, "Electrical")
@@ -121,16 +118,12 @@ class TestDependencyCreation:
         task_a = await create_task(tenant_a_client, scope_id, "Rough-in")
         task_b = await create_task(tenant_a_client, scope_id, "Inspect")
 
-        resp = await client_post_dep(
-            tenant_a_client, task_b, task_a, dep_type="SS", lag_days=2
-        )
+        resp = await client_post_dep(tenant_a_client, task_b, task_a, dep_type="SS", lag_days=2)
         assert resp.status_code == 201
         assert resp.json()["lag_days"] == 2
         assert resp.json()["dependency_type"] == "SS"
 
-    async def test_list_dependencies(
-        self, tenant_a_client: AsyncClient, seed_two_tenants: dict
-    ):
+    async def test_list_dependencies(self, tenant_a_client: AsyncClient, seed_two_tenants: dict):
         """GET /tasks/{id}/dependencies returns all edges for the task."""
         project_id = await create_project(tenant_a_client)
         scope_id = await create_scope(tenant_a_client, project_id, "Framing")
@@ -148,9 +141,7 @@ class TestDependencyCreation:
         edges = resp.json()
         assert len(edges) == 2
 
-    async def test_delete_dependency(
-        self, tenant_a_client: AsyncClient, seed_two_tenants: dict
-    ):
+    async def test_delete_dependency(self, tenant_a_client: AsyncClient, seed_two_tenants: dict):
         """DELETE /dependencies/{id} returns 204 and removes the edge."""
         project_id = await create_project(tenant_a_client)
         scope_id = await create_scope(tenant_a_client, project_id, "HVAC")
@@ -190,9 +181,7 @@ class TestDependencyCreation:
 class TestCycleDetection:
     """DFS cycle detection rejects circular dependency graphs."""
 
-    async def test_cycle_rejected_422(
-        self, tenant_a_client: AsyncClient, seed_two_tenants: dict
-    ):
+    async def test_cycle_rejected_422(self, tenant_a_client: AsyncClient, seed_two_tenants: dict):
         """A->B->C->A cycle returns 422 with cycle path in detail."""
         project_id = await create_project(tenant_a_client, "Cycle Test")
         scope_id = await create_scope(tenant_a_client, project_id, "General")
@@ -212,9 +201,7 @@ class TestCycleDetection:
         detail = r3.json()["detail"]
         assert "cycle" in detail or "Cycle" in str(detail)
 
-    async def test_self_loop_rejected(
-        self, tenant_a_client: AsyncClient, seed_two_tenants: dict
-    ):
+    async def test_self_loop_rejected(self, tenant_a_client: AsyncClient, seed_two_tenants: dict):
         """A task depending on itself is rejected (DB CHECK constraint or service layer)."""
         project_id = await create_project(tenant_a_client)
         scope_id = await create_scope(tenant_a_client, project_id, "Self Loop")
@@ -266,9 +253,7 @@ class TestBlockedStatus:
         assert dep_resp.status_code == 201
 
         # Check task B is now blocked
-        tasks_resp = await tenant_a_client.get(
-            f"/api/v1/tasks/?trade_scope_id={scope_id}"
-        )
+        tasks_resp = await tenant_a_client.get(f"/api/v1/tasks/?trade_scope_id={scope_id}")
         assert tasks_resp.status_code == 200
         tasks = {t["id"]: t for t in tasks_resp.json()}
         assert tasks[task_b]["status"] == "blocked"
@@ -289,9 +274,7 @@ class TestBlockedStatus:
         assert dep_resp.status_code == 201
 
         # Verify B is blocked
-        tasks_resp = await tenant_a_client.get(
-            f"/api/v1/tasks/?trade_scope_id={scope_id}"
-        )
+        tasks_resp = await tenant_a_client.get(f"/api/v1/tasks/?trade_scope_id={scope_id}")
         tasks = {t["id"]: t for t in tasks_resp.json()}
         assert tasks[task_b]["status"] == "blocked"
 
@@ -302,9 +285,7 @@ class TestBlockedStatus:
         assert update_resp.status_code == 200
 
         # Task B should now be unblocked (not_started)
-        tasks_resp2 = await tenant_a_client.get(
-            f"/api/v1/tasks/?trade_scope_id={scope_id}"
-        )
+        tasks_resp2 = await tenant_a_client.get(f"/api/v1/tasks/?trade_scope_id={scope_id}")
         tasks2 = {t["id"]: t for t in tasks_resp2.json()}
         assert tasks2[task_b]["status"] == "not_started"
 
@@ -322,9 +303,7 @@ class TestBlockedStatus:
         assert dep_resp.status_code == 201
         dep_id = dep_resp.json()["id"]
 
-        tasks_resp = await tenant_a_client.get(
-            f"/api/v1/tasks/?trade_scope_id={scope_id}"
-        )
+        tasks_resp = await tenant_a_client.get(f"/api/v1/tasks/?trade_scope_id={scope_id}")
         tasks = {t["id"]: t for t in tasks_resp.json()}
         assert tasks[task_b]["status"] == "blocked"
 
@@ -333,9 +312,7 @@ class TestBlockedStatus:
         assert del_resp.status_code == 204
 
         # Task B should now be not_started
-        tasks_resp2 = await tenant_a_client.get(
-            f"/api/v1/tasks/?trade_scope_id={scope_id}"
-        )
+        tasks_resp2 = await tenant_a_client.get(f"/api/v1/tasks/?trade_scope_id={scope_id}")
         tasks2 = {t["id"]: t for t in tasks_resp2.json()}
         assert tasks2[task_b]["status"] == "not_started"
 
@@ -352,9 +329,7 @@ class TestBlockedStatus:
         assert resp.status_code == 201
 
         # FF does not block — task_b should remain not_started
-        tasks_resp = await tenant_a_client.get(
-            f"/api/v1/tasks/?trade_scope_id={scope_id}"
-        )
+        tasks_resp = await tenant_a_client.get(f"/api/v1/tasks/?trade_scope_id={scope_id}")
         tasks = {t["id"]: t for t in tasks_resp.json()}
         assert tasks[task_b]["status"] == "not_started"
 
@@ -367,9 +342,7 @@ class TestBlockedStatus:
 class TestProjectZones:
     """Zone CRUD for conflict detection."""
 
-    async def test_create_zone(
-        self, tenant_a_client: AsyncClient, seed_two_tenants: dict
-    ):
+    async def test_create_zone(self, tenant_a_client: AsyncClient, seed_two_tenants: dict):
         """POST creates zone, returns 201 with id and project_id."""
         project_id = await create_project(tenant_a_client, "Zone Test Project")
         resp = await tenant_a_client.post(
@@ -382,9 +355,7 @@ class TestProjectZones:
         assert data["project_id"] == project_id
         assert "id" in data
 
-    async def test_list_zones(
-        self, tenant_a_client: AsyncClient, seed_two_tenants: dict
-    ):
+    async def test_list_zones(self, tenant_a_client: AsyncClient, seed_two_tenants: dict):
         """GET /projects/{id}/zones returns all zones for the project."""
         project_id = await create_project(tenant_a_client)
         await create_zone(tenant_a_client, project_id, "Bathroom")
@@ -413,9 +384,7 @@ class TestProjectZones:
         # DB UNIQUE constraint violation → 422 or 500
         assert resp.status_code in (409, 422, 500)
 
-    async def test_delete_zone(
-        self, tenant_a_client: AsyncClient, seed_two_tenants: dict
-    ):
+    async def test_delete_zone(self, tenant_a_client: AsyncClient, seed_two_tenants: dict):
         """DELETE /zones/{id} returns 204."""
         project_id = await create_project(tenant_a_client)
         zone_id = await create_zone(tenant_a_client, project_id, "Garage")
@@ -437,7 +406,7 @@ class TestProjectZones:
     ):
         """Tenant A's zones are not visible to Tenant B."""
         project_a = await create_project(tenant_a_client, "Tenant A Project")
-        zone_a = await create_zone(tenant_a_client, project_a, "Living Room")
+        _zone_a = await create_zone(tenant_a_client, project_a, "Living Room")
 
         # Tenant B tries to list Tenant A's zones — RLS returns empty
         resp = await tenant_b_client.get(f"/api/v1/projects/{project_a}/zones")
@@ -453,9 +422,7 @@ class TestProjectZones:
 class TestConflictDetection:
     """Zone-based scheduling conflict detection."""
 
-    async def test_conflict_detected(
-        self, tenant_a_client: AsyncClient, seed_two_tenants: dict
-    ):
+    async def test_conflict_detected(self, tenant_a_client: AsyncClient, seed_two_tenants: dict):
         """Two tasks from different trade scopes in the same zone on the same day → conflict."""
         project_id = await create_project(tenant_a_client, "Conflict Test Project")
         scope_elec = await create_scope(tenant_a_client, project_id, "Electrical")
@@ -463,12 +430,8 @@ class TestConflictDetection:
         zone_id = await create_zone(tenant_a_client, project_id, "Kitchen")
 
         # Both tasks in the same zone on the same day
-        await create_task(
-            tenant_a_client, scope_elec, "Install outlets", "2026-05-01", zone_id
-        )
-        await create_task(
-            tenant_a_client, scope_plumb, "Install sink", "2026-05-01", zone_id
-        )
+        await create_task(tenant_a_client, scope_elec, "Install outlets", "2026-05-01", zone_id)
+        await create_task(tenant_a_client, scope_plumb, "Install sink", "2026-05-01", zone_id)
 
         resp = await tenant_a_client.get(f"/api/v1/projects/{project_id}/conflicts")
         assert resp.status_code == 200
@@ -494,9 +457,7 @@ class TestConflictDetection:
         await create_task(
             tenant_a_client, scope_elec, "Kitchen outlets", "2026-05-01", zone_kitchen
         )
-        await create_task(
-            tenant_a_client, scope_plumb, "Bath plumbing", "2026-05-01", zone_bath
-        )
+        await create_task(tenant_a_client, scope_plumb, "Bath plumbing", "2026-05-01", zone_bath)
 
         resp = await tenant_a_client.get(f"/api/v1/projects/{project_id}/conflicts")
         assert resp.status_code == 200
@@ -511,12 +472,8 @@ class TestConflictDetection:
         scope_plumb = await create_scope(tenant_a_client, project_id, "Plumbing")
         zone_id = await create_zone(tenant_a_client, project_id, "Master Bath")
 
-        await create_task(
-            tenant_a_client, scope_elec, "Wiring", "2026-05-01", zone_id
-        )
-        await create_task(
-            tenant_a_client, scope_plumb, "Pipes", "2026-05-02", zone_id
-        )
+        await create_task(tenant_a_client, scope_elec, "Wiring", "2026-05-01", zone_id)
+        await create_task(tenant_a_client, scope_plumb, "Pipes", "2026-05-02", zone_id)
 
         resp = await tenant_a_client.get(f"/api/v1/projects/{project_id}/conflicts")
         assert resp.status_code == 200
@@ -530,20 +487,14 @@ class TestConflictDetection:
         scope_id = await create_scope(tenant_a_client, project_id, "Electrical")
         zone_id = await create_zone(tenant_a_client, project_id, "Basement")
 
-        await create_task(
-            tenant_a_client, scope_id, "Outlets", "2026-05-01", zone_id
-        )
-        await create_task(
-            tenant_a_client, scope_id, "Switches", "2026-05-01", zone_id
-        )
+        await create_task(tenant_a_client, scope_id, "Outlets", "2026-05-01", zone_id)
+        await create_task(tenant_a_client, scope_id, "Switches", "2026-05-01", zone_id)
 
         resp = await tenant_a_client.get(f"/api/v1/projects/{project_id}/conflicts")
         assert resp.status_code == 200
         assert resp.json() == []
 
-    async def test_no_conflict_no_zone(
-        self, tenant_a_client: AsyncClient, seed_two_tenants: dict
-    ):
+    async def test_no_conflict_no_zone(self, tenant_a_client: AsyncClient, seed_two_tenants: dict):
         """Tasks without zone_id set don't trigger conflicts."""
         project_id = await create_project(tenant_a_client, "No Zone")
         scope_elec = await create_scope(tenant_a_client, project_id, "Electrical")
@@ -568,18 +519,10 @@ class TestConflictDetection:
         zone_bath = await create_zone(tenant_a_client, project_id, "Bathroom")
 
         # Two separate conflicts: Kitchen on May 1, Bathroom on May 2
-        await create_task(
-            tenant_a_client, scope_elec, "Kitchen E", "2026-05-01", zone_kitchen
-        )
-        await create_task(
-            tenant_a_client, scope_plumb, "Kitchen P", "2026-05-01", zone_kitchen
-        )
-        await create_task(
-            tenant_a_client, scope_elec, "Bath E", "2026-05-02", zone_bath
-        )
-        await create_task(
-            tenant_a_client, scope_plumb, "Bath P", "2026-05-02", zone_bath
-        )
+        await create_task(tenant_a_client, scope_elec, "Kitchen E", "2026-05-01", zone_kitchen)
+        await create_task(tenant_a_client, scope_plumb, "Kitchen P", "2026-05-01", zone_kitchen)
+        await create_task(tenant_a_client, scope_elec, "Bath E", "2026-05-02", zone_bath)
+        await create_task(tenant_a_client, scope_plumb, "Bath P", "2026-05-02", zone_bath)
 
         resp = await tenant_a_client.get(f"/api/v1/projects/{project_id}/conflicts")
         assert resp.status_code == 200

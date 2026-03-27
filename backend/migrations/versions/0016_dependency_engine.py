@@ -177,17 +177,17 @@ def upgrade() -> None:
     # Indexes for efficient FK lookups
     # -------------------------------------------------------------------------
     op.execute(
-        text("CREATE INDEX idx_task_dependencies_predecessor ON task_dependencies (predecessor_task_id)")
+        text(
+            "CREATE INDEX idx_task_dependencies_predecessor ON task_dependencies (predecessor_task_id)"
+        )
     )
     op.execute(
-        text("CREATE INDEX idx_task_dependencies_successor ON task_dependencies (successor_task_id)")
+        text(
+            "CREATE INDEX idx_task_dependencies_successor ON task_dependencies (successor_task_id)"
+        )
     )
-    op.execute(
-        text("CREATE INDEX idx_project_zones_project_id ON project_zones (project_id)")
-    )
-    op.execute(
-        text("CREATE INDEX idx_tasks_zone_id ON tasks (zone_id)")
-    )
+    op.execute(text("CREATE INDEX idx_project_zones_project_id ON project_zones (project_id)"))
+    op.execute(text("CREATE INDEX idx_tasks_zone_id ON tasks (zone_id)"))
 
 
 def downgrade() -> None:
@@ -196,9 +196,7 @@ def downgrade() -> None:
         op.execute(text(f"DROP TRIGGER IF EXISTS set_updated_at ON {table}"))
 
     # Re-add depends_on before dropping task_dependencies (restore migration)
-    op.execute(
-        text("ALTER TABLE tasks ADD COLUMN depends_on JSONB NOT NULL DEFAULT '[]'::jsonb")
-    )
+    op.execute(text("ALTER TABLE tasks ADD COLUMN depends_on JSONB NOT NULL DEFAULT '[]'::jsonb"))
 
     # Restore depends_on data from task_dependencies (FS edges only)
     op.execute(

@@ -259,8 +259,6 @@ async def _seed_phase4_ace(session: AsyncSession, verbose: bool = True) -> None:
     - 4 job requests (2 pending, 1 accepted, 1 declined)
     - 2 ratings on the completed/invoiced jobs
     """
-    import json
-    import uuid
 
     from app.features.jobs.models import ClientProfile, ClientProperty, Job, JobRequest, Rating
     from app.features.scheduling.models import JobSite
@@ -411,9 +409,7 @@ async def _seed_phase4_ace(session: AsyncSession, verbose: bool = True) -> None:
         description="Replace all bathroom fixtures and re-pipe hot water",
         trade_type="plumber",
         status="in_progress",
-        status_history=_make_status_history(
-            ("quote", 14), ("scheduled", 12), ("in_progress", 1)
-        ),
+        status_history=_make_status_history(("quote", 14), ("scheduled", 12), ("in_progress", 1)),
         priority="high",
         client_id=client_alex.id,
         contractor_id=contractor_john.id,
@@ -463,9 +459,7 @@ async def _seed_phase4_ace(session: AsyncSession, verbose: bool = True) -> None:
         description="Install ducted air conditioning system (cancelled — client relocated)",
         trade_type="electrician",
         status="cancelled",
-        status_history=_make_status_history(
-            ("quote", 20), ("scheduled", 18), ("cancelled", 15)
-        ),
+        status_history=_make_status_history(("quote", 20), ("scheduled", 18), ("cancelled", 15)),
         priority="low",
         client_id=client_alex.id,
         contractor_id=contractor_jane.id,
@@ -473,8 +467,14 @@ async def _seed_phase4_ace(session: AsyncSession, verbose: bool = True) -> None:
     )
 
     all_jobs = [
-        job_quote_1, job_quote_2, job_scheduled, job_scheduled_2,
-        job_in_progress, job_complete, job_invoiced, job_cancelled,
+        job_quote_1,
+        job_quote_2,
+        job_scheduled,
+        job_scheduled_2,
+        job_in_progress,
+        job_complete,
+        job_invoiced,
+        job_cancelled,
     ]
     session.add_all(all_jobs)
     await session.flush()
@@ -538,8 +538,7 @@ async def _seed_phase4_ace(session: AsyncSession, verbose: bool = True) -> None:
     await session.flush()
     if verbose:
         print(
-            f"    [OK] Created {len(all_requests)} job requests "
-            "(2 pending, 1 accepted, 1 declined)"
+            f"    [OK] Created {len(all_requests)} job requests (2 pending, 1 accepted, 1 declined)"
         )
 
     # ------------------------------------------------------------------

@@ -79,26 +79,12 @@ class AppShell extends ConsumerWidget {
         ],
       ),
       body: navigationShell,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: currentIndex,
-        onDestinationSelected: (index) => _onTabSelected(tabs, index),
-        destinations: tabs
-            .map(
-              (tab) => NavigationDestination(
-                icon: _buildTabIcon(
-                  tab: tab,
-                  isSelected: false,
-                  overdueCount: overdueCount,
-                ),
-                selectedIcon: _buildTabIcon(
-                  tab: tab,
-                  isSelected: true,
-                  overdueCount: overdueCount,
-                ),
-                label: tab.label,
-              ),
-            )
-            .toList(),
+      bottomNavigationBar: _AdaptiveNavBar(
+        tabs: tabs,
+        currentIndex: currentIndex,
+        overdueCount: overdueCount,
+        onTabSelected: (index) => _onTabSelected(tabs, index),
+        buildTabIcon: _buildTabIcon,
       ),
     );
   }
@@ -144,6 +130,7 @@ class AppShell extends ConsumerWidget {
       ),
       const _TabItem(
         label: 'Schedule',
+        shortLabel: 'Sched',
         icon: Icons.calendar_month_outlined,
         selectedIcon: Icons.calendar_month,
         route: RouteNames.schedule,
@@ -174,6 +161,7 @@ class AppShell extends ConsumerWidget {
       if (isAdmin || isContractor)
         const _TabItem(
           label: 'Projects',
+          shortLabel: 'Proj',
           icon: Icons.folder_outlined,
           selectedIcon: Icons.folder,
           route: RouteNames.projects,
@@ -219,15 +207,113 @@ class AppShell extends ConsumerWidget {
   }
 }
 
+/// Bottom navigation bar that evenly distributes tabs regardless of count
+/// or screen width. Uses [Expanded] so each tab gets equal space.
+class _AdaptiveNavBar extends StatelessWidget {
+  const _AdaptiveNavBar({
+    required this.tabs,
+    required this.currentIndex,
+    required this.overdueCount,
+    required this.onTabSelected,
+    required this.buildTabIcon,
+  });
+
+  final List<_TabItem> tabs;
+  final int currentIndex;
+  final int overdueCount;
+  final ValueChanged<int> onTabSelected;
+  final Widget Function({
+    required _TabItem tab,
+    required bool isSelected,
+    required int overdueCount,
+  }) buildTabIcon;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainer,
+        border: Border(
+          top: BorderSide(color: colorScheme.outlineVariant, width: 0.5),
+        ),
+      ),
+      padding: EdgeInsets.only(bottom: bottomPadding),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final perTab = constraints.maxWidth / tabs.length;
+          final fontSize = perTab < 64 ? 9.0 : (perTab < 80 ? 10.0 : 12.0);
+          final iconSize = perTab < 64 ? 20.0 : 24.0;
+
+          return Row(
+            children: List.generate(tabs.length, (index) {
+              final tab = tabs[index];
+              final selected = index == currentIndex;
+              final label = perTab < 80 ? tab.shortLabel : tab.label;
+
+              return Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => onTabSelected(index),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconTheme(
+                          data: IconThemeData(
+                            size: iconSize,
+                            color: selected
+                                ? colorScheme.primary
+                                : colorScheme.onSurfaceVariant,
+                          ),
+                          child: buildTabIcon(
+                            tab: tab,
+                            isSelected: selected,
+                            overdueCount: overdueCount,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: fontSize,
+                            color: selected
+                                ? colorScheme.primary
+                                : colorScheme.onSurfaceVariant,
+                            fontWeight:
+                                selected ? FontWeight.w600 : FontWeight.normal,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+          );
+        },
+      ),
+    );
+  }
+}
+
 class _TabItem {
   const _TabItem({
     required this.label,
     required this.icon,
     required this.selectedIcon,
     required this.route,
-  });
+    String? shortLabel,
+  }) : shortLabel = shortLabel ?? label;
 
   final String label;
+  final String shortLabel;
   final IconData icon;
   final IconData selectedIcon;
   final String route;

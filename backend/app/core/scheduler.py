@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -70,21 +70,20 @@ async def _run_for_all_companies(
     semaphore = asyncio.Semaphore(AI_CONCURRENCY_LIMIT)
 
     async def _process_company(company):  # type: ignore[no-untyped-def]
-        async with semaphore:
-            async with async_session_factory() as db:
-                try:
-                    set_current_tenant_id(company.id)
-                    svc = service_class(db)
-                    await getattr(svc, method_name)(company_id=company.id, target_date=target_date)
-                    await db.commit()
-                    logger.info("%s: completed for company %s", job_name, company.id)
-                except Exception:
-                    await db.rollback()
-                    logger.exception(
-                        "%s: failed for company %s — continuing",
-                        job_name,
-                        company.id,
-                    )
+        async with semaphore, async_session_factory() as db:
+            try:
+                set_current_tenant_id(company.id)
+                svc = service_class(db)
+                await getattr(svc, method_name)(company_id=company.id, target_date=target_date)
+                await db.commit()
+                logger.info("%s: completed for company %s", job_name, company.id)
+            except Exception:
+                await db.rollback()
+                logger.exception(
+                    "%s: failed for company %s — continuing",
+                    job_name,
+                    company.id,
+                )
 
     await asyncio.gather(*[_process_company(c) for c in companies])
 
@@ -96,7 +95,7 @@ async def run_morning_checklists() -> None:
     """
     from app.features.checklists.service import ChecklistService
 
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(UTC).date()
     await _run_for_all_companies(
         job_name="run_morning_checklists",
         service_class=ChecklistService,
@@ -112,7 +111,7 @@ async def run_alert_detection() -> None:
     """
     from app.features.dashboard.service import DashboardService
 
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(UTC).date()
     await _run_for_all_companies(
         job_name="run_alert_detection",
         service_class=DashboardService,

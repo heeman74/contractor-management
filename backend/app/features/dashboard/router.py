@@ -74,11 +74,11 @@ async def get_trade_tasks(
 ) -> list[TradeTaskDetail]:
     """Return full task list for a trade scope drill-down view.
 
-    project_id is included in the path for URL consistency but not used in the query;
+    Validates that the trade scope belongs to the specified project.
     RLS ensures the trade scope belongs to the current tenant.
     """
     svc = DashboardService(db)
-    return await svc.get_trade_tasks(trade_scope_id=trade_scope_id)
+    return await svc.get_trade_tasks(trade_scope_id=trade_scope_id, project_id=project_id)
 
 
 @router.get("/alerts", response_model=list[AlertResponse])

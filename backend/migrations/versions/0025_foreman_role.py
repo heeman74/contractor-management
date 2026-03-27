@@ -13,9 +13,7 @@ Changes:
 
 from collections.abc import Sequence
 
-import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects.postgresql import JSONB
 
 # revision identifiers, used by Alembic.
 revision: str = "0025_foreman_role"
@@ -102,4 +100,3 @@ def downgrade() -> None:
     # Drop tables
     op.execute("DROP TABLE IF EXISTS project_status_updates CASCADE")
     op.execute("DROP TABLE IF EXISTS project_assignments CASCADE")
-

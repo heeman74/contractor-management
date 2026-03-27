@@ -135,9 +135,7 @@ def upgrade() -> None:
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["company_id"], ["companies.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(
-            ["trade_scope_id"], ["trade_scopes.id"], ondelete="SET NULL"
-        ),
+        sa.ForeignKeyConstraint(["trade_scope_id"], ["trade_scopes.id"], ondelete="SET NULL"),
         sa.CheckConstraint(
             "severity IN ('info','warning','critical')",
             name="dashboard_alerts_severity_check",
@@ -179,12 +177,8 @@ def downgrade() -> None:
 
     # Drop daily_checklists
     op.execute("DROP TRIGGER IF EXISTS set_updated_at ON daily_checklists")
-    op.execute(
-        "DROP POLICY IF EXISTS tenant_isolation_daily_checklists ON daily_checklists"
-    )
-    op.drop_index(
-        "ix_daily_checklists_company_contractor_date", table_name="daily_checklists"
-    )
+    op.execute("DROP POLICY IF EXISTS tenant_isolation_daily_checklists ON daily_checklists")
+    op.drop_index("ix_daily_checklists_company_contractor_date", table_name="daily_checklists")
     # BP-8: Drop partial unique index (was plain constraint, now a partial index)
     op.execute("DROP INDEX IF EXISTS uq_daily_checklist_contractor_scope_date")
     op.drop_table("daily_checklists")

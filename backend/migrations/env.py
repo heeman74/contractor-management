@@ -29,12 +29,12 @@ if database_url:
 # Alembic autogenerate has known bugs with ExcludeConstraint + TSTZRANGE
 # (GitHub issues #1184, #1230, #958). All scheduling migrations must be
 # written manually using op.execute(text("...")) raw SQL. See migration 0007.
-import app.features.auth.models  # noqa: F401, E402
-import app.features.companies.models  # noqa: F401, E402
-import app.features.jobs.models  # noqa: F401, E402
-import app.features.scheduling.models  # noqa: F401, E402
-import app.features.users.models  # noqa: F401, E402
-from app.core.database import Base  # noqa: F401, E402
+import app.features.auth.models
+import app.features.companies.models
+import app.features.jobs.models
+import app.features.scheduling.models
+import app.features.users.models  # noqa: F401
+from app.core.database import Base
 
 target_metadata = Base.metadata
 

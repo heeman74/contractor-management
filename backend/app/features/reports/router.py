@@ -25,9 +25,9 @@ from app.features.reports.service import ReportingService
 
 # isort: split
 # Side-effect imports: ensure related mappers registered before aggregate queries.
-import app.features.invoices.models  # noqa: F401
-import app.features.quotes.models  # noqa: F401
-import app.features.scheduling.models  # noqa: F401
+import app.features.invoices.models
+import app.features.quotes.models
+import app.features.scheduling.models
 import app.features.users.models  # noqa: F401
 
 router = APIRouter(prefix="/reports", tags=["reports"])

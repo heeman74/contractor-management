@@ -127,16 +127,12 @@ class TestToolValidation:
     @pytest.mark.asyncio
     async def test_clarifying_question_empty_raises(self):
         with pytest.raises(ValueError, match="question"):
-            await self.service.validate_tool_input(
-                "ask_clarifying_question", {"question": ""}
-            )
+            await self.service.validate_tool_input("ask_clarifying_question", {"question": ""})
 
     @pytest.mark.asyncio
     async def test_clarifying_question_whitespace_raises(self):
         with pytest.raises(ValueError, match="question"):
-            await self.service.validate_tool_input(
-                "ask_clarifying_question", {"question": "   "}
-            )
+            await self.service.validate_tool_input("ask_clarifying_question", {"question": "   "})
 
     @pytest.mark.asyncio
     async def test_unknown_tool_raises(self):
@@ -243,9 +239,7 @@ class TestConversationPersistence:
         assert conv_id_1 == conv_id_2
 
     @pytest.mark.asyncio
-    async def test_message_persistence(
-        self, tenant_a_client: AsyncClient, seed_two_tenants: dict
-    ):
+    async def test_message_persistence(self, tenant_a_client: AsyncClient, seed_two_tenants: dict):
         """After starting a conversation, GET /ai/conversations/{id} shows persisted messages."""
         # Start a conversation
         resp = await tenant_a_client.post("/api/v1/ai/intake/start")

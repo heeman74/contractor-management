@@ -16,8 +16,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy installed packages from builder
 COPY --from=builder /install /usr/local
 
-# Create non-root user
-RUN useradd --create-home appuser
+# Create non-root user and uploads directory
+RUN useradd --create-home appuser \
+    && mkdir -p /app/uploads/chat \
+    && chown -R appuser:appuser /app/uploads
 USER appuser
 
 COPY --chown=appuser:appuser . .

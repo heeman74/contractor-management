@@ -20,8 +20,8 @@ from app.core.base_repository import TenantScopedRepository
 # isort: split
 # Side-effect imports: ensure all referenced mappers are registered before
 # configure_mappers() triggers on Invoice relationship resolution.
-import app.features.quotes.models  # noqa: F401 — Quote mapper (Invoice.quote FK)
-import app.features.scheduling.models  # noqa: F401 — Booking mapper (Job.bookings)
+import app.features.quotes.models
+import app.features.scheduling.models
 import app.features.users.models  # noqa: F401 — User mapper (Job.client_id)
 
 # isort: split

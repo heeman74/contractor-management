@@ -141,15 +141,9 @@ def upgrade() -> None:
     # -------------------------------------------------------------------------
     # Indexes for efficient FK lookups
     # -------------------------------------------------------------------------
-    op.execute(
-        text("CREATE INDEX ix_ai_conversations_project_id ON ai_conversations (project_id)")
-    )
-    op.execute(
-        text("CREATE INDEX ix_ai_conversations_scope_id ON ai_conversations (scope_id)")
-    )
-    op.execute(
-        text("CREATE INDEX ix_ai_messages_conversation_id ON ai_messages (conversation_id)")
-    )
+    op.execute(text("CREATE INDEX ix_ai_conversations_project_id ON ai_conversations (project_id)"))
+    op.execute(text("CREATE INDEX ix_ai_conversations_scope_id ON ai_conversations (scope_id)"))
+    op.execute(text("CREATE INDEX ix_ai_messages_conversation_id ON ai_messages (conversation_id)"))
 
 
 def downgrade() -> None:

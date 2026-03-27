@@ -23,6 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.ai_utils import (
+    ACTIVE_PROJECT_STATUSES,
     DONE_STATUSES,
     call_claude_json,
     gather_with_concurrency,
@@ -35,8 +36,6 @@ from app.features.checklists.repository import ChecklistRepository
 from app.features.projects.models import Project, TradeScope
 
 logger = get_logger(__name__)
-
-ACTIVE_PROJECT_STATUSES = ("planning", "active")
 
 
 class ChecklistService(TenantScopedService[DailyChecklist]):

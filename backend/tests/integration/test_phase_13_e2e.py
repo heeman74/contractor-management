@@ -125,9 +125,12 @@ async def test_login_returns_user_id_company_id_roles(async_client):
     assert "access_token" in data
     assert "refresh_token" in data
     assert data["token_type"] == "bearer"
-    assert "user_id" in data and data["user_id"] is not None
-    assert "company_id" in data and data["company_id"] is not None
-    assert "roles" in data and isinstance(data["roles"], list)
+    assert "user_id" in data
+    assert data["user_id"] is not None
+    assert "company_id" in data
+    assert data["company_id"] is not None
+    assert "roles" in data
+    assert isinstance(data["roles"], list)
     assert len(data["roles"]) > 0
 
 

@@ -31,9 +31,7 @@ class DeviceToken(Base):
 
     __tablename__ = "device_tokens"
 
-    __table_args__ = (
-        UniqueConstraint("user_id", "token", name="uq_device_token_user_token"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "token", name="uq_device_token_user_token"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True,

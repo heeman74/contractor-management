@@ -18,7 +18,6 @@ scope_id in the body (matching the URL) to satisfy the Pydantic model_validator.
 import pytest
 from httpx import AsyncClient
 
-
 # ---------------------------------------------------------------------------
 # Helper: build a complete test dataset (project + 2 scopes + tasks)
 # ---------------------------------------------------------------------------
@@ -465,7 +464,10 @@ async def test_create_milestone(seed_two_tenants, async_client):
         scope_id = data["plumbing_scope_id"]
 
         body = await _post_milestone(
-            client, scope_id, "Mobilisation", "40.00",
+            client,
+            scope_id,
+            "Mobilisation",
+            "40.00",
             description="40% on project start",
         )
         assert body["name"] == "Mobilisation"

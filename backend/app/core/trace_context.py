@@ -9,9 +9,7 @@ from __future__ import annotations
 from contextvars import ContextVar
 from typing import Any
 
-_trace_context: ContextVar[dict[str, Any] | None] = ContextVar(
-    "trace_context", default=None
-)
+_trace_context: ContextVar[dict[str, Any] | None] = ContextVar("trace_context", default=None)
 
 
 def set_trace_context(

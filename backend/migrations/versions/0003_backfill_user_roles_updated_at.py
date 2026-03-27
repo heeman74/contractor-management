@@ -24,16 +24,16 @@ Fix: backfill updated_at = created_at for all NULL rows, then enforce NOT NULL
 so future inserts cannot silently produce NULL values.
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 from sqlalchemy import text
 
 # revision identifiers, used by Alembic.
 revision: str = "0003"
-down_revision: Union[str, None] = "0002"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0002"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -44,9 +44,7 @@ def upgrade() -> None:
     # from migration 0001). This gives each pre-existing row a meaningful
     # timestamp that reflects when it was first created.
     # -------------------------------------------------------------------------
-    op.execute(
-        text("UPDATE user_roles SET updated_at = created_at WHERE updated_at IS NULL")
-    )
+    op.execute(text("UPDATE user_roles SET updated_at = created_at WHERE updated_at IS NULL"))
 
     # -------------------------------------------------------------------------
     # Enforce NOT NULL constraint now that all rows have a value.

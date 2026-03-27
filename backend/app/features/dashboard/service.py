@@ -20,7 +20,7 @@ Design notes:
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -96,7 +96,7 @@ class DashboardService(TenantScopedService[DashboardAlert]):
 
         Returns list of ProjectStatusCard — each card is fully self-contained.
         """
-        today = datetime.now(timezone.utc).date()
+        today = datetime.now(UTC).date()
 
         stmt = (
             select(Project)
@@ -160,9 +160,7 @@ class DashboardService(TenantScopedService[DashboardAlert]):
         return cards
 
     @staticmethod
-    def _build_trade_badge(
-        scope: TradeScope, today: date
-    ) -> tuple[TradeStatusBadge, int, int]:
+    def _build_trade_badge(scope: TradeScope, today: date) -> tuple[TradeStatusBadge, int, int]:
         """Build a TradeStatusBadge for a single scope.
 
         Returns (badge, total_task_count, completed_task_count) so the caller
@@ -172,9 +170,7 @@ class DashboardService(TenantScopedService[DashboardAlert]):
         scope_total = len(scope_tasks)
         scope_completed = sum(1 for t in scope_tasks if t.status == "complete")
 
-        scope_completion = (
-            round(scope_completed / scope_total * 100, 1) if scope_total > 0 else 0.0
-        )
+        scope_completion = round(scope_completed / scope_total * 100, 1) if scope_total > 0 else 0.0
         scope_status = _compute_trade_status(scope_tasks, today)
 
         badge = TradeStatusBadge(
@@ -638,9 +634,7 @@ class DashboardService(TenantScopedService[DashboardAlert]):
         payload = alert.rescheduling_payload
         if payload and "suggestions" in payload:
             suggestions = payload["suggestions"]
-            task_ids, valid_suggestions = self._parse_suggestion_task_ids(
-                suggestions, alert_id
-            )
+            task_ids, valid_suggestions = self._parse_suggestion_task_ids(suggestions, alert_id)
 
             if valid_suggestions:
                 # Single query to fetch all tasks, filtered to the alert's project

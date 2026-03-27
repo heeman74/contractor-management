@@ -440,7 +440,7 @@ async def update_task(
                 company_id=current_user.company_id,
                 completed_by_name=completed_by_name,
             )
-        except Exception:  # noqa: BLE001
+        except Exception:
             # Fire-and-forget: log but never raise
             logger.exception(
                 "Digest notification failed for task %s — task update still succeeded", task_id

@@ -307,7 +307,7 @@ class JobService(TenantScopedService[Job]):
                     event=event,
                     job_id=job.id,
                 )
-            except Exception:  # noqa: BLE001
+            except Exception:
                 import logging
 
                 logging.getLogger(__name__).exception(
@@ -472,7 +472,7 @@ class JobService(TenantScopedService[Job]):
                     event="delayed",
                     job_id=job.id,
                 )
-            except Exception:  # noqa: BLE001
+            except Exception:
                 import logging
 
                 logging.getLogger(__name__).exception(
@@ -714,7 +714,7 @@ class JobService(TenantScopedService[Job]):
                 async with httpx.AsyncClient() as http_client:
                     provider = ORSGeocodingProvider(api_key=ors_api_key, client=http_client)
                     address = await provider.reverse_geocode(latitude, longitude)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 # Geocode failure is non-fatal — store coords and retry on next sync
                 address = None
 
@@ -728,7 +728,7 @@ class JobService(TenantScopedService[Job]):
     async def soft_delete_job(
         self,
         job_id: uuid.UUID,
-        user_id: uuid.UUID,  # noqa: ARG002  # reserved for audit logging
+        user_id: uuid.UUID,  # reserved for audit logging
     ) -> Job:
         """Admin-only: mark a job as administratively deleted (sets deleted_at).
 

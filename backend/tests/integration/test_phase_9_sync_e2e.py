@@ -24,8 +24,8 @@ from app.main import app as _fastapi_app
 
 # isort: split
 # Side-effect: register all mappers before tests run
-import app.features.invoices.models  # noqa: F401
-import app.features.quotes.models  # noqa: F401
+import app.features.invoices.models
+import app.features.quotes.models
 import app.features.scheduling.models  # noqa: F401
 
 TRANSPORT = ASGITransport(app=_fastapi_app)

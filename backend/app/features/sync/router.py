@@ -44,8 +44,8 @@ from app.features.scheduling.schemas import BookingResponse
 
 # isort: split
 # Scheduling models must be registered before job models are resolved (same pattern as jobs/router.py)
-import app.features.invoices.models  # noqa: F401
-import app.features.quotes.models  # noqa: F401
+import app.features.invoices.models
+import app.features.quotes.models
 import app.features.scheduling.models  # noqa: F401
 
 # isort: split

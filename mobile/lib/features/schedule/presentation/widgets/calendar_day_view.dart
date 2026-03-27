@@ -150,17 +150,9 @@ class _CalendarDayViewState extends ConsumerState<CalendarDayView> {
         // ── Scroll area: time axis + lane bodies (single scroll surface) ──
         Expanded(
           child: widget.contractors.isEmpty
-              ? Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(width: _timeAxisWidth),
-                    Expanded(
-                      child: _EmptyLanesPlaceholder(
-                        dayStart: dayStart,
-                        totalContractorCount: widget.totalContractorCount,
-                      ),
-                    ),
-                  ],
+              ? _EmptyLanesPlaceholder(
+                  dayStart: dayStart,
+                  totalContractorCount: widget.totalContractorCount,
                 )
               : SingleChildScrollView(
                   controller: _scrollController,

@@ -355,8 +355,8 @@ async def test_cancel_job_frees_bookings(tenant_a_client, seed_two_tenants):
     from sqlalchemy.ext.asyncio import create_async_engine
     from sqlalchemy.pool import NullPool
 
-    DATABASE_URL = os.environ["DATABASE_URL"]
-    engine = create_async_engine(DATABASE_URL, echo=False, poolclass=NullPool)
+    database_url = os.environ["DATABASE_URL"]
+    engine = create_async_engine(database_url, echo=False, poolclass=NullPool)
 
     seed_two_tenants["tenant_a_id"]
     seed_two_tenants["tenant_a_user_id"]

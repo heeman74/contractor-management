@@ -17,10 +17,7 @@ model_validator before the router re-applies the URL scope_id.
 """
 
 import pytest
-from httpx import ASGITransport, AsyncClient
-
-from app.main import app
-
+from httpx import AsyncClient
 
 # ---------------------------------------------------------------------------
 # Helper: create scope for testing milestones
@@ -190,9 +187,7 @@ async def test_delete_milestone(seed_two_tenants, async_client):
         assert any(m["id"] == milestone_id for m in list_before.json())
 
         # Delete
-        del_resp = await client.delete(
-            f"/api/v1/trade-scopes/{scope_id}/milestones/{milestone_id}"
-        )
+        del_resp = await client.delete(f"/api/v1/trade-scopes/{scope_id}/milestones/{milestone_id}")
         assert del_resp.status_code == 204
 
         # Verify excluded after delete
@@ -316,7 +311,7 @@ async def test_milestone_rls(seed_two_tenants, async_client):
 
         ms = await _post_milestone(client_a, scope_id, "A-only", "50.00")
         assert ms.status_code == 201
-        milestone_id = ms.json()["id"]
+        _milestone_id = ms.json()["id"]
 
     # Tenant B attempts to read — should see empty or 404
     async with AsyncClient(

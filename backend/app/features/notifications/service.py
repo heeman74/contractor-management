@@ -56,12 +56,12 @@ def _get_firebase_app() -> Any | None:
         import firebase_admin
         from firebase_admin import credentials
 
-        if not firebase_admin._apps:  # noqa: SLF001  # firebase_admin public API check
+        if not firebase_admin._apps:  # firebase_admin public API check
             cred = credentials.Certificate(cred_path)
             firebase_admin.initialize_app(cred)
 
         return firebase_admin.get_app()
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.exception("Failed to initialize Firebase app")
         return None
 
@@ -224,13 +224,13 @@ class NotificationService(BaseService[DeviceToken]):
                         device_token.user_id,
                     )
                     await self.repository.delete_token(device_token.token)
-                except Exception:  # noqa: BLE001
+                except Exception:
                     logger.exception(
                         "FCM task digest send failed for token %s... user %s",
                         device_token.token[:12],
                         device_token.user_id,
                     )
-        except Exception:  # noqa: BLE001
+        except Exception:
             # Outer catch: never let notification logic break the task status update
             logger.exception(
                 "queue_task_completion_digest failed for task %s — continuing without notification",
@@ -329,7 +329,7 @@ class NotificationService(BaseService[DeviceToken]):
                         user_id,
                     )
                     await self.repository.delete_token(device_token.token)
-                except Exception:  # noqa: BLE001
+                except Exception:
                     logger.exception(
                         "Chat FCM send failed for token %s... user %s thread %s",
                         device_token.token[:12],
@@ -404,13 +404,13 @@ class NotificationService(BaseService[DeviceToken]):
                         contractor_id,
                     )
                     await self.repository.delete_token(device_token.token)
-                except Exception:  # noqa: BLE001
+                except Exception:
                     logger.exception(
                         "FCM rejection send failed for token %s... contractor %s",
                         device_token.token[:12],
                         contractor_id,
                     )
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception(
                 "send_task_rejection_notification failed for task %s — continuing",
                 task_id,
@@ -480,13 +480,13 @@ class NotificationService(BaseService[DeviceToken]):
                         contractor_id,
                     )
                     await self.repository.delete_token(device_token.token)
-                except Exception:  # noqa: BLE001
+                except Exception:
                     logger.exception(
                         "FCM checklist send failed for token %s... contractor %s",
                         device_token.token[:12],
                         contractor_id,
                     )
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception(
                 "send_checklist_notification failed for contractor %s — continuing",
                 contractor_id,
@@ -528,7 +528,7 @@ class NotificationService(BaseService[DeviceToken]):
                 token_record.user_id,
             )
             await self.repository.delete_token(token_record.token)
-        except Exception:  # noqa: BLE001
+        except Exception:
             # Any other FCM error — log and continue (fire-and-forget)
             logger.exception(
                 "FCM send failed for token %s... user %s event",

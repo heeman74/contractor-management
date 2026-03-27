@@ -60,8 +60,8 @@ class ExtendExpiryRequest(BaseModel):
 # isort: split
 # Side-effect import: ensure all referenced mappers are registered before
 # configure_mappers() triggers on Quote relationship resolution.
-import app.features.invoices.models  # noqa: E402, F401
-import app.features.scheduling.models  # noqa: E402, F401
+import app.features.invoices.models  # noqa: E402
+import app.features.scheduling.models  # noqa: E402
 import app.features.users.models  # noqa: E402, F401
 
 router = APIRouter(prefix="/quotes", tags=["quotes"])

@@ -365,7 +365,7 @@ async def _fire_chat_fcm(
                 mentioned_user_ids=mention_uuids,
                 muted_user_ids=muted_recipients,
             )
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.exception("FCM fire-and-forget failed for thread %s", thread_id)
 
 

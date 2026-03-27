@@ -10,7 +10,7 @@ cron job (06:00 UTC) and stored in daily_checklists. These endpoints are read-on
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,7 +36,7 @@ async def get_today_checklist(
     Returns an empty list (200) if no checklist has been generated yet for today.
     """
     # BUG-6: Use UTC date instead of server-local date.today()
-    effective_date = target_date if target_date is not None else datetime.now(timezone.utc).date()
+    effective_date = target_date if target_date is not None else datetime.now(UTC).date()
 
     svc = ChecklistService(db)
     checklists = await svc.get_today_checklist(

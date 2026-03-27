@@ -112,7 +112,7 @@ class InspectionService(TenantScopedService[TaskInspection]):
                             contractor_id=task.assigned_to,
                         )
                     )
-                except Exception:  # noqa: BLE001
+                except Exception:
                     logger.exception(
                         "Failed to schedule FCM rejection notification for task %s", task_id
                     )

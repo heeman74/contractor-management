@@ -250,7 +250,7 @@ class QuoteService(TenantScopedService[Quote]):
                     event="quote_sent",
                     job_id=job.id,
                 )
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass  # Notification failures never block quote operations
 
         return await self.repository.get_with_line_items(quote_id)  # type: ignore[return-value]

@@ -51,7 +51,9 @@ def upgrade() -> None:
 
     # Index for efficient conversation-based lookups
     op.execute(
-        text("CREATE INDEX IF NOT EXISTS ix_ai_image_uploads_conversation_id ON ai_image_uploads (conversation_id)")
+        text(
+            "CREATE INDEX IF NOT EXISTS ix_ai_image_uploads_conversation_id ON ai_image_uploads (conversation_id)"
+        )
     )
 
     # Row Level Security — standard tenant isolation

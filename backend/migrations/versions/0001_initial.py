@@ -13,7 +13,7 @@ Creates:
 - Extensions: uuid-ossp, btree_gist (idempotent — init.sql may have already run them)
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
@@ -21,9 +21,9 @@ from sqlalchemy import text
 
 # revision identifiers, used by Alembic.
 revision: str = "0001"
-down_revision: Union[str, None] = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -52,9 +52,7 @@ def upgrade() -> None:
         sa.Column("business_number", sa.String(), nullable=True),
         sa.Column("logo_url", sa.String(), nullable=True),
         sa.Column("trade_types", sa.ARRAY(sa.String()), nullable=True),
-        sa.Column(
-            "version", sa.Integer(), nullable=False, server_default=sa.text("1")
-        ),
+        sa.Column("version", sa.Integer(), nullable=False, server_default=sa.text("1")),
         sa.Column(
             "created_at",
             sa.TIMESTAMP(timezone=True),
@@ -91,9 +89,7 @@ def upgrade() -> None:
         sa.Column("first_name", sa.String(), nullable=True),
         sa.Column("last_name", sa.String(), nullable=True),
         sa.Column("phone", sa.String(), nullable=True),
-        sa.Column(
-            "version", sa.Integer(), nullable=False, server_default=sa.text("1")
-        ),
+        sa.Column("version", sa.Integer(), nullable=False, server_default=sa.text("1")),
         sa.Column(
             "created_at",
             sa.TIMESTAMP(timezone=True),
@@ -141,9 +137,7 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.func.now(),
         ),
-        sa.CheckConstraint(
-            "role IN ('admin', 'contractor', 'client')", name="valid_role"
-        ),
+        sa.CheckConstraint("role IN ('admin', 'contractor', 'client')", name="valid_role"),
     )
     op.create_index("idx_user_roles_company_id", "user_roles", ["company_id"])
     op.create_index("idx_user_roles_user_id", "user_roles", ["user_id"])
@@ -170,29 +164,37 @@ def upgrade() -> None:
     # reused from the pool after a previous SET LOCAL.
     # -------------------------------------------------------------------------
     for table in ("users", "user_roles"):
-        op.execute(text(f"""
+        op.execute(
+            text(f"""
             CREATE POLICY tenant_select ON {table}
             FOR SELECT
             USING (
                 NULLIF(current_setting('app.current_company_id', true), '') IS NULL
                 OR company_id = NULLIF(current_setting('app.current_company_id', true), '')::uuid
             )
-        """))
-        op.execute(text(f"""
+        """)
+        )
+        op.execute(
+            text(f"""
             CREATE POLICY tenant_write ON {table}
             FOR INSERT
             WITH CHECK (company_id = NULLIF(current_setting('app.current_company_id', true), '')::uuid)
-        """))
-        op.execute(text(f"""
+        """)
+        )
+        op.execute(
+            text(f"""
             CREATE POLICY tenant_update ON {table}
             FOR UPDATE
             USING (company_id = NULLIF(current_setting('app.current_company_id', true), '')::uuid)
-        """))
-        op.execute(text(f"""
+        """)
+        )
+        op.execute(
+            text(f"""
             CREATE POLICY tenant_delete ON {table}
             FOR DELETE
             USING (company_id = NULLIF(current_setting('app.current_company_id', true), '')::uuid)
-        """))
+        """)
+        )
 
 
 def downgrade() -> None:

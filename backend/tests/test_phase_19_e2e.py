@@ -31,9 +31,7 @@ pytestmark = pytest.mark.anyio
 class TestProjectCRUD:
     """PROJ-01: Project creation, listing, detail, and update."""
 
-    async def test_gc_creates_project(
-        self, tenant_a_client: AsyncClient, seed_two_tenants: dict
-    ):
+    async def test_gc_creates_project(self, tenant_a_client: AsyncClient, seed_two_tenants: dict):
         """GC creates a project — returns 201 with id, status='draft', status_history[0]."""
         response = await tenant_a_client.post(
             "/api/v1/projects/",
@@ -100,9 +98,7 @@ class TestProjectCRUD:
         assert data["id"] == project_id
         assert "trade_scopes" not in data  # ProjectResponse does not include nested scopes
 
-    async def test_project_update(
-        self, tenant_a_client: AsyncClient, seed_two_tenants: dict
-    ):
+    async def test_project_update(self, tenant_a_client: AsyncClient, seed_two_tenants: dict):
         """PATCH /projects/{id} with updated name returns 200 with the new name."""
         create_resp = await tenant_a_client.post(
             "/api/v1/projects/", json={"name": "Original Name"}
@@ -153,9 +149,7 @@ class TestTradeCatalog:
         assert data["color"] == "#2196F3"
         assert "id" in data
 
-    async def test_trade_catalog_list(
-        self, tenant_a_client: AsyncClient, seed_two_tenants: dict
-    ):
+    async def test_trade_catalog_list(self, tenant_a_client: AsyncClient, seed_two_tenants: dict):
         """Create 3 catalog entries; GET /trade-catalog/ returns all 3."""
         trades = ["Electrical", "Plumbing", "HVAC"]
         for trade in trades:
@@ -328,9 +322,7 @@ class TestTasks:
         scope_id = scope_resp.json()["id"]
         return project_id, scope_id
 
-    async def test_create_task(
-        self, tenant_a_client: AsyncClient, seed_two_tenants: dict
-    ):
+    async def test_create_task(self, tenant_a_client: AsyncClient, seed_two_tenants: dict):
         """POST /tasks/ with title and priority — returns 201."""
         _, scope_id = await self._create_project_and_scope(tenant_a_client)
 
@@ -349,9 +341,7 @@ class TestTasks:
         assert data["trade_scope_id"] == scope_id
         assert "id" in data
 
-    async def test_task_list_by_scope(
-        self, tenant_a_client: AsyncClient, seed_two_tenants: dict
-    ):
+    async def test_task_list_by_scope(self, tenant_a_client: AsyncClient, seed_two_tenants: dict):
         """Create 3 tasks for a scope; GET /tasks/?trade_scope_id={id} returns all 3."""
         _, scope_id = await self._create_project_and_scope(tenant_a_client, "Task List Test")
 
@@ -363,9 +353,7 @@ class TestTasks:
             )
             assert resp.status_code == 201
 
-        list_resp = await tenant_a_client.get(
-            "/api/v1/tasks/", params={"trade_scope_id": scope_id}
-        )
+        list_resp = await tenant_a_client.get("/api/v1/tasks/", params={"trade_scope_id": scope_id})
         assert list_resp.status_code == 200
         tasks = list_resp.json()
         assert len(tasks) == 3
@@ -394,9 +382,7 @@ class TestTasks:
 class TestDataMigration:
     """PROJ-02: Verify trade_catalog table is queryable (migration ran)."""
 
-    async def test_data_migration(
-        self, tenant_a_client: AsyncClient, seed_two_tenants: dict
-    ):
+    async def test_data_migration(self, tenant_a_client: AsyncClient, seed_two_tenants: dict):
         """trade_catalog endpoint returns 200 — confirms migration 0015 ran."""
         response = await tenant_a_client.get("/api/v1/trade-catalog/")
         assert response.status_code == 200
@@ -434,7 +420,7 @@ class TestContractorSpecialtyMatching:
         )
         assert contractor_data.status_code == 201
         contractor_token = contractor_data.json()["access_token"]
-        contractor_user_id = contractor_data.json()["user_id"]
+        _contractor_user_id = contractor_data.json()["user_id"]
 
         # Create a trade catalog entry in Tenant A
         cat_resp = await tenant_a_client.post(
@@ -442,7 +428,7 @@ class TestContractorSpecialtyMatching:
             json={"name": "Electrical", "color": "#FFEB3B"},
         )
         assert cat_resp.status_code == 201
-        catalog_id = cat_resp.json()["id"]
+        _catalog_id = cat_resp.json()["id"]
 
         # Create UserTradeSpecialty linking contractor to the catalog entry.
         # The contractor is in a separate company (registered via /auth/register),
@@ -528,9 +514,7 @@ class TestContractorSpecialtyMatching:
         async with engine.begin() as conn:
             # SET LOCAL does not support parameterized queries in PostgreSQL.
             # company_id is a UUID string — safe to format directly.
-            await conn.execute(
-                text(f"SET LOCAL app.current_company_id = '{company_id}'")
-            )
+            await conn.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
 
             # Insert contractor role for the admin user (they already have 'admin' role)
             await conn.execute(

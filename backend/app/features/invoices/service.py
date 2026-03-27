@@ -33,7 +33,7 @@ from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import selectinload
 
 from app.core.base_service import TenantScopedService
-from app.features.billing_milestones.models import BillingMilestone  # noqa: F401 — register mapper
+from app.features.billing_milestones.models import BillingMilestone
 from app.features.companies.models import Company
 from app.features.invoices.models import Invoice, InvoiceLineItem
 from app.features.invoices.repository import InvoiceRepository
@@ -226,7 +226,7 @@ class InvoiceService(TenantScopedService[Invoice]):
                     event="invoice_generated",
                     job_id=job.id,
                 )
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
 
         return await self.repository.get_with_line_items(invoice.id)  # type: ignore[return-value]

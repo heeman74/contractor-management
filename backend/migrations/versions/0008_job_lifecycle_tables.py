@@ -90,13 +90,9 @@ def upgrade() -> None:
             "WHERE deleted_at IS NULL"
         )
     )
+    op.execute(text("CREATE INDEX idx_jobs_client_id ON jobs (client_id) WHERE deleted_at IS NULL"))
     op.execute(
-        text("CREATE INDEX idx_jobs_client_id ON jobs (client_id) WHERE deleted_at IS NULL")
-    )
-    op.execute(
-        text(
-            "CREATE INDEX idx_jobs_contractor_id ON jobs (contractor_id) WHERE deleted_at IS NULL"
-        )
+        text("CREATE INDEX idx_jobs_contractor_id ON jobs (contractor_id) WHERE deleted_at IS NULL")
     )
 
     # Trigger: updated_at

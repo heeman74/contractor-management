@@ -28,7 +28,6 @@ from httpx import ASGITransport, AsyncClient
 from app.core.security import create_access_token
 from app.main import app
 
-
 # ---------------------------------------------------------------------------
 # Helper: set up foreman test fixtures (project + contractor user)
 # ---------------------------------------------------------------------------
@@ -237,9 +236,7 @@ async def test_assign_duplicate_rejected(
 
 
 @pytest.mark.asyncio
-async def test_unassign_foreman(
-    tenant_a_client: AsyncClient, seed_two_tenants: dict
-) -> None:
+async def test_unassign_foreman(tenant_a_client: AsyncClient, seed_two_tenants: dict) -> None:
     """Admin removes an assignment — verify 204 and subsequent list excludes it."""
     fixtures = await _setup_foreman_fixtures(
         tenant_a_client,
@@ -259,9 +256,7 @@ async def test_unassign_foreman(
     assignment_id = assign_resp.json()["id"]
 
     # Unassign
-    del_resp = await tenant_a_client.delete(
-        f"/api/v1/foreman/assignments/{assignment_id}"
-    )
+    del_resp = await tenant_a_client.delete(f"/api/v1/foreman/assignments/{assignment_id}")
     assert del_resp.status_code == 204
 
     # List should be empty (soft-deleted)
@@ -273,9 +268,7 @@ async def test_unassign_foreman(
 
 
 @pytest.mark.asyncio
-async def test_non_admin_cannot_assign(
-    async_client: AsyncClient, seed_two_tenants: dict
-) -> None:
+async def test_non_admin_cannot_assign(async_client: AsyncClient, seed_two_tenants: dict) -> None:
     """A contractor (non-admin) cannot assign foremen — expect 403."""
     # Set up fixtures using admin client first
     admin_token = seed_two_tenants["tenant_a_token"]
@@ -313,9 +306,7 @@ async def test_non_admin_cannot_assign(
 
 
 @pytest.mark.asyncio
-async def test_list_project_foremen(
-    tenant_a_client: AsyncClient, seed_two_tenants: dict
-) -> None:
+async def test_list_project_foremen(tenant_a_client: AsyncClient, seed_two_tenants: dict) -> None:
     """Admin lists all foremen assigned to a project."""
     fixtures = await _setup_foreman_fixtures(
         tenant_a_client,
@@ -551,9 +542,7 @@ async def test_status_update_with_all_fields(
 
 
 @pytest.mark.asyncio
-async def test_status_update_minimal(
-    tenant_a_client: AsyncClient, seed_two_tenants: dict
-) -> None:
+async def test_status_update_minimal(tenant_a_client: AsyncClient, seed_two_tenants: dict) -> None:
     """Minimal status update with only required fields (project_id, status_text)."""
     fixtures = await _setup_foreman_fixtures(
         tenant_a_client,
@@ -663,9 +652,7 @@ async def test_list_status_updates_paginated(
 
 
 @pytest.mark.asyncio
-async def test_latest_status_update(
-    tenant_a_client: AsyncClient, seed_two_tenants: dict
-) -> None:
+async def test_latest_status_update(tenant_a_client: AsyncClient, seed_two_tenants: dict) -> None:
     """GET /status-updates/{project_id}/latest returns the most recent update."""
     fixtures = await _setup_foreman_fixtures(
         tenant_a_client,

@@ -41,8 +41,8 @@ from app.features.pdf.service import pdf_service
 
 # isort: split
 # Side-effect import: ensure related mappers registered before configure_mappers() triggers.
-import app.features.quotes.models  # noqa: F401
-import app.features.scheduling.models  # noqa: F401
+import app.features.quotes.models
+import app.features.scheduling.models
 import app.features.users.models  # noqa: F401
 
 

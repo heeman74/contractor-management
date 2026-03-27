@@ -3,11 +3,34 @@ target-version = "py312"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "PT", "RET", "SIM"]
-ignore = ["E501", "B008"]
+select = [
+  "E",    # pycodestyle errors
+  "F",    # pyflakes (unused imports/vars, redefined names)
+  "W",    # pycodestyle warnings
+  "I",    # isort (import ordering)
+  "N",    # pep8-naming
+  "UP",   # pyupgrade (modern Python syntax)
+  "B",    # flake8-bugbear (common bugs)
+  "A",    # flake8-builtins (shadowing builtins)
+  "C4",   # flake8-comprehensions
+  "PT",   # flake8-pytest-style
+  "RET",  # flake8-return (unnecessary assignments before return)
+  "SIM",  # flake8-simplify (simplifiable code)
+  "RUF",  # ruff-specific rules (unused noqa, ambiguous chars, etc.)
+]
+ignore = [
+  "E501",    # line length — handled by formatter
+  "B008",    # function call in default arg (FastAPI Depends)
+  "RUF001",  # ambiguous unicode chars — intentional in prompts/docs
+  "RUF002",  # ambiguous unicode in docstrings — intentional
+  "RUF005",  # iterable unpacking — concatenation is clearer in context
+  "RUF006",  # unassigned asyncio.create_task — fire-and-forget is intentional
+  "RUF012",  # mutable class variable without ClassVar (SQLAlchemy models)
+  "RUF059",  # unused unpacked variable — used for readability
+]
 
 [tool.ruff.lint.per-file-ignores]
-"migrations/*" = ["N999"]
+"migrations/*" = ["N999", "UP", "E"]
 "tests/*" = ["S101"]
 
 [tool.pytest.ini_options]

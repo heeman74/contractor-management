@@ -16,12 +16,11 @@ and return deterministic JSON responses.
 
 import json
 import uuid
-from datetime import datetime, date, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import AsyncClient
-
 
 # ---------------------------------------------------------------------------
 # Helper: build a complete test dataset (project + 2 scopes + tasks)
@@ -72,7 +71,7 @@ async def _setup_project(
     assert elec_resp.status_code == 201, f"Create electrical scope failed: {elec_resp.text}"
     electrical_scope_id = elec_resp.json()["id"]
 
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(UTC).date()
     past_due = (today - timedelta(days=5)).isoformat()
     future_due = (today + timedelta(days=10)).isoformat()
 
@@ -133,9 +132,7 @@ async def _setup_project(
     }
 
 
-async def _assign_contractor(
-    client: AsyncClient, scope_id: str, contractor_id: str
-) -> None:
+async def _assign_contractor(client: AsyncClient, scope_id: str, contractor_id: str) -> None:
     """Assign a contractor to a trade scope via PATCH."""
     resp = await client.patch(
         f"/api/v1/trade-scopes/{scope_id}",
@@ -146,10 +143,7 @@ async def _assign_contractor(
 
 def _make_mock_anthropic_response(content: dict | str) -> MagicMock:
     """Build a mock Anthropic message response with content[0].text."""
-    if isinstance(content, dict):
-        text = json.dumps(content)
-    else:
-        text = content
+    text = json.dumps(content) if isinstance(content, dict) else content
 
     mock_content = MagicMock()
     mock_content.text = text
@@ -192,28 +186,28 @@ async def test_checklist_generation_creates_records(
 
     mock_response = _make_mock_anthropic_response(mock_checklist_json)
 
-    with patch(
-        "app.core.ai_utils.get_anthropic_client"
-    ) as mock_client, patch(
-        "app.features.notifications.service.NotificationService.send_checklist_notification",
-        new_callable=AsyncMock,
+    with (
+        patch("app.core.ai_utils.get_anthropic_client") as mock_client,
+        patch(
+            "app.features.notifications.service.NotificationService.send_checklist_notification",
+            new_callable=AsyncMock,
+        ),
     ):
         mock_client.return_value.messages.create = AsyncMock(return_value=mock_response)
 
-        from app.features.checklists.service import ChecklistService
         from app.core.database import async_session_factory
+        from app.features.checklists.service import ChecklistService
 
         async with async_session_factory() as db:
             # Set RLS context for this company
             # PostgreSQL SET LOCAL rejects parameterized $1 — must use f-string
             from sqlalchemy import text
-            await db.execute(
-                text(f"SET LOCAL app.current_company_id = '{company_id}'")
-            )
+
+            await db.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
             svc = ChecklistService(db)
             count = await svc.generate_daily_checklists(
                 company_id=uuid.UUID(company_id),
-                target_date=datetime.now(timezone.utc).date(),
+                target_date=datetime.now(UTC).date(),
             )
             await db.commit()
 
@@ -262,26 +256,26 @@ async def test_checklist_generation_skips_blocked_tasks(
         captured_prompts.append(content)
         return _make_mock_anthropic_response({"tasks": []})
 
-    with patch(
-        "app.core.ai_utils.get_anthropic_client"
-    ) as mock_client, patch(
-        "app.features.notifications.service.NotificationService.send_checklist_notification",
-        new_callable=AsyncMock,
+    with (
+        patch("app.core.ai_utils.get_anthropic_client") as mock_client,
+        patch(
+            "app.features.notifications.service.NotificationService.send_checklist_notification",
+            new_callable=AsyncMock,
+        ),
     ):
         mock_client.return_value.messages.create = AsyncMock(side_effect=capture_generate)
 
-        from app.features.checklists.service import ChecklistService
         from app.core.database import async_session_factory
+        from app.features.checklists.service import ChecklistService
 
         async with async_session_factory() as db:
             from sqlalchemy import text
-            await db.execute(
-                text(f"SET LOCAL app.current_company_id = '{company_id}'")
-            )
+
+            await db.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
             svc = ChecklistService(db)
             await svc.generate_daily_checklists(
                 company_id=uuid.UUID(company_id),
-                target_date=datetime.now(timezone.utc).date(),
+                target_date=datetime.now(UTC).date(),
             )
             await db.commit()
 
@@ -316,26 +310,26 @@ async def test_checklist_generation_skips_completed_tasks(
                 captured_tasks.append(line)
         return _make_mock_anthropic_response({"tasks": []})
 
-    with patch(
-        "app.core.ai_utils.get_anthropic_client"
-    ) as mock_client, patch(
-        "app.features.notifications.service.NotificationService.send_checklist_notification",
-        new_callable=AsyncMock,
+    with (
+        patch("app.core.ai_utils.get_anthropic_client") as mock_client,
+        patch(
+            "app.features.notifications.service.NotificationService.send_checklist_notification",
+            new_callable=AsyncMock,
+        ),
     ):
         mock_client.return_value.messages.create = AsyncMock(side_effect=capture_generate)
 
-        from app.features.checklists.service import ChecklistService
         from app.core.database import async_session_factory
+        from app.features.checklists.service import ChecklistService
 
         async with async_session_factory() as db:
             from sqlalchemy import text
-            await db.execute(
-                text(f"SET LOCAL app.current_company_id = '{company_id}'")
-            )
+
+            await db.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
             svc = ChecklistService(db)
             await svc.generate_daily_checklists(
                 company_id=uuid.UUID(company_id),
-                target_date=datetime.now(timezone.utc).date(),
+                target_date=datetime.now(UTC).date(),
             )
             await db.commit()
 
@@ -346,9 +340,7 @@ async def test_checklist_generation_skips_completed_tasks(
 
 
 @pytest.mark.asyncio
-async def test_checklist_idempotent(
-    tenant_a_client: AsyncClient, seed_two_tenants: dict
-) -> None:
+async def test_checklist_idempotent(tenant_a_client: AsyncClient, seed_two_tenants: dict) -> None:
     """AI-04: Running generate twice for same date produces one record (upsert), not duplicates."""
     company_id = seed_two_tenants["tenant_a_id"]
     contractor_id = seed_two_tenants["tenant_a_user_id"]
@@ -356,41 +348,49 @@ async def test_checklist_idempotent(
     fixtures = await _setup_project(tenant_a_client, project_name="Idempotent Test")
     await _assign_contractor(tenant_a_client, fixtures["plumbing_scope_id"], contractor_id)
 
-    mock_response = _make_mock_anthropic_response({"tasks": [{"task_id": "00000000-0000-4000-8000-000000000001", "title": "Task A", "priority": 1}]})
+    mock_response = _make_mock_anthropic_response(
+        {
+            "tasks": [
+                {
+                    "task_id": "00000000-0000-4000-8000-000000000001",
+                    "title": "Task A",
+                    "priority": 1,
+                }
+            ]
+        }
+    )
 
-    with patch(
-        "app.core.ai_utils.get_anthropic_client"
-    ) as mock_client, patch(
-        "app.features.notifications.service.NotificationService.send_checklist_notification",
-        new_callable=AsyncMock,
+    with (
+        patch("app.core.ai_utils.get_anthropic_client") as mock_client,
+        patch(
+            "app.features.notifications.service.NotificationService.send_checklist_notification",
+            new_callable=AsyncMock,
+        ),
     ):
         mock_client.return_value.messages.create = AsyncMock(return_value=mock_response)
 
-        from app.features.checklists.service import ChecklistService
         from app.core.database import async_session_factory
+        from app.features.checklists.service import ChecklistService
 
         # First run
         async with async_session_factory() as db:
             from sqlalchemy import text
-            await db.execute(
-                text(f"SET LOCAL app.current_company_id = '{company_id}'")
-            )
+
+            await db.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
             svc = ChecklistService(db)
             count1 = await svc.generate_daily_checklists(
                 company_id=uuid.UUID(company_id),
-                target_date=datetime.now(timezone.utc).date(),
+                target_date=datetime.now(UTC).date(),
             )
             await db.commit()
 
         # Second run (same date)
         async with async_session_factory() as db:
-            await db.execute(
-                text(f"SET LOCAL app.current_company_id = '{company_id}'")
-            )
+            await db.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
             svc = ChecklistService(db)
             count2 = await svc.generate_daily_checklists(
                 company_id=uuid.UUID(company_id),
-                target_date=datetime.now(timezone.utc).date(),
+                target_date=datetime.now(UTC).date(),
             )
             await db.commit()
 
@@ -403,7 +403,9 @@ async def test_checklist_idempotent(
     checklists = resp.json()
     # Group by trade_scope_id — should not have duplicates for the same scope
     scope_ids = [c["trade_scope_id"] for c in checklists]
-    assert len(scope_ids) == len(set(scope_ids)), "Duplicate checklists for same scope — upsert failed"
+    assert len(scope_ids) == len(set(scope_ids)), (
+        "Duplicate checklists for same scope — upsert failed"
+    )
 
 
 @pytest.mark.asyncio
@@ -418,30 +420,39 @@ async def test_checklist_fcm_push_fired(
     await _assign_contractor(tenant_a_client, fixtures["plumbing_scope_id"], contractor_id)
 
     mock_response = _make_mock_anthropic_response(
-        {"tasks": [{"task_id": "00000000-0000-4000-8000-000000000001", "title": "Install pipes", "priority": 1}]}
+        {
+            "tasks": [
+                {
+                    "task_id": "00000000-0000-4000-8000-000000000001",
+                    "title": "Install pipes",
+                    "priority": 1,
+                }
+            ]
+        }
     )
 
-    with patch(
-        "app.core.ai_utils.get_anthropic_client"
-    ) as mock_client, patch(
-        "app.features.notifications.service.NotificationService.send_checklist_notification",
-        new_callable=AsyncMock,
-    ) as mock_notify:
+    with (
+        patch("app.core.ai_utils.get_anthropic_client") as mock_client,
+        patch(
+            "app.features.notifications.service.NotificationService.send_checklist_notification",
+            new_callable=AsyncMock,
+        ) as _mock_notify,
+    ):
         mock_client.return_value.messages.create = AsyncMock(return_value=mock_response)
 
-        from app.features.checklists.service import ChecklistService
-        from app.core.database import async_session_factory
         import asyncio
+
+        from app.core.database import async_session_factory
+        from app.features.checklists.service import ChecklistService
 
         async with async_session_factory() as db:
             from sqlalchemy import text
-            await db.execute(
-                text(f"SET LOCAL app.current_company_id = '{company_id}'")
-            )
+
+            await db.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
             svc = ChecklistService(db)
             await svc.generate_daily_checklists(
                 company_id=uuid.UUID(company_id),
-                target_date=datetime.now(timezone.utc).date(),
+                target_date=datetime.now(UTC).date(),
             )
             await db.commit()
 
@@ -487,26 +498,26 @@ async def test_get_today_checklist_endpoint(
         }
     )
 
-    with patch(
-        "app.core.ai_utils.get_anthropic_client"
-    ) as mock_client, patch(
-        "app.features.notifications.service.NotificationService.send_checklist_notification",
-        new_callable=AsyncMock,
+    with (
+        patch("app.core.ai_utils.get_anthropic_client") as mock_client,
+        patch(
+            "app.features.notifications.service.NotificationService.send_checklist_notification",
+            new_callable=AsyncMock,
+        ),
     ):
         mock_client.return_value.messages.create = AsyncMock(return_value=mock_response)
 
-        from app.features.checklists.service import ChecklistService
         from app.core.database import async_session_factory
+        from app.features.checklists.service import ChecklistService
 
         async with async_session_factory() as db:
             from sqlalchemy import text
-            await db.execute(
-                text(f"SET LOCAL app.current_company_id = '{company_id}'")
-            )
+
+            await db.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
             svc = ChecklistService(db)
             await svc.generate_daily_checklists(
                 company_id=uuid.UUID(company_id),
-                target_date=datetime.now(timezone.utc).date(),
+                target_date=datetime.now(UTC).date(),
             )
             await db.commit()
 
@@ -559,32 +570,29 @@ async def test_alert_detection_creates_alert_for_late_trade(
         "rescheduling_suggestions": [
             {
                 "task_id": str(fixtures["plumbing_task_ids"][1]),
-                "new_start_date": datetime.now(timezone.utc).date().isoformat(),
-                "new_due_date": (datetime.now(timezone.utc).date() + timedelta(days=3)).isoformat(),
+                "new_start_date": datetime.now(UTC).date().isoformat(),
+                "new_due_date": (datetime.now(UTC).date() + timedelta(days=3)).isoformat(),
                 "reason": "Extend deadline to account for current delay",
             }
         ],
     }
 
-    with patch(
-        "app.core.ai_utils.get_anthropic_client"
-    ) as mock_client:
+    with patch("app.core.ai_utils.get_anthropic_client") as mock_client:
         mock_client.return_value.messages.create = AsyncMock(
             return_value=_make_mock_anthropic_response(mock_alert_response)
         )
 
-        from app.features.dashboard.service import DashboardService
         from app.core.database import async_session_factory
+        from app.features.dashboard.service import DashboardService
 
         async with async_session_factory() as db:
             from sqlalchemy import text
-            await db.execute(
-                text(f"SET LOCAL app.current_company_id = '{company_id}'")
-            )
+
+            await db.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
             svc = DashboardService(db)
             count = await svc.detect_schedule_slips(
                 company_id=uuid.UUID(company_id),
-                target_date=datetime.now(timezone.utc).date(),
+                target_date=datetime.now(UTC).date(),
             )
             await db.commit()
 
@@ -624,7 +632,7 @@ async def test_alert_detection_no_alert_for_on_track(
     assert scope_resp.status_code == 201
     scope_id = scope_resp.json()["id"]
 
-    future_due = (datetime.now(timezone.utc).date() + timedelta(days=15)).isoformat()
+    future_due = (datetime.now(UTC).date() + timedelta(days=15)).isoformat()
     t = await tenant_a_client.post(
         "/api/v1/tasks/",
         json={
@@ -632,7 +640,7 @@ async def test_alert_detection_no_alert_for_on_track(
             "title": "Install HVAC",
             "priority": "medium",
             "due_date": future_due,
-            "start_date": datetime.now(timezone.utc).date().isoformat(),
+            "start_date": datetime.now(UTC).date().isoformat(),
         },
     )
     assert t.status_code == 201
@@ -642,18 +650,17 @@ async def test_alert_detection_no_alert_for_on_track(
             return_value=_make_mock_anthropic_response({"tasks": []})
         )
 
-        from app.features.dashboard.service import DashboardService
         from app.core.database import async_session_factory
+        from app.features.dashboard.service import DashboardService
 
         async with async_session_factory() as db:
             from sqlalchemy import text
-            await db.execute(
-                text(f"SET LOCAL app.current_company_id = '{company_id}'")
-            )
+
+            await db.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
             svc = DashboardService(db)
             count = await svc.detect_schedule_slips(
                 company_id=uuid.UUID(company_id),
-                target_date=datetime.now(timezone.utc).date(),
+                target_date=datetime.now(UTC).date(),
             )
             await db.commit()
 
@@ -674,8 +681,8 @@ async def test_alert_accept_reschedule_updates_dates(
     fixtures = await _setup_project(tenant_a_client, project_name="Reschedule Test")
     task_id = fixtures["plumbing_task_ids"][1]  # The in_progress task with past due date
 
-    new_due = (datetime.now(timezone.utc).date() + timedelta(days=7)).isoformat()
-    new_start = datetime.now(timezone.utc).date().isoformat()
+    new_due = (datetime.now(UTC).date() + timedelta(days=7)).isoformat()
+    new_start = datetime.now(UTC).date().isoformat()
 
     mock_alert_response = {
         "impact_text": "Plumbing is behind schedule.",
@@ -696,18 +703,17 @@ async def test_alert_accept_reschedule_updates_dates(
             return_value=_make_mock_anthropic_response(mock_alert_response)
         )
 
-        from app.features.dashboard.service import DashboardService
         from app.core.database import async_session_factory
+        from app.features.dashboard.service import DashboardService
 
         async with async_session_factory() as db:
             from sqlalchemy import text
-            await db.execute(
-                text(f"SET LOCAL app.current_company_id = '{company_id}'")
-            )
+
+            await db.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
             svc = DashboardService(db)
             await svc.detect_schedule_slips(
                 company_id=uuid.UUID(company_id),
-                target_date=datetime.now(timezone.utc).date(),
+                target_date=datetime.now(UTC).date(),
             )
             await db.commit()
 
@@ -755,7 +761,7 @@ async def test_alert_dismiss_does_not_change_dates(
     assert original_task is not None
     original_due_date = original_task["due_date"]
 
-    new_due = (datetime.now(timezone.utc).date() + timedelta(days=14)).isoformat()
+    new_due = (datetime.now(UTC).date() + timedelta(days=14)).isoformat()
     mock_alert_response = {
         "impact_text": "Plumbing delay detected.",
         "remediation_text": "Consider extending timeline.",
@@ -763,7 +769,7 @@ async def test_alert_dismiss_does_not_change_dates(
         "rescheduling_suggestions": [
             {
                 "task_id": task_id,
-                "new_start_date": datetime.now(timezone.utc).date().isoformat(),
+                "new_start_date": datetime.now(UTC).date().isoformat(),
                 "new_due_date": new_due,
                 "reason": "Extend timeline",
             }
@@ -775,18 +781,17 @@ async def test_alert_dismiss_does_not_change_dates(
             return_value=_make_mock_anthropic_response(mock_alert_response)
         )
 
-        from app.features.dashboard.service import DashboardService
         from app.core.database import async_session_factory
+        from app.features.dashboard.service import DashboardService
 
         async with async_session_factory() as db:
             from sqlalchemy import text
-            await db.execute(
-                text(f"SET LOCAL app.current_company_id = '{company_id}'")
-            )
+
+            await db.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
             svc = DashboardService(db)
             await svc.detect_schedule_slips(
                 company_id=uuid.UUID(company_id),
-                target_date=datetime.now(timezone.utc).date(),
+                target_date=datetime.now(UTC).date(),
             )
             await db.commit()
 
@@ -875,7 +880,7 @@ async def test_dashboard_completion_percentage(
     tenant_a_client: AsyncClient, seed_two_tenants: dict
 ) -> None:
     """DASH-01: overall_completion_pct matches actual completed/total ratio."""
-    fixtures = await _setup_project(tenant_a_client, project_name="Completion Pct Test")
+    _fixtures = await _setup_project(tenant_a_client, project_name="Completion Pct Test")
 
     resp = await tenant_a_client.get("/api/v1/dashboard")
     assert resp.status_code == 200
@@ -952,7 +957,7 @@ async def test_alert_severity_warning_for_1_to_3_days(
     scope_id = scope_resp.json()["id"]
 
     # 2 days overdue
-    two_days_ago = (datetime.now(timezone.utc).date() - timedelta(days=2)).isoformat()
+    two_days_ago = (datetime.now(UTC).date() - timedelta(days=2)).isoformat()
     t = await tenant_a_client.post(
         "/api/v1/tasks/",
         json={
@@ -960,7 +965,7 @@ async def test_alert_severity_warning_for_1_to_3_days(
             "title": "Roof installation",
             "priority": "high",
             "due_date": two_days_ago,
-            "start_date": (datetime.now(timezone.utc).date() - timedelta(days=10)).isoformat(),
+            "start_date": (datetime.now(UTC).date() - timedelta(days=10)).isoformat(),
         },
     )
     assert t.status_code == 201
@@ -977,18 +982,17 @@ async def test_alert_severity_warning_for_1_to_3_days(
             return_value=_make_mock_anthropic_response(mock_alert)
         )
 
-        from app.features.dashboard.service import DashboardService
         from app.core.database import async_session_factory
+        from app.features.dashboard.service import DashboardService
 
         async with async_session_factory() as db:
             from sqlalchemy import text
-            await db.execute(
-                text(f"SET LOCAL app.current_company_id = '{company_id}'")
-            )
+
+            await db.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
             svc = DashboardService(db)
             count = await svc.detect_schedule_slips(
                 company_id=uuid.UUID(company_id),
-                target_date=datetime.now(timezone.utc).date(),
+                target_date=datetime.now(UTC).date(),
             )
             await db.commit()
 
@@ -1024,7 +1028,7 @@ async def test_alert_severity_critical_for_over_3_days(
     scope_id = scope_resp.json()["id"]
 
     # 5 days overdue
-    five_days_ago = (datetime.now(timezone.utc).date() - timedelta(days=5)).isoformat()
+    five_days_ago = (datetime.now(UTC).date() - timedelta(days=5)).isoformat()
     t = await tenant_a_client.post(
         "/api/v1/tasks/",
         json={
@@ -1032,7 +1036,7 @@ async def test_alert_severity_critical_for_over_3_days(
             "title": "Frame structure",
             "priority": "high",
             "due_date": five_days_ago,
-            "start_date": (datetime.now(timezone.utc).date() - timedelta(days=15)).isoformat(),
+            "start_date": (datetime.now(UTC).date() - timedelta(days=15)).isoformat(),
         },
     )
     assert t.status_code == 201
@@ -1049,18 +1053,17 @@ async def test_alert_severity_critical_for_over_3_days(
             return_value=_make_mock_anthropic_response(mock_alert)
         )
 
-        from app.features.dashboard.service import DashboardService
         from app.core.database import async_session_factory
+        from app.features.dashboard.service import DashboardService
 
         async with async_session_factory() as db:
             from sqlalchemy import text
-            await db.execute(
-                text(f"SET LOCAL app.current_company_id = '{company_id}'")
-            )
+
+            await db.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
             svc = DashboardService(db)
             count = await svc.detect_schedule_slips(
                 company_id=uuid.UUID(company_id),
-                target_date=datetime.now(timezone.utc).date(),
+                target_date=datetime.now(UTC).date(),
             )
             await db.commit()
 

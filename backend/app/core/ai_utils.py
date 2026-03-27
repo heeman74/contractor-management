@@ -15,7 +15,7 @@ import asyncio
 import json
 import re
 from collections.abc import Callable, Coroutine
-from typing import Any, TypeVar
+from typing import Any
 
 from anthropic import AsyncAnthropic
 
@@ -34,13 +34,15 @@ AI_CONCURRENCY_LIMIT = 5
 # Task statuses that mean "done" — skip when building checklists / detecting slips
 DONE_STATUSES = frozenset({"complete", "cancelled"})
 
+# Project status filters shared by checklist and dashboard services
+ACTIVE_PROJECT_STATUSES = ("planning", "active")
+DASHBOARD_PROJECT_STATUSES = ("planning", "active", "on_hold")
+
 # Strip markdown code fences if Claude wraps JSON despite instructions
 _JSON_FENCE_PATTERN = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL)
 
 # Lazy singleton for the Anthropic client
 _anthropic_client: AsyncAnthropic | None = None
-
-T = TypeVar("T")
 
 
 def get_anthropic_client() -> AsyncAnthropic:
@@ -101,7 +103,7 @@ async def call_claude_json(
         return fallback
 
 
-async def gather_with_concurrency(
+async def gather_with_concurrency[T](
     items: list[T],
     process_fn: Callable[[T], Coroutine[Any, Any, Any]],
     max_concurrent: int = AI_CONCURRENCY_LIMIT,
