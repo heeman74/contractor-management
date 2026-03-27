@@ -18,6 +18,8 @@ import {
   ChevronRight,
   Menu,
   LogOut,
+  UserCheck,
+  ClipboardList,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
@@ -33,7 +35,17 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 
-const navItems = [
+import type { LucideIcon } from "lucide-react";
+
+interface NavItem {
+  label: string;
+  href: string;
+  icon: LucideIcon;
+  /** If set, item only shows when user has at least one of these roles */
+  roles?: string[];
+}
+
+const navItems: NavItem[] = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
   { label: "Monitoring", href: "/monitoring", icon: Activity },
   { label: "Jobs", href: "/jobs", icon: Briefcase },
@@ -43,23 +55,34 @@ const navItems = [
   { label: "Invoices", href: "/invoices", icon: Receipt },
   { label: "Clients", href: "/clients", icon: Users },
   { label: "Contractors", href: "/contractors", icon: HardHat },
+  // Foreman section — role-gated
+  { label: "Foreman Assignments", href: "/foreman", icon: UserCheck, roles: ["admin", "owner"] },
+  { label: "My Projects", href: "/foreman/projects", icon: HardHat, roles: ["contractor"] },
+  { label: "Daily Status", href: "/foreman/status", icon: ClipboardList, roles: ["contractor"] },
   { label: "Reports", href: "/reports", icon: BarChart3 },
 ];
 
 interface SidebarNavProps {
   collapsed: boolean;
   displayName: string | null;
+  roles: string[];
   onLogout: () => void;
   onToggle?: () => void;
 }
 
-function SidebarNav({ collapsed, displayName, onLogout, onToggle }: SidebarNavProps) {
+function SidebarNav({ collapsed, displayName, roles, onLogout, onToggle }: SidebarNavProps) {
   const pathname = usePathname();
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
     return pathname.startsWith(href);
   };
+
+  // Filter nav items by role
+  const visibleItems = navItems.filter((item) => {
+    if (!item.roles) return true;
+    return item.roles.some((r) => roles.includes(r));
+  });
 
   return (
     <div className="flex h-full flex-col bg-gray-900 text-white">
@@ -88,7 +111,7 @@ function SidebarNav({ collapsed, displayName, onLogout, onToggle }: SidebarNavPr
 
       {/* Navigation items */}
       <nav className="flex-1 space-y-1 px-2 py-2">
-        {navItems.map(({ label, href, icon: Icon }) => (
+        {visibleItems.map(({ label, href, icon: Icon }) => (
           <Link
             key={href}
             href={href}
@@ -154,6 +177,7 @@ export function MobileSidebar({ displayName }: MobileSidebarProps) {
   const dispatch = useAppDispatch();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const roles = useAppSelector((state) => state.auth.roles);
 
   const handleLogout = async () => {
     setOpen(false);
@@ -185,6 +209,7 @@ export function MobileSidebar({ displayName }: MobileSidebarProps) {
           <SidebarNav
             collapsed={false}
             displayName={displayName}
+            roles={roles}
             onLogout={handleLogout}
           />
         </SheetContent>
@@ -200,6 +225,7 @@ export function Sidebar() {
   const queryClient = useQueryClient();
   const collapsed = useAppSelector((state) => state.ui.sidebarCollapsed);
   const displayName = useAppSelector((state) => state.auth.displayName);
+  const roles = useAppSelector((state) => state.auth.roles);
 
   // Hydrate sidebar state from localStorage on mount
   useEffect(() => {
@@ -240,6 +266,7 @@ export function Sidebar() {
         <SidebarNav
           collapsed={collapsed}
           displayName={displayName}
+          roles={roles}
           onLogout={handleLogout}
           onToggle={handleToggle}
         />

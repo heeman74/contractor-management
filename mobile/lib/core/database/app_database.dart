@@ -67,6 +67,8 @@ import 'tables/site_walk_flags.dart';
 import 'tables/punch_list_items.dart';
 import 'tables/billing_milestones.dart';
 import 'tables/daily_checklists.dart';
+import 'tables/project_assignments.dart';
+import 'tables/project_status_updates.dart';
 
 export '../../features/company/data/company_dao.dart';
 export '../../features/invoices/data/invoice_dao.dart';
@@ -135,6 +137,8 @@ part 'app_database.g.dart';
     PunchListItems,
     BillingMilestones,
     DailyChecklists,
+    ProjectAssignments,
+    ProjectStatusUpdates,
   ],
   daos: [
     CompanyDao,
@@ -170,7 +174,7 @@ class AppDatabase extends _$AppDatabase {
       : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 14;
+  int get schemaVersion => 15;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -292,6 +296,11 @@ class AppDatabase extends _$AppDatabase {
             // Phase 26: AI daily checklists data layer
             // Create DailyChecklists table for contractor morning task checklists
             await m.createTable(dailyChecklists);
+          }
+          if (from < 15) {
+            // Foreman role: project assignments and daily status updates
+            await m.createTable(projectAssignments);
+            await m.createTable(projectStatusUpdates);
           }
         },
       );

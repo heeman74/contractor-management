@@ -46,6 +46,8 @@ import '../../core/database/app_database.dart'
 import '../../features/chat/presentation/screens/chat_screen.dart';
 import '../../features/chat/presentation/screens/chat_thread_screen.dart';
 import '../../features/checklists/presentation/screens/daily_checklist_screen.dart';
+import '../../features/foreman/presentation/screens/daily_status_screen.dart';
+import '../../features/foreman/presentation/screens/status_history_screen.dart';
 import '../../features/projects/presentation/screens/my_tasks_screen.dart';
 import '../../features/projects/presentation/screens/photo_annotation_screen.dart';
 import '../../features/projects/presentation/screens/task_detail_screen.dart';
@@ -313,6 +315,26 @@ final routerProvider = Provider.autoDispose<GoRouter>((ref) {
           return PhotoAnnotationScreen(
             localPath: extra['localPath'] as String? ?? '',
             annotationData: extra['annotationData'] as String?,
+          );
+        },
+      ),
+      // Foreman daily status update — full-screen form (no bottom nav).
+      // Push via: context.push(RouteNames.foremanDailyStatus)
+      GoRoute(
+        path: RouteNames.foremanDailyStatus,
+        builder: (context, state) => const DailyStatusScreen(),
+      ),
+      // Foreman status history — list of past updates for a project.
+      // Push via: context.push(RouteNames.foremanStatusHistoryPath(projectId))
+      GoRoute(
+        path: RouteNames.foremanStatusHistory,
+        builder: (context, state) {
+          final projectId = state.pathParameters['projectId']!;
+          final projectName =
+              state.extra is String ? state.extra as String : null;
+          return StatusHistoryScreen(
+            projectId: projectId,
+            projectName: projectName,
           );
         },
       ),
@@ -594,6 +616,10 @@ String? _checkRoleAccess(String location, Set<UserRole> roles) {
   // Client-gated routes
   else if (location.startsWith('/client')) {
     if (!roles.contains(UserRole.client)) return RouteNames.unauthorized;
+  }
+  // Foreman-gated routes — foremen are contractors with project assignments
+  else if (location.startsWith('/foreman')) {
+    if (!roles.contains(UserRole.contractor)) return RouteNames.unauthorized;
   }
 
   // Allow: authenticated user accessing a non-role-gated route,

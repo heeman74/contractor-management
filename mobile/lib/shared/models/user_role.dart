@@ -1,4 +1,4 @@
-/// User role types — the three roles that users can hold within a company.
+/// User role types — the roles that users can hold within a company.
 ///
 /// A user can have multiple roles across different companies.
 /// Enforced via UserRoles junction table and backend RLS policies.

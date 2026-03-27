@@ -275,6 +275,25 @@ abstract final class RouteNames {
   static String photoAnnotationPath(String taskId, String attachmentId) =>
       '/tasks/$taskId/photos/$attachmentId/annotate';
 
+  // --- Foreman-only routes ---
+
+  /// Foreman daily status update form — submit project progress report.
+  ///
+  /// Navigate via: context.push(RouteNames.foremanDailyStatus)
+  static const foremanDailyStatus = '/foreman/daily-status';
+
+  /// Foreman status update history for a specific project.
+  ///
+  /// Path param: projectId.
+  /// Navigate via: context.push(RouteNames.foremanStatusHistoryPath(projectId))
+  static const foremanStatusHistory = '/foreman/status-history/:projectId';
+
+  // ─── Helpers ─────────────────────────────────────────────────────────────
+
+  /// Build the foreman status history path for a specific project.
+  static String foremanStatusHistoryPath(String projectId) =>
+      '/foreman/status-history/$projectId';
+
   // --- Phase 26: AI daily checklist routes ---
 
   /// Contractor daily checklist — AI-generated morning task list.

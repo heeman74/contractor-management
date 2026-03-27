@@ -181,6 +181,9 @@ async def clean_tables(test_engine):
                 # daily_checklists references projects; dashboard_alerts references projects
                 "daily_checklists, "
                 "dashboard_alerts, "
+                # Foreman tables (reference projects/users)
+                "project_status_updates, "
+                "project_assignments, "
                 # Auth + core tables
                 "refresh_tokens, "
                 "user_roles, "

@@ -44,6 +44,7 @@ import '../../features/projects/data/task_dependency_dao.dart';
 import '../../features/ai/data/ai_conversation_dao.dart';
 import '../../features/ai/data/ai_sse_client.dart';
 import '../../features/checklists/data/checklist_dao.dart';
+import '../../features/foreman/data/foreman_repository.dart';
 
 final getIt = GetIt.instance;
 
@@ -197,4 +198,8 @@ Future<void> setupServiceLocator() async {
 
   // Phase 21: AI conversation DAO for local transcript cache (D-31)
   getIt.registerSingleton<AiConversationDao>(AiConversationDao(db));
+
+  // Foreman repository — wraps DioClient for foreman-specific API calls
+  // (project assignments, daily status updates).
+  getIt.registerSingleton<ForemanRepository>(ForemanRepository(dioClient));
 }

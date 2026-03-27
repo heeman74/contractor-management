@@ -141,6 +141,22 @@ class _AuthenticatedHome extends StatelessWidget {
             ),
             const SizedBox(height: 16),
           ],
+          if (roles.contains(UserRole.contractor)) ...[
+            const _SectionHeader('Foreman Features'),
+            _QuickLink(
+              icon: Icons.edit_note_outlined,
+              title: 'Submit Daily Status',
+              subtitle: 'Report today\'s progress and site conditions',
+              onTap: () => context.push(RouteNames.foremanDailyStatus),
+            ),
+            _QuickLink(
+              icon: Icons.folder_outlined,
+              title: 'My Projects',
+              subtitle: 'View your assigned projects',
+              onTap: () => context.go(RouteNames.projects),
+            ),
+            const SizedBox(height: 16),
+          ],
           if (roles.contains(UserRole.client)) ...[
             const _SectionHeader('Client Features'),
             _QuickLink(

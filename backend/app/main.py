@@ -22,6 +22,7 @@ from app.features.checklists.router import router as checklists_router
 from app.features.companies.router import router as companies_router
 from app.features.dashboard.router import router as dashboard_router
 from app.features.files.router import router as files_router
+from app.features.foreman.router import router as foreman_router
 from app.features.inspection.router import inspection_router
 from app.features.invoices.router import router as invoices_router
 from app.features.invoices.router import scope_invoice_router
@@ -160,6 +161,8 @@ app.include_router(invoices_router, prefix="/api/v1")
 app.include_router(scope_quote_router, prefix="/api/v1")
 app.include_router(scope_invoice_router, prefix="/api/v1")
 app.include_router(reports_router, prefix="/api/v1")
+# Foreman role: project assignments and daily status updates
+app.include_router(foreman_router, prefix="/api/v1")
 
 # Serve uploaded files (job request photos, note attachments etc.)
 # IMPORTANT: StaticFiles mounts MUST be added AFTER all router includes.

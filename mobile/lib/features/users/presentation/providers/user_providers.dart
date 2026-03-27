@@ -51,3 +51,4 @@ final companyContractorsProvider = StreamProvider.autoDispose
   final db = getIt<AppDatabase>();
   return db.userDao.watchUsersByRole(companyId, 'contractor');
 });
+
