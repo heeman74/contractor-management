@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { clampPercent } from "@/lib/utils";
 import type { TradeStatusBadgeData } from "@/lib/types/dashboard";
 
 interface TradeStatusBadgeProps {
@@ -19,10 +20,6 @@ const statusConfig = {
     pillClass: "bg-red-100 text-red-800",
   },
 } as const;
-
-function clampPercent(value: number): number {
-  return Math.min(100, Math.max(0, value));
-}
 
 export const TradeStatusBadge = memo(function TradeStatusBadge({ badge }: TradeStatusBadgeProps) {
   const config = statusConfig[badge.status] ?? statusConfig.on_track;

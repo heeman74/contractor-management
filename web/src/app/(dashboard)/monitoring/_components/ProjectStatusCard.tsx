@@ -2,13 +2,9 @@
 
 import { memo } from "react";
 import { AlertTriangle } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, clampPercent } from "@/lib/utils";
 import type { ProjectStatusCardData } from "@/lib/types/dashboard";
 import { TradeStatusBadge } from "./TradeStatusBadge";
-
-function clampPercent(value: number): number {
-  return Math.min(100, Math.max(0, value));
-}
 
 interface ProjectStatusCardProps {
   project: ProjectStatusCardData;

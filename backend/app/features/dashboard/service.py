@@ -20,13 +20,16 @@ Design notes:
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 from typing import Any
 
+from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from app.core.ai_utils import (
+    ACTIVE_PROJECT_STATUSES,
+    DASHBOARD_PROJECT_STATUSES,
     DONE_STATUSES,
     call_claude_json,
     gather_with_concurrency,
@@ -48,9 +51,9 @@ from app.features.projects.models import Project, Task, TaskDependency, TradeSco
 
 logger = get_logger(__name__)
 
-# Project status filter constants
-ACTIVE_PROJECT_STATUSES = ("planning", "active")
-DASHBOARD_PROJECT_STATUSES = ("planning", "active", "on_hold")
+# Schedule slip detection thresholds
+MIN_SLIP_DAYS_THRESHOLD = 1
+ALERT_DEDUP_HOURS = 24
 
 
 def _compute_trade_status(tasks: list[Task], today: date) -> str:
@@ -136,28 +139,10 @@ class DashboardService(TenantScopedService[DashboardAlert]):
                 if scope.deleted_at is not None:
                     continue
 
-                scope_tasks = [t for t in scope.tasks if t.deleted_at is None]
-                scope_total = len(scope_tasks)
-                scope_completed = sum(1 for t in scope_tasks if t.status == "complete")
-
+                badge, scope_total, scope_completed = self._build_trade_badge(scope, today)
+                trade_statuses.append(badge)
                 total_tasks += scope_total
                 completed_tasks += scope_completed
-
-                scope_completion = (
-                    round(scope_completed / scope_total * 100, 1) if scope_total > 0 else 0.0
-                )
-                scope_status = _compute_trade_status(scope_tasks, today)
-
-                trade_statuses.append(
-                    TradeStatusBadge(
-                        trade_scope_id=scope.id,
-                        trade_name=scope.trade_name,
-                        status=scope_status,
-                        completion_pct=scope_completion,
-                        task_count=scope_total,
-                        completed_count=scope_completed,
-                    )
-                )
 
             overall_pct = round(completed_tasks / total_tasks * 100, 1) if total_tasks > 0 else 0.0
 
@@ -174,14 +159,47 @@ class DashboardService(TenantScopedService[DashboardAlert]):
 
         return cards
 
+    @staticmethod
+    def _build_trade_badge(
+        scope: TradeScope, today: date
+    ) -> tuple[TradeStatusBadge, int, int]:
+        """Build a TradeStatusBadge for a single scope.
+
+        Returns (badge, total_task_count, completed_task_count) so the caller
+        can accumulate project-level totals.
+        """
+        scope_tasks = [t for t in scope.tasks if t.deleted_at is None]
+        scope_total = len(scope_tasks)
+        scope_completed = sum(1 for t in scope_tasks if t.status == "complete")
+
+        scope_completion = (
+            round(scope_completed / scope_total * 100, 1) if scope_total > 0 else 0.0
+        )
+        scope_status = _compute_trade_status(scope_tasks, today)
+
+        badge = TradeStatusBadge(
+            trade_scope_id=scope.id,
+            trade_name=scope.trade_name,
+            status=scope_status,
+            completion_pct=scope_completion,
+            task_count=scope_total,
+            completed_count=scope_completed,
+        )
+        return badge, scope_total, scope_completed
+
     # -------------------------------------------------------------------------
     # Trade task drill-down
     # -------------------------------------------------------------------------
 
-    async def get_trade_tasks(self, trade_scope_id: uuid.UUID) -> list[TradeTaskDetail]:
+    async def get_trade_tasks(
+        self,
+        trade_scope_id: uuid.UUID,
+        project_id: uuid.UUID | None = None,
+    ) -> list[TradeTaskDetail]:
         """Return all tasks for a trade scope with dependency and assignee info.
 
         Used for the GC drill-down view when a trade badge is tapped.
+        If project_id is provided, validates that the scope belongs to the project.
         """
         stmt = (
             select(TradeScope)
@@ -191,11 +209,17 @@ class DashboardService(TenantScopedService[DashboardAlert]):
             )
             .options(selectinload(TradeScope.tasks))
         )
+        if project_id is not None:
+            stmt = stmt.where(TradeScope.project_id == project_id)
+
         result = await self.db.execute(stmt)
         scope = result.scalars().first()
 
         if scope is None:
-            return []
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Trade scope not found for this project",
+            )
 
         details: list[TradeTaskDetail] = []
         for task in scope.tasks:
@@ -296,22 +320,7 @@ class DashboardService(TenantScopedService[DashboardAlert]):
             )
             dep_result = await self.db.execute(dep_stmt)
             all_deps = list(dep_result.scalars().all())
-
-            seen_links: set[tuple[uuid.UUID, uuid.UUID]] = set()
-            for dep in all_deps:
-                from_scope = task_scope_map.get(dep.predecessor_task_id)
-                to_scope = task_scope_map.get(dep.successor_task_id)
-                if from_scope and to_scope and from_scope != to_scope:
-                    link_key = (from_scope, to_scope)
-                    if link_key not in seen_links:
-                        seen_links.add(link_key)
-                        dep_links.append(
-                            DependencyLink(
-                                from_scope_id=from_scope,
-                                to_scope_id=to_scope,
-                                dependency_type=dep.dependency_type,
-                            )
-                        )
+            dep_links = self._build_dependency_links(all_deps, task_ids, task_scope_map)
 
         return TradeTimelineResponse(
             project_id=project.id,
@@ -319,6 +328,36 @@ class DashboardService(TenantScopedService[DashboardAlert]):
             scopes=scope_entries,
             dependency_links=dep_links,
         )
+
+    @staticmethod
+    def _build_dependency_links(
+        dependencies: list[TaskDependency],
+        task_ids: list[uuid.UUID],
+        task_scope_map: dict[uuid.UUID, uuid.UUID],
+    ) -> list[DependencyLink]:
+        """Build deduplicated cross-scope dependency links from raw TaskDependency rows.
+
+        Only includes links where predecessor and successor belong to different scopes.
+        """
+        dep_links: list[DependencyLink] = []
+        seen_links: set[tuple[uuid.UUID, uuid.UUID]] = set()
+
+        for dep in dependencies:
+            from_scope = task_scope_map.get(dep.predecessor_task_id)
+            to_scope = task_scope_map.get(dep.successor_task_id)
+            if from_scope and to_scope and from_scope != to_scope:
+                link_key = (from_scope, to_scope)
+                if link_key not in seen_links:
+                    seen_links.add(link_key)
+                    dep_links.append(
+                        DependencyLink(
+                            from_scope_id=from_scope,
+                            to_scope_id=to_scope,
+                            dependency_type=dep.dependency_type,
+                        )
+                    )
+
+        return dep_links
 
     # -------------------------------------------------------------------------
     # Schedule slip detection
@@ -363,7 +402,7 @@ class DashboardService(TenantScopedService[DashboardAlert]):
     ) -> tuple[list[dict[str, Any]], set[tuple[uuid.UUID, uuid.UUID | None, str]]]:
         """Query active projects and extract trade scopes with overdue tasks.
 
-        Also pre-fetches recent alerts (last 24h) for deduplication.
+        Also pre-fetches recent alerts for deduplication via the repository.
 
         Returns (slip_items, existing_alert_keys).
         """
@@ -381,23 +420,9 @@ class DashboardService(TenantScopedService[DashboardAlert]):
         result = await self.db.execute(stmt)
         projects = list(result.scalars().all())
 
-        # Pre-fetch recent alerts (last 24h, read or unread) to avoid duplicates.
-        # Checking only unread would re-create alerts hourly after a GC reads them.
-        dedup_cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
-        existing_alerts_stmt = select(
-            DashboardAlert.project_id,
-            DashboardAlert.trade_scope_id,
-            DashboardAlert.alert_type,
-        ).where(
-            DashboardAlert.company_id == company_id,
-            DashboardAlert.deleted_at.is_(None),
-            DashboardAlert.alert_type == "schedule_slip",
-            DashboardAlert.created_at >= dedup_cutoff,
+        existing_alert_keys = await self.repository.get_recent_alert_keys(
+            company_id, hours=ALERT_DEDUP_HOURS
         )
-        existing_result = await self.db.execute(existing_alerts_stmt)
-        existing_alert_keys: set[tuple[uuid.UUID, uuid.UUID | None, str]] = {
-            (row[0], row[1], row[2]) for row in existing_result.all()
-        }
 
         slip_items: list[dict[str, Any]] = []
 
@@ -422,7 +447,7 @@ class DashboardService(TenantScopedService[DashboardAlert]):
                     continue
 
                 max_days = max((target_date - t.due_date).days for t in overdue_tasks)
-                if max_days <= 1:
+                if max_days <= MIN_SLIP_DAYS_THRESHOLD:
                     continue
 
                 scope_days_behind[scope.id] = max_days
@@ -613,25 +638,9 @@ class DashboardService(TenantScopedService[DashboardAlert]):
         payload = alert.rescheduling_payload
         if payload and "suggestions" in payload:
             suggestions = payload["suggestions"]
-
-            # Collect all valid task IDs, then batch-fetch
-            task_ids: set[uuid.UUID] = set()
-            valid_suggestions: list[tuple[uuid.UUID, dict]] = []
-
-            for suggestion in suggestions:
-                task_id_str = suggestion.get("task_id")
-                if not task_id_str:
-                    continue
-                try:
-                    task_uuid = uuid.UUID(task_id_str)
-                    valid_suggestions.append((task_uuid, suggestion))
-                    task_ids.add(task_uuid)
-                except ValueError:
-                    logger.warning(
-                        "accept_rescheduling: invalid task_id '%s' in alert %s",
-                        task_id_str,
-                        alert_id,
-                    )
+            task_ids, valid_suggestions = self._parse_suggestion_task_ids(
+                suggestions, alert_id
+            )
 
             if valid_suggestions:
                 # Single query to fetch all tasks, filtered to the alert's project
@@ -644,40 +653,82 @@ class DashboardService(TenantScopedService[DashboardAlert]):
                 task_result = await self.db.execute(task_stmt)
                 tasks_by_id: dict[uuid.UUID, Task] = {t.id: t for t in task_result.scalars().all()}
 
-                for task_uuid, suggestion in valid_suggestions:
-                    task = tasks_by_id.get(task_uuid)
-                    if task is None:
-                        logger.warning(
-                            "accept_rescheduling: task %s not found for alert %s",
-                            task_uuid,
-                            alert_id,
-                        )
-                        continue
-
-                    new_start_str = suggestion.get("new_start_date")
-                    new_due_str = suggestion.get("new_due_date")
-
-                    if new_start_str:
-                        try:
-                            task.start_date = date.fromisoformat(new_start_str)
-                        except ValueError:
-                            logger.warning(
-                                "accept_rescheduling: invalid new_start_date '%s'",
-                                new_start_str,
-                            )
-
-                    if new_due_str:
-                        try:
-                            task.due_date = date.fromisoformat(new_due_str)
-                        except ValueError:
-                            logger.warning(
-                                "accept_rescheduling: invalid new_due_date '%s'",
-                                new_due_str,
-                            )
-
+                self._apply_date_changes(tasks_by_id, valid_suggestions, alert_id)
                 await self.db.flush()
 
         return await self.repository.accept_rescheduling(alert_id)
+
+    @staticmethod
+    def _parse_suggestion_task_ids(
+        suggestions: list[dict[str, Any]],
+        alert_id: uuid.UUID,
+    ) -> tuple[set[uuid.UUID], list[tuple[uuid.UUID, dict[str, Any]]]]:
+        """Parse task IDs from rescheduling suggestions.
+
+        Returns (task_ids, valid_suggestions) where valid_suggestions is a list
+        of (task_uuid, suggestion_dict) pairs with successfully parsed UUIDs.
+        """
+        task_ids: set[uuid.UUID] = set()
+        valid_suggestions: list[tuple[uuid.UUID, dict[str, Any]]] = []
+
+        for suggestion in suggestions:
+            task_id_str = suggestion.get("task_id")
+            if not task_id_str:
+                continue
+            try:
+                task_uuid = uuid.UUID(task_id_str)
+                valid_suggestions.append((task_uuid, suggestion))
+                task_ids.add(task_uuid)
+            except ValueError:
+                logger.warning(
+                    "accept_rescheduling: invalid task_id '%s' in alert %s",
+                    task_id_str,
+                    alert_id,
+                )
+
+        return task_ids, valid_suggestions
+
+    @staticmethod
+    def _apply_date_changes(
+        tasks_by_id: dict[uuid.UUID, Task],
+        valid_suggestions: list[tuple[uuid.UUID, dict[str, Any]]],
+        alert_id: uuid.UUID,
+    ) -> None:
+        """Apply start_date and due_date changes from suggestions to task objects.
+
+        Mutates the Task objects in-place. Logs warnings for missing tasks
+        or invalid date strings.
+        """
+        for task_uuid, suggestion in valid_suggestions:
+            task = tasks_by_id.get(task_uuid)
+            if task is None:
+                logger.warning(
+                    "accept_rescheduling: task %s not found for alert %s",
+                    task_uuid,
+                    alert_id,
+                )
+                continue
+
+            new_start_str = suggestion.get("new_start_date")
+            new_due_str = suggestion.get("new_due_date")
+
+            if new_start_str:
+                try:
+                    task.start_date = date.fromisoformat(new_start_str)
+                except ValueError:
+                    logger.warning(
+                        "accept_rescheduling: invalid new_start_date '%s'",
+                        new_start_str,
+                    )
+
+            if new_due_str:
+                try:
+                    task.due_date = date.fromisoformat(new_due_str)
+                except ValueError:
+                    logger.warning(
+                        "accept_rescheduling: invalid new_due_date '%s'",
+                        new_due_str,
+                    )
 
     async def get_alerts(
         self,

@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useState, useMemo, useCallback } from "react";
 import type { ITask, ILink } from "@svar-ui/react-gantt";
 import { useTradeTimeline } from "@/lib/hooks/useDashboard";
+import { clampPercent } from "@/lib/utils";
 import type { TradeTimelineScope, TradeTimelineDep } from "@/lib/types/dashboard";
 import { TradeTaskList } from "./TradeTaskList";
 
@@ -21,10 +22,6 @@ const GanttChart = dynamic(
 );
 
 const ONE_DAY_MS = 86_400_000;
-
-function clampPercent(value: number): number {
-  return Math.min(100, Math.max(0, value));
-}
 
 /** Map trade scopes to SVAR ITask format, filtering out invalid dates. */
 function mapScopesToGanttTasks(scopes: TradeTimelineScope[]): ITask[] {

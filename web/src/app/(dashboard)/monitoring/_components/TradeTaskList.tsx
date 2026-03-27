@@ -116,7 +116,7 @@ export function TradeTaskList({ projectId, tradeScopeId, onClose }: TradeTaskLis
                       {formatDate(task.due_date) ?? <span className="text-gray-400">—</span>}
                     </td>
                     <td className="px-3 py-2 text-gray-600">
-                      {task.dependency_status || <span className="text-gray-400">—</span>}
+                      {task.dependency_status ?? <span className="text-gray-400">—</span>}
                     </td>
                   </tr>
                 );
