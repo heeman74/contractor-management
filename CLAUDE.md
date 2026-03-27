@@ -81,6 +81,18 @@
 - GoRouter uses ValueNotifier bridge pattern to prevent router rebuilds on auth changes.
 - Login/Register/Onboarding are unauthenticated routes; all others require auth.
 
+## Clean Code Principles (Required for All Code)
+- **Meaningful names**: Variables, functions, and classes must have clear, intention-revealing names. No abbreviations (`dep` → `dependency`), no generic names (`data`, `info`, `temp`).
+- **Small functions**: Each function/method should do ONE thing. Target ~20 lines max. If a function has multiple sections separated by blank lines, decompose it.
+- **Single Responsibility**: Each class/module/widget has one reason to change. Don't mix data transformation with presentation, or DB queries with business logic.
+- **DRY**: No duplicated logic. If the same pattern appears in 2+ places, extract a shared utility/helper/base method.
+- **No magic numbers/strings**: All literal values must be named constants. `5` → `AI_CONCURRENCY_LIMIT = 5`. `"/checklists/today"` → `_todayEndpoint`.
+- **Consistent abstraction levels**: Don't mix high-level orchestration with low-level details in one function. Extract helpers.
+- **Minimal comments**: Code should be self-documenting. Comments explain WHY, not WHAT. No redundant comments restating the code. No issue-tracker prefixes in production code.
+- **Clean error handling**: Handle errors at the right level. Don't use exceptions for flow control. Don't double-catch (if a callee handles it, don't wrap it again).
+- **Few function arguments**: 0-2 ideal, 3 max. Use dataclasses/TypedDict/objects for many params.
+- **No dead code**: No unused imports, variables, functions, or commented-out code.
+
 ## General Rules
 - Run `ruff check` and `ruff format` before committing Python code.
 - Run `dart analyze` before committing Flutter code.
