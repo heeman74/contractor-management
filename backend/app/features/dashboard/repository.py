@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
-from sqlalchemy import case, select
+from sqlalchemy import case, func, select
 
 from app.core.base_repository import TenantScopedRepository
 from app.features.dashboard.models import DashboardAlert
 
-# BUG-4: CASE expression for correct severity ordering (not alphabetical)
+# CASE expression for correct severity ordering (not alphabetical)
 _severity_order = case(
     (DashboardAlert.severity == "critical", 3),
     (DashboardAlert.severity == "warning", 2),
@@ -28,7 +29,6 @@ class AlertRepository(TenantScopedRepository[DashboardAlert]):
 
         RLS automatically scopes to the current company via app.current_company_id.
         Severity ordering: critical (highest) -> warning -> info.
-        Uses CASE expression to avoid alphabetical ordering bug.
         """
         stmt = (
             select(DashboardAlert)
@@ -37,7 +37,6 @@ class AlertRepository(TenantScopedRepository[DashboardAlert]):
                 DashboardAlert.deleted_at.is_(None),
             )
             .order_by(
-                # BUG-4: Use CASE expression for correct severity ordering
                 _severity_order.desc(),
                 DashboardAlert.created_at.desc(),
             )
@@ -58,42 +57,33 @@ class AlertRepository(TenantScopedRepository[DashboardAlert]):
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
-    async def mark_read(self, alert_id: uuid.UUID) -> DashboardAlert | None:
-        """Set is_read=True on the given alert. Returns the updated alert or None."""
+    async def _update_alert_fields(
+        self, alert_id: uuid.UUID, **fields: Any
+    ) -> DashboardAlert | None:
+        """Fetch an alert by ID and apply field updates. Returns updated alert or None."""
         entity = await self.db.get(DashboardAlert, alert_id)
         if entity is None:
             return None
-        entity.is_read = True  # type: ignore[assignment]
+        for key, value in fields.items():
+            setattr(entity, key, value)
         await self.db.flush()
         await self.db.refresh(entity)
         return entity
+
+    async def mark_read(self, alert_id: uuid.UUID) -> DashboardAlert | None:
+        """Set is_read=True on the given alert. Returns the updated alert or None."""
+        return await self._update_alert_fields(alert_id, is_read=True)
 
     async def accept_rescheduling(self, alert_id: uuid.UUID) -> DashboardAlert | None:
         """Set rescheduling_accepted=True. Returns the updated alert or None."""
-        entity = await self.db.get(DashboardAlert, alert_id)
-        if entity is None:
-            return None
-        entity.rescheduling_accepted = True  # type: ignore[assignment]
-        entity.is_read = True  # type: ignore[assignment]
-        await self.db.flush()
-        await self.db.refresh(entity)
-        return entity
+        return await self._update_alert_fields(alert_id, rescheduling_accepted=True, is_read=True)
 
     async def dismiss_alert(self, alert_id: uuid.UUID) -> DashboardAlert | None:
         """Set rescheduling_accepted=False (dismissed without applying). Returns updated alert."""
-        entity = await self.db.get(DashboardAlert, alert_id)
-        if entity is None:
-            return None
-        entity.rescheduling_accepted = False  # type: ignore[assignment]
-        entity.is_read = True  # type: ignore[assignment]
-        await self.db.flush()
-        await self.db.refresh(entity)
-        return entity
+        return await self._update_alert_fields(alert_id, rescheduling_accepted=False, is_read=True)
 
     async def count_active_for_project(self, project_id: uuid.UUID) -> int:
         """Count unread alerts for a project (used in ProjectStatusCard)."""
-        from sqlalchemy import func, select
-
         stmt = select(func.count()).where(
             DashboardAlert.project_id == project_id,
             DashboardAlert.is_read.is_(False),

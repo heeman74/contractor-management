@@ -1,5 +1,3 @@
-"use client";
-
 import { memo } from "react";
 import type { TradeStatusBadgeData } from "@/lib/types/dashboard";
 
@@ -22,9 +20,13 @@ const statusConfig = {
   },
 } as const;
 
+function clampPercent(value: number): number {
+  return Math.min(100, Math.max(0, value));
+}
+
 export const TradeStatusBadge = memo(function TradeStatusBadge({ badge }: TradeStatusBadgeProps) {
   const config = statusConfig[badge.status] ?? statusConfig.on_track;
-  const clampedPct = Math.min(100, Math.max(0, badge.completion_pct));
+  const clampedPct = clampPercent(badge.completion_pct);
 
   return (
     <div className="flex items-center gap-2 py-1">

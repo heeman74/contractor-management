@@ -10,6 +10,10 @@ import {
 } from "@/lib/hooks/useDashboard";
 import type { DashboardAlert } from "@/lib/types/dashboard";
 
+const MARK_READ_DEBOUNCE_MS = 300;
+const VISIBILITY_THRESHOLD = 0.5;
+const ALERT_TYPE_RESCHEDULING = "rescheduling_suggestion";
+
 interface AlertPanelProps {
   projectId?: string;
 }
@@ -71,7 +75,7 @@ const AlertCard = memo(function AlertCard({
           observer.disconnect();
         }
       },
-      { threshold: 0.5 }
+      { threshold: VISIBILITY_THRESHOLD }
     );
     observer.observe(el);
     return () => observer.disconnect();
@@ -82,7 +86,7 @@ const AlertCard = memo(function AlertCard({
   const { Icon, iconClass, borderClass } = config;
 
   const isPendingRescheduling =
-    alert.alert_type === "rescheduling_suggestion" &&
+    alert.alert_type === ALERT_TYPE_RESCHEDULING &&
     alert.rescheduling_accepted === null;
 
   return (
@@ -158,7 +162,6 @@ const AlertCard = memo(function AlertCard({
 export function AlertPanel({ projectId }: AlertPanelProps) {
   const { data: alerts, isLoading, isError } = useDashboardAlerts(projectId);
 
-  // Issue 2: Lift mutation hooks to parent
   const markRead = useMarkAlertRead();
   const acceptRescheduling = useAcceptRescheduling();
   const dismissAlert = useDismissAlert();
@@ -171,7 +174,7 @@ export function AlertPanel({ projectId }: AlertPanelProps) {
   const dismissMutateRef = useRef(dismissAlert.mutate);
   dismissMutateRef.current = dismissAlert.mutate;
 
-  // Issue 3: Batch mark-as-read with debounce
+  // Batch mark-as-read with debounce to avoid flooding the server
   const pendingMarkReadIds = useRef<Set<string>>(new Set());
   const batchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -187,7 +190,7 @@ export function AlertPanel({ projectId }: AlertPanelProps) {
     (alertId: string) => {
       pendingMarkReadIds.current.add(alertId);
       if (batchTimerRef.current) clearTimeout(batchTimerRef.current);
-      batchTimerRef.current = setTimeout(flushMarkRead, 300);
+      batchTimerRef.current = setTimeout(flushMarkRead, MARK_READ_DEBOUNCE_MS);
     },
     [flushMarkRead]
   );
@@ -199,7 +202,7 @@ export function AlertPanel({ projectId }: AlertPanelProps) {
     };
   }, []);
 
-  // Issue 4: Clear stale alert IDs when projectId changes
+  // Clear stale pending IDs when switching projects
   useEffect(() => {
     pendingMarkReadIds.current.clear();
     if (batchTimerRef.current) clearTimeout(batchTimerRef.current);
@@ -215,9 +218,8 @@ export function AlertPanel({ projectId }: AlertPanelProps) {
     []
   );
 
-  // Issue 20: Memoize unread count
   const unreadCount = useMemo(
-    () => alerts?.filter((a) => !a.is_read).length ?? 0,
+    () => alerts?.filter((alert) => !alert.is_read).length ?? 0,
     [alerts]
   );
 

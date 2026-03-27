@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useState, useMemo, useCallback } from "react";
 import type { ITask, ILink } from "@svar-ui/react-gantt";
 import { useTradeTimeline } from "@/lib/hooks/useDashboard";
+import type { TradeTimelineScope, TradeTimelineDep } from "@/lib/types/dashboard";
 import { TradeTaskList } from "./TradeTaskList";
 
 // CRITICAL: SSR avoidance — SVAR Gantt uses browser APIs at module load time
@@ -19,6 +20,46 @@ const GanttChart = dynamic(
   }
 );
 
+const ONE_DAY_MS = 86_400_000;
+
+function clampPercent(value: number): number {
+  return Math.min(100, Math.max(0, value));
+}
+
+/** Map trade scopes to SVAR ITask format, filtering out invalid dates. */
+function mapScopesToGanttTasks(scopes: TradeTimelineScope[]): ITask[] {
+  return scopes
+    .filter((scope) => {
+      const start = new Date(scope.start_date);
+      const end = new Date(scope.end_date);
+      return !isNaN(start.getTime()) && !isNaN(end.getTime());
+    })
+    .map((scope) => {
+      const start = new Date(scope.start_date);
+      const end = new Date(scope.end_date);
+      // Ensure end >= start (min 1 day)
+      if (end <= start) end.setTime(start.getTime() + ONE_DAY_MS);
+      return {
+        id: scope.id,
+        text: scope.trade_name,
+        start,
+        end,
+        progress: clampPercent(scope.progress),
+        type: "task" as const,
+      };
+    });
+}
+
+/** Map dependencies to SVAR ILink format (finish-to-start). */
+function mapDependenciesToGanttLinks(dependencies: TradeTimelineDep[]): ILink[] {
+  return dependencies.map((dependency, index) => ({
+    id: `link-${index}`,
+    source: dependency.source_id,
+    target: dependency.target_id,
+    type: "e2s" as ILink["type"],
+  }));
+}
+
 interface TradeTimelineProps {
   projectId: string;
 }
@@ -27,41 +68,15 @@ export function TradeTimeline({ projectId }: TradeTimelineProps) {
   const { data: timelineData, isLoading, isError } = useTradeTimeline(projectId);
   const [expandedTradeId, setExpandedTradeId] = useState<string | null>(null);
 
-  // Map trade scopes to SVAR ITask format
-  const ganttTasks = useMemo((): ITask[] => {
-    if (!timelineData?.scopes) return [];
-    return timelineData.scopes
-      .filter((scope) => {
-        const start = new Date(scope.start_date);
-        const end = new Date(scope.end_date);
-        return !isNaN(start.getTime()) && !isNaN(end.getTime());
-      })
-      .map((scope) => {
-        const start = new Date(scope.start_date);
-        const end = new Date(scope.end_date);
-        // Ensure end >= start (min 1 day)
-        if (end <= start) end.setTime(start.getTime() + 24 * 60 * 60 * 1000);
-        return {
-          id: scope.id,
-          text: scope.trade_name,
-          start,
-          end,
-          progress: Math.min(100, Math.max(0, scope.progress)),
-          type: "task" as const,
-        };
-      });
-  }, [timelineData]);
+  const ganttTasks = useMemo(
+    (): ITask[] => (timelineData?.scopes ? mapScopesToGanttTasks(timelineData.scopes) : []),
+    [timelineData]
+  );
 
-  // Map dependencies to SVAR ILink format (finish-to-start = type 0)
-  const ganttLinks = useMemo((): ILink[] => {
-    if (!timelineData?.dependencies) return [];
-    return timelineData.dependencies.map((dep, idx) => ({
-      id: `link-${idx}`,
-      source: dep.source_id,
-      target: dep.target_id,
-      type: "e2s" as ILink["type"],
-    }));
-  }, [timelineData]);
+  const ganttLinks = useMemo(
+    (): ILink[] => (timelineData?.dependencies ? mapDependenciesToGanttLinks(timelineData.dependencies) : []),
+    [timelineData]
+  );
 
   const handleTaskClick = useCallback((ev: { id?: string | number }) => {
     const id = ev?.id ? String(ev.id) : null;

@@ -20,10 +20,6 @@ class DailyChecklistDao extends DatabaseAccessor<AppDatabase>
     with _$DailyChecklistDaoMixin {
   DailyChecklistDao(super.db);
 
-  // ────────────────────────────────────────────────────────────────────────
-  // Reactive streams
-  // ────────────────────────────────────────────────────────────────────────
-
   /// Reactive stream of today's non-deleted checklists for a contractor.
   ///
   /// [contractorId] — the contractor's user ID.
@@ -37,47 +33,41 @@ class DailyChecklistDao extends DatabaseAccessor<AppDatabase>
     String dateStr, {
     String? companyId,
   }) {
-    return (select(dailyChecklists)
-          ..where(
-            (tbl) {
-              var condition = tbl.contractorId.equals(contractorId) &
-                  tbl.checklistDate.equals(dateStr) &
-                  tbl.deletedAt.isNull();
-              if (companyId != null) {
-                condition = condition & tbl.companyId.equals(companyId);
-              }
-              return condition;
-            },
-          )
-          ..orderBy([(tbl) => OrderingTerm.desc(tbl.createdAt)]))
-        .watch();
+    return _todayQuery(contractorId, dateStr, companyId: companyId).watch();
   }
-
-  // ────────────────────────────────────────────────────────────────────────
-  // One-shot queries
-  // ────────────────────────────────────────────────────────────────────────
 
   /// One-shot query for today's non-deleted checklists for a contractor.
   ///
   /// Same filter as [watchTodayForContractor] but returns a Future.
   Future<List<DailyChecklist>> getTodayForContractor(
     String contractorId,
-    String dateStr,
-  ) {
-    return (select(dailyChecklists)
-          ..where(
-            (tbl) =>
-                tbl.contractorId.equals(contractorId) &
-                tbl.checklistDate.equals(dateStr) &
-                tbl.deletedAt.isNull(),
-          )
-          ..orderBy([(tbl) => OrderingTerm.desc(tbl.createdAt)]))
-        .get();
+    String dateStr, {
+    String? companyId,
+  }) {
+    return _todayQuery(contractorId, dateStr, companyId: companyId).get();
   }
 
-  // ────────────────────────────────────────────────────────────────────────
-  // Upsert (sync pull path)
-  // ────────────────────────────────────────────────────────────────────────
+  /// Shared query for today's non-deleted checklists filtered by contractor,
+  /// date, and optional company ID. Ordered by [createdAt] DESC.
+  SimpleSelectStatement<$DailyChecklistsTable, DailyChecklist> _todayQuery(
+    String contractorId,
+    String dateStr, {
+    String? companyId,
+  }) {
+    return select(dailyChecklists)
+      ..where(
+        (tbl) {
+          var condition = tbl.contractorId.equals(contractorId) &
+              tbl.checklistDate.equals(dateStr) &
+              tbl.deletedAt.isNull();
+          if (companyId != null) {
+            condition = condition & tbl.companyId.equals(companyId);
+          }
+          return condition;
+        },
+      )
+      ..orderBy([(tbl) => OrderingTerm.desc(tbl.createdAt)]);
+  }
 
   /// Upsert a checklist from a sync pull or direct API fetch.
   ///

@@ -36,7 +36,9 @@ function getStatusConfig(status: string) {
 function isPastDue(dueDateStr: string | null, status: string): boolean {
   if (!dueDateStr) return false;
   if (status === "complete" || status === "completed") return false;
-  return new Date(dueDateStr) < new Date();
+  const d = new Date(dueDateStr);
+  if (isNaN(d.getTime())) return false;
+  return d < new Date();
 }
 
 export function TradeTaskList({ projectId, tradeScopeId, onClose }: TradeTaskListProps) {

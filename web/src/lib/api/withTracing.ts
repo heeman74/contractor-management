@@ -39,8 +39,6 @@ export async function tracedFetch(
   init?: RequestInit
 ): Promise<Response> {
   const requestId = generateRequestId();
-  const prevRequestId = logger.getRequestId();
-  logger.setRequestId(requestId);
 
   // Merge X-Request-ID into headers
   const headers = new Headers(init?.headers);
@@ -81,12 +79,5 @@ export async function tracedFetch(
       requestId,
     });
     throw err;
-  } finally {
-    // Restore previous request ID (or clear)
-    if (prevRequestId) {
-      logger.setRequestId(prevRequestId);
-    } else {
-      logger.clearRequestId();
-    }
   }
 }

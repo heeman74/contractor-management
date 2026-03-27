@@ -7,15 +7,14 @@ Design notes:
 - Non-streaming Claude API call (messages.create, not messages.stream) — used for batch jobs
 - Lazy singleton AsyncAnthropic client via get_anthropic_client()
 - Each contractor's generation is wrapped in try/except — errors logged, continue to next
-- asyncio.Semaphore(5) for bounded concurrency on Claude API calls
-- BUG-1 fix: FCM push uses only primitive data, not the DB session
-- THRU-2: DB data extracted into plain dicts before Claude API calls
+- Bounded concurrency on Claude API calls via gather_with_concurrency
+- FCM push uses only primitive data, not the DB session
+- DB data extracted into plain dicts before Claude API calls
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
 import uuid
 from datetime import date
 from typing import Any
@@ -24,20 +23,20 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.ai_utils import (
-    CLAUDE_MAX_TOKENS,
-    CLAUDE_MODEL,
     DONE_STATUSES,
-    get_anthropic_client,
-    strip_fences,
+    call_claude_json,
+    gather_with_concurrency,
 )
 from app.core.base_service import TenantScopedService
 from app.core.logging_config import get_logger
 from app.features.checklists.models import DailyChecklist
 from app.features.checklists.prompts.checklist_system import CHECKLIST_SYSTEM_PROMPT
 from app.features.checklists.repository import ChecklistRepository
-from app.features.projects.models import Project, Task, TradeScope
+from app.features.projects.models import Project, TradeScope
 
 logger = get_logger(__name__)
+
+ACTIVE_PROJECT_STATUSES = ("planning", "active")
 
 
 class ChecklistService(TenantScopedService[DailyChecklist]):
@@ -55,24 +54,42 @@ class ChecklistService(TenantScopedService[DailyChecklist]):
     ) -> int:
         """Generate AI checklists for all contractors in a company on target_date.
 
-        Queries all active projects with trade scopes and tasks (single query with
-        eager loads — N+1 safe). For each trade scope with an assigned contractor and
-        eligible tasks, calls Claude to generate a structured checklist JSON.
+        Orchestrates the full pipeline: query eligible scopes, call Claude for each,
+        persist results, and dispatch notifications.
 
         Returns the number of checklists successfully generated.
-
-        Design:
-        - selectinload for all relationships — no lazy loads
-        - THRU-2: Extracts all DB data into plain dicts before AI calls
-        - SCALE-2: asyncio.Semaphore(5) for bounded concurrency on Claude calls
-        - BUG-1: FCM push uses only primitive data, no stale DB session reference
         """
-        # Single query: all active projects for this company with full hierarchy
+        scope_items = await self._query_eligible_scopes(company_id, target_date)
+
+        ai_results = await gather_with_concurrency(scope_items, self._call_claude_for_checklist)
+
+        generated_count, notifications = await self._persist_checklists(scope_items, ai_results)
+
+        self._dispatch_notifications(notifications)
+
+        logger.info(
+            "generate_daily_checklists: generated %d checklists for company %s date %s",
+            generated_count,
+            company_id,
+            target_date,
+        )
+        return generated_count
+
+    async def _query_eligible_scopes(
+        self,
+        company_id: uuid.UUID,
+        target_date: date,
+    ) -> list[dict[str, Any]]:
+        """Query active projects and extract eligible trade scopes as plain dicts.
+
+        Returns a list of dicts, each containing the data needed for a single
+        Claude API call (no ORM objects — safe for use after session release).
+        """
         stmt = (
             select(Project)
             .where(
                 Project.company_id == company_id,
-                Project.status.in_(["planning", "active"]),
+                Project.status.in_(ACTIVE_PROJECT_STATUSES),
                 Project.deleted_at.is_(None),
             )
             .options(
@@ -82,15 +99,13 @@ class ChecklistService(TenantScopedService[DailyChecklist]):
         result = await self.db.execute(stmt)
         projects = list(result.scalars().all())
 
-        # THRU-2: Extract all needed data from DB into plain dicts before AI calls
         scope_items: list[dict[str, Any]] = []
 
         for project in projects:
             for scope in project.trade_scopes:
                 if scope.contractor_id is None:
-                    continue  # No contractor assigned — skip
+                    continue
 
-                # Filter eligible tasks
                 eligible_tasks = [
                     t
                     for t in scope.tasks
@@ -102,7 +117,6 @@ class ChecklistService(TenantScopedService[DailyChecklist]):
                 if not eligible_tasks:
                     continue
 
-                # Serialize task data to plain dicts
                 task_dicts = [
                     {
                         "id": str(t.id),
@@ -129,31 +143,21 @@ class ChecklistService(TenantScopedService[DailyChecklist]):
                     }
                 )
 
-        # SCALE-2: Make AI calls with bounded concurrency
-        semaphore = asyncio.Semaphore(5)
+        return scope_items
 
-        async def _generate_one(item: dict[str, Any]) -> dict[str, Any] | None:
-            async with semaphore:
-                try:
-                    return await self._call_claude_for_checklist(item)
-                except Exception:
-                    logger.exception(
-                        "generate_daily_checklists: Claude call failed for contractor %s "
-                        "scope %s project %s — continuing",
-                        item["contractor_id"],
-                        item["scope_id"],
-                        item["project_id"],
-                    )
-                    return None
+    async def _persist_checklists(
+        self,
+        items: list[dict[str, Any]],
+        results: list[dict[str, Any] | None],
+    ) -> tuple[int, list[dict[str, Any]]]:
+        """Upsert checklists from AI results and collect notification data.
 
-        ai_results = await asyncio.gather(*[_generate_one(item) for item in scope_items])
-
-        # Write results back to DB and collect notification data
+        Returns (generated_count, notifications_to_send).
+        """
         generated_count = 0
-        # BUG-1: Collect notification data as primitives (not ORM objects)
-        notifications_to_send: list[dict[str, Any]] = []
+        notifications: list[dict[str, Any]] = []
 
-        for item, ai_result in zip(scope_items, ai_results):
+        for item, ai_result in zip(items, results, strict=False):
             if ai_result is None:
                 continue
 
@@ -168,8 +172,7 @@ class ChecklistService(TenantScopedService[DailyChecklist]):
             )
             generated_count += 1
 
-            # BUG-1: Store only primitive data for fire-and-forget notification
-            notifications_to_send.append(
+            notifications.append(
                 {
                     "company_id": item["company_id"],
                     "contractor_id": item["contractor_id"],
@@ -178,13 +181,19 @@ class ChecklistService(TenantScopedService[DailyChecklist]):
                 }
             )
 
-        # BUG-1: Fire FCM notifications after DB work, using only primitive data.
-        # Each notification creates its own DB session via NotificationService.
-        # Store task references to prevent garbage collection of fire-and-forget tasks.
+        return generated_count, notifications
+
+    @staticmethod
+    def _dispatch_notifications(notifications: list[dict[str, Any]]) -> None:
+        """Fire FCM notifications as background tasks using only primitive data.
+
+        Each notification creates its own DB session via NotificationService.
+        Task references are stored in a set to prevent garbage collection.
+        """
         background_tasks: set[asyncio.Task[None]] = set()
-        for notif in notifications_to_send:
+        for notif in notifications:
             task = asyncio.create_task(
-                self._send_notification_safe(
+                ChecklistService._send_notification_safe(
                     company_id=notif["company_id"],
                     contractor_id=notif["contractor_id"],
                     summary_text=notif["summary_text"],
@@ -193,14 +202,6 @@ class ChecklistService(TenantScopedService[DailyChecklist]):
             )
             background_tasks.add(task)
             task.add_done_callback(background_tasks.discard)
-
-        logger.info(
-            "generate_daily_checklists: generated %d checklists for company %s date %s",
-            generated_count,
-            company_id,
-            target_date,
-        )
-        return generated_count
 
     @staticmethod
     async def _send_notification_safe(
@@ -211,9 +212,9 @@ class ChecklistService(TenantScopedService[DailyChecklist]):
     ) -> None:
         """Fire-and-forget FCM notification using its own DB session.
 
-        BUG-1 fix: Creates a fresh DB session for the notification service
-        instead of reusing the request session which may be closed.
-        Issue-8: Sets tenant context so RLS policies work in the background task.
+        Creates a fresh DB session for the notification service instead of reusing
+        the request session which may be closed. Sets tenant context so RLS policies
+        work in the background task.
         """
         try:
             from app.core.database import async_session_factory
@@ -242,35 +243,15 @@ class ChecklistService(TenantScopedService[DailyChecklist]):
         """
         user_content = self._build_user_content_from_dict(item)
 
-        client = get_anthropic_client()
-        response = await client.messages.create(
-            model=CLAUDE_MODEL,
-            max_tokens=CLAUDE_MAX_TOKENS,
-            system=CHECKLIST_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_content}],
+        checklist_data = await call_claude_json(
+            system_prompt=CHECKLIST_SYSTEM_PROMPT,
+            user_content=user_content,
+            fallback={"tasks": []},
+            scope_id=item["scope_id"],
         )
-
-        if not response.content:
-            raise ValueError(
-                f"Empty response from Claude for scope {item['scope_id']}"
-            )
-        raw_text = response.content[0].text
-        cleaned = strip_fences(raw_text)
-
-        try:
-            checklist_data = json.loads(cleaned)
-        except json.JSONDecodeError:
-            logger.warning(
-                "_call_claude_for_checklist: Claude returned invalid JSON for scope %s — "
-                "using empty checklist. Raw: %s...",
-                item["scope_id"],
-                cleaned[:200],
-            )
-            checklist_data = {"tasks": []}
 
         task_items: list[dict[str, Any]] = checklist_data.get("tasks", [])
 
-        # Build plain-English summary for FCM notification
         top_titles = [t.get("title", "Task") for t in task_items[:3]]
         summary_text = self._build_summary(len(task_items), top_titles)
 
@@ -294,8 +275,10 @@ class ChecklistService(TenantScopedService[DailyChecklist]):
             status_str = f" [{task['status']}]" if task["status"] != "not_started" else ""
             priority_str = f" priority={task['priority']}"
             dep_status = (
-                "blocked" if task["status"] == "blocked"
-                else "waiting" if task["status"] == "waiting"
+                "blocked"
+                if task["status"] == "blocked"
+                else "waiting"
+                if task["status"] == "waiting"
                 else "clear"
             )
             lines.append(

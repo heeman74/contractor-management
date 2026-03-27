@@ -5,7 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/database/app_database.dart';
+import '../../../../core/logging/app_logger.dart';
 import '../../../../core/routing/route_names.dart';
+import '../../../../shared/utils/date_format_utils.dart';
+import '../../data/checklist_task_item.dart';
 import '../providers/checklist_provider.dart';
 
 /// Today's AI-generated daily checklist screen for contractors.
@@ -33,21 +36,6 @@ class DailyChecklistScreen extends ConsumerStatefulWidget {
 }
 
 class _DailyChecklistScreenState extends ConsumerState<DailyChecklistScreen> {
-  static const _weekdays = [
-    'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
-  ];
-  static const _months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
-  ];
-
-  /// Format a [DateTime] as "Wednesday, March 26" (no intl dependency).
-  String _formatDate(DateTime date) {
-    final weekday = _weekdays[date.weekday - 1];
-    final month = _months[date.month - 1];
-    return '$weekday, $month ${date.day}';
-  }
-
   Future<void> _refresh() async {
     final repository = ref.read(checklistRepositoryProvider);
     await repository.fetchTodayChecklist();
@@ -56,7 +44,7 @@ class _DailyChecklistScreenState extends ConsumerState<DailyChecklistScreen> {
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    final dateLabel = _formatDate(now);
+    final dateLabel = DateFormatUtils.formatReadableDate(now);
     final checklistsAsync = ref.watch(todayChecklistProvider);
 
     return Scaffold(
@@ -108,10 +96,6 @@ class _DailyChecklistScreenState extends ConsumerState<DailyChecklistScreen> {
   }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// Body widget
-// ────────────────────────────────────────────────────────────────────────────
-
 class _ChecklistBody extends StatelessWidget {
   const _ChecklistBody({required this.checklists});
   final List<DailyChecklist> checklists;
@@ -120,10 +104,10 @@ class _ChecklistBody extends StatelessWidget {
   ///
   /// Separated from [build] so jsonDecode is not called on every frame rebuild.
   /// The result is computed once per new [checklists] list (Drift stream emission).
-  static Map<String, List<_ChecklistTaskItem>> parseChecklists(
+  static Map<String, List<ChecklistTaskItem>> parseChecklists(
     List<DailyChecklist> checklists,
   ) {
-    final Map<String, List<_ChecklistTaskItem>> byProject = {};
+    final Map<String, List<ChecklistTaskItem>> byProject = {};
 
     for (final checklist in checklists) {
       try {
@@ -139,12 +123,13 @@ class _ChecklistBody extends StatelessWidget {
 
         for (final task in tasks) {
           if (task is! Map<String, dynamic>) continue;
-          final item = _ChecklistTaskItem.fromJson(task, checklist);
+          final item = ChecklistTaskItem.fromJson(task, checklist);
           final projectName = item.projectName;
           byProject.putIfAbsent(projectName, () => []).add(item);
         }
       } catch (e) {
-        debugPrint('DailyChecklistScreen: parse error for ${checklist.id} — $e');
+        AppLogger.warning('DailyChecklistScreen',
+            'Parse error for ${checklist.id}', error: e);
       }
     }
 
@@ -198,10 +183,6 @@ class _ChecklistBody extends StatelessWidget {
   }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// Section header
-// ────────────────────────────────────────────────────────────────────────────
-
 class _ProjectSectionHeader extends StatelessWidget {
   const _ProjectSectionHeader({required this.projectName});
   final String projectName;
@@ -222,13 +203,9 @@ class _ProjectSectionHeader extends StatelessWidget {
   }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// Task item card
-// ────────────────────────────────────────────────────────────────────────────
-
 class _TaskItemCard extends StatelessWidget {
   const _TaskItemCard({required this.item});
-  final _ChecklistTaskItem item;
+  final ChecklistTaskItem item;
 
   @override
   Widget build(BuildContext context) {
@@ -247,7 +224,7 @@ class _TaskItemCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ─── Row 1: priority badge + title + indicators ───
+              // Row 1: priority badge + title + indicators
               Row(
                 children: [
                   _PriorityBadge(priority: item.priority),
@@ -282,7 +259,7 @@ class _TaskItemCard extends StatelessWidget {
                   ],
                 ],
               ),
-              // ─── Row 2: duration ───
+              // Row 2: duration
               if (item.estimatedDuration.isNotEmpty) ...[
                 const SizedBox(height: 4),
                 Row(
@@ -302,7 +279,7 @@ class _TaskItemCard extends StatelessWidget {
                   ],
                 ),
               ],
-              // ─── Row 3: materials chips ───
+              // Row 3: materials chips
               if (item.materials.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Wrap(
@@ -329,10 +306,6 @@ class _TaskItemCard extends StatelessWidget {
     );
   }
 }
-
-// ────────────────────────────────────────────────────────────────────────────
-// Priority badge
-// ────────────────────────────────────────────────────────────────────────────
 
 class _PriorityBadge extends StatelessWidget {
   const _PriorityBadge({required this.priority});
@@ -366,10 +339,6 @@ class _PriorityBadge extends StatelessWidget {
   }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// Empty state
-// ────────────────────────────────────────────────────────────────────────────
-
 class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -402,61 +371,6 @@ class _EmptyState extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Data model
-// ────────────────────────────────────────────────────────────────────────────
-
-class _ChecklistTaskItem {
-  final String taskId;
-  final String title;
-  final int priority;
-  final String estimatedDuration;
-  final List<String> materials;
-  final bool photoRequired;
-  final String dependencyStatus;
-  final String projectName;
-
-  const _ChecklistTaskItem({
-    required this.taskId,
-    required this.title,
-    required this.priority,
-    required this.estimatedDuration,
-    required this.materials,
-    required this.photoRequired,
-    required this.dependencyStatus,
-    required this.projectName,
-  });
-
-  bool get isBlocked => dependencyStatus.toLowerCase() == 'blocked';
-
-  factory _ChecklistTaskItem.fromJson(
-    Map<String, dynamic> json,
-    DailyChecklist checklist,
-  ) {
-    final rawMaterials = json['materials_needed'];
-    final materials = rawMaterials is List
-        ? rawMaterials.whereType<String>().toList()
-        : <String>[];
-
-    return _ChecklistTaskItem(
-      taskId: json['task_id'] is String ? json['task_id'] as String : '',
-      title: json['title'] is String ? json['title'] as String : 'Unnamed task',
-      priority: json['priority'] is int ? json['priority'] as int : 3,
-      estimatedDuration: json['estimated_duration'] is String
-          ? json['estimated_duration'] as String
-          : '',
-      materials: materials,
-      photoRequired: json['photo_required'] is bool && json['photo_required'] as bool,
-      dependencyStatus: json['dependency_status'] is String
-          ? json['dependency_status'] as String
-          : 'ok',
-      projectName: json['project_name'] is String
-          ? json['project_name'] as String
-          : 'Project',
     );
   }
 }

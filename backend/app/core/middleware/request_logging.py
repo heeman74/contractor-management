@@ -17,12 +17,16 @@ from app.core.trace_context import clear_trace_context, set_trace_context
 logger = get_logger(__name__)
 
 # Paths to skip logging (health checks, docs, OpenAPI spec)
-_SKIP_PATHS: frozenset[str] = frozenset({
-    "/health",
-    "/docs",
-    "/redoc",
-    "/openapi.json",
-})
+_SKIP_PATHS: frozenset[str] = frozenset(
+    {
+        "/health",
+        "/docs",
+        "/redoc",
+        "/openapi.json",
+    }
+)
+
+SLOW_REQUEST_THRESHOLD_MS = 1000
 
 
 class RequestLoggingMiddleware:
@@ -52,9 +56,8 @@ class RequestLoggingMiddleware:
         headers = dict(scope.get("headers", []))
 
         # Use incoming X-Request-ID if present (distributed tracing), else generate
-        request_id = (
-            headers.get(b"x-request-id", b"").decode("utf-8", errors="replace")
-            or str(uuid.uuid4())
+        request_id = headers.get(b"x-request-id", b"").decode("utf-8", errors="replace") or str(
+            uuid.uuid4()
         )
 
         # Extract client IP
@@ -109,7 +112,7 @@ class RequestLoggingMiddleware:
                 "duration_ms": duration_ms,
             }
 
-            if duration_ms > 1000:
+            if duration_ms > SLOW_REQUEST_THRESHOLD_MS:
                 logger.warning("request_slow", **log_kwargs)
             else:
                 logger.info("request_completed", **log_kwargs)

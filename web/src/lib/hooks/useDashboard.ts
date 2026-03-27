@@ -9,6 +9,15 @@ import type {
   TradeTaskDetail,
 } from "@/lib/types/dashboard";
 
+// --- Constants ---
+
+const PROJECT_POLL_INTERVAL_MS = 60_000;
+const ALERT_POLL_INTERVAL_MS = 30_000;
+const PROJECT_STALE_TIME_MS = 30_000;
+const ALERT_STALE_TIME_MS = 15_000;
+const MAX_PROJECTS = 50;
+const MAX_ALERTS = 30;
+
 // --- Query hooks ---
 
 /**
@@ -18,10 +27,10 @@ import type {
 export function useDashboardProjects() {
   return useQuery<ProjectStatusCardData[]>({
     queryKey: ["dashboard-projects"],
-    queryFn: () => apiGet<ProjectStatusCardData[]>("/api/dashboard?limit=50"),
-    refetchInterval: 60_000,
+    queryFn: () => apiGet<ProjectStatusCardData[]>(`/api/dashboard?limit=${MAX_PROJECTS}`),
+    refetchInterval: PROJECT_POLL_INTERVAL_MS,
     refetchIntervalInBackground: false,
-    staleTime: 30_000,
+    staleTime: PROJECT_STALE_TIME_MS,
   });
 }
 
@@ -31,16 +40,16 @@ export function useDashboardProjects() {
  * Limited to 30 alerts, unread first.
  */
 export function useDashboardAlerts(projectId?: string) {
-  const params = new URLSearchParams({ limit: "30", unread_first: "true" });
+  const params = new URLSearchParams({ limit: String(MAX_ALERTS), unread_first: "true" });
   if (projectId) params.set("project_id", projectId);
   const url = `/api/dashboard/alerts?${params.toString()}`;
 
   return useQuery<DashboardAlert[]>({
     queryKey: ["dashboard-alerts", projectId],
     queryFn: () => apiGet<DashboardAlert[]>(url),
-    refetchInterval: 30_000,
+    refetchInterval: ALERT_POLL_INTERVAL_MS,
     refetchIntervalInBackground: false,
-    staleTime: 15_000,
+    staleTime: ALERT_STALE_TIME_MS,
   });
 }
 
@@ -97,7 +106,7 @@ export function useMarkAlertRead() {
       queryClient.setQueriesData<DashboardAlert[]>(
         { queryKey: ["dashboard-alerts"] },
         (old) =>
-          old?.map((a) => (a.id === alertId ? { ...a, is_read: true } : a))
+          old?.map((alert) => (alert.id === alertId ? { ...alert, is_read: true } : alert))
       );
 
       return { previousAlerts };

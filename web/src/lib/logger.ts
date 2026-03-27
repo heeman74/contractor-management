@@ -5,7 +5,7 @@
  * - Production: JSON lines (for log aggregation if stdout is captured)
  * - Levels: debug, info, warn, error
  * - Automatic context: timestamp, level, component tag
- * - Request ID tracking for API call correlation
+ * - Request ID tracking via data.requestId (no mutable instance state)
  */
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
@@ -36,27 +36,11 @@ const LOG_LEVEL_COLORS: Record<LogLevel, string> = {
 const RESET = "\x1b[0m";
 
 class Logger {
-  private _requestId: string | undefined;
   private _minLevel: LogLevel;
 
   constructor() {
     this._minLevel =
       process.env.NODE_ENV === "production" ? "info" : "debug";
-  }
-
-  /** Set request ID for correlation across API calls. */
-  setRequestId(id: string): void {
-    this._requestId = id;
-  }
-
-  /** Get current request ID. */
-  getRequestId(): string | undefined {
-    return this._requestId;
-  }
-
-  /** Clear request ID (e.g. at end of request lifecycle). */
-  clearRequestId(): void {
-    this._requestId = undefined;
   }
 
   debug(tag: string, message: string, data?: Record<string, unknown>): void {
@@ -85,13 +69,15 @@ class Logger {
       return;
     }
 
+    const requestId = data?.requestId as string | undefined;
+
     const entry: LogEntry = {
       timestamp: new Date().toISOString(),
       level,
       tag,
       message,
       ...(data !== undefined && { data }),
-      ...(this._requestId !== undefined && { requestId: this._requestId }),
+      ...(requestId !== undefined && { requestId }),
     };
 
     if (process.env.NODE_ENV === "production") {
@@ -121,10 +107,10 @@ class Logger {
   /** Development: formatted, colored console output. */
   private _logDev(level: LogLevel, entry: LogEntry): void {
     const color = LOG_LEVEL_COLORS[level];
-    const lvl = level.toUpperCase().padEnd(5);
-    const prefix = `${color}${lvl}${RESET} [${entry.tag}]`;
-    const ridSuffix = entry.requestId ? ` rid=${entry.requestId}` : "";
-    const formatted = `${entry.timestamp} ${prefix} ${entry.message}${ridSuffix}`;
+    const levelLabel = level.toUpperCase().padEnd(5);
+    const prefix = `${color}${levelLabel}${RESET} [${entry.tag}]`;
+    const requestIdSuffix = entry.requestId ? ` requestId=${entry.requestId}` : "";
+    const formatted = `${entry.timestamp} ${prefix} ${entry.message}${requestIdSuffix}`;
 
     const consoleFn =
       level === "error"

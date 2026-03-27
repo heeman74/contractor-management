@@ -9,23 +9,28 @@ export interface TradeStatusBadgeData {
   completed_count: number;
 }
 
+export type ProjectStatus = "on_track" | "at_risk" | "blocked" | "completed" | "paused";
+
 export interface ProjectStatusCardData {
   project_id: string;
   project_name: string;
-  status: string;
+  status: ProjectStatus;
   overall_completion_pct: number;
   trade_statuses: TradeStatusBadgeData[];
   active_alert_count: number;
 }
 
+export type TaskStatus = "pending" | "in_progress" | "complete" | "completed" | "blocked";
+export type DependencyStatus = "clear" | "waiting" | "blocked" | "none";
+
 export interface TradeTaskDetail {
   task_id: string;
   title: string;
-  status: string;
+  status: TaskStatus;
   assignee_name: string | null;
   start_date: string | null;
   due_date: string | null;
-  dependency_status: string;
+  dependency_status: DependencyStatus;
 }
 
 export interface ReschedulingSuggestion {

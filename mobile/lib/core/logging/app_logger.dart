@@ -86,10 +86,6 @@ class AppLogger {
     }
   }
 
-  // ──────────────────────────────────────────────────────────────────────
-  // Public logging methods
-  // ──────────────────────────────────────────────────────────────────────
-
   static void verbose(String tag, String message,
       {Object? error, StackTrace? stackTrace}) {
     _log(LogLevel.verbose, tag, message, error: error, stackTrace: stackTrace);
@@ -120,10 +116,6 @@ class AppLogger {
     _log(LogLevel.fatal, tag, message, error: error, stackTrace: stackTrace);
   }
 
-  // ──────────────────────────────────────────────────────────────────────
-  // Buffer access
-  // ──────────────────────────────────────────────────────────────────────
-
   /// Returns a copy of the ring buffer (oldest first).
   static List<LogEntry> getRecentLogs() => List.unmodifiable(_buffer);
 
@@ -135,10 +127,6 @@ class AppLogger {
 
   /// Clears the ring buffer.
   static void clear() => _buffer.clear();
-
-  // ──────────────────────────────────────────────────────────────────────
-  // Internal
-  // ──────────────────────────────────────────────────────────────────────
 
   static void _log(
     LogLevel level,

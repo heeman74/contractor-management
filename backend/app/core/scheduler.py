@@ -21,6 +21,7 @@ from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI
 from sqlalchemy import select
 
+from app.core.ai_utils import AI_CONCURRENCY_LIMIT
 from app.core.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -28,28 +29,34 @@ logger = get_logger(__name__)
 # Module-level scheduler instance — shared across the application
 scheduler = AsyncIOScheduler(timezone="UTC")
 
+# Scheduler configuration constants
+MORNING_CHECKLIST_HOUR_UTC = 6
+ALERT_DETECTION_HOURS_UTC = "7-19"
+CHECKLIST_MISFIRE_GRACE_SECONDS = 3600
+ALERT_MISFIRE_GRACE_SECONDS = 600
 
-async def run_morning_checklists() -> None:
-    """Cron job: generate AI daily checklists for all contractors across all companies.
 
-    Called at 06:00 UTC daily. For each company, queries active projects and generates
-    per-contractor checklists via ChecklistService. Fires FCM push after generation.
+async def _run_for_all_companies(
+    job_name: str,
+    service_class: type,
+    method_name: str,
+    target_date: object,
+) -> None:
+    """Shared pattern: run a service method for every active company.
 
-    Each company runs in its own DB session with tenant context set.
-    Errors per company are caught and logged — execution continues to next company.
+    Fetches all non-deleted companies, then processes each with bounded concurrency.
+    Each company gets its own DB session with tenant context set. Errors per company
+    are caught and logged — execution continues to the next company.
 
-    SCALE-4: Companies are processed with bounded concurrency via asyncio.Semaphore(5).
+    Commit is called explicitly because these sessions are created directly by the
+    scheduler, not managed by FastAPI's get_db dependency.
     """
     from app.core.database import async_session_factory
     from app.core.tenant import set_current_tenant_id
-    from app.features.checklists.service import ChecklistService
     from app.features.companies.models import Company
 
-    # BUG-6: Use UTC date instead of server-local date.today()
-    today = datetime.now(timezone.utc).date()
-    logger.info("run_morning_checklists: starting for date %s", today)
+    logger.info("%s: starting for date %s", job_name, target_date)
 
-    # Fetch all companies in a separate session (no RLS for admin-level iteration)
     async with async_session_factory() as admin_session:
         try:
             result = await admin_session.execute(
@@ -57,95 +64,61 @@ async def run_morning_checklists() -> None:
             )
             companies = list(result.scalars().all())
         except Exception:
-            logger.exception("run_morning_checklists: failed to fetch companies")
+            logger.exception("%s: failed to fetch companies", job_name)
             return
 
-    # SCALE-4: Bounded concurrency for company processing
-    semaphore = asyncio.Semaphore(5)
+    semaphore = asyncio.Semaphore(AI_CONCURRENCY_LIMIT)
 
     async def _process_company(company):  # type: ignore[no-untyped-def]
         async with semaphore:
             async with async_session_factory() as db:
                 try:
                     set_current_tenant_id(company.id)
-                    svc = ChecklistService(db)
-                    await svc.generate_daily_checklists(
-                        company_id=company.id, target_date=today
-                    )
-                    # BP-5: db.commit() is called here because these sessions are created
-                    # directly by the scheduler (not managed by FastAPI's get_db dependency),
-                    # so there is no auto-commit middleware. We must commit explicitly.
+                    svc = service_class(db)
+                    await getattr(svc, method_name)(company_id=company.id, target_date=target_date)
                     await db.commit()
-                    logger.info(
-                        "run_morning_checklists: completed for company %s", company.id
-                    )
+                    logger.info("%s: completed for company %s", job_name, company.id)
                 except Exception:
                     await db.rollback()
                     logger.exception(
-                        "run_morning_checklists: failed for company %s — continuing",
+                        "%s: failed for company %s — continuing",
+                        job_name,
                         company.id,
                     )
 
     await asyncio.gather(*[_process_company(c) for c in companies])
+
+
+async def run_morning_checklists() -> None:
+    """Cron job: generate AI daily checklists for all contractors across all companies.
+
+    Called at 06:00 UTC daily. Delegates to _run_for_all_companies.
+    """
+    from app.features.checklists.service import ChecklistService
+
+    today = datetime.now(timezone.utc).date()
+    await _run_for_all_companies(
+        job_name="run_morning_checklists",
+        service_class=ChecklistService,
+        method_name="generate_daily_checklists",
+        target_date=today,
+    )
 
 
 async def run_alert_detection() -> None:
     """Cron job: detect schedule slips and generate AI alerts for all companies.
 
-    Called every hour from 07:00 to 19:00 UTC. For each company, queries active projects
-    and generates DashboardAlert records for any trade scopes that are behind schedule.
-
-    Each company runs in its own DB session with tenant context set.
-    Errors per company are caught and logged — execution continues to next company.
-
-    SCALE-4: Companies are processed with bounded concurrency via asyncio.Semaphore(5).
+    Called every hour from 07:00 to 19:00 UTC. Delegates to _run_for_all_companies.
     """
-    from app.core.database import async_session_factory
-    from app.core.tenant import set_current_tenant_id
-    from app.features.companies.models import Company
     from app.features.dashboard.service import DashboardService
 
-    # BUG-6: Use UTC date instead of server-local date.today()
     today = datetime.now(timezone.utc).date()
-    logger.info("run_alert_detection: starting for date %s", today)
-
-    async with async_session_factory() as admin_session:
-        try:
-            result = await admin_session.execute(
-                select(Company).where(Company.deleted_at.is_(None))
-            )
-            companies = list(result.scalars().all())
-        except Exception:
-            logger.exception("run_alert_detection: failed to fetch companies")
-            return
-
-    # SCALE-4: Bounded concurrency for company processing
-    semaphore = asyncio.Semaphore(5)
-
-    async def _process_company(company):  # type: ignore[no-untyped-def]
-        async with semaphore:
-            async with async_session_factory() as db:
-                try:
-                    set_current_tenant_id(company.id)
-                    svc = DashboardService(db)
-                    await svc.detect_schedule_slips(
-                        company_id=company.id, target_date=today
-                    )
-                    # BP-5: db.commit() is called here because these sessions are created
-                    # directly by the scheduler (not managed by FastAPI's get_db dependency),
-                    # so there is no auto-commit middleware. We must commit explicitly.
-                    await db.commit()
-                    logger.info(
-                        "run_alert_detection: completed for company %s", company.id
-                    )
-                except Exception:
-                    await db.rollback()
-                    logger.exception(
-                        "run_alert_detection: failed for company %s — continuing",
-                        company.id,
-                    )
-
-    await asyncio.gather(*[_process_company(c) for c in companies])
+    await _run_for_all_companies(
+        job_name="run_alert_detection",
+        service_class=DashboardService,
+        method_name="detect_schedule_slips",
+        target_date=today,
+    )
 
 
 @asynccontextmanager
@@ -156,22 +129,20 @@ async def lifespan(app: FastAPI):
     Starts the scheduler on app startup, shuts it down on shutdown (wait=False
     avoids blocking the process for in-flight job runs during graceful shutdown).
     """
-    # Register morning checklist job: 06:00 UTC daily
     scheduler.add_job(
         run_morning_checklists,
-        trigger=CronTrigger(hour=6, minute=0),
+        trigger=CronTrigger(hour=MORNING_CHECKLIST_HOUR_UTC, minute=0),
         id="morning_checklists",
         replace_existing=True,
-        misfire_grace_time=3600,  # Allow up to 1 hour late if server was down
+        misfire_grace_time=CHECKLIST_MISFIRE_GRACE_SECONDS,
     )
 
-    # Register alert detection job: every hour from 07:00 to 19:00 UTC
     scheduler.add_job(
         run_alert_detection,
-        trigger=CronTrigger(hour="7-19", minute=0),
+        trigger=CronTrigger(hour=ALERT_DETECTION_HOURS_UTC, minute=0),
         id="alert_detection",
         replace_existing=True,
-        misfire_grace_time=600,  # Allow up to 10 minutes late
+        misfire_grace_time=ALERT_MISFIRE_GRACE_SECONDS,
     )
 
     scheduler.start()

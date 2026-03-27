@@ -45,41 +45,8 @@ class ChecklistParsing {
       );
     }
 
-    // is_pushed: type-safe bool check with default false
     final rawIsPushed = data['is_pushed'];
     final isPushed = rawIsPushed is bool && rawIsPushed;
-
-    // created_at: type-safe string check with DateTime.tryParse
-    final rawCreatedAt = data['created_at'];
-    DateTime createdAt;
-    if (rawCreatedAt is String) {
-      final parsed = DateTime.tryParse(rawCreatedAt);
-      if (parsed != null) {
-        createdAt = parsed;
-      } else {
-        createdAt = DateTime.now();
-        AppLogger.warning(
-          'ChecklistParsing',
-          'Invalid created_at "$rawCreatedAt", using now()',
-        );
-      }
-    } else {
-      createdAt = DateTime.now();
-    }
-
-    // deleted_at: type-safe nullable string check with DateTime validation
-    final rawDeletedAt = data['deleted_at'];
-    String? deletedAt;
-    if (rawDeletedAt is String) {
-      if (DateTime.tryParse(rawDeletedAt) != null) {
-        deletedAt = rawDeletedAt;
-      } else {
-        AppLogger.warning(
-          'ChecklistParsing',
-          'Invalid deleted_at "$rawDeletedAt", storing null',
-        );
-      }
-    }
 
     return DailyChecklistsCompanion(
       id: Value(id),
@@ -91,8 +58,37 @@ class ChecklistParsing {
       checklistJson: Value(checklistJson),
       summaryText: Value(summaryText),
       isPushed: Value(isPushed),
-      createdAt: Value(createdAt),
-      deletedAt: Value(deletedAt),
+      createdAt: Value(_parseCreatedAt(data['created_at'])),
+      deletedAt: Value(_parseDeletedAt(data['deleted_at'])),
     );
+  }
+
+  /// Parse a raw `created_at` value into a [DateTime].
+  ///
+  /// Returns [DateTime.now] if the value is not a valid ISO 8601 string.
+  static DateTime _parseCreatedAt(dynamic raw) {
+    if (raw is String) {
+      final parsed = DateTime.tryParse(raw);
+      if (parsed != null) return parsed;
+      AppLogger.warning(
+        'ChecklistParsing',
+        'Invalid created_at "$raw", using now()',
+      );
+    }
+    return DateTime.now();
+  }
+
+  /// Parse a raw `deleted_at` value into a nullable ISO 8601 string.
+  ///
+  /// Returns null if the value is not a valid date string.
+  static String? _parseDeletedAt(dynamic raw) {
+    if (raw is String) {
+      if (DateTime.tryParse(raw) != null) return raw;
+      AppLogger.warning(
+        'ChecklistParsing',
+        'Invalid deleted_at "$raw", storing null',
+      );
+    }
+    return null;
   }
 }

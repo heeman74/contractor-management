@@ -1,6 +1,7 @@
 import '../../../core/database/app_database.dart';
 import '../../../core/logging/app_logger.dart';
 import '../../../core/network/dio_client.dart';
+import '../../../shared/utils/date_format_utils.dart';
 import 'checklist_parsing.dart';
 
 /// Repository for daily checklist data.
@@ -17,11 +18,9 @@ class ChecklistRepository {
   final DailyChecklistDao _dao;
   final DioClient _dioClient;
 
-  ChecklistRepository(this._dao, this._dioClient);
+  static const _todayEndpoint = '/checklists/today';
 
-  // ────────────────────────────────────────────────────────────────────────
-  // Read
-  // ────────────────────────────────────────────────────────────────────────
+  ChecklistRepository(this._dao, this._dioClient);
 
   /// Reactive stream of today's checklists for [contractorId].
   ///
@@ -34,14 +33,10 @@ class ChecklistRepository {
     String contractorId, {
     String? companyId,
   }) {
-    final dateStr = _todayDateStr();
+    final dateStr = DateFormatUtils.todayDateStr();
     return _dao.watchTodayForContractor(contractorId, dateStr,
         companyId: companyId);
   }
-
-  // ────────────────────────────────────────────────────────────────────────
-  // Fetch from API
-  // ────────────────────────────────────────────────────────────────────────
 
   /// Fetch today's checklist from the backend and upsert into local Drift DB.
   ///
@@ -53,7 +48,7 @@ class ChecklistRepository {
   Future<void> fetchTodayChecklist() async {
     try {
       final response =
-          await _dioClient.instance.get<dynamic>('/checklists/today');
+          await _dioClient.instance.get<dynamic>(_todayEndpoint);
 
       final data = response.data;
       if (data == null) return;
@@ -89,17 +84,4 @@ class ChecklistRepository {
           'fetchTodayChecklist failed (offline or unavailable)', error: e);
     }
   }
-
-  // ────────────────────────────────────────────────────────────────────────
-  // Helpers
-  // ────────────────────────────────────────────────────────────────────────
-
-  /// Returns today's date as an ISO date string (YYYY-MM-DD).
-  String _todayDateStr() {
-    final now = DateTime.now();
-    return '${now.year.toString().padLeft(4, '0')}'
-        '-${now.month.toString().padLeft(2, '0')}'
-        '-${now.day.toString().padLeft(2, '0')}';
-  }
-
 }

@@ -193,7 +193,7 @@ async def test_checklist_generation_creates_records(
     mock_response = _make_mock_anthropic_response(mock_checklist_json)
 
     with patch(
-        "app.features.checklists.service.get_anthropic_client"
+        "app.core.ai_utils.get_anthropic_client"
     ) as mock_client, patch(
         "app.features.notifications.service.NotificationService.send_checklist_notification",
         new_callable=AsyncMock,
@@ -263,7 +263,7 @@ async def test_checklist_generation_skips_blocked_tasks(
         return _make_mock_anthropic_response({"tasks": []})
 
     with patch(
-        "app.features.checklists.service.get_anthropic_client"
+        "app.core.ai_utils.get_anthropic_client"
     ) as mock_client, patch(
         "app.features.notifications.service.NotificationService.send_checklist_notification",
         new_callable=AsyncMock,
@@ -317,7 +317,7 @@ async def test_checklist_generation_skips_completed_tasks(
         return _make_mock_anthropic_response({"tasks": []})
 
     with patch(
-        "app.features.checklists.service.get_anthropic_client"
+        "app.core.ai_utils.get_anthropic_client"
     ) as mock_client, patch(
         "app.features.notifications.service.NotificationService.send_checklist_notification",
         new_callable=AsyncMock,
@@ -359,7 +359,7 @@ async def test_checklist_idempotent(
     mock_response = _make_mock_anthropic_response({"tasks": [{"task_id": "00000000-0000-4000-8000-000000000001", "title": "Task A", "priority": 1}]})
 
     with patch(
-        "app.features.checklists.service.get_anthropic_client"
+        "app.core.ai_utils.get_anthropic_client"
     ) as mock_client, patch(
         "app.features.notifications.service.NotificationService.send_checklist_notification",
         new_callable=AsyncMock,
@@ -422,7 +422,7 @@ async def test_checklist_fcm_push_fired(
     )
 
     with patch(
-        "app.features.checklists.service.get_anthropic_client"
+        "app.core.ai_utils.get_anthropic_client"
     ) as mock_client, patch(
         "app.features.notifications.service.NotificationService.send_checklist_notification",
         new_callable=AsyncMock,
@@ -488,7 +488,7 @@ async def test_get_today_checklist_endpoint(
     )
 
     with patch(
-        "app.features.checklists.service.get_anthropic_client"
+        "app.core.ai_utils.get_anthropic_client"
     ) as mock_client, patch(
         "app.features.notifications.service.NotificationService.send_checklist_notification",
         new_callable=AsyncMock,
@@ -567,7 +567,7 @@ async def test_alert_detection_creates_alert_for_late_trade(
     }
 
     with patch(
-        "app.features.dashboard.service.get_anthropic_client"
+        "app.core.ai_utils.get_anthropic_client"
     ) as mock_client:
         mock_client.return_value.messages.create = AsyncMock(
             return_value=_make_mock_anthropic_response(mock_alert_response)
@@ -637,7 +637,7 @@ async def test_alert_detection_no_alert_for_on_track(
     )
     assert t.status_code == 201
 
-    with patch("app.features.dashboard.service.get_anthropic_client") as mock_client:
+    with patch("app.core.ai_utils.get_anthropic_client") as mock_client:
         mock_client.return_value.messages.create = AsyncMock(
             return_value=_make_mock_anthropic_response({"tasks": []})
         )
@@ -691,7 +691,7 @@ async def test_alert_accept_reschedule_updates_dates(
         ],
     }
 
-    with patch("app.features.dashboard.service.get_anthropic_client") as mock_client:
+    with patch("app.core.ai_utils.get_anthropic_client") as mock_client:
         mock_client.return_value.messages.create = AsyncMock(
             return_value=_make_mock_anthropic_response(mock_alert_response)
         )
@@ -770,7 +770,7 @@ async def test_alert_dismiss_does_not_change_dates(
         ],
     }
 
-    with patch("app.features.dashboard.service.get_anthropic_client") as mock_client:
+    with patch("app.core.ai_utils.get_anthropic_client") as mock_client:
         mock_client.return_value.messages.create = AsyncMock(
             return_value=_make_mock_anthropic_response(mock_alert_response)
         )
@@ -972,7 +972,7 @@ async def test_alert_severity_warning_for_1_to_3_days(
         "rescheduling_suggestions": [],
     }
 
-    with patch("app.features.dashboard.service.get_anthropic_client") as mock_client:
+    with patch("app.core.ai_utils.get_anthropic_client") as mock_client:
         mock_client.return_value.messages.create = AsyncMock(
             return_value=_make_mock_anthropic_response(mock_alert)
         )
@@ -1044,7 +1044,7 @@ async def test_alert_severity_critical_for_over_3_days(
         "rescheduling_suggestions": [],
     }
 
-    with patch("app.features.dashboard.service.get_anthropic_client") as mock_client:
+    with patch("app.core.ai_utils.get_anthropic_client") as mock_client:
         mock_client.return_value.messages.create = AsyncMock(
             return_value=_make_mock_anthropic_response(mock_alert)
         )

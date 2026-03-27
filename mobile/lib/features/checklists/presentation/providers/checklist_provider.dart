@@ -2,15 +2,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/di/service_locator.dart';
-import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/dio_client.dart';
 import '../../../../features/auth/domain/auth_state.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
 import '../../data/checklist_repository.dart';
-
-// ────────────────────────────────────────────────────────────────────────
-// Infrastructure providers
-// ────────────────────────────────────────────────────────────────────────
 
 /// Provides the [ChecklistRepository] instance.
 ///
@@ -23,10 +18,6 @@ final checklistRepositoryProvider = Provider<ChecklistRepository>((ref) {
   final dioClient = getIt<DioClient>();
   return ChecklistRepository(db.dailyChecklistDao, dioClient);
 });
-
-// ────────────────────────────────────────────────────────────────────────
-// Today's checklist stream provider
-// ────────────────────────────────────────────────────────────────────────
 
 /// Reactive stream of today's AI-generated checklist items for the current contractor.
 ///
@@ -51,14 +42,8 @@ final todayChecklistProvider =
 
   // Fire-and-forget background fetch to refresh data from the API.
   // Non-fatal — the stream from Drift already provides cached data.
-  Future.microtask(() async {
-    try {
-      await repository.fetchTodayChecklist();
-    } catch (e) {
-      AppLogger.warning('ChecklistProvider',
-          'Background fetch error', error: e);
-    }
-  });
+  // The repository handles its own error logging internally.
+  Future.microtask(() => repository.fetchTodayChecklist());
 
   return repository.watchTodayChecklist(contractorId, companyId: companyId);
 });

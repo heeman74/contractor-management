@@ -6,6 +6,10 @@ import { cn } from "@/lib/utils";
 import type { ProjectStatusCardData } from "@/lib/types/dashboard";
 import { TradeStatusBadge } from "./TradeStatusBadge";
 
+function clampPercent(value: number): number {
+  return Math.min(100, Math.max(0, value));
+}
+
 interface ProjectStatusCardProps {
   project: ProjectStatusCardData;
   isSelected: boolean;
@@ -17,7 +21,7 @@ export const ProjectStatusCard = memo(function ProjectStatusCard({
   isSelected,
   onSelect,
 }: ProjectStatusCardProps) {
-  const clampedPct = Math.min(100, Math.max(0, project.overall_completion_pct));
+  const clampedPct = clampPercent(project.overall_completion_pct);
 
   return (
     <button
