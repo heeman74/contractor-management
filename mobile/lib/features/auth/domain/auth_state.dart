@@ -10,7 +10,7 @@ part 'auth_state.freezed.dart';
 /// AuthUnauthenticated: no user session (shows onboarding/login).
 /// AuthAuthenticated: active session with userId, companyId, and roles set.
 ///
-/// NOTE: Using a Set<UserRole> for roles supports the multi-role requirement
+/// NOTE: Using a `Set<UserRole>` for roles supports the multi-role requirement
 /// (e.g., contractor in company A, admin in company B — two separate AuthAuthenticated
 /// states when switching companies, or a user with both admin + contractor in one company).
 @freezed

@@ -19,13 +19,12 @@
 //   - pump() NOT pumpAndSettle() — consistent with project test patterns
 //   - No GetIt initialization needed for widget-only tests
 
-import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:contractorhub/core/database/app_database.dart'
     hide UserRole, BookingDao, NoteDao, AttachmentDao, TimeEntryDao,
         QuoteDao, InvoiceDao;
 import 'package:contractorhub/features/projects/presentation/widgets/punch_list_card.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 // ---------------------------------------------------------------------------
 // Test constants
@@ -55,18 +54,14 @@ PunchListItem _makeItem({
     projectId: _projectId,
     tradeScopeId: _scopeId,
     createdBy: _userId,
-    assignedTo: null,
     description: description,
     priority: priority,
     status: status,
-    photoUrl: null,
-    annotationData: null,
     sourceFlagId: sourceFlagId,
     dueDate: dueDate,
     version: 1,
     createdAt: now,
     updatedAt: now,
-    deletedAt: null,
   );
 }
 
@@ -134,7 +129,7 @@ void main() {
     });
 
     testWidgets('shows open status chip as "open"', (tester) async {
-      final item = _makeItem(status: 'open');
+      final item = _makeItem();
 
       await tester.pumpWidget(_wrapCard(item));
       await tester.pump();
@@ -180,7 +175,7 @@ void main() {
     });
 
     testWidgets('does not show due date when null', (tester) async {
-      final item = _makeItem(dueDate: null);
+      final item = _makeItem();
 
       await tester.pumpWidget(_wrapCard(item));
       await tester.pump();
@@ -208,7 +203,7 @@ void main() {
     testWidgets('multiple cards in a column all render descriptions',
         (tester) async {
       final items = [
-        _makeItem(id: 'i1', description: 'Fix outlet'),
+        _makeItem(id: 'i1'),
         _makeItem(id: 'i2', description: 'Repair drywall'),
         _makeItem(id: 'i3', description: 'Replace tile'),
       ];
@@ -261,7 +256,7 @@ void main() {
       final priorityChip = chips.firstWhere(
         (c) {
           final label = c.label;
-          return label is Text && (label as Text).data == 'urgent';
+          return label is Text && (label).data == 'urgent';
         },
       );
       expect(priorityChip.backgroundColor, equals(const Color(0xFFD32F2F)));
@@ -277,7 +272,7 @@ void main() {
       final priorityChip = chips.firstWhere(
         (c) {
           final label = c.label;
-          return label is Text && (label as Text).data == 'high';
+          return label is Text && (label).data == 'high';
         },
       );
       expect(priorityChip.backgroundColor, equals(const Color(0xFFF57C00)));

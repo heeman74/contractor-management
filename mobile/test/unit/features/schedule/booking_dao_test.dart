@@ -17,7 +17,6 @@ library;
 import 'dart:convert';
 
 import 'package:contractorhub/core/database/app_database.dart';
-import 'package:contractorhub/core/sync/sync_queue_dao.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';

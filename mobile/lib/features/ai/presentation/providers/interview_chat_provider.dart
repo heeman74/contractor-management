@@ -8,7 +8,6 @@ import 'package:uuid/uuid.dart';
 
 // Hide Drift-generated ChatMessage to avoid conflict with AI domain model.
 import '../../../../core/database/app_database.dart' hide ChatMessage;
-import '../../data/ai_conversation_dao.dart';
 import '../../data/ai_sse_client.dart';
 import '../../domain/ai_models.dart';
 
@@ -109,13 +108,12 @@ class InterviewChatNotifier extends Notifier<InterviewChatState> {
 
       final convId = response['id'] as String?;
       if (convId == null) {
-        throw FormatException('Missing id in interview/start response');
+        throw const FormatException('Missing id in interview/start response');
       }
 
       state = state.copyWith(
         conversationId: convId,
         tradeName: tradeName,
-        error: null,
       );
     } catch (e) {
       debugPrint('[InterviewChatNotifier] startInterview error: $e');
@@ -150,7 +148,6 @@ class InterviewChatNotifier extends Notifier<InterviewChatState> {
       messages: [...state.messages, userMsg],
       isStreaming: true,
       currentStreamText: '',
-      error: null,
     );
 
     String assistantText = '';

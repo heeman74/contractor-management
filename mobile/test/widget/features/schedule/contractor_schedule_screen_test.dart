@@ -12,7 +12,7 @@
 /// 9. Date label is tappable (underline decoration)
 ///
 /// Strategy: ContractorScheduleScreen uses _contractorBookingsProvider (family
-/// StreamProvider with GetIt<BookingDao>) and jobListNotifierProvider. Override
+/// StreamProvider with `GetIt<BookingDao>`) and jobListNotifierProvider. Override
 /// both with stub data via ProviderScope.
 library;
 
@@ -54,7 +54,7 @@ class _StubJobListNotifier extends job_providers.JobListNotifier {
 // Builder
 // ---------------------------------------------------------------------------
 
-/// The ContractorScheduleScreen uses getIt<BookingDao> internally via a family
+/// The ContractorScheduleScreen uses `getIt<BookingDao>` internally via a family
 /// StreamProvider. For tests that don't need real bookings, we register a
 /// mock BookingDao that returns an empty stream. For simplicity, we test the
 /// screen in its loading/error states and verify static UI elements.

@@ -162,7 +162,7 @@ class _JobWizardScreenState extends ConsumerState<JobWizardScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _selectedTradeType,
+              initialValue: _selectedTradeType,
               decoration: const InputDecoration(
                 labelText: 'Trade type *',
                 prefixIcon: Icon(Icons.build_outlined),
@@ -539,7 +539,6 @@ class _JobWizardScreenState extends ConsumerState<JobWizardScreen> {
         key: ValueKey(_isOffline),
         controller: _scrollController,
         currentStep: _currentStep,
-        type: StepperType.vertical,
         // All steps tappable — experienced admin fast-path
         onStepTapped: (step) => setState(() {
           _currentStep = step;

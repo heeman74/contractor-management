@@ -368,7 +368,7 @@ class _RequestCard extends ConsumerWidget {
               const Text('Reason for declining:'),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
-                value: selectedReason,
+                initialValue: selectedReason,
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
                 ),

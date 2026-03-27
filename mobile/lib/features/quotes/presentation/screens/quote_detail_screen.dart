@@ -19,7 +19,7 @@ import '../widgets/quote_summary_card.dart';
 class QuoteDetailScreen extends ConsumerWidget {
   final String quoteId;
 
-  const QuoteDetailScreen({super.key, required this.quoteId});
+  const QuoteDetailScreen({required this.quoteId, super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -484,14 +484,21 @@ class _DeclineBottomSheetState extends State<_DeclineBottomSheet> {
             Text('Why are you declining?', style: theme.textTheme.titleLarge),
             const SizedBox(height: 16),
             // Reason picker
-            for (final (value, label) in _kDeclineReasons)
-              RadioListTile<String>(
-                value: value,
-                groupValue: _selectedReason,
-                title: Text(label),
-                contentPadding: EdgeInsets.zero,
-                onChanged: (v) => setState(() => _selectedReason = v),
+            RadioGroup<String>(
+              groupValue: _selectedReason,
+              onChanged: (v) => setState(() => _selectedReason = v),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final (value, label) in _kDeclineReasons)
+                    RadioListTile<String>(
+                      value: value,
+                      title: Text(label),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                ],
               ),
+            ),
             const SizedBox(height: 8),
             // Optional detail text
             TextField(
@@ -610,7 +617,7 @@ class _LineItemsTable extends StatelessWidget {
           decoration: BoxDecoration(
             color: theme.colorScheme.surfaceContainerHighest,
           ),
-          children: [
+          children: const [
             _HeaderCell('Description'),
             _HeaderCell('Type'),
             _HeaderCell('Qty × Unit'),

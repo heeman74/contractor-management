@@ -18,12 +18,6 @@
 //   - Stream.value() for pre-seeded static data
 //   - No GetIt initialization needed — DAOs overridden via ProviderScope
 
-import 'package:drift/drift.dart' hide isNotNull, isNull;
-import 'package:drift/native.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:contractorhub/core/database/app_database.dart' hide UserRole;
 import 'package:contractorhub/features/auth/domain/auth_state.dart';
 import 'package:contractorhub/features/auth/presentation/providers/auth_provider.dart';
@@ -31,6 +25,10 @@ import 'package:contractorhub/features/projects/presentation/providers/project_p
 import 'package:contractorhub/features/projects/presentation/screens/task_detail_screen.dart';
 import 'package:contractorhub/features/projects/presentation/widgets/inspection_checklist.dart';
 import 'package:contractorhub/shared/models/user_role.dart';
+import 'package:drift/native.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 // ---------------------------------------------------------------------------
 // Test constants
@@ -42,6 +40,7 @@ const _contractorId = 'contractor-001';
 const _projectId = 'project-001';
 const _scopeId = 'scope-001';
 const _taskId = 'task-001';
+// ignore: unused_element
 const _inspectionId = 'insp-001';
 
 // ---------------------------------------------------------------------------
@@ -78,34 +77,27 @@ ProjectTask _makeTask({
     companyId: _companyId,
     tradeScopeId: scopeId,
     title: title,
-    description: null,
     status: status,
     sortOrder: 0,
     priority: priority,
-    estimatedHours: null,
-    estimatedCost: null,
-    dueDate: null,
     photoRequired: photoRequired,
     assignedTo: _contractorId,
     materialsNeeded: '[]',
     version: 1,
     createdAt: now,
     updatedAt: now,
-    deletedAt: null,
   );
 }
 
 TradeScope _makeScope({
   String id = _scopeId,
   String tradeName = 'Electrical',
-  String? inspectionChecklist,
 }) {
   final now = DateTime.now();
   return TradeScope(
     id: id,
     companyId: _companyId,
     projectId: _projectId,
-    tradeCatalogId: null,
     tradeName: tradeName,
     tradeColor: '#3F51B5',
     contractorId: _contractorId,
@@ -115,7 +107,6 @@ TradeScope _makeScope({
     version: 1,
     createdAt: now,
     updatedAt: now,
-    deletedAt: null,
   );
 }
 
@@ -186,6 +177,7 @@ class _FakeTradeScopeDao implements TradeScopeDao {
 // Widget wrapper helper
 // ---------------------------------------------------------------------------
 
+// ignore: unused_element
 AppDatabase _openTestDb() => AppDatabase(NativeDatabase.memory());
 
 Widget _wrapWithFakeDaos(
@@ -316,7 +308,7 @@ void main() {
   group('GC sees Approve and Reject', () {
     testWidgets('GC sees Approve and Reject buttons on complete task',
         (tester) async {
-      final task = _makeTask(status: 'complete');
+      final task = _makeTask();
 
       await tester.pumpWidget(_wrapWithFakeDaos(_gcAuth(), task: task));
       await tester.pump();
@@ -329,7 +321,7 @@ void main() {
 
     testWidgets('Contractor does NOT see Approve or Reject on complete task',
         (tester) async {
-      final task = _makeTask(status: 'complete');
+      final task = _makeTask();
 
       await tester.pumpWidget(_wrapWithFakeDaos(_contractorAuth(), task: task));
       await tester.pump();
@@ -342,7 +334,7 @@ void main() {
 
     testWidgets('Approve disabled until all checklist items checked',
         (tester) async {
-      final task = _makeTask(status: 'complete');
+      final task = _makeTask();
 
       await tester.pumpWidget(_wrapWithFakeDaos(_gcAuth(), task: task));
       await tester.pump();
@@ -386,7 +378,7 @@ void main() {
 
   group('Reject opens rejection bottom sheet', () {
     testWidgets('Reject button shows rejection sheet', (tester) async {
-      final task = _makeTask(status: 'complete');
+      final task = _makeTask();
 
       await tester.pumpWidget(_wrapWithFakeDaos(_gcAuth(), task: task));
       await tester.pump();
@@ -405,7 +397,7 @@ void main() {
 
     testWidgets('Confirm Rejection disabled until reason selected',
         (tester) async {
-      final task = _makeTask(status: 'complete');
+      final task = _makeTask();
 
       await tester.pumpWidget(_wrapWithFakeDaos(_gcAuth(), task: task));
       await tester.pump();
@@ -450,7 +442,7 @@ void main() {
   group('total hours logged', () {
     testWidgets('GC sees total hours logged section on complete task',
         (tester) async {
-      final task = _makeTask(status: 'complete');
+      final task = _makeTask();
 
       await tester.pumpWidget(_wrapWithFakeDaos(_gcAuth(), task: task));
       await tester.pump();
@@ -469,7 +461,7 @@ void main() {
   group('status transition timeline', () {
     testWidgets('GC sees status transition timeline on complete task',
         (tester) async {
-      final task = _makeTask(status: 'complete');
+      final task = _makeTask();
 
       await tester.pumpWidget(_wrapWithFakeDaos(_gcAuth(), task: task));
       await tester.pump();

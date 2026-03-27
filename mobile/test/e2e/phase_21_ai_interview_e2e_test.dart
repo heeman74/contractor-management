@@ -21,14 +21,13 @@
 //   - Direct state injection via notifiers extending InterviewChatNotifier
 //   - No GetIt/HttpClient calls in tests — async methods are no-ops
 
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:contractorhub/features/ai/domain/ai_models.dart';
 import 'package:contractorhub/features/ai/presentation/providers/interview_chat_provider.dart';
 import 'package:contractorhub/features/ai/presentation/screens/interview_chat_screen.dart';
 import 'package:contractorhub/features/ai/presentation/widgets/typing_indicator.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 // ---------------------------------------------------------------------------
 // Test constants
@@ -199,7 +198,6 @@ void main() {
           ),
         ],
         isStreaming: true,
-        currentStreamText: '', // No text yet — typing indicator shows
       );
 
       await tester.pumpWidget(
@@ -251,7 +249,6 @@ void main() {
             id: 'task-1',
             title: 'Install main panel',
             estimatedHours: 4.0,
-            sortOrder: 0,
           ),
           AiTaskPreview(
             id: 'task-2',
@@ -305,15 +302,14 @@ void main() {
     // -----------------------------------------------------------------------
     testWidgets('test_interview_accept_plan: Accept Plan button enabled with tasks',
         (tester) async {
-      final tasksState = InterviewChatState(
+      const tasksState = InterviewChatState(
         conversationId: 'conv-001',
         scopeId: _testScopeId,
         tradeName: _testTradeName,
-        tasks: const [
+        tasks: [
           AiTaskPreview(
             id: 'task-1',
             title: 'Install main panel',
-            sortOrder: 0,
           ),
         ],
       );
@@ -353,15 +349,14 @@ void main() {
     testWidgets(
         'test_interview_restart_confirmation: Restart Interview shows AlertDialog',
         (tester) async {
-      final tasksState = InterviewChatState(
+      const tasksState = InterviewChatState(
         conversationId: 'conv-001',
         scopeId: _testScopeId,
         tradeName: _testTradeName,
-        tasks: const [
+        tasks: [
           AiTaskPreview(
             id: 'task-1',
             title: 'Install main panel',
-            sortOrder: 0,
           ),
           AiTaskPreview(
             id: 'task-2',
@@ -416,15 +411,14 @@ void main() {
     testWidgets(
         'test_interview_restart_keep_plan: Keep Current Plan dismisses dialog',
         (tester) async {
-      final tasksState = InterviewChatState(
+      const tasksState = InterviewChatState(
         conversationId: 'conv-001',
         scopeId: _testScopeId,
         tradeName: _testTradeName,
-        tasks: const [
+        tasks: [
           AiTaskPreview(
             id: 'task-1',
             title: 'Install main panel',
-            sortOrder: 0,
           ),
         ],
       );
@@ -477,16 +471,15 @@ void main() {
     // -----------------------------------------------------------------------
     testWidgets('test_interview_edit_task: task title TextField is editable',
         (tester) async {
-      final tasksState = InterviewChatState(
+      const tasksState = InterviewChatState(
         conversationId: 'conv-001',
         scopeId: _testScopeId,
         tradeName: _testTradeName,
-        tasks: const [
+        tasks: [
           AiTaskPreview(
             id: 'task-1',
             title: 'Install main panel',
             estimatedHours: 4.0,
-            sortOrder: 0,
           ),
         ],
       );
@@ -575,7 +568,6 @@ void main() {
         conversationId: 'conv-001',
         scopeId: _testScopeId,
         tradeName: _testTradeName,
-        tasks: [],
       );
 
       await tester.pumpWidget(

@@ -13,13 +13,11 @@ import 'package:contractorhub/core/database/app_database.dart' hide UserRole;
 import 'package:contractorhub/core/di/service_locator.dart';
 import 'package:contractorhub/features/auth/domain/auth_state.dart';
 import 'package:contractorhub/features/auth/presentation/providers/auth_provider.dart';
-import 'package:contractorhub/features/jobs/data/job_dao.dart';
-import 'package:contractorhub/features/jobs/data/time_entry_dao.dart';
 import 'package:contractorhub/features/jobs/domain/job_entity.dart';
+import 'package:contractorhub/features/jobs/presentation/providers/job_providers.dart';
 import 'package:contractorhub/features/jobs/presentation/providers/timer_providers.dart';
 import 'package:contractorhub/features/jobs/presentation/screens/timer_screen.dart';
 import 'package:contractorhub/features/jobs/presentation/widgets/contractor_job_card.dart';
-import 'package:contractorhub/features/jobs/presentation/providers/job_providers.dart';
 import 'package:contractorhub/shared/models/user_role.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
@@ -156,7 +154,7 @@ void main() {
       expect(entries.length, equals(1));
       expect(entries.first.clockedOutAt, isNotNull);
       expect(entries.first.durationSeconds, isNotNull);
-      expect(entries.first.durationSeconds!, greaterThanOrEqualTo(0));
+      expect(entries.first.durationSeconds, greaterThanOrEqualTo(0));
     });
 
     test('clockIn to job B auto-clocks-out job A', () async {
@@ -278,14 +276,11 @@ void main() {
         jobId: 'job-a',
         contractorId: 'contractor-1',
         clockedInAt: now.subtract(const Duration(hours: 1)),
-        clockedOutAt: null,
-        durationSeconds: null,
         sessionStatus: 'active',
         adjustmentLog: '',
         version: 1,
         createdAt: now,
         updatedAt: now,
-        deletedAt: null,
       );
 
       await tester.pumpWidget(buildTimerScreen(
@@ -311,14 +306,11 @@ void main() {
         jobId: 'job-b',
         contractorId: 'contractor-1',
         clockedInAt: now,
-        clockedOutAt: null,
-        durationSeconds: null,
         sessionStatus: 'active',
         adjustmentLog: '',
         version: 1,
         createdAt: now,
         updatedAt: now,
-        deletedAt: null,
       );
 
       await tester.pumpWidget(buildTimerScreen(
@@ -405,14 +397,11 @@ void main() {
         jobId: 'job-a',
         contractorId: 'contractor-1',
         clockedInAt: now,
-        clockedOutAt: null,
-        durationSeconds: null,
         sessionStatus: 'active',
         adjustmentLog: '',
         version: 1,
         createdAt: now,
         updatedAt: now,
-        deletedAt: null,
       );
 
       await tester.pumpWidget(buildJobCard(

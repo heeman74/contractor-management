@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,7 +7,6 @@ import '../../../../core/database/app_database.dart';
 import '../../../../core/di/service_locator.dart';
 import '../../../../features/auth/domain/auth_state.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
-import '../../data/time_entry_dao.dart';
 import '../providers/timer_providers.dart';
 
 /// Time tracking section for the Schedule tab of Job Detail.
@@ -540,7 +538,8 @@ class _AdjustTimeDialogState extends ConsumerState<_AdjustTimeDialog> {
         newVersion: entry.version + 1,
       );
 
-      if (mounted) Navigator.of(context).pop();
+      if (!context.mounted) return;
+      Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
         setState(() {

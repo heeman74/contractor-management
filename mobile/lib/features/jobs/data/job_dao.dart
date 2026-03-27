@@ -24,8 +24,8 @@ part 'job_dao.g.dart';
 /// the entity table AND sync_queue outbox. If either write fails, both are
 /// rolled back — no orphaned queue items, no untracked mutations.
 ///
-/// Payload serialization: manually build Map<String, dynamic> from Companion
-/// fields — [toColumns()] returns Map<String, Expression> which cannot be
+/// Payload serialization: manually build `Map<String, dynamic>` from Companion
+/// fields — [toColumns()] returns `Map<String, Expression>` which cannot be
 /// JSON-encoded (Phase 2 decision).
 @DriftAccessor(
   tables: [Jobs, ClientProfiles, ClientProperties, JobRequests, SyncQueue],

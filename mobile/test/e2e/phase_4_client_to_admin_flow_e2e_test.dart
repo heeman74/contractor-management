@@ -499,7 +499,7 @@ void main() {
               },
             },
             statusCode: 200,
-            requestOptions: dio_pkg.RequestOptions(path: ''),
+            requestOptions: dio_pkg.RequestOptions(),
           ));
 
       await tester.pumpWidget(buildAdminReview());
@@ -548,10 +548,10 @@ void main() {
             onSendProgress: any(named: 'onSendProgress'),
             onReceiveProgress: any(named: 'onReceiveProgress'),
           )).thenThrow(dio_pkg.DioException(
-        requestOptions: dio_pkg.RequestOptions(path: ''),
+        requestOptions: dio_pkg.RequestOptions(),
         response: dio_pkg.Response(
           statusCode: 500,
-          requestOptions: dio_pkg.RequestOptions(path: ''),
+          requestOptions: dio_pkg.RequestOptions(),
         ),
         type: dio_pkg.DioExceptionType.badResponse,
       ));
@@ -640,7 +640,7 @@ void main() {
           )).thenAnswer((_) async => dio_pkg.Response(
             data: <String, dynamic>{'status': 'declined'},
             statusCode: 200,
-            requestOptions: dio_pkg.RequestOptions(path: ''),
+            requestOptions: dio_pkg.RequestOptions(),
           ));
 
       await tester.pumpWidget(buildAdminReview());
@@ -748,7 +748,7 @@ void main() {
     });
 
     testWidgets('multiple requests sorted oldest first', (tester) async {
-      final older = DateTime(2024, 1, 1, 10, 0);
+      final older = DateTime(2024, 1, 1, 10);
       final newer = DateTime(2024, 6, 15, 14, 30);
 
       await seedRequest(

@@ -20,14 +20,13 @@
 
 import 'dart:async';
 
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:contractorhub/features/foreman/data/foreman_repository.dart';
 import 'package:contractorhub/features/foreman/presentation/providers/foreman_provider.dart';
 import 'package:contractorhub/features/foreman/presentation/screens/daily_status_screen.dart';
 import 'package:contractorhub/features/foreman/presentation/screens/status_history_screen.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 // ---------------------------------------------------------------------------
 // Test constants
@@ -186,7 +185,7 @@ Widget _wrapStatusHistoryLoading() {
         (ref) => completer.future,
       ),
     ],
-    child: MaterialApp(
+    child: const MaterialApp(
       home: StatusHistoryScreen(
         projectId: _projectId1,
         projectName: _projectName1,

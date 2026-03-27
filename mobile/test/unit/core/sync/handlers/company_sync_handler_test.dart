@@ -59,7 +59,6 @@ void main() {
       payload: '{"id":"co-1","name":"Test"}',
       status: 'pending',
       attemptCount: 0,
-      errorMessage: null,
       createdAt: DateTime.now(),
     );
 

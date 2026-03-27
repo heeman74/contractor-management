@@ -7,7 +7,6 @@
 /// 4. duplicate register overwrites previous handler
 library;
 
-import 'package:contractorhub/core/database/app_database.dart';
 import 'package:contractorhub/core/sync/sync_handler.dart';
 import 'package:contractorhub/core/sync/sync_registry.dart';
 import 'package:flutter_test/flutter_test.dart';

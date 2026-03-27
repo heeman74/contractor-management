@@ -36,8 +36,7 @@ class PhotoAnnotationScreen extends ConsumerStatefulWidget {
   final String? annotationData;
 
   const PhotoAnnotationScreen({
-    super.key,
-    required this.localPath,
+    required this.localPath, super.key,
     this.annotationData,
   });
 
@@ -194,7 +193,7 @@ class _PhotoAnnotationScreenState
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(null),
+            onPressed: () => Navigator.of(ctx).pop(),
             child: const Text('Cancel'),
           ),
           FilledButton(
@@ -239,7 +238,7 @@ class _PhotoAnnotationScreenState
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(null),
+            onPressed: () => Navigator.of(ctx).pop(),
             child: const Text('Cancel'),
           ),
           FilledButton(
@@ -396,8 +395,6 @@ class _PhotoAnnotationScreenState
 
                 // View mode: pinch-to-zoom + pan.
                 return InteractiveViewer(
-                  panEnabled: true,
-                  scaleEnabled: true,
                   child: photoAndPainter,
                 );
               },
@@ -416,7 +413,7 @@ class _PhotoAnnotationScreenState
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     TextButton(
-                      onPressed: () => Navigator.of(context).pop(null),
+                      onPressed: () => Navigator.of(context).pop(),
                       child: const Text(
                         'Discard Changes',
                         style: TextStyle(color: Colors.white70),

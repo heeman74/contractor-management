@@ -77,7 +77,7 @@ SyncQueueData makeSyncQueueItem({
     status: status,
     attemptCount: attemptCount,
     errorMessage: errorMessage,
-    createdAt: createdAt ?? DateTime.utc(2024, 1, 1, 12, 0, 0),
+    createdAt: createdAt ?? DateTime.utc(2024, 1, 1, 12),
   );
 }
 
@@ -161,7 +161,6 @@ void main() {
       payload: '{}',
       status: 'pending',
       attemptCount: 0,
-      errorMessage: null,
       createdAt: DateTime.utc(2024),
     ));
     registerFallbackValue(<String, dynamic>{});
@@ -175,7 +174,7 @@ void main() {
       // Items inserted with different createdAt — DAO returns in FIFO order
       final item1 = makeSyncQueueItem(
         id: 'item-first',
-        createdAt: DateTime.utc(2024, 1, 1, 12, 0, 0),
+        createdAt: DateTime.utc(2024, 1, 1, 12),
       );
       final item2 = makeSyncQueueItem(
         id: 'item-second',
@@ -277,7 +276,7 @@ void main() {
       final deps = buildEngine();
 
       // Item starts at attemptCount = 0
-      final item = makeSyncQueueItem(id: 'item-5xx', attemptCount: 0);
+      final item = makeSyncQueueItem(id: 'item-5xx');
       final dioError = DioException(
         requestOptions: RequestOptions(path: '/companies'),
         response: Response(
@@ -444,7 +443,7 @@ void main() {
 
       // Use a recent cursor to trigger delta pull (not null = not first launch)
       when(() => deps.syncCursorDao.getCursor())
-          .thenAnswer((_) async => DateTime.utc(2024, 1, 1));
+          .thenAnswer((_) async => DateTime.utc(2024));
 
       final syncResponse = <String, dynamic>{
         'companies': [
@@ -501,7 +500,7 @@ void main() {
 
       const serverTimestamp = '2024-06-15T08:30:00.000000Z';
       when(() => deps.syncCursorDao.getCursor())
-          .thenAnswer((_) async => DateTime.utc(2024, 1, 1));
+          .thenAnswer((_) async => DateTime.utc(2024));
 
       final syncResponse = <String, dynamic>{
         'companies': <dynamic>[],

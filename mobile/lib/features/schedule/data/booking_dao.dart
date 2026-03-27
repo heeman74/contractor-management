@@ -23,8 +23,8 @@ part 'booking_dao.g.dart';
 /// [upsertBookingFromSync] is the sync-pull path and does NOT write to the
 /// sync_queue — this IS the sync, writing to the queue would create an infinite loop.
 ///
-/// Payload serialization: manually build Map<String, dynamic> from Companion
-/// fields — [toColumns()] returns Map<String, Expression> which cannot be
+/// Payload serialization: manually build `Map<String, dynamic>` from Companion
+/// fields — [toColumns()] returns `Map<String, Expression>` which cannot be
 /// JSON-encoded (Phase 2 decision).
 @DriftAccessor(
   tables: [Bookings, Jobs, SyncQueue],

@@ -26,12 +26,6 @@
 
 import 'dart:convert';
 
-import 'package:drift/drift.dart' hide isNotNull, isNull;
-import 'package:drift/native.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:contractorhub/core/database/app_database.dart' hide UserRole;
 import 'package:contractorhub/features/auth/domain/auth_state.dart';
 import 'package:contractorhub/features/auth/presentation/providers/auth_provider.dart';
@@ -45,6 +39,11 @@ import 'package:contractorhub/features/projects/presentation/widgets/task_thumbn
 import 'package:contractorhub/features/projects/presentation/widgets/trade_progress_card.dart'
     show TradeProgressCard, tradeScopeProgressProvider, ScopeProgress;
 import 'package:contractorhub/shared/models/user_role.dart';
+import 'package:drift/drift.dart' hide isNotNull, isNull;
+import 'package:drift/native.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 // ---------------------------------------------------------------------------
 // Test constants
@@ -104,17 +103,11 @@ Project _makeProject({
     id: id,
     companyId: _companyId,
     name: name,
-    description: null,
-    address: null,
-    clientId: null,
     status: status,
     statusHistory: '[]',
-    targetStartDate: null,
-    targetEndDate: null,
     version: 1,
     createdAt: now,
     updatedAt: now,
-    deletedAt: null,
   );
 }
 
@@ -131,7 +124,6 @@ TradeScope _makeScope({
     id: id,
     companyId: _companyId,
     projectId: _project1Id,
-    tradeCatalogId: null,
     tradeName: tradeName,
     tradeColor: tradeColor,
     contractorId: contractorId,
@@ -141,7 +133,6 @@ TradeScope _makeScope({
     version: 1,
     createdAt: now,
     updatedAt: now,
-    deletedAt: null,
   );
 }
 
@@ -162,12 +153,9 @@ ProjectTask _makeTask({
     companyId: _companyId,
     tradeScopeId: scopeId,
     title: title,
-    description: null,
     status: status,
     sortOrder: sortOrder,
     priority: priority,
-    estimatedHours: null,
-    estimatedCost: null,
     dueDate: dueDate,
     photoRequired: photoRequired,
     assignedTo: assignedTo,
@@ -175,7 +163,6 @@ ProjectTask _makeTask({
     version: 1,
     createdAt: now,
     updatedAt: now,
-    deletedAt: null,
   );
 }
 
@@ -195,13 +182,10 @@ TaskAttachment _makeAttachment({
     attachmentType: attachmentType,
     localPath: localPath,
     remoteUrl: remoteUrl,
-    caption: null,
-    annotationData: null,
     sortOrder: sortOrder,
     version: 1,
     createdAt: now,
     updatedAt: now,
-    deletedAt: null,
   );
 }
 
@@ -278,8 +262,6 @@ void main() {
   group('TASK-01: MyTasksScreen shows tasks grouped by scope', () {
     testWidgets('shows tasks from 2 scopes in correct groups', (tester) async {
       final task1 = _makeTask(
-        id: _task1Id,
-        scopeId: _scope1Id,
         title: 'Install panel',
         status: 'in_progress',
         assignedTo: _contractorId,
@@ -288,7 +270,6 @@ void main() {
         id: _task2Id,
         scopeId: _scope2Id,
         title: 'Run water lines',
-        status: 'not_started',
         assignedTo: _contractorId,
       );
 
@@ -326,7 +307,6 @@ void main() {
     testWidgets('shows overdue task with amber background', (tester) async {
       final overdueTask = _makeTask(
         id: _task6Id,
-        scopeId: _scope1Id,
         title: 'Overdue electrical',
         status: 'in_progress',
         assignedTo: _contractorId,
@@ -415,7 +395,6 @@ void main() {
       final attachmentDao = db.taskAttachmentDao;
 
       final task = _makeTask(
-        id: _task1Id,
         title: 'Install panel',
         status: 'in_progress',
         assignedTo: _contractorId,
@@ -829,7 +808,7 @@ void main() {
         (tester) async {
       final projects = [_makeProject()];
       final scopes = [
-        _makeScope(id: _scope1Id, tradeName: 'Electrical'),
+        _makeScope(),
         _makeScope(id: _scope2Id, tradeName: 'Plumbing', sortOrder: 1),
       ];
 
@@ -870,7 +849,6 @@ void main() {
         (tester) async {
       final tasks = [
         _makeTask(
-          id: _task1Id,
           title: 'Install panel',
           status: 'in_progress',
         ),
@@ -879,15 +857,10 @@ void main() {
       // Provide 2 photo attachments for task1
       final photos = [
         _makeAttachment(
-          id: _attachment1Id,
-          taskId: _task1Id,
-          attachmentType: 'photo',
-          sortOrder: 0,
+          
         ),
         _makeAttachment(
           id: _attachment2Id,
-          taskId: _task1Id,
-          attachmentType: 'photo',
           sortOrder: 1,
         ),
       ];
@@ -897,7 +870,7 @@ void main() {
           overrides: [
             tradeScopesProvider(_project1Id).overrideWith(
               (ref) => Stream.value([
-                _makeScope(id: _scope1Id, tradeName: 'Electrical'),
+                _makeScope(),
               ]),
             ),
             tasksProvider(_scope1Id).overrideWith(
@@ -1098,15 +1071,10 @@ void main() {
     testWidgets('renders photo thumbnails for photo attachments', (tester) async {
       final photos = [
         _makeAttachment(
-          id: _attachment1Id,
-          taskId: _task1Id,
-          attachmentType: 'photo',
-          sortOrder: 0,
+          
         ),
         _makeAttachment(
           id: _attachment2Id,
-          taskId: _task1Id,
-          attachmentType: 'photo',
           sortOrder: 1,
         ),
       ];
@@ -1137,10 +1105,7 @@ void main() {
     testWidgets('renders document attachments as no thumbnails', (tester) async {
       final docs = [
         _makeAttachment(
-          id: _attachment1Id,
-          taskId: _task1Id,
           attachmentType: 'document', // document, not photo
-          sortOrder: 0,
         ),
       ];
 

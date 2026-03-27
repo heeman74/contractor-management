@@ -48,7 +48,7 @@ class JobRequestSyncHandler extends SyncHandler {
     final id = data['id'];
     final companyId = data['company_id'];
     if (id is! String || companyId is! String) {
-      throw FormatException('JobRequest missing required fields');
+      throw const FormatException('JobRequest missing required fields');
     }
 
     final deletedAt = data['deleted_at'] != null

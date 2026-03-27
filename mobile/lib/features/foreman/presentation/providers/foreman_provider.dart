@@ -17,7 +17,7 @@ final foremanRepositoryProvider = Provider<ForemanRepository>((ref) {
 /// Fetches the list of projects assigned to the current foreman.
 ///
 /// FutureProvider — auto-disposed when no longer watched.
-/// Returns List<Map<String, dynamic>> from the API.
+/// Returns `List<Map<String, dynamic>>` from the API.
 final assignedProjectsProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   final repo = ref.watch(foremanRepositoryProvider);
@@ -27,7 +27,7 @@ final assignedProjectsProvider =
 /// Fetches the status update history for a given project.
 ///
 /// FutureProvider.family — one instance per projectId.
-/// Returns List<Map<String, dynamic>> from the API.
+/// Returns `List<Map<String, dynamic>>` from the API.
 final statusUpdatesProvider = FutureProvider.autoDispose
     .family<List<Map<String, dynamic>>, String>((ref, projectId) async {
   final repo = ref.watch(foremanRepositoryProvider);

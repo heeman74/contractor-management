@@ -90,7 +90,7 @@ class _JobRequestFormScreenState
           padding: const EdgeInsets.all(16),
           children: [
             // Description
-            _SectionHeader(title: 'What work do you need done?'),
+            const _SectionHeader(title: 'What work do you need done?'),
             const SizedBox(height: 8),
             TextFormField(
               controller: _descriptionController,
@@ -116,10 +116,10 @@ class _JobRequestFormScreenState
             const SizedBox(height: 20),
 
             // Trade type
-            _SectionHeader(title: 'What type of work is it?'),
+            const _SectionHeader(title: 'What type of work is it?'),
             const SizedBox(height: 8),
             DropdownButtonFormField<TradeType>(
-              value: _selectedTradeType,
+              initialValue: _selectedTradeType,
               decoration: const InputDecoration(
                 labelText: 'Trade type',
                 prefixIcon: Icon(Icons.build_outlined),
@@ -138,10 +138,10 @@ class _JobRequestFormScreenState
             const SizedBox(height: 20),
 
             // Property address
-            _SectionHeader(title: 'Where is the work needed?'),
+            const _SectionHeader(title: 'Where is the work needed?'),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              value: _selectedPropertyId,
+              initialValue: _selectedPropertyId,
               decoration: const InputDecoration(
                 labelText: 'Property address',
                 prefixIcon: Icon(Icons.home_outlined),
@@ -149,7 +149,6 @@ class _JobRequestFormScreenState
               ),
               items: const [
                 DropdownMenuItem(
-                  value: null,
                   child: Text('Select a saved address…'),
                 ),
                 // Saved properties loaded from Drift in production
@@ -179,7 +178,7 @@ class _JobRequestFormScreenState
             const SizedBox(height: 20),
 
             // Preferred dates
-            _SectionHeader(title: 'When would you like the work done?'),
+            const _SectionHeader(title: 'When would you like the work done?'),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -211,7 +210,7 @@ class _JobRequestFormScreenState
             const SizedBox(height: 20),
 
             // Urgency
-            _SectionHeader(title: 'How urgent is this?'),
+            const _SectionHeader(title: 'How urgent is this?'),
             const SizedBox(height: 8),
             SegmentedButton<bool>(
               segments: const [
@@ -234,7 +233,7 @@ class _JobRequestFormScreenState
             const SizedBox(height: 20),
 
             // Budget range
-            _SectionHeader(title: 'What is your budget range? (optional)'),
+            const _SectionHeader(title: 'What is your budget range? (optional)'),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -276,7 +275,7 @@ class _JobRequestFormScreenState
             const SizedBox(height: 20),
 
             // Photos
-            _SectionHeader(
+            const _SectionHeader(
               title: 'Add photos (up to $_maxPhotos)',
             ),
             const SizedBox(height: 8),
@@ -424,11 +423,6 @@ class _JobRequestFormScreenState
 
       final jobDao = getIt<JobDao>();
       final now = DateTime.now();
-
-      // Resolve address
-      final address = _isNewAddress
-          ? _newAddressController.text.trim()
-          : _selectedPropertyId;
 
       // Build photos JSON — file paths stored as JSON TEXT array
       final photosJson = '[${_photoPaths.map((p) => '"$p"').join(',')}]';

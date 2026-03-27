@@ -13,13 +13,10 @@ import 'package:contractorhub/core/database/app_database.dart' hide UserRole;
 import 'package:contractorhub/core/di/service_locator.dart';
 import 'package:contractorhub/features/auth/domain/auth_state.dart';
 import 'package:contractorhub/features/auth/presentation/providers/auth_provider.dart';
-import 'package:contractorhub/features/jobs/data/note_dao.dart';
-import 'package:contractorhub/features/jobs/data/attachment_dao.dart';
 import 'package:contractorhub/features/jobs/domain/attachment_entity.dart';
 import 'package:contractorhub/features/jobs/domain/note_entity.dart';
 import 'package:contractorhub/features/jobs/presentation/providers/note_providers.dart';
 import 'package:contractorhub/features/jobs/presentation/widgets/notes_tab.dart';
-import 'package:contractorhub/features/jobs/presentation/widgets/add_note_bottom_sheet.dart';
 import 'package:contractorhub/shared/models/user_role.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
@@ -132,7 +129,7 @@ void main() {
           (ref, jobId) => Stream.value(notes),
         ),
       ],
-      child: MaterialApp(
+      child: const MaterialApp(
         home: Scaffold(
           body: NotesTab(
             jobId: 'job-1',
@@ -196,7 +193,6 @@ void main() {
         noteId: noteId,
         attachmentType: 'photo',
         localPath: '/fake/path/photo.jpg',
-        sortOrder: 0,
       );
 
       final now = DateTime.now();
@@ -332,7 +328,6 @@ void main() {
         noteId: noteId,
         attachmentType: 'photo',
         localPath: '/fake/photo.jpg',
-        sortOrder: 0,
       );
 
       // Verify the attachment is in pending_upload status

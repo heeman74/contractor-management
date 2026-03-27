@@ -6,7 +6,6 @@ import 'package:drift/drift.dart';
 import '../../database/app_database.dart';
 import '../../network/dio_client.dart';
 import '../sync_handler.dart';
-import '../../../features/projects/data/project_zone_dao.dart';
 
 /// SyncHandler implementation for the ProjectZone entity.
 ///
@@ -48,7 +47,7 @@ class ProjectZoneSyncHandler extends SyncHandler {
     final projectId = data['project_id'];
     final name = data['name'];
     if (id is! String || companyId is! String || projectId is! String || name is! String) {
-      throw FormatException('ProjectZone missing required fields');
+      throw const FormatException('ProjectZone missing required fields');
     }
 
     final deletedAt = data['deleted_at'] != null

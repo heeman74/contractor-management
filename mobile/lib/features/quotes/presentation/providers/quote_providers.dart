@@ -9,7 +9,6 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/di/service_locator.dart';
-import '../../data/quote_dao.dart';
 import '../../domain/line_item_entity.dart';
 import '../../domain/quote_entity.dart';
 

@@ -16,11 +16,9 @@
 library;
 
 import 'package:contractorhub/core/database/app_database.dart';
-import 'package:contractorhub/core/sync/sync_queue_dao.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:uuid/uuid.dart';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -92,7 +90,7 @@ void main() {
       await insertTestItem(
         db,
         id: 'item-first',
-        createdAt: DateTime.utc(2024, 1, 1, 12, 0, 0),
+        createdAt: DateTime.utc(2024, 1, 1, 12),
       );
       await insertTestItem(
         db,
@@ -113,7 +111,7 @@ void main() {
       await insertTestItem(
         db,
         id: 'item-to-sync',
-        createdAt: DateTime.utc(2024, 1, 1, 12, 0, 0),
+        createdAt: DateTime.utc(2024, 1, 1, 12),
       );
 
       // Verify item is in queue
@@ -133,7 +131,7 @@ void main() {
       await insertTestItem(
         db,
         id: 'item-to-park',
-        createdAt: DateTime.utc(2024, 1, 1, 12, 0, 0),
+        createdAt: DateTime.utc(2024, 1, 1, 12),
       );
 
       const errorMsg = 'HTTP 400 Bad Request: invalid payload';
@@ -155,7 +153,7 @@ void main() {
       await insertTestItem(
         db,
         id: 'item-a',
-        createdAt: DateTime.utc(2024, 1, 1, 12, 0, 0),
+        createdAt: DateTime.utc(2024, 1, 1, 12),
       );
       await insertTestItem(
         db,
@@ -185,8 +183,7 @@ void main() {
       await insertTestItem(
         db,
         id: 'item-retry',
-        createdAt: DateTime.utc(2024, 1, 1, 12, 0, 0),
-        attemptCount: 0,
+        createdAt: DateTime.utc(2024, 1, 1, 12),
       );
 
       // Increment to 3

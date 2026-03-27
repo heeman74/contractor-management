@@ -17,7 +17,6 @@ import 'package:contractorhub/core/database/app_database.dart' hide UserRole;
 import 'package:contractorhub/core/di/service_locator.dart';
 import 'package:contractorhub/features/auth/domain/auth_state.dart';
 import 'package:contractorhub/features/auth/presentation/providers/auth_provider.dart';
-import 'package:contractorhub/features/jobs/data/job_dao.dart';
 import 'package:contractorhub/features/jobs/presentation/screens/client_detail_screen.dart';
 import 'package:contractorhub/shared/models/user_role.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
@@ -189,7 +188,7 @@ void main() {
     });
 
     testWidgets('shows admin notes or placeholder', (tester) async {
-      await _seedClientProfile(db, id: 'cp-1', adminNotes: null);
+      await _seedClientProfile(db, id: 'cp-1');
 
       await tester.pumpWidget(buildWidget('cp-1'));
       await tester.pump();

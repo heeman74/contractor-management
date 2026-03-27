@@ -205,7 +205,7 @@ class DependencyArrowPainter extends CustomPainter {
 
     const dashLen = 6.0;
     const gapLen = 4.0;
-    final totalPattern = dashLen + gapLen;
+    const totalPattern = dashLen + gapLen;
     final segments = (length / totalPattern).floor();
 
     final nx = dx / length;

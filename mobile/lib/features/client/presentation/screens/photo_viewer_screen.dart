@@ -19,9 +19,7 @@ class PhotoViewerScreen extends StatefulWidget {
   final int initialIndex;
 
   const PhotoViewerScreen({
-    super.key,
-    required this.photos,
-    required this.initialIndex,
+    required this.photos, required this.initialIndex, super.key,
   });
 
   @override

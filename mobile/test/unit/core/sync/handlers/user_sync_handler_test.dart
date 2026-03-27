@@ -68,7 +68,6 @@ void main() {
       payload: '{"id":"u-1","companyId":"co-1","email":"a@t.com"}',
       status: 'pending',
       attemptCount: 0,
-      errorMessage: null,
       createdAt: DateTime.now(),
     );
 

@@ -37,10 +37,7 @@ class LineItemForm extends StatefulWidget {
   final bool showValidation;
 
   const LineItemForm({
-    super.key,
-    required this.item,
-    required this.onChanged,
-    required this.onDelete,
+    required this.item, required this.onChanged, required this.onDelete, super.key,
     this.showValidation = false,
   });
 
@@ -117,7 +114,7 @@ class _LineItemFormState extends State<LineItemForm> {
                     onSelectionChanged: (selected) {
                       widget.onChanged(item.copyWith(itemType: selected.first));
                     },
-                    style: ButtonStyle(
+                    style: const ButtonStyle(
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       visualDensity: VisualDensity.compact,
                     ),
@@ -154,7 +151,6 @@ class _LineItemFormState extends State<LineItemForm> {
                 isDense: true,
                 border: const OutlineInputBorder(),
               ),
-              maxLines: 1,
               onChanged: (value) {
                 widget.onChanged(item.copyWith(description: value));
               },
@@ -200,7 +196,7 @@ class _LineItemFormState extends State<LineItemForm> {
                 SizedBox(
                   width: 88,
                   child: DropdownButtonFormField<String>(
-                    value: _kUnits.contains(item.unit) ? item.unit : 'each',
+                    initialValue: _kUnits.contains(item.unit) ? item.unit : 'each',
                     isExpanded: true,
                     decoration: const InputDecoration(
                       labelText: 'Unit',

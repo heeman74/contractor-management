@@ -22,14 +22,13 @@
 //   - Direct state injection via notifiers extending IntakeChatNotifier
 //   - No GetIt/HttpClient calls in tests — async methods are no-ops
 
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:contractorhub/features/ai/domain/ai_models.dart';
 import 'package:contractorhub/features/ai/presentation/providers/intake_chat_provider.dart';
 import 'package:contractorhub/features/ai/presentation/screens/intake_chat_screen.dart';
 import 'package:contractorhub/features/ai/presentation/widgets/typing_indicator.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 // ---------------------------------------------------------------------------
 // Fake notifier — extends IntakeChatNotifier so the screen's notifier cast works.
@@ -71,8 +70,7 @@ class _TestIntakeChatNotifier extends IntakeChatNotifier {
   @override
   Future<String?> completeIntake({
     required String projectName,
-    String? description,
-    required List<AiTradeScope> scopes,
+    required List<AiTradeScope> scopes, String? description,
   }) async {
     return 'proj-fake-001';
   }
@@ -223,7 +221,6 @@ void main() {
           ),
         ],
         isStreaming: true,
-        currentStreamText: '', // No text yet — typing indicator shows
       );
 
       await tester.pumpWidget(
@@ -270,7 +267,6 @@ void main() {
             id: 'scope-1',
             tradeName: 'Electrical',
             tradeType: 'electrical',
-            sortOrder: 0,
           ),
           AiTradeScope(
             id: 'scope-2',
@@ -367,7 +363,6 @@ void main() {
         (tester) async {
       const emptyScopes = IntakeChatState(
         conversationId: 'conv-001',
-        tradeScopes: [],
       );
 
       await tester.pumpWidget(
@@ -443,7 +438,7 @@ void main() {
         'test_intake_no_conversation: screen renders empty state without conversationId',
         (tester) async {
       const noConvState = IntakeChatState(
-        conversationId: null,
+        
       );
 
       await tester.pumpWidget(
@@ -476,14 +471,13 @@ void main() {
     // -----------------------------------------------------------------------
     testWidgets('test_intake_edit_trade_scope: tapping trade name opens TextField',
         (tester) async {
-      final scopeState = IntakeChatState(
+      const scopeState = IntakeChatState(
         conversationId: 'conv-001',
-        tradeScopes: const [
+        tradeScopes: [
           AiTradeScope(
             id: 'scope-1',
             tradeName: 'Electrical',
             tradeType: 'electrical',
-            sortOrder: 0,
           ),
         ],
       );

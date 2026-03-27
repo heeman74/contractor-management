@@ -161,11 +161,8 @@ void main() {
       final now = DateTime.now();
       final entry = _makeTimeEntry(
         id: 'entry-active',
-        jobId: 'job-1',
         sessionStatus: 'active',
         clockedInAt: now.subtract(const Duration(minutes: 30)),
-        clockedOutAt: null,
-        durationSeconds: null,
       );
 
       final activeState = TimerState(
@@ -185,9 +182,7 @@ void main() {
 
     testWidgets('session history list shows completed sessions', (tester) async {
       final entry = _makeTimeEntry(
-        id: 'entry-1',
         durationSeconds: 3600,
-        sessionStatus: 'completed',
       );
 
       await tester.pumpWidget(buildTimerScreen('job-1', entries: [entry]));
@@ -203,7 +198,6 @@ void main() {
 
     testWidgets('shows total time summary', (tester) async {
       final entry1 = _makeTimeEntry(
-        id: 'entry-1',
         durationSeconds: 3600,
       );
       final entry2 = _makeTimeEntry(

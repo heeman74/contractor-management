@@ -17,7 +17,6 @@ import 'package:contractorhub/core/di/service_locator.dart';
 import 'package:contractorhub/core/sync/sync_engine.dart';
 import 'package:contractorhub/features/auth/domain/auth_state.dart';
 import 'package:contractorhub/features/auth/presentation/providers/auth_provider.dart';
-import 'package:contractorhub/features/jobs/data/job_dao.dart';
 import 'package:contractorhub/features/jobs/presentation/screens/contractor_jobs_screen.dart';
 import 'package:contractorhub/shared/models/user_role.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
@@ -149,8 +148,7 @@ void main() {
       await _seedJob(db,
           id: 'j-1',
           status: 'scheduled',
-          description: 'Fix pipe',
-          tradeType: 'plumber');
+          description: 'Fix pipe');
 
       await tester.pumpWidget(buildWidget());
       await tester.pump(); // stream emits

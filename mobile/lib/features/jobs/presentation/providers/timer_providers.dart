@@ -8,8 +8,6 @@ import '../../../../core/database/app_database.dart';
 import '../../../../core/di/service_locator.dart';
 import '../../../../features/auth/domain/auth_state.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
-import '../../data/job_dao.dart';
-import '../../data/time_entry_dao.dart';
 
 // ─── DAO providers ────────────────────────────────────────────────────────────
 
@@ -163,7 +161,6 @@ class TimerNotifier extends AsyncNotifier<TimerState> {
       state = AsyncData(
         TimerState(
           activeEntry: newEntry,
-          elapsedSeconds: 0,
           activeJobId: jobId,
         ),
       );

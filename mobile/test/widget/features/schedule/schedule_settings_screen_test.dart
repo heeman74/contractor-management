@@ -11,7 +11,7 @@
 /// 8. Time picker labels "Start" and "End" present for working days
 /// 9. Screen renders without crash
 ///
-/// Strategy: ScheduleSettingsScreen uses getIt<DioClient> for API calls.
+/// Strategy: ScheduleSettingsScreen uses `getIt<DioClient>` for API calls.
 /// The _loadSchedule() call runs in initState. Without a registered DioClient,
 /// it catches the exception and shows defaults with offline state.
 /// We test the static UI elements that render regardless of API state.

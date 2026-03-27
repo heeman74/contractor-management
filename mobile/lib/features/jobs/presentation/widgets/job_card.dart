@@ -16,9 +16,7 @@ import '../../domain/job_status.dart';
 /// Tapping the card navigates to the job detail screen via [onTap].
 class JobCard extends StatelessWidget {
   const JobCard({
-    super.key,
-    required this.job,
-    required this.onTap,
+    required this.job, required this.onTap, super.key,
     this.isSelected = false,
     this.inBatchMode = false,
     this.onLongPress,

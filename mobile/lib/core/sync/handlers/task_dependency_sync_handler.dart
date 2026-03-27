@@ -6,7 +6,6 @@ import 'package:drift/drift.dart';
 import '../../database/app_database.dart';
 import '../../network/dio_client.dart';
 import '../sync_handler.dart';
-import '../../../features/projects/data/task_dependency_dao.dart';
 
 /// SyncHandler implementation for the TaskDependency entity.
 ///

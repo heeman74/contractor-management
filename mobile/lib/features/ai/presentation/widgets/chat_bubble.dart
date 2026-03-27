@@ -1,4 +1,3 @@
-import 'dart:math';
 
 import 'package:flutter/material.dart';
 
@@ -102,7 +101,6 @@ class _ChatBubbleState extends State<ChatBubble>
     return Semantics(
       label: 'ContractorHub AI',
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // AI avatar

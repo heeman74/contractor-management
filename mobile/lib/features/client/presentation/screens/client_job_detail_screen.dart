@@ -6,10 +6,10 @@ import '../../../../core/di/service_locator.dart';
 import '../../../../core/routing/route_names.dart';
 import '../../../../core/sync/sync_engine.dart';
 import '../../../invoices/presentation/providers/invoice_providers.dart';
-import '../../../quotes/data/quote_dao.dart';
-import '../../../quotes/domain/quote_entity.dart';
 import '../../../jobs/domain/job_entity.dart';
 import '../../../jobs/domain/job_status.dart';
+import '../../../quotes/data/quote_dao.dart';
+import '../../../quotes/domain/quote_entity.dart';
 import '../providers/client_providers.dart';
 import '../widgets/client_notes_tab.dart';
 import '../widgets/delay_banner.dart';
@@ -29,7 +29,7 @@ import '../widgets/photo_timeline.dart';
 class ClientJobDetailScreen extends ConsumerWidget {
   final String jobId;
 
-  const ClientJobDetailScreen({super.key, required this.jobId});
+  const ClientJobDetailScreen({required this.jobId, super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

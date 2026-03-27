@@ -8,7 +8,6 @@ import 'package:uuid/uuid.dart';
 
 // Hide Drift-generated ChatMessage to avoid conflict with AI domain model.
 import '../../../../core/database/app_database.dart' hide ChatMessage;
-import '../../data/ai_conversation_dao.dart';
 import '../../data/ai_sse_client.dart';
 import '../../domain/ai_models.dart';
 
@@ -97,10 +96,10 @@ class IntakeChatNotifier extends Notifier<IntakeChatState> {
 
       final convId = response['id'] as String?;
       if (convId == null) {
-        throw FormatException('Missing id in intake/start response');
+        throw const FormatException('Missing id in intake/start response');
       }
 
-      state = state.copyWith(conversationId: convId, error: null);
+      state = state.copyWith(conversationId: convId);
     } catch (e) {
       debugPrint('[IntakeChatNotifier] startConversation error: $e');
       state = state.copyWith(
@@ -134,7 +133,6 @@ class IntakeChatNotifier extends Notifier<IntakeChatState> {
       messages: [...state.messages, userMsg],
       isStreaming: true,
       currentStreamText: '',
-      error: null,
     );
 
     String assistantText = '';
@@ -246,8 +244,7 @@ class IntakeChatNotifier extends Notifier<IntakeChatState> {
   /// On success, syncs the transcript to Drift (D-31) and returns the project ID.
   Future<String?> completeIntake({
     required String projectName,
-    String? description,
-    required List<AiTradeScope> scopes,
+    required List<AiTradeScope> scopes, String? description,
   }) async {
     final convId = state.conversationId;
     if (convId == null) return null;

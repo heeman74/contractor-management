@@ -16,7 +16,7 @@ import '../providers/client_providers.dart';
 class PhotoTimeline extends ConsumerWidget {
   final String jobId;
 
-  const PhotoTimeline({super.key, required this.jobId});
+  const PhotoTimeline({required this.jobId, super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

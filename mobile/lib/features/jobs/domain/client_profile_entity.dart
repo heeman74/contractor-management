@@ -16,16 +16,12 @@ abstract class ClientProfileEntity with _$ClientProfileEntity {
     required String id,
     required String companyId,
     required String userId,
-    String? billingAddress,
-    required List<String> tags,
+    required List<String> tags, required int version, required DateTime createdAt, required DateTime updatedAt, String? billingAddress,
     String? adminNotes,
     String? referralSource,
     String? preferredContractorId,
     String? preferredContactMethod,
     double? averageRating,
-    required int version,
-    required DateTime createdAt,
-    required DateTime updatedAt,
     DateTime? deletedAt,
   }) = _ClientProfileEntity;
 

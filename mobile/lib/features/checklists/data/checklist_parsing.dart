@@ -3,6 +3,8 @@ import 'package:drift/drift.dart' show Value;
 import '../../../core/database/app_database.dart';
 import '../../../core/logging/app_logger.dart';
 
+// ignore_for_file: avoid_classes_with_only_static_members
+
 /// Shared parsing utilities for DailyChecklist companion creation.
 ///
 /// Used by both [ChecklistRepository._toCompanion] and

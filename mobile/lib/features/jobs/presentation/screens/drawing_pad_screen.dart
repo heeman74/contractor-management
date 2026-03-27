@@ -107,7 +107,7 @@ class _DrawingPadScreenState extends State<DrawingPadScreen> {
       final bytes = byteData.buffer.asUint8List();
       final dir = await getApplicationSupportDirectory();
       final drawingsDir = Directory('${dir.path}/drawings');
-      if (!await drawingsDir.exists()) {
+      if (!drawingsDir.existsSync()) {
         await drawingsDir.create(recursive: true);
       }
 
@@ -576,7 +576,7 @@ class _DrawingToolbar extends StatelessWidget {
               spacing: 4,
               runSpacing: 4,
               children: colors.map((color) {
-                final isSelected = color.value == selectedColor.value;
+                final isSelected = color.toARGB32() == selectedColor.toARGB32();
                 return GestureDetector(
                   onTap: () => onColorSelected(color),
                   child: Container(

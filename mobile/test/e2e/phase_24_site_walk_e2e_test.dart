@@ -17,19 +17,17 @@
 //   - Stream.value() for pre-seeded static data
 //   - No GetIt initialization needed — DAOs overridden via ProviderScope
 
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:contractorhub/core/database/app_database.dart'
     hide UserRole, BookingDao, NoteDao, AttachmentDao, TimeEntryDao,
         QuoteDao, InvoiceDao;
 import 'package:contractorhub/features/auth/domain/auth_state.dart';
 import 'package:contractorhub/features/auth/presentation/providers/auth_provider.dart';
-import 'package:contractorhub/features/projects/data/site_walk_flag_dao.dart';
 import 'package:contractorhub/features/projects/presentation/providers/project_providers.dart';
 import 'package:contractorhub/features/projects/presentation/widgets/site_walk_flag_section.dart';
 import 'package:contractorhub/shared/models/user_role.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 // ---------------------------------------------------------------------------
 // Test constants
@@ -77,12 +75,9 @@ SiteWalkFlag _makeFlag({
     severity: severity,
     status: status,
     locationLabel: locationLabel,
-    photoUrl: null,
-    annotationData: null,
     version: 1,
     createdAt: now,
     updatedAt: now,
-    deletedAt: null,
   );
 }
 
@@ -188,7 +183,7 @@ void main() {
   group('SiteWalkFlagSection — with flags', () {
     testWidgets('renders flag descriptions', (tester) async {
       final flags = [
-        _makeFlag(id: 'flag-001', description: 'Crack in foundation'),
+        _makeFlag(),
         _makeFlag(id: 'flag-002', description: 'Exposed wiring near panel'),
       ];
 
@@ -205,7 +200,7 @@ void main() {
 
     testWidgets('shows correct count chip', (tester) async {
       final flags = [
-        _makeFlag(id: 'flag-001'),
+        _makeFlag(),
         _makeFlag(id: 'flag-002'),
         _makeFlag(id: 'flag-003'),
       ];
@@ -218,11 +213,11 @@ void main() {
 
     testWidgets('GC sees Convert to Punch Item on open flag', (tester) async {
       final flags = [
-        _makeFlag(status: 'open', description: 'Issue to convert'),
+        _makeFlag(description: 'Issue to convert'),
       ];
 
       await tester.pumpWidget(
-        _wrapSection(_gcAuth(), flags: flags, isGcOrAdmin: true),
+        _wrapSection(_gcAuth(), flags: flags),
       );
       await tester.pump();
 
@@ -235,7 +230,7 @@ void main() {
 
     testWidgets('Contractor does NOT see Convert to Punch Item', (tester) async {
       final flags = [
-        _makeFlag(status: 'open', description: 'Issue to convert'),
+        _makeFlag(description: 'Issue to convert'),
       ];
 
       await tester.pumpWidget(
@@ -257,7 +252,7 @@ void main() {
       ];
 
       await tester.pumpWidget(
-        _wrapSection(_gcAuth(), flags: flags, isGcOrAdmin: true),
+        _wrapSection(_gcAuth(), flags: flags),
       );
       await tester.pump();
 
@@ -281,7 +276,7 @@ void main() {
       ];
 
       await tester.pumpWidget(
-        _wrapSection(_gcAuth(), flags: flags, isGcOrAdmin: true),
+        _wrapSection(_gcAuth(), flags: flags),
       );
       await tester.pump();
 
@@ -296,12 +291,12 @@ void main() {
     testWidgets('multiple flags all appear in list', (tester) async {
       final flags = [
         _makeFlag(id: 'f1', severity: 'low', description: 'Minor crack'),
-        _makeFlag(id: 'f2', severity: 'medium', description: 'Water stain'),
+        _makeFlag(id: 'f2', description: 'Water stain'),
         _makeFlag(id: 'f3', severity: 'high', description: 'Structural issue'),
       ];
 
       await tester.pumpWidget(
-        _wrapSection(_gcAuth(), flags: flags, isGcOrAdmin: true),
+        _wrapSection(_gcAuth(), flags: flags),
       );
       await tester.pump();
 

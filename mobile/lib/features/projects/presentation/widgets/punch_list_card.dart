@@ -77,10 +77,10 @@ class PunchListCard extends StatelessWidget {
                           runSpacing: 4,
                           children: [
                             // Punch badge
-                            Chip(
-                              label: const Text('Punch'),
-                              backgroundColor: const Color(0xFFE65100),
-                              labelStyle: const TextStyle(color: Colors.white),
+                            const Chip(
+                              label: Text('Punch'),
+                              backgroundColor: Color(0xFFE65100),
+                              labelStyle: TextStyle(color: Colors.white),
                               visualDensity: VisualDensity.compact,
                               padding: EdgeInsets.zero,
                             ),

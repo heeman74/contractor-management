@@ -25,23 +25,21 @@
 //   - Real Drift in-memory DB via NativeDatabase.memory() for DAO tests
 //   - ProviderScope.overrideWith for mocking providers in widget tests
 
-import 'package:drift/drift.dart' hide isNotNull, isNull;
-import 'package:drift/native.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:mocktail/mocktail.dart';
-
 import 'package:contractorhub/core/database/app_database.dart' hide UserRole;
 import 'package:contractorhub/features/auth/domain/auth_state.dart';
 import 'package:contractorhub/features/auth/presentation/providers/auth_provider.dart';
-import 'package:contractorhub/features/projects/data/task_dependency_dao.dart';
 import 'package:contractorhub/features/projects/presentation/providers/gantt_provider.dart';
 import 'package:contractorhub/features/projects/presentation/screens/gantt_screen.dart';
 import 'package:contractorhub/features/projects/presentation/widgets/dependency_arrow_painter.dart';
 import 'package:contractorhub/features/projects/presentation/widgets/gantt_chart_widget.dart';
 import 'package:contractorhub/features/projects/presentation/widgets/gantt_painter.dart';
 import 'package:contractorhub/shared/models/user_role.dart';
+import 'package:drift/drift.dart' hide isNotNull, isNull;
+import 'package:drift/native.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 
 // ---------------------------------------------------------------------------
 // Mock classes for dependency persistence test
@@ -114,7 +112,7 @@ GanttDataState _makeGanttState({
   final now = DateTime.now();
   final baseScopes = scopes ??
       [
-        _makeScope(id: _scope1Id, tradeName: 'Electrical', tradeColor: '#3F51B5'),
+        _makeScope(id: _scope1Id, tradeName: 'Electrical'),
         _makeScope(id: _scope2Id, tradeName: 'Plumbing', tradeColor: '#0097A7'),
         _makeScope(
             id: _scope3Id, tradeName: 'Carpentry', tradeColor: '#8D6E63'),
@@ -141,13 +139,11 @@ GanttDataState _makeGanttState({
               id: _task3Id,
               tradeScopeId: _scope2Id,
               title: 'Rough-in plumbing',
-              status: 'not_started',
               dueDate: now.add(const Duration(days: 5))),
           _makeTask(
               id: _task4Id,
               tradeScopeId: _scope2Id,
               title: 'Install fixtures',
-              status: 'not_started',
               dueDate: now.add(const Duration(days: 10))),
         ],
         _scope3Id: [
@@ -155,7 +151,6 @@ GanttDataState _makeGanttState({
               id: _task5Id,
               tradeScopeId: _scope3Id,
               title: 'Frame interior walls',
-              status: 'not_started',
               dueDate: now.add(const Duration(days: 8))),
         ],
       };
@@ -180,17 +175,14 @@ TradeScope _makeScope({
     id: id,
     companyId: _companyId,
     projectId: _projectId,
-    tradeCatalogId: null,
     tradeName: tradeName,
     tradeColor: tradeColor,
-    contractorId: null,
     status: 'not_started',
     statusOverride: false,
     sortOrder: sortOrder,
     version: 1,
     createdAt: now,
     updatedAt: now,
-    deletedAt: null,
   );
 }
 
@@ -210,22 +202,18 @@ ProjectTask _makeTask({
     companyId: _companyId,
     tradeScopeId: tradeScopeId,
     title: title,
-    description: null,
     status: status,
     sortOrder: 0,
     priority: 'medium',
     estimatedHours: estimatedHours,
-    estimatedCost: null,
     dueDate: dueDate ?? now.add(const Duration(days: 7)),
     photoRequired: false,
-    assignedTo: null,
     materialsNeeded: '[]',
     zoneId: zoneId,
     startDate: startDate,
     version: 1,
     createdAt: now,
     updatedAt: now,
-    deletedAt: null,
   );
 }
 
@@ -247,7 +235,6 @@ TaskDependency _makeDependency({
     version: 1,
     createdAt: now,
     updatedAt: now,
-    deletedAt: null,
   );
 }
 
@@ -264,7 +251,6 @@ ProjectZone _makeZone({
     version: 1,
     createdAt: now,
     updatedAt: now,
-    deletedAt: null,
   );
 }
 
@@ -410,7 +396,7 @@ void main() {
     // ── 4. Blocked task shows red status chip ─────────────────────────────
     testWidgets('Blocked task shows red status chip', (tester) async {
       final scopesWithBlocked = [
-        _makeScope(id: _scope1Id, tradeName: 'Electrical', tradeColor: '#3F51B5'),
+        _makeScope(id: _scope1Id, tradeName: 'Electrical'),
       ];
       final tasksWithBlocked = {
         _scope1Id: [
@@ -454,7 +440,7 @@ void main() {
       );
 
       final state = GanttDataState(
-        scopes: [_makeScope(id: _scope1Id, tradeName: 'Electrical', tradeColor: '#3F51B5')],
+        scopes: [_makeScope(id: _scope1Id, tradeName: 'Electrical')],
         tasksByScope: {
           _scope1Id: [blockedTask],
         },
@@ -500,7 +486,7 @@ void main() {
       );
 
       final state = GanttDataState(
-        scopes: [_makeScope(id: _scope1Id, tradeName: 'Electrical', tradeColor: '#3F51B5')],
+        scopes: [_makeScope(id: _scope1Id, tradeName: 'Electrical')],
         tasksByScope: {
           _scope1Id: [predecessorTask, blockedTask],
         },
@@ -568,7 +554,6 @@ void main() {
         id: _task1Id,
         tradeScopeId: _scope1Id,
         title: 'Electrical in Kitchen',
-        status: 'not_started',
         zoneId: _zone1Id,
         dueDate: conflictDate,
       );
@@ -576,7 +561,6 @@ void main() {
         id: _task3Id,
         tradeScopeId: _scope2Id,
         title: 'Plumbing in Kitchen',
-        status: 'not_started',
         zoneId: _zone1Id,
         dueDate: conflictDate,
       );
@@ -596,7 +580,7 @@ void main() {
 
       final state = GanttDataState(
         scopes: [
-          _makeScope(id: _scope1Id, tradeName: 'Electrical', tradeColor: '#3F51B5'),
+          _makeScope(id: _scope1Id, tradeName: 'Electrical'),
           _makeScope(id: _scope2Id, tradeName: 'Plumbing', tradeColor: '#0097A7'),
         ],
         tasksByScope: {
@@ -640,7 +624,7 @@ void main() {
 
       final state = GanttDataState(
         scopes: [
-          _makeScope(id: _scope1Id, tradeName: 'Electrical', tradeColor: '#3F51B5'),
+          _makeScope(id: _scope1Id, tradeName: 'Electrical'),
           _makeScope(id: _scope2Id, tradeName: 'Plumbing', tradeColor: '#0097A7'),
         ],
         tasksByScope: {
@@ -893,7 +877,7 @@ void main() {
 
       final state = GanttDataState(
         scopes: [
-          _makeScope(id: _scope1Id, tradeName: 'Electrical', tradeColor: '#3F51B5'),
+          _makeScope(id: _scope1Id, tradeName: 'Electrical'),
           _makeScope(id: _scope2Id, tradeName: 'Plumbing', tradeColor: '#0097A7'),
         ],
         tasksByScope: {
@@ -939,7 +923,7 @@ void main() {
 
       final state = GanttDataState(
         scopes: [
-          _makeScope(id: _scope1Id, tradeName: 'Electrical', tradeColor: '#3F51B5'),
+          _makeScope(id: _scope1Id, tradeName: 'Electrical'),
           _makeScope(id: _scope2Id, tradeName: 'Plumbing', tradeColor: '#0097A7'),
         ],
         tasksByScope: {
@@ -984,7 +968,7 @@ void main() {
 
       final state = GanttDataState(
         scopes: [
-          _makeScope(id: _scope1Id, tradeName: 'Electrical', tradeColor: '#3F51B5'),
+          _makeScope(id: _scope1Id, tradeName: 'Electrical'),
           _makeScope(id: _scope2Id, tradeName: 'Plumbing', tradeColor: '#0097A7'),
         ],
         tasksByScope: {
@@ -1030,7 +1014,7 @@ void main() {
 
       final state = GanttDataState(
         scopes: [
-          _makeScope(id: _scope1Id, tradeName: 'Electrical', tradeColor: '#3F51B5'),
+          _makeScope(id: _scope1Id, tradeName: 'Electrical'),
           _makeScope(id: _scope2Id, tradeName: 'Plumbing', tradeColor: '#0097A7'),
         ],
         tasksByScope: {
@@ -1077,10 +1061,10 @@ void main() {
       when(() => mockDao.insertWithSyncQueue(any())).thenAnswer((_) async {});
 
       // Setup: authenticated auth state with known companyId
-      final authState = AuthState.authenticated(
+      const authState = AuthState.authenticated(
         userId: _adminUserId,
         companyId: _companyId,
-        roles: const {UserRole.admin},
+        roles: {UserRole.admin},
       );
 
       // Build a gantt state with no existing dependencies (so new dep is valid)

@@ -91,7 +91,6 @@ class _ContractorScheduleScreenState
 
           // ── Content area ───────────────────────────────────────────────
           SliverFillRemaining(
-            hasScrollBody: true,
             child: bookingsAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(

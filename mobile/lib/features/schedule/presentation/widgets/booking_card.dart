@@ -238,7 +238,6 @@ class _BookingCardState extends State<BookingCard> {
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.01),
                       borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(0),
                         topRight: Radius.circular(4),
                       ),
                     ),
@@ -275,7 +274,6 @@ class _BookingCardState extends State<BookingCard> {
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.01),
                       borderRadius: const BorderRadius.only(
-                        bottomLeft: Radius.circular(0),
                         bottomRight: Radius.circular(4),
                       ),
                     ),

@@ -3,9 +3,9 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 
+import '../../features/jobs/presentation/services/attachment_upload_service.dart';
 import '../database/app_database.dart';
 import '../network/dio_client.dart';
-import '../../features/jobs/presentation/services/attachment_upload_service.dart';
 import 'connectivity_service.dart';
 import 'sync_cursor_dao.dart';
 import 'sync_queue_dao.dart';
@@ -287,7 +287,7 @@ class SyncEngine {
   ///
   /// Flow:
   /// 1. Get last pull timestamp from [SyncCursorDao] (null = first launch)
-  /// 2. GET /api/v1/sync?cursor=<isoTimestamp> — omit param on first launch
+  /// 2. GET `/api/v1/sync?cursor=<isoTimestamp>` — omit param on first launch
   ///    (server defaults to full download from epoch 2000-01-01)
   /// 3. For each entity type in response: call [SyncHandler.applyPulled] for each entity
   /// 4. Update cursor to server-returned [server_timestamp]

@@ -34,9 +34,8 @@ class GanttPainter extends CustomPainter {
     required this.tasksByScope,
     required this.startDate,
     required this.dayWidth,
-    this.laneHeight = 48.0,
+    required this.taskBarRectsOut, this.laneHeight = 48.0,
     this.conflictTaskIds = const {},
-    required this.taskBarRectsOut,
   });
 
   @override
@@ -113,14 +112,14 @@ class GanttPainter extends CustomPainter {
       ..color = const Color(0xFFD1D5DB) // gray-300
       ..strokeWidth = 1;
     canvas.drawLine(
-      Offset(0, timeAxisHeight),
+      const Offset(0, timeAxisHeight),
       Offset(size.width, timeAxisHeight),
       separatorPaint,
     );
 
     // Header column separator
     canvas.drawLine(
-      Offset(headerWidth, 0),
+      const Offset(headerWidth, 0),
       Offset(headerWidth, size.height),
       separatorPaint,
     );
@@ -156,7 +155,6 @@ class GanttPainter extends CustomPainter {
         x: 8,
         y: y + (laneHeight - 16) / 2,
         width: headerWidth - 16,
-        fontSize: 12,
         fontWeight: FontWeight.w600,
         color: _contrastColor(tradeColor),
       );
@@ -397,9 +395,8 @@ class GanttPainter extends CustomPainter {
     required double x,
     required double y,
     required double width,
-    double fontSize = 12,
+    required Color color, double fontSize = 12,
     FontWeight fontWeight = FontWeight.normal,
-    required Color color,
   }) {
     final paraBuilder = ui.ParagraphBuilder(
       ui.ParagraphStyle(

@@ -273,7 +273,6 @@ class _DragTargetGrid extends ConsumerWidget {
     required this.pixelsPerMinute,
     this.onBookingCreated,
     this.onBookingReassigned,
-    super.key,
   });
 
   final UserEntity contractor;
@@ -291,7 +290,7 @@ class _DragTargetGrid extends ConsumerWidget {
     final slotHeight = _slotMinutes * pixelsPerMinute;
     const totalSlotsStart = _workingHoursStart * 60 ~/ _slotMinutes;
     const totalSlotsEnd = _workingHoursEnd * 60 ~/ _slotMinutes;
-    final slotCount = totalSlotsEnd - totalSlotsStart;
+    const slotCount = totalSlotsEnd - totalSlotsStart;
 
     return Stack(
       children: List.generate(slotCount, (index) {
@@ -341,7 +340,6 @@ class _SlotDragTarget extends ConsumerWidget {
     required this.pixelsPerMinute,
     this.onBookingCreated,
     this.onBookingReassigned,
-    super.key,
   });
 
   final UserEntity contractor;

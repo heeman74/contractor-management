@@ -118,7 +118,7 @@ class _AuthenticatedHome extends StatelessWidget {
             _QuickLink(
               icon: Icons.checklist_outlined,
               title: "Today's Checklist",
-              subtitle: "View your AI-generated daily task list",
+              subtitle: 'View your AI-generated daily task list',
               onTap: () => context.push(RouteNames.dailyChecklist),
             ),
             _QuickLink(

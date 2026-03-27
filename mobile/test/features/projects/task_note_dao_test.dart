@@ -94,7 +94,7 @@ void main() {
     test('insertNote creates note and sync queue entry with entityType=task_note',
         () async {
       final now = DateTime.now();
-      final noteId = const String.fromEnvironment('', defaultValue: 'note-1');
+      // Note ID for reference — actual insert uses 'note-1' directly
       await db.taskNoteDao.insertNote(TaskNotesCompanion.insert(
         id: const Value('note-1'),
         companyId: 'co-1',

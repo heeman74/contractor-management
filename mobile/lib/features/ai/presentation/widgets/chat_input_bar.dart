@@ -111,7 +111,6 @@ class _ChatInputBarState extends State<ChatInputBar> {
             border: Border(
               top: BorderSide(
                 color: colorScheme.outlineVariant,
-                width: 1,
               ),
             ),
           ),

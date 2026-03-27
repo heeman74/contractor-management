@@ -19,14 +19,7 @@ class QuoteSummaryCard extends StatelessWidget {
   final double total;
 
   const QuoteSummaryCard({
-    super.key,
-    required this.subtotal,
-    required this.discountAmount,
-    required this.discountType,
-    required this.discountValue,
-    required this.taxRate,
-    required this.taxAmount,
-    required this.total,
+    required this.subtotal, required this.discountAmount, required this.discountType, required this.discountValue, required this.taxRate, required this.taxAmount, required this.total, super.key,
   });
 
   @override

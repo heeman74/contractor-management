@@ -14,7 +14,6 @@ import 'package:contractorhub/core/database/app_database.dart' hide UserRole;
 import 'package:contractorhub/core/di/service_locator.dart';
 import 'package:contractorhub/features/auth/domain/auth_state.dart';
 import 'package:contractorhub/features/auth/presentation/providers/auth_provider.dart';
-import 'package:contractorhub/features/jobs/data/job_dao.dart';
 import 'package:contractorhub/features/jobs/presentation/screens/request_review_screen.dart';
 import 'package:contractorhub/shared/models/user_role.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
@@ -166,7 +165,7 @@ void main() {
     testWidgets('does not show URGENT badge for normal requests',
         (tester) async {
       await _seedRequest(db,
-          id: 'req-1', urgency: 'normal', description: 'Regular job');
+          id: 'req-1', description: 'Regular job');
 
       await tester.pumpWidget(buildWidget());
       await tester.pump();

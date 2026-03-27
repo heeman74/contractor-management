@@ -26,11 +26,6 @@
 //   - Stream.value() for fake DAO providers to avoid pending timer errors
 //   - No GetIt initialization needed — all DAOs overridden via ProviderScope
 
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/misc.dart' show Override;
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:contractorhub/core/database/app_database.dart'
     hide UserRole, BookingDao, NoteDao, AttachmentDao, TimeEntryDao,
         QuoteDao, InvoiceDao;
@@ -46,6 +41,10 @@ import 'package:contractorhub/features/projects/presentation/screens/project_det
 import 'package:contractorhub/features/projects/presentation/screens/trade_scope_detail_screen.dart';
 import 'package:contractorhub/features/projects/presentation/widgets/billing_summary_card.dart';
 import 'package:contractorhub/shared/models/user_role.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
+import 'package:flutter_test/flutter_test.dart';
 
 // ---------------------------------------------------------------------------
 // Test constants
@@ -82,18 +81,14 @@ TradeScope _makeScope({String id = _scopeId}) {
     id: id,
     companyId: _companyId,
     projectId: _projectId,
-    tradeCatalogId: null,
     tradeName: 'Plumbing',
     tradeColor: '#2196F3',
-    contractorId: null,
     status: 'active',
     statusOverride: false,
     sortOrder: 0,
-    inspectionChecklist: null,
     version: 1,
     createdAt: now,
     updatedAt: now,
-    deletedAt: null,
   );
 }
 
@@ -107,22 +102,14 @@ ProjectTask _makeTask({
     companyId: _companyId,
     tradeScopeId: _scopeId,
     title: 'Install pipes',
-    description: null,
     status: status,
     sortOrder: 0,
     priority: 'medium',
-    estimatedHours: null,
-    estimatedCost: null,
-    dueDate: null,
     photoRequired: false,
-    assignedTo: null,
     materialsNeeded: '',
-    zoneId: null,
-    startDate: null,
     version: 1,
     createdAt: now,
     updatedAt: now,
-    deletedAt: null,
   );
 }
 
@@ -153,17 +140,11 @@ Project _makeProject({String id = _projectId}) {
     id: id,
     companyId: _companyId,
     name: 'Test Build',
-    description: null,
-    address: null,
-    clientId: null,
     status: 'active',
     statusHistory: '[]',
-    targetStartDate: null,
-    targetEndDate: null,
     version: 1,
     createdAt: now,
     updatedAt: now,
-    deletedAt: null,
   );
 }
 
@@ -245,7 +226,7 @@ Widget _wrapScopeDetailScreen({
         (ref) => Stream.value(milestones),
       ),
     ],
-    child: MaterialApp(
+    child: const MaterialApp(
       home: TradeScopeDetailScreen(
         projectId: _projectId,
         scopeId: _scopeId,
@@ -344,12 +325,12 @@ void main() {
         'test_milestone_list_renders: both milestone names visible',
         (tester) async {
       final milestones = [
-        _makeMilestone(id: 'ms-1', name: 'Mobilisation', percentage: 40.0),
+        _makeMilestone(id: 'ms-1'),
         _makeMilestone(id: 'ms-2', name: 'Completion', percentage: 60.0),
       ];
 
       await tester.pumpWidget(_wrapWithProviders(
-        MilestoneListCard(scopeId: _scopeId),
+        const MilestoneListCard(scopeId: _scopeId),
         overrides: [
           billingMilestonesByScope(_scopeId).overrideWith(
             (ref) => Stream.value(milestones),
@@ -370,7 +351,7 @@ void main() {
       ];
 
       await tester.pumpWidget(_wrapWithProviders(
-        MilestoneListCard(scopeId: _scopeId),
+        const MilestoneListCard(scopeId: _scopeId),
         overrides: [
           billingMilestonesByScope(_scopeId).overrideWith(
             (ref) => Stream.value(milestones),
@@ -390,7 +371,7 @@ void main() {
       ];
 
       await tester.pumpWidget(_wrapWithProviders(
-        MilestoneListCard(scopeId: _scopeId),
+        const MilestoneListCard(scopeId: _scopeId),
         overrides: [
           billingMilestonesByScope(_scopeId).overrideWith(
             (ref) => Stream.value(milestones),
@@ -409,11 +390,11 @@ void main() {
         'test_non_invoiced_milestone_has_generate_button: Generate Invoice button shown for non-invoiced',
         (tester) async {
       final milestones = [
-        _makeMilestone(id: 'ms-noninv', name: 'Not Yet', isInvoiced: false),
+        _makeMilestone(id: 'ms-noninv', name: 'Not Yet'),
       ];
 
       await tester.pumpWidget(_wrapWithProviders(
-        MilestoneListCard(scopeId: _scopeId),
+        const MilestoneListCard(scopeId: _scopeId),
         overrides: [
           billingMilestonesByScope(_scopeId).overrideWith(
             (ref) => Stream.value(milestones),
@@ -430,7 +411,7 @@ void main() {
         'test_empty_milestones_shows_empty_state',
         (tester) async {
       await tester.pumpWidget(_wrapWithProviders(
-        MilestoneListCard(scopeId: _scopeId),
+        const MilestoneListCard(scopeId: _scopeId),
         overrides: [
           billingMilestonesByScope(_scopeId).overrideWith(
             (ref) => Stream.value([]),
@@ -457,7 +438,7 @@ void main() {
             () => _FakeAuthNotifier(_adminAuth()),
           ),
         ],
-        child: MaterialApp(
+        child: const MaterialApp(
           home: Scaffold(
             body: CreateMilestoneSheet(scopeId: _scopeId, existingCount: 2),
           ),
@@ -477,7 +458,7 @@ void main() {
             () => _FakeAuthNotifier(_adminAuth()),
           ),
         ],
-        child: MaterialApp(
+        child: const MaterialApp(
           home: Scaffold(
             body: CreateMilestoneSheet(scopeId: _scopeId, existingCount: 0),
           ),
@@ -503,7 +484,7 @@ void main() {
             () => _FakeAuthNotifier(_adminAuth()),
           ),
         ],
-        child: MaterialApp(
+        child: const MaterialApp(
           home: Scaffold(
             body: CreateMilestoneSheet(scopeId: _scopeId, existingCount: 0),
           ),
@@ -549,7 +530,7 @@ void main() {
             (ref) async => fakeSummary,
           ),
         ],
-        child: MaterialApp(
+        child: const MaterialApp(
           home: Scaffold(
             body: BillingSummaryCard(
               projectId: _projectId,
@@ -586,7 +567,7 @@ void main() {
             (ref) async => fakeSummary,
           ),
         ],
-        child: MaterialApp(
+        child: const MaterialApp(
           home: Scaffold(
             body: BillingSummaryCard(
               projectId: _projectId,
@@ -632,7 +613,7 @@ void main() {
             (ref) async => fakeSummary,
           ),
         ],
-        child: MaterialApp(
+        child: const MaterialApp(
           home: Scaffold(
             body: BillingSummaryCard(
               projectId: _projectId,
@@ -670,7 +651,7 @@ void main() {
             (ref) async => fakeSummary,
           ),
         ],
-        child: MaterialApp(
+        child: const MaterialApp(
           home: Scaffold(
             body: BillingSummaryCard(
               projectId: _projectId,
@@ -727,7 +708,7 @@ void main() {
             (ref) async => fakeInvoiceSummary,
           ),
         ],
-        child: MaterialApp(
+        child: const MaterialApp(
           home: ProjectDetailScreen(projectId: _projectId),
         ),
       ));

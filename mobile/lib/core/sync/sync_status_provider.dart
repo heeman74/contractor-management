@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../di/service_locator.dart';
 import '../../features/jobs/presentation/services/attachment_upload_service.dart';
+import '../di/service_locator.dart';
 import 'connectivity_service.dart';
 import 'sync_engine.dart';
 
@@ -21,7 +21,7 @@ import 'sync_engine.dart';
 ///
 /// This is a stream provider so the UI reactively updates without polling.
 /// ConsumerWidgets watch this via `ref.watch(syncStatusProvider)` which returns
-/// AsyncValue<SyncStatus> that should be handled with `.when()` or `.value`.
+/// `AsyncValue<SyncStatus>` that should be handled with `.when()` or `.value`.
 ///
 /// The initial value emitted is [SyncStatus(SyncState.allSynced, 0)] until
 /// the first real status update arrives — this avoids showing a loading spinner

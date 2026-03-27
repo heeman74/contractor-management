@@ -91,8 +91,8 @@ void main() {
     testWidgets('booking count badge shows when bookings exist',
         (tester) async {
       final date = DateTime(2026, 3, 15);
-      final bookingStart = DateTime(2026, 3, 15, 9, 0);
-      final bookingEnd = DateTime(2026, 3, 15, 11, 0);
+      final bookingStart = DateTime(2026, 3, 15, 9);
+      final bookingEnd = DateTime(2026, 3, 15, 11);
 
       final booking = makeBooking(
         timeRangeStart: bookingStart,
@@ -113,7 +113,7 @@ void main() {
         (tester) async {
       final date = DateTime(2026, 3, 15);
       final bookings = List.generate(3, (i) {
-        final start = DateTime(2026, 3, 15, 8 + i * 2, 0);
+        final start = DateTime(2026, 3, 15, 8 + i * 2);
         return makeBooking(
           id: 'booking-$i',
           timeRangeStart: start,
@@ -132,7 +132,7 @@ void main() {
     });
 
     testWidgets('day "1" text is present for first of month', (tester) async {
-      final date = DateTime(2026, 3, 1);
+      final date = DateTime(2026, 3);
       await tester.pumpWidget(buildMonthView(selectedDate: date));
       await tester.pumpAndSettle();
 

@@ -148,7 +148,6 @@ class _InterviewChatScreenState extends ConsumerState<InterviewChatScreen> {
                       .sendMessage(message);
                 },
                 isStreaming: chatState.isStreaming,
-                isOffline: false, // TODO: wire connectivity_plus
                 placeholder: 'Answer the AI\'s questions...',
               ),
             ],

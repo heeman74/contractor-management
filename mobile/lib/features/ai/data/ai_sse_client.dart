@@ -56,10 +56,12 @@ SseEvent? parseSseEvent(String eventLine, String dataLine) {
 /// Standard (non-streaming) endpoints use HttpClient as well for consistency.
 ///
 /// Registration in GetIt:
-///   getIt.registerLazySingleton<AiSseClient>(() => AiSseClient(
-///     baseUrl: ...,
-///     getAccessToken: () => getIt<TokenStorage>().readAccessToken(),
-///   ));
+/// ```dart
+/// getIt.registerLazySingleton<AiSseClient>(() => AiSseClient(
+///   baseUrl: ...,
+///   getAccessToken: () => getIt<TokenStorage>().readAccessToken(),
+/// ));
+/// ```
 class AiSseClient {
   const AiSseClient({
     required this.baseUrl,
@@ -146,7 +148,7 @@ class AiSseClient {
       debugPrint('[AiSseClient] streamChatTurn error: $e');
       rethrow;
     } finally {
-      client.close(force: false);
+      client.close();
     }
   }
 
@@ -183,7 +185,7 @@ class AiSseClient {
         'Expected JSON object from POST $path, got: ${decoded.runtimeType}',
       );
     } finally {
-      client.close(force: false);
+      client.close();
     }
   }
 
@@ -219,7 +221,7 @@ class AiSseClient {
         'Expected JSON object from GET $path, got: ${decoded.runtimeType}',
       );
     } finally {
-      client.close(force: false);
+      client.close();
     }
   }
 }

@@ -749,7 +749,6 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
         localPath,
         quality: 85,
         minWidth: 1080,
-        minHeight: 1080,
       );
       final finalPath = compressed?.path ?? picked.path;
 
@@ -760,19 +759,18 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
               taskId: widget.taskId,
               attachmentType: 'photo',
               localPath: Value(finalPath),
-              sortOrder: Value(0),
+              sortOrder: const Value(0),
               createdAt: DateTime.now(),
               updatedAt: DateTime.now(),
             ),
           );
     } catch (e) {
       debugPrint('[TaskDetailScreen] Photo add error: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Failed to add photo. Please try again.')),
-        );
-      }
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Failed to add photo. Please try again.')),
+      );
     }
   }
 
@@ -808,19 +806,18 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
               caption: Value(filename.length > 40
                   ? '${filename.substring(0, 40)}...'
                   : filename),
-              sortOrder: Value(0),
+              sortOrder: const Value(0),
               createdAt: DateTime.now(),
               updatedAt: DateTime.now(),
             ),
           );
     } catch (e) {
       debugPrint('[TaskDetailScreen] PDF add error: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Failed to add attachment. Please try again.')),
-        );
-      }
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Failed to add attachment. Please try again.')),
+      );
     }
   }
 }
@@ -1028,7 +1025,7 @@ class _InspectionChecklistSection extends StatelessWidget {
           .map((m) {
             // Support both "item" and "label" key variants from scope JSON
             final item = (m['item'] ?? m['label'] ?? '').toString();
-            return <String, dynamic>{"item": item, "id": m['id'] ?? ''};
+            return <String, dynamic>{'item': item, 'id': m['id'] ?? ''};
           })
           .where((m) => (m['item'] as String).isNotEmpty)
           .toList();

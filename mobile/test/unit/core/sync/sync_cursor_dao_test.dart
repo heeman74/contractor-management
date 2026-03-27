@@ -44,7 +44,7 @@ void main() {
     });
 
     test('updateCursor overwrites previous value', () async {
-      final first = DateTime(2024, 1, 1);
+      final first = DateTime(2024);
       final second = DateTime(2024, 6, 15);
 
       await db.syncCursorDao.updateCursor(first);

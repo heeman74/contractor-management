@@ -34,7 +34,6 @@ import 'package:contractorhub/features/quotes/data/quote_sync_handler.dart';
 import 'package:contractorhub/features/schedule/data/booking_sync_handler.dart';
 import 'package:contractorhub/features/schedule/data/job_site_sync_handler.dart';
 import 'package:dio/dio.dart';
-import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -723,7 +722,7 @@ void main() {
       expect(cursor, isNotNull);
 
       // server_timestamp in mock is '2026-03-14T12:00:00Z'
-      final expectedTimestamp = DateTime.utc(2026, 3, 14, 12, 0, 0);
+      final expectedTimestamp = DateTime.utc(2026, 3, 14, 12);
       expect(
         cursor!.millisecondsSinceEpoch,
         equals(expectedTimestamp.millisecondsSinceEpoch),
@@ -757,7 +756,7 @@ void main() {
 
       final cursor2 = await db.syncCursorDao.getCursor();
       expect(cursor2, isNotNull);
-      final expectedTs2 = DateTime.utc(2026, 3, 15, 12, 0, 0);
+      final expectedTs2 = DateTime.utc(2026, 3, 15, 12);
       expect(
         cursor2!.millisecondsSinceEpoch,
         equals(expectedTs2.millisecondsSinceEpoch),
@@ -809,9 +808,9 @@ void main() {
       // Time range should be parsed correctly
       expect(booking.timeRangeStart, isNotNull);
       expect(booking.timeRangeEnd, isNotNull);
-      final expectedStart = DateTime.utc(2026, 3, 14, 8, 0, 0);
+      final expectedStart = DateTime.utc(2026, 3, 14, 8);
       expect(
-        booking.timeRangeStart!.millisecondsSinceEpoch,
+        booking.timeRangeStart.millisecondsSinceEpoch,
         equals(expectedStart.millisecondsSinceEpoch),
       );
     });

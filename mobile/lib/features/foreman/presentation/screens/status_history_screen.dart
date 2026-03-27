@@ -11,8 +11,7 @@ import '../providers/foreman_provider.dart';
 /// Supports pull-to-refresh to reload from the API.
 class StatusHistoryScreen extends ConsumerWidget {
   const StatusHistoryScreen({
-    super.key,
-    required this.projectId,
+    required this.projectId, super.key,
     this.projectName,
   });
 

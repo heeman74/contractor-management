@@ -46,7 +46,6 @@ class _TypingIndicatorState extends State<TypingIndicator>
         label: 'AI is responding',
         liveRegion: true,
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.start,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // AI avatar (same as ChatBubble)

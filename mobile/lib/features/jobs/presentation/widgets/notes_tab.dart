@@ -97,7 +97,6 @@ class NotesTab extends ConsumerWidget {
         noteId: noteId,
         attachmentType: 'drawing',
         localPath: drawingPath,
-        sortOrder: 0,
       );
 
       if (context.mounted) {

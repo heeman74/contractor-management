@@ -9,7 +9,7 @@
 /// - Token cleanup on failed refresh
 /// - Session restore with expired/valid/malformed tokens
 /// - FormatException on malformed responses
-/// - whereType<String> filtering on non-string roles
+/// - `whereType<String>` filtering on non-string roles
 library;
 
 import 'package:contractorhub/core/auth/auth_repository.dart';
@@ -62,7 +62,6 @@ String buildTestJwt({
   final payloadJson = '{"sub":"$sub","company_id":"$companyId",'
       '"roles":${roles.map((r) => '"$r"').toList()},'
       '"exp":${exp ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000 + 3600)}}';
-  final encoded = Uri.encodeComponent(payloadJson);
   // Real JWT uses base64url but TokenStorage.decodeJwtPayload handles it
   final bytes = payloadJson.codeUnits;
   final base64Payload = _base64UrlEncode(bytes);
@@ -70,7 +69,6 @@ String buildTestJwt({
 }
 
 String _base64UrlEncode(List<int> bytes) {
-  final encoded = Uri.dataFromBytes(bytes).toString();
   // Simple base64url encoding
   var base64 = '';
   for (var i = 0; i < bytes.length; i += 3) {

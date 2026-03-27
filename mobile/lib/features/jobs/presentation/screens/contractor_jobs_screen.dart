@@ -152,7 +152,7 @@ class ContractorJobsScreen extends ConsumerWidget {
 
     // Active job at top with its own header.
     if (activeJob != null) {
-      items.add(_SectionHeader(title: 'Active', count: 1));
+      items.add(const _SectionHeader(title: 'Active', count: 1));
       items.add(ContractorJobCard(job: activeJob));
     }
 

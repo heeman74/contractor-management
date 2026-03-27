@@ -26,10 +26,7 @@ class GanttChartWidget extends StatefulWidget {
   final void Function(String taskId)? onTaskTapped;
 
   const GanttChartWidget({
-    super.key,
-    required this.scopes,
-    required this.tasksByScope,
-    required this.dependencies,
+    required this.scopes, required this.tasksByScope, required this.dependencies, super.key,
     this.conflictTaskIds = const {},
     this.onDependencyCreated,
     this.onTaskTapped,
@@ -198,7 +195,6 @@ class _GanttChartWidgetState extends State<GanttChartWidget> {
                     tasksByScope: widget.tasksByScope,
                     startDate: _chartStartDate,
                     dayWidth: _baseDayWidth,
-                    laneHeight: _laneHeight,
                     conflictTaskIds: widget.conflictTaskIds,
                     taskBarRectsOut: _taskBarRects,
                   ),
@@ -208,7 +204,6 @@ class _GanttChartWidgetState extends State<GanttChartWidget> {
                   painter: DependencyArrowPainter(
                     dependencies: widget.dependencies,
                     taskBarRects: _taskBarRects,
-                    cycleInvolvedIds: const {},
                     dragStart: _dragStartOffset,
                     dragEnd: _dragPosition,
                   ),

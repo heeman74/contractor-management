@@ -36,7 +36,7 @@ void main() {
       await tester.pump();
 
       // Find and tap the Save button (FilledButton.icon with save_outlined icon)
-      final saveButton = find.byWidgetPredicate(
+      find.byWidgetPredicate(
         (w) =>
             w is FilledButton &&
             w.child != null,

@@ -12,7 +12,6 @@ import 'dart:convert';
 
 import 'package:contractorhub/core/database/app_database.dart' hide UserRole;
 import 'package:contractorhub/core/network/dio_client.dart';
-import 'package:contractorhub/core/sync/sync_queue_dao.dart';
 import 'package:contractorhub/features/jobs/data/client_profile_sync_handler.dart';
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
@@ -58,8 +57,7 @@ SyncQueueData _buildSyncQueueItem({
     payload: payload,
     status: 'pending',
     attemptCount: 0,
-    errorMessage: null,
-    createdAt: DateTime.utc(2026, 1, 1),
+    createdAt: DateTime.utc(2026),
   );
 }
 
@@ -76,7 +74,7 @@ void _stubPushSuccess(MockDioClient mockDioClient) {
     (_) async => Response(
       data: <String, dynamic>{},
       statusCode: 201,
-      requestOptions: RequestOptions(path: ''),
+      requestOptions: RequestOptions(),
     ),
   );
   when(
@@ -90,7 +88,7 @@ void _stubPushSuccess(MockDioClient mockDioClient) {
     (_) async => Response(
       data: <String, dynamic>{},
       statusCode: 201,
-      requestOptions: RequestOptions(path: ''),
+      requestOptions: RequestOptions(),
     ),
   );
 }
@@ -259,7 +257,7 @@ void main() {
         'seed client profile in Drift, enqueue CREATE, call push(), '
         'verify correct URL with userId from payload', () async {
       // Seed a client profile row in the local Drift DB
-      final now = DateTime.utc(2026, 1, 1);
+      final now = DateTime.utc(2026);
       final profileCompanion = ClientProfilesCompanion(
         id: const Value(_profileId),
         companyId: const Value(_companyId),

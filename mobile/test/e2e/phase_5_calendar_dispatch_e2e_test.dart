@@ -10,8 +10,6 @@ import 'dart:convert';
 
 import 'package:contractorhub/core/database/app_database.dart' hide UserRole;
 import 'package:contractorhub/core/sync/sync_engine.dart';
-import 'package:contractorhub/features/jobs/data/job_dao.dart';
-import 'package:contractorhub/features/schedule/data/booking_dao.dart';
 import 'package:contractorhub/features/schedule/domain/overdue_service.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
@@ -127,7 +125,7 @@ void main() {
       await jobDao.reportDelay(
         jobId: 'job-1',
         reason: 'Supply chain',
-        newEta: DateTime(2026, 5, 1),
+        newEta: DateTime(2026, 5),
         currentUserId: 'user-1',
         currentVersion: 1,
       );
@@ -206,7 +204,7 @@ void main() {
         () async {
       await _seedJob(db, 'job-1', 'Inspection');
 
-      final newEta = DateTime(2026, 6, 1);
+      final newEta = DateTime(2026, 6);
       await jobDao.reportDelay(
         jobId: 'job-1',
         reason: 'Inspector unavailable',
@@ -355,8 +353,8 @@ void main() {
 
     test('create first-day booking + additional day bookings with dayIndex',
         () async {
-      final day0Start = DateTime(2026, 4, 1, 8, 0);
-      final day0End = DateTime(2026, 4, 1, 17, 0);
+      final day0Start = DateTime(2026, 4, 1, 8);
+      final day0End = DateTime(2026, 4, 1, 17);
 
       // Day 0 — parent booking
       await bookingDao.createBooking(
@@ -367,7 +365,6 @@ void main() {
         timeRangeStart: day0Start,
         timeRangeEnd: day0End,
         dayIndex: 0,
-        parentBookingId: null,
       );
 
       // Day 1
@@ -376,8 +373,8 @@ void main() {
         companyId: 'co-1',
         contractorId: 'ctr-1',
         jobId: 'job-multi',
-        timeRangeStart: DateTime(2026, 4, 2, 8, 0),
-        timeRangeEnd: DateTime(2026, 4, 2, 17, 0),
+        timeRangeStart: DateTime(2026, 4, 2, 8),
+        timeRangeEnd: DateTime(2026, 4, 2, 17),
         dayIndex: 1,
         parentBookingId: 'bk-day0',
       );
@@ -388,8 +385,8 @@ void main() {
         companyId: 'co-1',
         contractorId: 'ctr-1',
         jobId: 'job-multi',
-        timeRangeStart: DateTime(2026, 4, 3, 8, 0),
-        timeRangeEnd: DateTime(2026, 4, 3, 17, 0),
+        timeRangeStart: DateTime(2026, 4, 3, 8),
+        timeRangeEnd: DateTime(2026, 4, 3, 17),
         dayIndex: 2,
         parentBookingId: 'bk-day0',
       );
@@ -406,10 +403,9 @@ void main() {
         companyId: 'co-1',
         contractorId: 'ctr-1',
         jobId: 'job-multi',
-        timeRangeStart: DateTime(2026, 4, 1, 8, 0),
-        timeRangeEnd: DateTime(2026, 4, 1, 17, 0),
+        timeRangeStart: DateTime(2026, 4, 1, 8),
+        timeRangeEnd: DateTime(2026, 4, 1, 17),
         dayIndex: 0,
-        parentBookingId: null,
       );
 
       // Create children (day 1, day 2)
@@ -418,8 +414,8 @@ void main() {
         companyId: 'co-1',
         contractorId: 'ctr-1',
         jobId: 'job-multi',
-        timeRangeStart: DateTime(2026, 4, 2, 8, 0),
-        timeRangeEnd: DateTime(2026, 4, 2, 17, 0),
+        timeRangeStart: DateTime(2026, 4, 2, 8),
+        timeRangeEnd: DateTime(2026, 4, 2, 17),
         dayIndex: 1,
         parentBookingId: 'bk-p0',
       );
@@ -429,8 +425,8 @@ void main() {
         companyId: 'co-1',
         contractorId: 'ctr-1',
         jobId: 'job-multi',
-        timeRangeStart: DateTime(2026, 4, 3, 8, 0),
-        timeRangeEnd: DateTime(2026, 4, 3, 17, 0),
+        timeRangeStart: DateTime(2026, 4, 3, 8),
+        timeRangeEnd: DateTime(2026, 4, 3, 17),
         dayIndex: 2,
         parentBookingId: 'bk-p0',
       );
@@ -460,8 +456,8 @@ void main() {
           companyId: 'co-1',
           contractorId: 'ctr-1',
           jobId: 'job-multi',
-          timeRangeStart: DateTime(2026, 4, 1 + i, 8, 0),
-          timeRangeEnd: DateTime(2026, 4, 1 + i, 17, 0),
+          timeRangeStart: DateTime(2026, 4, 1 + i, 8),
+          timeRangeEnd: DateTime(2026, 4, 1 + i, 17),
           dayIndex: i,
           parentBookingId: i == 0 ? null : 'bk-idx-0',
         );
@@ -482,8 +478,8 @@ void main() {
           companyId: 'co-1',
           contractorId: 'ctr-1',
           jobId: 'job-multi',
-          timeRangeStart: DateTime(2026, 4, 1 + i, 8, 0),
-          timeRangeEnd: DateTime(2026, 4, 1 + i, 17, 0),
+          timeRangeStart: DateTime(2026, 4, 1 + i, 8),
+          timeRangeEnd: DateTime(2026, 4, 1 + i, 17),
           dayIndex: i,
           parentBookingId: i == 0 ? null : 'bk-sq-0',
         );
@@ -615,8 +611,8 @@ void main() {
         companyId: 'co-1',
         contractorId: 'ctr-1',
         jobId: 'job-combo',
-        timeRangeStart: DateTime(2026, 3, 14, 9, 0),
-        timeRangeEnd: DateTime(2026, 3, 14, 17, 0),
+        timeRangeStart: DateTime(2026, 3, 14, 9),
+        timeRangeEnd: DateTime(2026, 3, 14, 17),
       );
 
       // Verify booking exists
@@ -628,7 +624,7 @@ void main() {
       await jobDao.reportDelay(
         jobId: 'job-combo',
         reason: 'Tile supplier delayed shipment',
-        newEta: DateTime(2026, 4, 1),
+        newEta: DateTime(2026, 4),
         currentUserId: 'user-1',
         currentVersion: 1,
       );
@@ -733,8 +729,8 @@ void main() {
         companyId: 'co-1',
         contractorId: 'ctr-1',
         jobId: 'job-multi-delay',
-        timeRangeStart: DateTime(2026, 4, 4, 9, 0),
-        timeRangeEnd: DateTime(2026, 4, 4, 17, 0),
+        timeRangeStart: DateTime(2026, 4, 4, 9),
+        timeRangeEnd: DateTime(2026, 4, 4, 17),
       );
 
       // Verify 2 delays in history

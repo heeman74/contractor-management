@@ -604,7 +604,7 @@ class _DiscountRow extends StatelessWidget {
             onSelectionChanged: (selected) {
               onChanged(type: selected.first, value: discountValue);
             },
-            style: ButtonStyle(
+            style: const ButtonStyle(
               visualDensity: VisualDensity.compact,
             ),
           ),

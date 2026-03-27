@@ -68,7 +68,6 @@ void main() {
       await tester.pumpWidget(buildInteractiveBookingCard(
         job: job,
         booking: booking,
-        durationMinutes: 120,
       ));
       await tester.pump();
 
@@ -110,7 +109,7 @@ void main() {
     });
 
     testWidgets('scheduled job renders with blue status color', (tester) async {
-      final job = makeJob(status: 'scheduled');
+      final job = makeJob();
       final booking = makeBooking();
 
       await tester.pumpWidget(buildInteractiveBookingCard(
@@ -163,7 +162,6 @@ void main() {
       await tester.pumpWidget(buildInteractiveBookingCard(
         job: job,
         booking: booking,
-        showCompleted: false,
       ));
       await tester.pump();
 

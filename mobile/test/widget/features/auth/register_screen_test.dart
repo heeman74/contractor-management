@@ -15,9 +15,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Widget buildTestWidget() {
-  return ProviderScope(
+  return const ProviderScope(
     child: MaterialApp(
-      home: const RegisterScreen(),
+      home: RegisterScreen(),
     ),
   );
 }

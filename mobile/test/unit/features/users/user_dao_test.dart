@@ -34,8 +34,7 @@ Future<void> insertCompany(AppDatabase db, String id) async {
 }
 
 UsersCompanion makeUser({
-  String? id,
-  required String companyId,
+  required String companyId, String? id,
   String email = 'user@test.com',
   String? firstName,
 }) {
@@ -121,7 +120,7 @@ void main() {
       );
 
       await db.userDao.assignRole(UserRolesCompanion.insert(
-        id: Value('role-1'),
+        id: const Value('role-1'),
         userId: 'u-1',
         companyId: 'co-1',
         role: 'admin',
@@ -139,14 +138,14 @@ void main() {
       );
 
       await db.userDao.assignRole(UserRolesCompanion.insert(
-        id: Value('role-1'),
+        id: const Value('role-1'),
         userId: 'u-1',
         companyId: 'co-1',
         role: 'admin',
         createdAt: DateTime.now(),
       ));
       await db.userDao.assignRole(UserRolesCompanion.insert(
-        id: Value('role-2'),
+        id: const Value('role-2'),
         userId: 'u-1',
         companyId: 'co-1',
         role: 'contractor',

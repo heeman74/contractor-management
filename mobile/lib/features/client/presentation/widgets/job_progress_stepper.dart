@@ -14,7 +14,7 @@ import '../../../../features/jobs/domain/job_status.dart';
 class JobProgressStepper extends StatelessWidget {
   final JobStatus currentStatus;
 
-  const JobProgressStepper({super.key, required this.currentStatus});
+  const JobProgressStepper({required this.currentStatus, super.key});
 
   static const _stages = [
     JobStatus.quote,

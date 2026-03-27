@@ -19,7 +19,6 @@ import 'package:contractorhub/core/sync/sync_registry.dart';
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -48,14 +47,13 @@ AppDatabase _openTestDb() => AppDatabase(NativeDatabase.memory());
 
 SyncQueueCompanion _makeQueueItem({
   required String id,
-  String entityType = 'company',
+  required DateTime createdAt, String entityType = 'company',
   String entityId = 'entity-1',
   String operation = 'CREATE',
   String payload = '{}',
   String status = 'pending',
   int attemptCount = 0,
   String? errorMessage,
-  required DateTime createdAt,
 }) {
   return SyncQueueCompanion.insert(
     id: Value(id),
@@ -95,9 +93,7 @@ void main() {
       final now = DateTime.now();
       await dao.insertQueueItem(_makeQueueItem(
         id: 'q-1',
-        entityType: 'company',
         entityId: 'co-1',
-        operation: 'CREATE',
         payload: jsonEncode({'name': 'Acme'}),
         createdAt: now,
       ));
@@ -114,7 +110,7 @@ void main() {
 
     test('FIFO ordering — multiple items returned in createdAt ASC order',
         () async {
-      final t1 = DateTime(2025, 1, 1, 10, 0);
+      final t1 = DateTime(2025, 1, 1, 10);
       final t2 = DateTime(2025, 1, 1, 10, 1);
       final t3 = DateTime(2025, 1, 1, 10, 2);
 
@@ -244,7 +240,7 @@ void main() {
     });
 
     test('getCursor returns updated timestamp after second update', () async {
-      final ts1 = DateTime.utc(2025, 1, 1);
+      final ts1 = DateTime.utc(2025);
       final ts2 = DateTime.utc(2025, 6, 15);
 
       await db.syncCursorDao.updateCursor(ts1);
@@ -304,7 +300,6 @@ void main() {
       // Insert a pending item
       await db.syncQueueDao.insertQueueItem(_makeQueueItem(
         id: 'q-1',
-        entityType: 'company',
         createdAt: DateTime.now(),
       ));
 
@@ -332,7 +327,6 @@ void main() {
     test('4xx error → markParked (no retry)', () async {
       await db.syncQueueDao.insertQueueItem(_makeQueueItem(
         id: 'q-1',
-        entityType: 'company',
         createdAt: DateTime.now(),
       ));
 
@@ -356,7 +350,6 @@ void main() {
     test('5xx error → attemptCount incremented', () async {
       await db.syncQueueDao.insertQueueItem(_makeQueueItem(
         id: 'q-1',
-        entityType: 'company',
         createdAt: DateTime.now(),
       ));
 
@@ -381,7 +374,6 @@ void main() {
       // Insert an item that takes a while to push
       await db.syncQueueDao.insertQueueItem(_makeQueueItem(
         id: 'q-1',
-        entityType: 'company',
         createdAt: DateTime.now(),
       ));
 
@@ -459,7 +451,7 @@ void main() {
 
     test('with cursor → GET /sync?cursor=timestamp', () async {
       // Set a cursor first
-      final cursorTime = DateTime.utc(2025, 6, 10, 8, 0);
+      final cursorTime = DateTime.utc(2025, 6, 10, 8);
       await db.syncCursorDao.updateCursor(cursorTime);
 
       when(() => mockDio.get<Map<String, dynamic>>(
@@ -515,7 +507,7 @@ void main() {
       expect(cursor, isNotNull);
       expect(
         cursor!.millisecondsSinceEpoch,
-        DateTime.utc(2025, 6, 15, 12, 0).millisecondsSinceEpoch,
+        DateTime.utc(2025, 6, 15, 12).millisecondsSinceEpoch,
       );
     });
   });

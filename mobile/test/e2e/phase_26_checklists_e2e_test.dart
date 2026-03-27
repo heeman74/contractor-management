@@ -21,11 +21,6 @@
 
 import 'dart:convert';
 
-import 'package:drift/drift.dart' hide isNotNull, isNull;
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:contractorhub/core/database/app_database.dart' hide UserRole;
 import 'package:contractorhub/features/auth/domain/auth_state.dart';
 import 'package:contractorhub/features/auth/presentation/providers/auth_provider.dart';
@@ -33,6 +28,9 @@ import 'package:contractorhub/features/checklists/data/checklist_repository.dart
 import 'package:contractorhub/features/checklists/presentation/providers/checklist_provider.dart';
 import 'package:contractorhub/features/checklists/presentation/screens/daily_checklist_screen.dart';
 import 'package:contractorhub/shared/models/user_role.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 // ---------------------------------------------------------------------------
 // Test constants
@@ -111,7 +109,7 @@ String _makeChecklistJson({
         'priority': priority,
         'materials_needed': materials,
         'photo_required': photoRequired,
-        'estimated_duration': '${estimatedMinutes} min',
+        'estimated_duration': '$estimatedMinutes min',
         'project_name': projectName,
         'dependency_status': dependencyStatus,
         'notes': '',
@@ -181,7 +179,6 @@ DailyChecklist _makeChecklist({
     summaryText: 'You have 1 task today: Install Pipes.',
     isPushed: false,
     createdAt: now,
-    deletedAt: null,
   );
 }
 
@@ -323,7 +320,7 @@ void main() {
     testWidgets('shows camera icon for tasks with photo_required=true',
         (tester) async {
       final checklist = _makeChecklist(
-        checklistJson: _makeChecklistJson(photoRequired: true),
+        checklistJson: _makeChecklistJson(),
       );
 
       await tester.pumpWidget(
@@ -358,7 +355,7 @@ void main() {
     testWidgets('shows estimated duration for task with estimated_duration set',
         (tester) async {
       final checklist = _makeChecklist(
-        checklistJson: _makeChecklistJson(estimatedMinutes: 45),
+        checklistJson: _makeChecklistJson(),
       );
 
       await tester.pumpWidget(
@@ -376,7 +373,7 @@ void main() {
     testWidgets('task card has InkWell tap handler wired to task detail navigation',
         (tester) async {
       final checklist = _makeChecklist(
-        checklistJson: _makeChecklistJson(taskId: _taskId1),
+        checklistJson: _makeChecklistJson(),
       );
 
       await tester.pumpWidget(
@@ -457,7 +454,6 @@ void main() {
         summaryText: 'Task for Alpha.',
         isPushed: false,
         createdAt: DateTime.now(),
-        deletedAt: null,
       );
 
       final checklist2 = DailyChecklist(
@@ -484,7 +480,6 @@ void main() {
         summaryText: 'Task for Beta.',
         isPushed: false,
         createdAt: DateTime.now(),
-        deletedAt: null,
       );
 
       await tester.pumpWidget(

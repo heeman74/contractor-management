@@ -21,13 +21,9 @@ abstract class AttachmentEntity with _$AttachmentEntity {
     required String noteId,
     required String attachmentType,
     required String localPath,
-    String? thumbnailPath,
+    required String uploadStatus, required int sortOrder, required DateTime createdAt, required DateTime updatedAt, String? thumbnailPath,
     String? caption,
-    required String uploadStatus,
     String? remoteUrl,
-    required int sortOrder,
-    required DateTime createdAt,
-    required DateTime updatedAt,
     DateTime? deletedAt,
   }) = _AttachmentEntity;
 

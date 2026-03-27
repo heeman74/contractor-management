@@ -228,9 +228,9 @@ class BookingsForMonthNotifier extends AsyncNotifier<List<BookingEntity>> {
     final companyId = authState.companyId;
 
     // First day of the month at midnight
-    final monthStart = DateTime(selectedDate.year, selectedDate.month, 1);
+    final monthStart = DateTime(selectedDate.year, selectedDate.month);
     // First day of the next month (exclusive end)
-    final monthEnd = DateTime(selectedDate.year, selectedDate.month + 1, 1);
+    final monthEnd = DateTime(selectedDate.year, selectedDate.month + 1);
 
     final stream = dao.watchBookingsByCompanyAndDateRange(
       companyId,

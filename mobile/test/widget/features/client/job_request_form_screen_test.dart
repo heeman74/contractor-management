@@ -16,7 +16,6 @@ import 'package:contractorhub/core/di/service_locator.dart';
 import 'package:contractorhub/features/auth/domain/auth_state.dart';
 import 'package:contractorhub/features/auth/presentation/providers/auth_provider.dart';
 import 'package:contractorhub/features/client/presentation/screens/job_request_form_screen.dart';
-import 'package:contractorhub/features/jobs/data/job_dao.dart';
 import 'package:contractorhub/shared/models/user_role.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';

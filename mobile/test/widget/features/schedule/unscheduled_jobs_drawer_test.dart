@@ -13,7 +13,7 @@
 /// 10. Drag indicator hint present on job cards
 ///
 /// Strategy: UnscheduledJobsDrawer watches unscheduledJobsProvider (StreamProvider).
-/// Override with AsyncValue<List<Job>> to control data state.
+/// Override with `AsyncValue<List<Job>>` to control data state.
 library;
 
 import 'package:contractorhub/core/database/app_database.dart' hide UserRole;

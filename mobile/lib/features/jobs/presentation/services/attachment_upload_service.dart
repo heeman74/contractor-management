@@ -155,7 +155,7 @@ class AttachmentUploadService {
       ),
       'note_id': attachment.noteId,
       'attachment_type': attachment.attachmentType,
-      if (attachment.caption != null) 'caption': attachment.caption!,
+      if (attachment.caption != null) 'caption': attachment.caption,
     });
 
     final response = await _dioClient.instance.post<Map<String, dynamic>>(
@@ -175,7 +175,7 @@ class AttachmentUploadService {
 
     final remoteUrl = data['url'] as String?;
     if (remoteUrl == null) {
-      throw FormatException(
+      throw const FormatException(
         'Missing "url" field in upload response',
       );
     }

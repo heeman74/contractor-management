@@ -24,7 +24,7 @@ import '../providers/crm_providers.dart';
 class ClientDetailScreen extends ConsumerStatefulWidget {
   final String clientId;
 
-  const ClientDetailScreen({super.key, required this.clientId});
+  const ClientDetailScreen({required this.clientId, super.key});
 
   @override
   ConsumerState<ClientDetailScreen> createState() =>
@@ -538,8 +538,7 @@ class _InfoSection extends StatelessWidget {
 
   const _InfoSection({
     required this.title,
-    this.trailing,
-    required this.children,
+    required this.children, this.trailing,
   });
 
   @override

@@ -65,7 +65,7 @@ class ClientProfileSyncHandler extends SyncHandler {
     final companyId = data['company_id'];
     final userId = data['user_id'];
     if (id is! String || companyId is! String || userId is! String) {
-      throw FormatException('ClientProfile missing required fields');
+      throw const FormatException('ClientProfile missing required fields');
     }
 
     final deletedAt = data['deleted_at'] != null

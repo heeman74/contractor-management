@@ -1,8 +1,7 @@
 import 'dart:convert';
 
+import 'package:contractorhub/features/projects/domain/annotation_schema.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import '../../../lib/features/projects/domain/annotation_schema.dart';
 
 void main() {
   group('AnnotationLayer JSON serialization', () {

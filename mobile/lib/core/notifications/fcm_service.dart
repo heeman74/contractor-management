@@ -60,9 +60,7 @@ class FcmService {
       // Request OS permission — on Android 13+ this shows the notification
       // permission dialog; on earlier Android versions it is always granted.
       final settings = await FirebaseMessaging.instance.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
+        
       );
 
       if (settings.authorizationStatus == AuthorizationStatus.denied) {

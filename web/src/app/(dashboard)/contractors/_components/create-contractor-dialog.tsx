@@ -205,7 +205,7 @@ export function CreateContractorDialog({ open, onOpenChange }: CreateContractorD
 
             <div className="grid gap-2">
               <Label htmlFor="contractor-trade">Trade Type</Label>
-              <Select value={tradeType} onValueChange={setTradeType}>
+              <Select value={tradeType} onValueChange={(v) => setTradeType(v ?? "")}>
                 <SelectTrigger id="contractor-trade" className="w-full">
                   <SelectValue placeholder="Select a trade..." />
                 </SelectTrigger>

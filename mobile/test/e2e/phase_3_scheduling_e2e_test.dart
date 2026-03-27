@@ -10,7 +10,6 @@
 import 'dart:convert';
 
 import 'package:contractorhub/core/database/app_database.dart' hide UserRole;
-import 'package:contractorhub/features/schedule/data/booking_dao.dart';
 import 'package:contractorhub/features/schedule/domain/overdue_service.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
@@ -95,8 +94,8 @@ void main() {
 
     test('createBooking inserts booking + sync queue CREATE entry atomically',
         () async {
-      final start = DateTime(2026, 3, 11, 9, 0);
-      final end = DateTime(2026, 3, 11, 11, 0);
+      final start = DateTime(2026, 3, 11, 9);
+      final end = DateTime(2026, 3, 11, 11);
 
       await dao.createBooking(
         id: 'bk-1',
@@ -135,10 +134,10 @@ void main() {
     test('watchBookingsByContractorAndDate streams bookings for correct contractor/date',
         () async {
       final date = DateTime(2026, 3, 11);
-      final start1 = DateTime(2026, 3, 11, 9, 0);
-      final end1 = DateTime(2026, 3, 11, 11, 0);
-      final start2 = DateTime(2026, 3, 11, 13, 0);
-      final end2 = DateTime(2026, 3, 11, 15, 0);
+      final start1 = DateTime(2026, 3, 11, 9);
+      final end1 = DateTime(2026, 3, 11, 11);
+      final start2 = DateTime(2026, 3, 11, 13);
+      final end2 = DateTime(2026, 3, 11, 15);
 
       // Booking for contractor-1 on Mar 11
       await dao.createBooking(
@@ -179,8 +178,8 @@ void main() {
         companyId: 'co-1',
         contractorId: 'contractor-1',
         jobId: 'job-1',
-        timeRangeStart: DateTime(2026, 3, 11, 9, 0),
-        timeRangeEnd: DateTime(2026, 3, 11, 11, 0),
+        timeRangeStart: DateTime(2026, 3, 11, 9),
+        timeRangeEnd: DateTime(2026, 3, 11, 11),
       );
 
       // Inside range, different day
@@ -189,8 +188,8 @@ void main() {
         companyId: 'co-1',
         contractorId: 'contractor-2',
         jobId: 'job-2',
-        timeRangeStart: DateTime(2026, 3, 12, 10, 0),
-        timeRangeEnd: DateTime(2026, 3, 12, 12, 0),
+        timeRangeStart: DateTime(2026, 3, 12, 10),
+        timeRangeEnd: DateTime(2026, 3, 12, 12),
       );
 
       // Outside range (Mar 13 is excluded since range is [start, end))
@@ -199,8 +198,8 @@ void main() {
         companyId: 'co-1',
         contractorId: 'contractor-1',
         jobId: 'job-1',
-        timeRangeStart: DateTime(2026, 3, 13, 9, 0),
-        timeRangeEnd: DateTime(2026, 3, 13, 11, 0),
+        timeRangeStart: DateTime(2026, 3, 13, 9),
+        timeRangeEnd: DateTime(2026, 3, 13, 11),
       );
 
       final stream =
@@ -218,12 +217,12 @@ void main() {
         companyId: 'co-1',
         contractorId: 'contractor-1',
         jobId: 'job-1',
-        timeRangeStart: DateTime(2026, 3, 11, 9, 0),
-        timeRangeEnd: DateTime(2026, 3, 11, 11, 0),
+        timeRangeStart: DateTime(2026, 3, 11, 9),
+        timeRangeEnd: DateTime(2026, 3, 11, 11),
       );
 
-      final newStart = DateTime(2026, 3, 11, 10, 0);
-      final newEnd = DateTime(2026, 3, 11, 12, 0);
+      final newStart = DateTime(2026, 3, 11, 10);
+      final newEnd = DateTime(2026, 3, 11, 12);
       await dao.updateBookingTime('bk-1', newStart, newEnd, 1);
 
       // Verify booking updated
@@ -250,12 +249,12 @@ void main() {
         companyId: 'co-1',
         contractorId: 'contractor-1',
         jobId: 'job-1',
-        timeRangeStart: DateTime(2026, 3, 11, 9, 0),
-        timeRangeEnd: DateTime(2026, 3, 11, 11, 0),
+        timeRangeStart: DateTime(2026, 3, 11, 9),
+        timeRangeEnd: DateTime(2026, 3, 11, 11),
       );
 
-      final newStart = DateTime(2026, 3, 11, 14, 0);
-      final newEnd = DateTime(2026, 3, 11, 16, 0);
+      final newStart = DateTime(2026, 3, 11, 14);
+      final newEnd = DateTime(2026, 3, 11, 16);
       await dao.updateBookingContractorAndTime(
           'bk-1', 'contractor-2', newStart, newEnd, 1);
 
@@ -275,14 +274,13 @@ void main() {
     });
 
     test('softDeleteBooking sets deletedAt, excluded from watches', () async {
-      final date = DateTime(2026, 3, 11);
       await dao.createBooking(
         id: 'bk-1',
         companyId: 'co-1',
         contractorId: 'contractor-1',
         jobId: 'job-1',
-        timeRangeStart: DateTime(2026, 3, 11, 9, 0),
-        timeRangeEnd: DateTime(2026, 3, 11, 11, 0),
+        timeRangeStart: DateTime(2026, 3, 11, 9),
+        timeRangeEnd: DateTime(2026, 3, 11, 11),
       );
 
       await dao.softDeleteBooking('bk-1', 1);
@@ -308,8 +306,8 @@ void main() {
         companyId: 'co-1',
         contractorId: 'contractor-1',
         jobId: 'job-1',
-        timeRangeStart: DateTime(2026, 3, 11, 9, 0),
-        timeRangeEnd: DateTime(2026, 3, 11, 11, 0),
+        timeRangeStart: DateTime(2026, 3, 11, 9),
+        timeRangeEnd: DateTime(2026, 3, 11, 11),
       );
 
       // Also create a non-deleted booking
@@ -318,8 +316,8 @@ void main() {
         companyId: 'co-1',
         contractorId: 'contractor-1',
         jobId: 'job-2',
-        timeRangeStart: DateTime(2026, 3, 11, 13, 0),
-        timeRangeEnd: DateTime(2026, 3, 11, 15, 0),
+        timeRangeStart: DateTime(2026, 3, 11, 13),
+        timeRangeEnd: DateTime(2026, 3, 11, 15),
       );
 
       await dao.softDeleteBooking('bk-1', 1);
@@ -374,8 +372,8 @@ void main() {
         companyId: 'co-1',
         contractorId: 'contractor-1',
         jobId: 'job-1',
-        timeRangeStart: DateTime(2026, 3, 11, 9, 0),
-        timeRangeEnd: DateTime(2026, 3, 11, 11, 0),
+        timeRangeStart: DateTime(2026, 3, 11, 9),
+        timeRangeEnd: DateTime(2026, 3, 11, 11),
       );
 
       final stream = dao.watchUnscheduledJobs('co-1', date);
@@ -395,8 +393,8 @@ void main() {
         companyId: 'co-1',
         contractorId: 'contractor-1',
         jobId: 'job-1',
-        timeRangeStart: DateTime(2026, 3, 12, 9, 0),
-        timeRangeEnd: DateTime(2026, 3, 12, 11, 0),
+        timeRangeStart: DateTime(2026, 3, 12, 9),
+        timeRangeEnd: DateTime(2026, 3, 12, 11),
       );
 
       final stream = dao.watchUnscheduledJobs('co-1', selectedDate);
@@ -433,8 +431,8 @@ void main() {
         companyId: 'co-1',
         contractorId: 'contractor-1',
         jobId: 'job-1',
-        timeRangeStart: DateTime(2026, 3, 11, 9, 0),
-        timeRangeEnd: DateTime(2026, 3, 11, 11, 0),
+        timeRangeStart: DateTime(2026, 3, 11, 9),
+        timeRangeEnd: DateTime(2026, 3, 11, 11),
         version: const Value(5),
         createdAt: now,
         updatedAt: now,
@@ -460,16 +458,16 @@ void main() {
         companyId: 'co-1',
         contractorId: 'contractor-1',
         jobId: 'job-1',
-        timeRangeStart: DateTime(2026, 3, 11, 9, 0),
-        timeRangeEnd: DateTime(2026, 3, 11, 11, 0),
+        timeRangeStart: DateTime(2026, 3, 11, 9),
+        timeRangeEnd: DateTime(2026, 3, 11, 11),
         version: const Value(1),
         createdAt: now,
         updatedAt: now,
       ));
 
       // Server sends updated version with new time
-      final updatedStart = DateTime(2026, 3, 11, 14, 0);
-      final updatedEnd = DateTime(2026, 3, 11, 16, 0);
+      final updatedStart = DateTime(2026, 3, 11, 14);
+      final updatedEnd = DateTime(2026, 3, 11, 16);
       await dao.upsertBookingFromSync(BookingsCompanion.insert(
         id: const Value('bk-sync-1'),
         companyId: 'co-1',
@@ -500,15 +498,15 @@ void main() {
         companyId: 'co-1',
         contractorId: 'contractor-1',
         jobId: 'job-1',
-        timeRangeStart: DateTime(2026, 3, 11, 9, 0),
-        timeRangeEnd: DateTime(2026, 3, 11, 11, 0),
+        timeRangeStart: DateTime(2026, 3, 11, 9),
+        timeRangeEnd: DateTime(2026, 3, 11, 11),
       );
 
       // UPDATE
       await dao.updateBookingTime(
         'bk-1',
-        DateTime(2026, 3, 11, 10, 0),
-        DateTime(2026, 3, 11, 12, 0),
+        DateTime(2026, 3, 11, 10),
+        DateTime(2026, 3, 11, 12),
         1,
       );
 
@@ -535,8 +533,8 @@ void main() {
         companyId: 'co-1',
         contractorId: 'contractor-1',
         jobId: 'job-1',
-        timeRangeStart: DateTime(2026, 3, 11, 9, 0),
-        timeRangeEnd: DateTime(2026, 3, 11, 11, 0),
+        timeRangeStart: DateTime(2026, 3, 11, 9),
+        timeRangeEnd: DateTime(2026, 3, 11, 11),
       );
 
       await dao.createBooking(
@@ -544,15 +542,15 @@ void main() {
         companyId: 'co-1',
         contractorId: 'contractor-1',
         jobId: 'job-2',
-        timeRangeStart: DateTime(2026, 3, 11, 13, 0),
-        timeRangeEnd: DateTime(2026, 3, 11, 15, 0),
+        timeRangeStart: DateTime(2026, 3, 11, 13),
+        timeRangeEnd: DateTime(2026, 3, 11, 15),
       );
 
       // Update first booking
       await dao.updateBookingTime(
         'bk-1',
-        DateTime(2026, 3, 11, 10, 0),
-        DateTime(2026, 3, 11, 12, 0),
+        DateTime(2026, 3, 11, 10),
+        DateTime(2026, 3, 11, 12),
         1,
       );
 
@@ -681,8 +679,8 @@ void main() {
         companyId: 'co-1',
         contractorId: 'contractor-1',
         jobId: 'job-1',
-        timeRangeStart: DateTime(2026, 3, 11, 9, 0),
-        timeRangeEnd: DateTime(2026, 3, 11, 11, 0),
+        timeRangeStart: DateTime(2026, 3, 11, 9),
+        timeRangeEnd: DateTime(2026, 3, 11, 11),
       );
 
       var booking = await _readBookingById(db, 'bk-1');
@@ -691,8 +689,8 @@ void main() {
       // First update: version 1 -> 2
       await dao.updateBookingTime(
         'bk-1',
-        DateTime(2026, 3, 11, 10, 0),
-        DateTime(2026, 3, 11, 12, 0),
+        DateTime(2026, 3, 11, 10),
+        DateTime(2026, 3, 11, 12),
         1,
       );
       booking = await _readBookingById(db, 'bk-1');
@@ -702,8 +700,8 @@ void main() {
       await dao.updateBookingContractorAndTime(
         'bk-1',
         'contractor-2',
-        DateTime(2026, 3, 11, 14, 0),
-        DateTime(2026, 3, 11, 16, 0),
+        DateTime(2026, 3, 11, 14),
+        DateTime(2026, 3, 11, 16),
         2,
       );
       booking = await _readBookingById(db, 'bk-1');
@@ -722,16 +720,16 @@ void main() {
         companyId: 'co-1',
         contractorId: 'contractor-1',
         jobId: 'job-1',
-        timeRangeStart: DateTime(2026, 3, 11, 9, 0),
-        timeRangeEnd: DateTime(2026, 3, 11, 11, 0),
+        timeRangeStart: DateTime(2026, 3, 11, 9),
+        timeRangeEnd: DateTime(2026, 3, 11, 11),
       );
 
       // 5 consecutive time updates: version goes 1 -> 2 -> 3 -> 4 -> 5 -> 6
       for (var v = 1; v <= 5; v++) {
         await dao.updateBookingTime(
           'bk-1',
-          DateTime(2026, 3, 11, 9 + v, 0),
-          DateTime(2026, 3, 11, 11 + v, 0),
+          DateTime(2026, 3, 11, 9 + v),
+          DateTime(2026, 3, 11, 11 + v),
           v,
         );
       }

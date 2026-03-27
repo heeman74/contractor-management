@@ -16,7 +16,7 @@ part 'sync_cursor_dao.g.dart';
 ///
 /// Cursor-based delta sync flow:
 /// 1. Call [getCursor] to get the last pull timestamp (null = first launch)
-/// 2. GET /sync?cursor=<timestamp> (or full download if null)
+/// 2. GET `/sync?cursor=<timestamp>` (or full download if null)
 /// 3. Process server response
 /// 4. Call [updateCursor] with server-returned timestamp
 @DriftAccessor(tables: [SyncCursor])

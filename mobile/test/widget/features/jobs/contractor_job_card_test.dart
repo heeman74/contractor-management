@@ -125,7 +125,7 @@ void main() {
   group('ContractorJobCard', () {
     testWidgets('renders action bar with Add Note for non-completed job',
         (tester) async {
-      final job = _makeJob(status: 'scheduled');
+      final job = _makeJob();
 
       await tester.pumpWidget(buildCardWidget(job));
       await tester.pump();
@@ -144,7 +144,7 @@ void main() {
 
     testWidgets('renders Clock In button for non-active non-completed job',
         (tester) async {
-      final job = _makeJob(status: 'scheduled');
+      final job = _makeJob();
 
       await tester.pumpWidget(buildCardWidget(job));
       await tester.pump();
@@ -154,7 +154,7 @@ void main() {
 
     testWidgets('active job shows Clock Out button', (tester) async {
       final job = _makeJob(id: 'job-active', status: 'in_progress');
-      final activeState = TimerState(
+      const activeState = TimerState(
         activeJobId: 'job-active',
         elapsedSeconds: 300,
       );
@@ -184,7 +184,7 @@ void main() {
     });
 
     testWidgets('renders status badge text', (tester) async {
-      final job = _makeJob(status: 'scheduled');
+      final job = _makeJob();
 
       await tester.pumpWidget(buildCardWidget(job));
       await tester.pump();

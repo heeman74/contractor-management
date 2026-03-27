@@ -26,14 +26,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:dio/dio.dart';
-import 'package:drift/drift.dart' hide isNotNull, isNull;
-import 'package:drift/native.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/misc.dart' show Override;
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:contractorhub/core/database/app_database.dart'
     hide UserRole;
 import 'package:contractorhub/features/chat/data/chat_repository.dart';
@@ -43,6 +35,13 @@ import 'package:contractorhub/features/chat/presentation/screens/chat_screen.dar
 import 'package:contractorhub/features/chat/presentation/screens/chat_thread_screen.dart';
 import 'package:contractorhub/features/chat/presentation/widgets/chat_thread_tile.dart';
 import 'package:contractorhub/features/chat/presentation/widgets/message_bubble.dart';
+import 'package:dio/dio.dart';
+import 'package:drift/drift.dart' hide isNotNull, isNull;
+import 'package:drift/native.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
+import 'package:flutter_test/flutter_test.dart';
 
 // ---------------------------------------------------------------------------
 // Test constants
@@ -110,7 +109,6 @@ ChatThread _makeChatThread({
     lastMessageAt: lastMessageAt,
     createdAt: now,
     updatedAt: now,
-    deletedAt: null,
   );
 }
 
@@ -142,7 +140,6 @@ ChatMessage _makeChatMessage({
     mentionAll: false,
     status: status,
     createdAt: now,
-    deletedAt: null,
   );
 }
 
@@ -232,9 +229,7 @@ void main() {
   group('CHAT-01: Thread list', () {
     testWidgets('test_chat_screen_shows_thread_list', (tester) async {
       final thread1 = _makeChatThread(
-        id: _thread1Id,
-        threadType: 'scope',
-        name: 'Plumbing',
+        
       );
       final thread2 = _makeChatThread(
         id: _thread2Id,
@@ -265,8 +260,6 @@ void main() {
 
     testWidgets('test_thread_tile_shows_unread_badge', (tester) async {
       final thread = _makeChatThread(
-        id: _thread1Id,
-        threadType: 'scope',
         name: 'HVAC',
         unreadCount: 5,
       );
@@ -294,10 +287,7 @@ void main() {
 
     testWidgets('test_thread_tile_hides_badge_when_read', (tester) async {
       final thread = _makeChatThread(
-        id: _thread1Id,
-        threadType: 'scope',
         name: 'Electrical',
-        unreadCount: 0,
       );
 
       await tester.pumpWidget(
@@ -342,7 +332,7 @@ void main() {
               },
             ),
           ],
-          child: MaterialApp(
+          child: const MaterialApp(
             home: ChatThreadScreen(
               threadId: _thread1Id,
               projectId: _projectId,
@@ -382,9 +372,7 @@ void main() {
   group('CHAT-02: Conversation flow', () {
     testWidgets('test_incoming_message_appears', (tester) async {
       final existingMsg = _makeChatMessage(
-        id: 'msg-001',
         content: 'First message',
-        seq: 1,
       );
 
       final controller = StreamController<List<ChatMessage>>();
@@ -406,7 +394,7 @@ void main() {
               },
             ),
           ],
-          child: MaterialApp(
+          child: const MaterialApp(
             home: ChatThreadScreen(
               threadId: _thread1Id,
               projectId: _projectId,
@@ -462,7 +450,7 @@ void main() {
               },
             ),
           ],
-          child: MaterialApp(
+          child: const MaterialApp(
             home: ChatThreadScreen(
               threadId: _thread1Id,
               projectId: _projectId,
@@ -483,9 +471,7 @@ void main() {
     testWidgets('test_message_dedup_on_echo', (tester) async {
       // Only 1 bubble shown even if same message seeded twice (Drift upsert)
       final msg = _makeChatMessage(
-        id: 'msg-001',
         content: 'Dedup message',
-        seq: 1,
       );
 
       final wsClient = _NoOpWsClient();
@@ -504,7 +490,7 @@ void main() {
               },
             ),
           ],
-          child: MaterialApp(
+          child: const MaterialApp(
             home: ChatThreadScreen(
               threadId: _thread1Id,
               projectId: _projectId,
@@ -532,7 +518,6 @@ void main() {
         content: null,
         attachmentUrl: '/uploads/chat/msg-photo/photo.jpg',
         attachmentType: 'photo',
-        seq: 1,
       );
 
       await tester.pumpWidget(
@@ -563,7 +548,6 @@ void main() {
         content: null,
         attachmentUrl: '/uploads/chat/msg-pdf/spec.pdf',
         attachmentType: 'pdf',
-        seq: 1,
       );
 
       await tester.pumpWidget(
@@ -589,7 +573,6 @@ void main() {
         attachmentUrl: '/uploads/chat/msg-annotated/photo.jpg',
         attachmentType: 'annotated_photo',
         annotationData: '{"strokes":[]}',
-        seq: 1,
       );
 
       await tester.pumpWidget(
@@ -623,7 +606,7 @@ void main() {
               },
             ),
           ],
-          child: MaterialApp(
+          child: const MaterialApp(
             home: ChatThreadScreen(
               threadId: _thread1Id,
               projectId: _projectId,
@@ -663,9 +646,7 @@ void main() {
   group('CHAT-04: Thread organisation', () {
     testWidgets('test_thread_sections', (tester) async {
       final scopeThread = _makeChatThread(
-        id: _thread1Id,
-        threadType: 'scope',
-        name: 'Plumbing',
+        
       );
       final projectThread = _makeChatThread(
         id: _thread2Id,
@@ -720,7 +701,6 @@ void main() {
       final readThread = _makeChatThread(
         id: 'thread-read',
         name: 'Read Thread',
-        unreadCount: 0,
         lastMessageAt: DateTime.now().subtract(const Duration(minutes: 10)),
       );
       final unreadThread = _makeChatThread(
@@ -866,7 +846,7 @@ void main() {
               return client;
             }),
           ],
-          child: MaterialApp(
+          child: const MaterialApp(
             home: ChatThreadScreen(
               threadId: _thread1Id,
               projectId: _projectId,
@@ -900,7 +880,7 @@ void main() {
               return _NoOpWsClient();
             }),
           ],
-          child: MaterialApp(
+          child: const MaterialApp(
             home: ChatThreadScreen(
               threadId: _thread1Id,
               projectId: _projectId,
@@ -926,8 +906,6 @@ void main() {
       final ownMsg = _makeChatMessage(
         id: 'msg-own',
         content: 'My message',
-        seq: 1,
-        status: 'sent',
       );
 
       await tester.pumpWidget(
@@ -954,8 +932,6 @@ void main() {
       final ownMsg = _makeChatMessage(
         id: 'msg-own',
         content: 'Sent but not read',
-        seq: 1,
-        status: 'sent',
       );
 
       await tester.pumpWidget(
@@ -964,7 +940,6 @@ void main() {
             body: MessageBubble(
               message: ownMsg,
               isOwn: true,
-              readByText: null, // No read receipt
             ),
           ),
         ),
@@ -984,8 +959,7 @@ void main() {
   group('Mute bottom sheet', () {
     testWidgets('test_mute_thread_long_press', (tester) async {
       final thread = _makeChatThread(
-        id: _thread1Id,
-        name: 'Plumbing',
+        
       );
 
       await tester.pumpWidget(
@@ -1021,7 +995,6 @@ void main() {
   group('ChatThreadTile', () {
     testWidgets('test_thread_tile_renders_name_and_badge', (tester) async {
       final thread = _makeChatThread(
-        id: _thread1Id,
         name: 'Electrical',
         unreadCount: 7,
       );
@@ -1046,9 +1019,7 @@ void main() {
 
     testWidgets('test_thread_tile_no_badge_when_zero', (tester) async {
       final thread = _makeChatThread(
-        id: _thread1Id,
         name: 'Carpentry',
-        unreadCount: 0,
       );
 
       await tester.pumpWidget(

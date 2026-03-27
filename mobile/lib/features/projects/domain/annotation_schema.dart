@@ -72,10 +72,7 @@ class Annotation {
   final double? fontSize;
 
   Annotation({
-    String? id,
-    required this.tool,
-    required this.color,
-    required this.thickness,
+    required this.tool, required this.color, required this.thickness, String? id,
     this.startX,
     this.startY,
     this.endX,
@@ -178,10 +175,7 @@ class AnnotationLayer {
   final List<Annotation> annotations;
 
   AnnotationLayer({
-    this.version = 1,
-    required this.canvasWidth,
-    required this.canvasHeight,
-    required this.annotations,
+    required this.canvasWidth, required this.canvasHeight, required this.annotations, this.version = 1,
   });
 
   /// Serialize the layer to a JSON-compatible map.

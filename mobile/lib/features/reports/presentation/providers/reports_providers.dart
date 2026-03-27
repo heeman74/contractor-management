@@ -21,7 +21,7 @@ final datePresetProvider = StateProvider<String>((ref) => 'This Month');
 /// Overridden with a custom range when the Custom picker is used.
 final dateRangeProvider = StateProvider<DateTimeRange>((ref) {
   final now = DateTime.now();
-  final firstOfMonth = DateTime(now.year, now.month, 1);
+  final firstOfMonth = DateTime(now.year, now.month);
   return DateTimeRange(start: firstOfMonth, end: now);
 });
 
@@ -122,7 +122,7 @@ DateTimeRange presetToRange(String preset) {
         end: now,
       ),
     'This Month' => DateTimeRange(
-        start: DateTime(now.year, now.month, 1),
+        start: DateTime(now.year, now.month),
         end: now,
       ),
     'Last 30 Days' => DateTimeRange(
@@ -130,19 +130,19 @@ DateTimeRange presetToRange(String preset) {
         end: now,
       ),
     'This Quarter' => DateTimeRange(
-        start: DateTime(now.year, ((now.month - 1) ~/ 3) * 3 + 1, 1),
+        start: DateTime(now.year, ((now.month - 1) ~/ 3) * 3 + 1),
         end: now,
       ),
     'This Year' => DateTimeRange(
-        start: DateTime(now.year, 1, 1),
+        start: DateTime(now.year),
         end: now,
       ),
     'All Time' => DateTimeRange(
-        start: DateTime(2020, 1, 1),
+        start: DateTime(2020),
         end: now,
       ),
     _ => DateTimeRange(
-        start: DateTime(now.year, now.month, 1),
+        start: DateTime(now.year, now.month),
         end: now,
       ),
   };

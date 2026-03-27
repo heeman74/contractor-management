@@ -14,12 +14,9 @@ abstract class UserEntity with _$UserEntity {
     required String id,
     required String companyId,
     required String email,
-    String? firstName,
+    required int version, required DateTime createdAt, required DateTime updatedAt, String? firstName,
     String? lastName,
     String? phone,
-    required int version,
-    required DateTime createdAt,
-    required DateTime updatedAt,
   }) = _UserEntity;
 
   factory UserEntity.fromJson(Map<String, dynamic> json) =>

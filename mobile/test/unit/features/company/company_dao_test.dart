@@ -106,11 +106,11 @@ void main() {
     });
 
     test('updateCompany modifies the row', () async {
-      final id = 'co-1';
+      const id = 'co-1';
       await db.companyDao.insertCompany(makeCompany(id: id, name: 'Old'));
 
       await db.companyDao.updateCompany(CompaniesCompanion(
-        id: Value(id),
+        id: const Value(id),
         name: const Value('New'),
         version: const Value(2),
         createdAt: Value(DateTime.now()),

@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_classes_with_only_static_members
+
 /// Route path constants — avoid magic strings across navigation calls.
 ///
 /// All navigation should use these constants rather than raw strings.

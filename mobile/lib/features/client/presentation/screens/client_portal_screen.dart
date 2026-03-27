@@ -376,7 +376,7 @@ class _RequestCard extends StatelessWidget {
                     color: statusColor.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                        color: statusColor.withValues(alpha: 0.4), width: 1),
+                        color: statusColor.withValues(alpha: 0.4)),
                   ),
                   child: Text(
                     statusLabel,

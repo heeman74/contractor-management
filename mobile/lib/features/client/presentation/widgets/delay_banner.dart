@@ -11,7 +11,7 @@ import 'package:flutter/material.dart';
 class DelayBanner extends StatefulWidget {
   final List<Map<String, dynamic>> delayEntries;
 
-  const DelayBanner({super.key, required this.delayEntries});
+  const DelayBanner({required this.delayEntries, super.key});
 
   @override
   State<DelayBanner> createState() => _DelayBannerState();

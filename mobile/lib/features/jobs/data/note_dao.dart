@@ -4,8 +4,8 @@ import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:uuid/uuid.dart';
 
 import '../../../core/database/app_database.dart';
-import '../../../core/database/tables/job_notes.dart';
 import '../../../core/database/tables/attachments.dart';
+import '../../../core/database/tables/job_notes.dart';
 import '../../../core/database/tables/sync_queue.dart';
 
 part 'note_dao.g.dart';

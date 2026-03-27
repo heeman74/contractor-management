@@ -17,7 +17,6 @@ import 'package:contractorhub/core/di/service_locator.dart';
 import 'package:contractorhub/core/sync/sync_engine.dart';
 import 'package:contractorhub/features/auth/domain/auth_state.dart';
 import 'package:contractorhub/features/auth/presentation/providers/auth_provider.dart';
-import 'package:contractorhub/features/jobs/data/job_dao.dart';
 import 'package:contractorhub/features/jobs/presentation/screens/jobs_pipeline_screen.dart';
 import 'package:contractorhub/shared/models/user_role.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
@@ -73,7 +72,7 @@ Future<void> _seedJob(
     description: description,
     tradeType: tradeType,
     status: Value(status),
-    statusHistory: Value('[]'),
+    statusHistory: const Value('[]'),
     priority: Value(priority),
     tags: const Value('[]'),
     version: const Value(1),
@@ -153,7 +152,7 @@ void main() {
     });
 
     testWidgets('switching to List view shows filter chips', (tester) async {
-      await _seedJob(db, id: 'j-1', description: 'Test job');
+      await _seedJob(db, id: 'j-1');
 
       await tester.pumpWidget(buildWidget());
       await tester.pump();

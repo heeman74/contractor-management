@@ -112,7 +112,6 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
 
           // ── Calendar content area + unscheduled drawer ───────────────────
           SliverFillRemaining(
-            hasScrollBody: true,
             child: Stack(
               children: [
                 // Main calendar content

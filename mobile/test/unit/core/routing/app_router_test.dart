@@ -18,16 +18,15 @@
 /// animations (SplashScreen spinner, etc.) never settle.
 library;
 
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
-
 import 'package:contractorhub/core/routing/app_router.dart';
 import 'package:contractorhub/core/routing/route_names.dart';
 import 'package:contractorhub/features/auth/domain/auth_state.dart';
 import 'package:contractorhub/features/auth/presentation/providers/auth_provider.dart';
 import 'package:contractorhub/shared/models/user_role.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 // ---------------------------------------------------------------------------
 // Test helpers

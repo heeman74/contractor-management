@@ -241,7 +241,7 @@ final taskDocCountProvider = StreamProvider.autoDispose
 // Scope name lookup map — for My Tasks grouped view
 // ────────────────────────────────────────────────────────────────────────────
 
-/// Streams a Map<scopeId, tradeName> for all scopes in the user's company.
+/// Streams a `Map<scopeId, tradeName>` for all scopes in the user's company.
 ///
 /// Used by MyTasksScreen to display scope group headers without a separate
 /// scope name lookup per task. Auto-disposed when no longer watched.

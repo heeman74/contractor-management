@@ -145,7 +145,7 @@ class _DailyStatusScreenState extends ConsumerState<DailyStatusScreen> {
                     labelText: 'Project *',
                     border: OutlineInputBorder(),
                   ),
-                  value: _selectedProjectId,
+                  initialValue: _selectedProjectId,
                   items: projects.map((p) {
                     final id = p['project_id'] is String
                         ? p['project_id'] as String

@@ -64,9 +64,9 @@ class TravelTimeBlock extends StatelessWidget {
 class _TravelStripesPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final pattern = DiagonalStripesLight(
-      bgColor: const Color(0xFFF5F5F5), // grey.shade100
-      fgColor: const Color(0xFFBDBDBD), // grey.shade400
+    const pattern = DiagonalStripesLight(
+      bgColor: Color(0xFFF5F5F5), // grey.shade100
+      fgColor: Color(0xFFBDBDBD), // grey.shade400
     );
     pattern.paintOnWidget(canvas, size);
   }

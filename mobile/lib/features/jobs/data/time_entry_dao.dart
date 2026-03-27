@@ -4,8 +4,8 @@ import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:uuid/uuid.dart';
 
 import '../../../core/database/app_database.dart';
-import '../../../core/database/tables/time_entries.dart';
 import '../../../core/database/tables/sync_queue.dart';
+import '../../../core/database/tables/time_entries.dart';
 
 part 'time_entry_dao.g.dart';
 
@@ -231,10 +231,8 @@ class TimeEntryDao extends DatabaseAccessor<AppDatabase>
   Future<void> adjustEntry({
     required String entryId,
     required DateTime newClockIn,
-    DateTime? newClockOut,
+    required String newAdjustmentLog, required int newVersion, DateTime? newClockOut,
     int? newDuration,
-    required String newAdjustmentLog,
-    required int newVersion,
   }) async {
     final now = DateTime.now();
 

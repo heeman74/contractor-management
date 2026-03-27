@@ -45,14 +45,9 @@ class ClientCard extends StatefulWidget {
   final VoidCallback? onCreateJob;
 
   const ClientCard({
-    super.key,
-    required this.profile,
-    required this.displayName,
+    required this.profile, required this.displayName, required this.jobCount, required this.recentJobs, required this.savedPropertyCount, super.key,
     this.email,
     this.phone,
-    required this.jobCount,
-    required this.recentJobs,
-    required this.savedPropertyCount,
     this.onViewProfile,
     this.onCreateJob,
   });

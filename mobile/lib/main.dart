@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -77,7 +76,7 @@ Future<void> main() async {
       //
       // NetworkType.connected constraint ensures sync only runs when the device has
       // an active network connection.
-      Workmanager().initialize(callbackDispatcher, isInDebugMode: kDebugMode);
+      Workmanager().initialize(callbackDispatcher);
       Workmanager().registerPeriodicTask(
         'contractorhub-sync',
         'backgroundSync',
@@ -132,7 +131,6 @@ class ContractorHubApp extends ConsumerWidget {
     return ThemeData(
       colorScheme: ColorScheme.fromSeed(
         seedColor: seedColor,
-        brightness: Brightness.light,
       ),
       useMaterial3: true,
       appBarTheme: const AppBarTheme(

@@ -143,7 +143,6 @@ class _IntakeChatScreenState extends ConsumerState<IntakeChatScreen> {
                       .sendMessage(message);
                 },
                 isStreaming: chatState.isStreaming,
-                isOffline: false, // TODO: wire connectivity_plus
                 placeholder: 'Describe your project...',
                 onAttach: () {
                   // TODO: Phase 22 — image attachment

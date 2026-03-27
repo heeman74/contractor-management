@@ -14,13 +14,11 @@
 //   - tester.runAsync() for one-shot DB queries (Drift one-shot .get() in testWidgets)
 //   - Seed Company row before any milestone rows (FK constraint)
 
+import 'package:contractorhub/core/database/app_database.dart' hide UserRole;
+import 'package:contractorhub/features/billing_milestones/domain/billing_milestone_entity.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:contractorhub/core/database/app_database.dart' hide UserRole;
-import 'package:contractorhub/features/billing_milestones/data/billing_milestone_dao.dart';
-import 'package:contractorhub/features/billing_milestones/domain/billing_milestone_entity.dart';
 
 // ---------------------------------------------------------------------------
 // Test constants
@@ -139,13 +137,13 @@ void main() {
 
         // Seed 3 milestones for scope A (out of order) + 1 for scope B
         await dao.createMilestone(
-            _makeEntity(id: 'ms-a1', scopeId: _scopeA, name: 'Third', sortOrder: 2));
+            _makeEntity(id: 'ms-a1', name: 'Third', sortOrder: 2));
         await dao.createMilestone(
-            _makeEntity(id: 'ms-a2', scopeId: _scopeA, name: 'First', sortOrder: 0));
+            _makeEntity(id: 'ms-a2', name: 'First'));
         await dao.createMilestone(
-            _makeEntity(id: 'ms-a3', scopeId: _scopeA, name: 'Second', sortOrder: 1));
+            _makeEntity(id: 'ms-a3', name: 'Second', sortOrder: 1));
         await dao.createMilestone(
-            _makeEntity(id: 'ms-b1', scopeId: _scopeB, name: 'B-Milestone', sortOrder: 0));
+            _makeEntity(id: 'ms-b1', scopeId: _scopeB, name: 'B-Milestone'));
 
         // Watch scope A — should return 3 in sort_order order
         final milestones = await dao.watchByScope(_scopeA).first;

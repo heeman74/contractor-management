@@ -17,9 +17,6 @@ import 'package:contractorhub/core/database/app_database.dart' hide UserRole;
 import 'package:contractorhub/core/di/service_locator.dart';
 import 'package:contractorhub/features/auth/domain/auth_state.dart';
 import 'package:contractorhub/features/auth/presentation/providers/auth_provider.dart';
-import 'package:contractorhub/features/jobs/data/attachment_dao.dart';
-import 'package:contractorhub/features/jobs/data/job_dao.dart';
-import 'package:contractorhub/features/jobs/data/note_dao.dart';
 import 'package:contractorhub/features/jobs/presentation/screens/job_detail_screen.dart';
 import 'package:contractorhub/shared/models/user_role.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
@@ -157,8 +154,7 @@ void main() {
     testWidgets('shows job description and trade type', (tester) async {
       await _seedJob(db,
           id: 'j-1',
-          description: 'Replace bathroom faucet',
-          tradeType: 'plumber');
+          description: 'Replace bathroom faucet');
 
       await tester.pumpWidget(buildWidget('j-1'));
       await tester.pump();
@@ -205,7 +201,7 @@ void main() {
     });
 
     testWidgets('shows status chip in AppBar', (tester) async {
-      await _seedJob(db, id: 'j-1', status: 'scheduled');
+      await _seedJob(db, id: 'j-1');
 
       await tester.pumpWidget(buildWidget('j-1'));
       await tester.pump();
@@ -238,7 +234,7 @@ void main() {
 
   group('JobDetailScreen — history tab', () {
     testWidgets('shows empty history message', (tester) async {
-      await _seedJob(db, id: 'j-1', statusHistory: '[]');
+      await _seedJob(db, id: 'j-1');
 
       await tester.pumpWidget(buildWidget('j-1'));
       await tester.pump();
@@ -254,7 +250,7 @@ void main() {
     });
 
     testWidgets('shows status history entries', (tester) async {
-      final history = '[{"status":"scheduled","timestamp":"2024-01-15T10:00:00Z"},'
+      const history = '[{"status":"scheduled","timestamp":"2024-01-15T10:00:00Z"},'
           '{"status":"in_progress","timestamp":"2024-01-16T09:00:00Z"}]';
 
       await _seedJob(db, id: 'j-1', statusHistory: history);
@@ -273,7 +269,7 @@ void main() {
     });
 
     testWidgets('shows delay entry with reason', (tester) async {
-      final history =
+      const history =
           '[{"type":"delay","reason":"Material delay","new_eta":"2024-02-01","timestamp":"2024-01-20T10:00:00Z"}]';
 
       await _seedJob(db, id: 'j-1', statusHistory: history);
@@ -295,7 +291,7 @@ void main() {
 
   group('JobDetailScreen — report delay', () {
     testWidgets('shows Report Delay for scheduled job', (tester) async {
-      await _seedJob(db, id: 'j-1', status: 'scheduled');
+      await _seedJob(db, id: 'j-1');
 
       await tester.pumpWidget(buildWidget('j-1'));
       await tester.pump();

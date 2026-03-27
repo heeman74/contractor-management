@@ -44,7 +44,7 @@ class UserRoleSyncHandler extends SyncHandler {
     final companyId = data['company_id'];
     final role = data['role'];
     if (id is! String || userId is! String || companyId is! String || role is! String) {
-      throw FormatException('UserRole missing required fields');
+      throw const FormatException('UserRole missing required fields');
     }
 
     final deletedAt = data['deleted_at'] != null

@@ -11,10 +11,6 @@
 //   - Fake notifiers extend original notifier class for Riverpod 3 type safety
 //   - OverduePanel tested directly (not via full ScheduleScreen) for simpler setup
 
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:contractorhub/features/auth/domain/auth_state.dart';
 import 'package:contractorhub/features/auth/presentation/providers/auth_provider.dart';
 import 'package:contractorhub/features/invoices/presentation/providers/invoice_providers.dart';
@@ -29,6 +25,9 @@ import 'package:contractorhub/features/schedule/presentation/providers/calendar_
 import 'package:contractorhub/features/schedule/presentation/providers/overdue_providers.dart';
 import 'package:contractorhub/features/schedule/presentation/widgets/overdue_panel.dart';
 import 'package:contractorhub/shared/models/user_role.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 // ---------------------------------------------------------------------------
 // Auth state helpers
@@ -64,20 +63,9 @@ JobEntity _makeJob({
     statusHistory: const [],
     priority: 'medium',
     tags: const [],
-    notes: null,
-    purchaseOrderNumber: null,
-    externalReference: null,
-    estimatedDurationMinutes: null,
-    scheduledCompletionDate: null,
-    clientId: null,
-    contractorId: null,
-    gpsLatitude: null,
-    gpsLongitude: null,
-    gpsAddress: null,
     version: 1,
-    createdAt: DateTime(2026, 1, 1),
-    updatedAt: DateTime(2026, 1, 1),
-    deletedAt: null,
+    createdAt: DateTime(2026),
+    updatedAt: DateTime(2026),
   );
 }
 
@@ -93,19 +81,10 @@ QuoteEntity _makeQuote({String status = 'draft'}) {
     status: status,
     revisionNumber: 0,
     taxRate: 10.0,
-    discountType: null,
     discountValue: 0.0,
-    expiryDate: null,
-    sentAt: null,
-    viewedAt: null,
-    approvedAt: null,
-    declinedAt: null,
-    declineReason: null,
-    declineDetail: null,
-    adminNotes: null,
     lineItems: const [],
-    createdAt: DateTime(2026, 1, 1),
-    updatedAt: DateTime(2026, 1, 1),
+    createdAt: DateTime(2026),
+    updatedAt: DateTime(2026),
   );
 }
 
@@ -124,9 +103,6 @@ OverdueJobInfo _makeOverdueJob({
     daysOverdue: 5,
     severity: OverdueSeverity.warning,
     hasDelayReport: false,
-    clientName: null,
-    contractorName: null,
-    latestDelayReason: null,
   );
 }
 
@@ -143,6 +119,7 @@ class _FakeAuthNotifier extends AuthNotifier {
 }
 
 // Stub JobListNotifier returns empty list — avoids Drift dependency in tests.
+// ignore: unused_element
 class _StubJobListNotifier extends JobListNotifier {
   @override
   Future<List<JobEntity>> build() async => [];
@@ -263,7 +240,7 @@ void main() {
     testWidgets(
       'biz01_create: Admin sees Create Quote button when job has no quote',
       (tester) async {
-        final job = _makeJob(status: 'scheduled');
+        final job = _makeJob();
 
         await tester.pumpWidget(
           ProviderScope(
@@ -302,7 +279,7 @@ void main() {
     testWidgets(
       'biz01_no_button: Non-admin (contractor) does NOT see Create Quote button',
       (tester) async {
-        final job = _makeJob(status: 'scheduled');
+        final job = _makeJob();
 
         await tester.pumpWidget(
           ProviderScope(
@@ -381,7 +358,7 @@ void main() {
     testWidgets(
       'biz02_view: Admin sees View / Edit Quote button when quote exists',
       (tester) async {
-        final job = _makeJob(status: 'scheduled');
+        final job = _makeJob();
         final quote = _makeQuote(status: 'sent');
 
         await tester.pumpWidget(
@@ -422,7 +399,7 @@ void main() {
       'biz02_draft_visible: Admin sees View / Edit Quote for draft quote',
       (tester) async {
         final job = _makeJob(status: 'in_progress');
-        final quote = _makeQuote(status: 'draft');
+        final quote = _makeQuote();
 
         await tester.pumpWidget(
           ProviderScope(

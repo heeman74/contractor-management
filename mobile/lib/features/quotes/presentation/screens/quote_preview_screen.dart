@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/network/dio_client.dart';
 import '../../../../core/di/service_locator.dart';
+import '../../../../core/network/dio_client.dart';
 import '../../domain/quote_entity.dart';
 import '../providers/quote_providers.dart';
 import '../widgets/quote_summary_card.dart';
@@ -16,7 +16,7 @@ import '../widgets/quote_summary_card.dart';
 class QuotePreviewScreen extends ConsumerWidget {
   final String jobId;
 
-  const QuotePreviewScreen({super.key, required this.jobId});
+  const QuotePreviewScreen({required this.jobId, super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -318,7 +318,7 @@ class _LineItemsTable extends StatelessWidget {
           decoration: BoxDecoration(
             color: theme.colorScheme.surfaceContainerHighest,
           ),
-          children: [
+          children: const [
             _HeaderCell('Description'),
             _HeaderCell('Type'),
             _HeaderCell('Qty × Unit'),

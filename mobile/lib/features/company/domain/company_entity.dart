@@ -14,14 +14,11 @@ abstract class CompanyEntity with _$CompanyEntity {
   const factory CompanyEntity({
     required String id,
     required String name,
-    String? address,
+    required int version, required DateTime createdAt, required DateTime updatedAt, String? address,
     String? phone,
     @Default([]) List<TradeType> tradeTypes,
     String? logoUrl,
     String? businessNumber,
-    required int version,
-    required DateTime createdAt,
-    required DateTime updatedAt,
   }) = _CompanyEntity;
 
   factory CompanyEntity.fromJson(Map<String, dynamic> json) =>

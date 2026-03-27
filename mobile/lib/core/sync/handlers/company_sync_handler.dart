@@ -38,7 +38,7 @@ class CompanySyncHandler extends SyncHandler {
     final id = data['id'];
     final name = data['name'];
     if (id is! String || name is! String) {
-      throw FormatException('Company missing required fields');
+      throw const FormatException('Company missing required fields');
     }
 
     final deletedAt = data['deleted_at'] != null

@@ -24,7 +24,8 @@ linter:
     - avoid_unnecessary_containers
     - avoid_web_libraries_in_flutter
     - cancel_subscriptions
-    - cascade_invocations
+    # cascade_invocations — disabled: too noisy for GetIt registrations,
+    # Canvas paint ops, and test setup code where separate statements are clearer.
     - close_sinks
     - directives_ordering
     - empty_catches

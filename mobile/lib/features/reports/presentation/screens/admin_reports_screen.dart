@@ -405,7 +405,7 @@ class _RevenueSummaryChart extends StatelessWidget {
             BarChartData(
               maxY: maxY * 1.2,
               barGroups: barGroups,
-              gridData: const FlGridData(show: true),
+              gridData: const FlGridData(),
               borderData: FlBorderData(show: false),
               titlesData: FlTitlesData(
                 leftTitles: AxisTitles(
@@ -437,10 +437,10 @@ class _RevenueSummaryChart extends StatelessWidget {
                   ),
                 ),
                 rightTitles: const AxisTitles(
-                  sideTitles: SideTitles(showTitles: false),
+                  
                 ),
                 topTitles: const AxisTitles(
-                  sideTitles: SideTitles(showTitles: false),
+                  
                 ),
               ),
             ),

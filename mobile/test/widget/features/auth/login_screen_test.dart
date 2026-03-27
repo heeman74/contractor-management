@@ -16,9 +16,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// Wraps LoginScreen in necessary scaffolding for widget tests.
 Widget buildTestWidget() {
-  return ProviderScope(
+  return const ProviderScope(
     child: MaterialApp(
-      home: const LoginScreen(),
+      home: LoginScreen(),
     ),
   );
 }

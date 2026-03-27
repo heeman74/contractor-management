@@ -12,25 +12,24 @@
 //   - MockDio via MockDioClient.instance for API call verification
 //   - Real Drift in-memory DB where possible
 
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
-import 'package:contractorhub/features/quotes/domain/quote_entity.dart';
+import 'package:contractorhub/features/auth/domain/auth_state.dart';
+import 'package:contractorhub/features/auth/presentation/providers/auth_provider.dart';
+import 'package:contractorhub/features/invoices/domain/invoice_entity.dart';
+import 'package:contractorhub/features/invoices/presentation/providers/invoice_providers.dart';
+import 'package:contractorhub/features/invoices/presentation/screens/invoice_detail_screen.dart';
 import 'package:contractorhub/features/quotes/domain/line_item_entity.dart';
+import 'package:contractorhub/features/quotes/domain/quote_entity.dart';
+import 'package:contractorhub/features/quotes/presentation/providers/quote_providers.dart';
 import 'package:contractorhub/features/quotes/presentation/screens/quote_builder_screen.dart';
 import 'package:contractorhub/features/quotes/presentation/screens/quote_detail_screen.dart';
 import 'package:contractorhub/features/quotes/presentation/screens/quote_preview_screen.dart';
-import 'package:contractorhub/features/quotes/presentation/providers/quote_providers.dart';
-import 'package:contractorhub/features/invoices/domain/invoice_entity.dart';
-import 'package:contractorhub/features/invoices/presentation/screens/invoice_detail_screen.dart';
-import 'package:contractorhub/features/invoices/presentation/providers/invoice_providers.dart';
+import 'package:contractorhub/features/reports/presentation/providers/reports_providers.dart';
 import 'package:contractorhub/features/reports/presentation/screens/admin_reports_screen.dart';
 import 'package:contractorhub/features/reports/presentation/screens/contractor_reports_screen.dart';
-import 'package:contractorhub/features/reports/presentation/providers/reports_providers.dart';
-import 'package:contractorhub/features/auth/presentation/providers/auth_provider.dart';
-import 'package:contractorhub/features/auth/domain/auth_state.dart';
 import 'package:contractorhub/shared/models/user_role.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -51,19 +50,14 @@ QuoteEntity _makeQuote({
     status: status,
     revisionNumber: 0,
     taxRate: 10.0,
-    discountType: null,
     discountValue: 0.0,
     expiryDate: expiryDate,
     sentAt: sentAt,
-    viewedAt: null,
     approvedAt: approvedAt,
     declinedAt: declinedAt,
-    declineReason: null,
-    declineDetail: null,
-    adminNotes: null,
     lineItems: lineItems ??
         [
-          LineItemEntity(
+          const LineItemEntity(
             id: 'li-001',
             itemType: 'labor',
             description: 'Installation work',
@@ -72,7 +66,7 @@ QuoteEntity _makeQuote({
             unitPrice: 75.0,
             sortOrder: 0,
           ),
-          LineItemEntity(
+          const LineItemEntity(
             id: 'li-002',
             itemType: 'material',
             description: 'Copper pipe',
@@ -96,11 +90,10 @@ InvoiceEntity _makeInvoice({String status = 'unpaid'}) {
     invoiceNumber: 'INV-0001',
     status: status,
     taxRate: 10.0,
-    discountType: null,
     discountValue: 0.0,
     issuedAt: DateTime.now(),
     lineItems: [
-      LineItemEntity(
+      const LineItemEntity(
         id: 'ili-001',
         itemType: 'labor',
         description: 'Installation work',
@@ -199,7 +192,7 @@ void main() {
     });
 
     testWidgets('Quote preview shows client view', (tester) async {
-      final quote = _makeQuote(status: 'draft');
+      final quote = _makeQuote();
 
       // QuotePreviewScreen takes jobId and loads quotes via quoteForJobProvider.
       // Override the provider to return our mock quote.
@@ -243,7 +236,7 @@ void main() {
               (ref) => Stream.value(sentQuote),
             ),
           ],
-          child: MaterialApp(
+          child: const MaterialApp(
             home: QuoteDetailScreen(quoteId: 'quote-001'),
           ),
         ),
@@ -274,7 +267,7 @@ void main() {
               (ref) => Stream.value(sentQuote),
             ),
           ],
-          child: MaterialApp(
+          child: const MaterialApp(
             home: QuoteDetailScreen(quoteId: 'quote-001'),
           ),
         ),
@@ -302,7 +295,7 @@ void main() {
               (ref) => Stream.value(expiredQuote),
             ),
           ],
-          child: MaterialApp(
+          child: const MaterialApp(
             home: QuoteDetailScreen(quoteId: 'quote-001'),
           ),
         ),
@@ -336,7 +329,7 @@ void main() {
               (ref) => Stream.value(invoice),
             ),
           ],
-          child: MaterialApp(
+          child: const MaterialApp(
             home: InvoiceDetailScreen(invoiceId: 'invoice-001'),
           ),
         ),
@@ -356,7 +349,7 @@ void main() {
     });
 
     testWidgets('Admin updates payment status', (tester) async {
-      final invoice = _makeInvoice(status: 'unpaid');
+      final invoice = _makeInvoice();
 
       await tester.pumpWidget(
         ProviderScope(
@@ -366,7 +359,7 @@ void main() {
               (ref) => Stream.value(invoice),
             ),
           ],
-          child: MaterialApp(
+          child: const MaterialApp(
             home: InvoiceDetailScreen(invoiceId: 'invoice-001'),
           ),
         ),
@@ -392,7 +385,7 @@ void main() {
               (ref) => Stream.value(invoice),
             ),
           ],
-          child: MaterialApp(
+          child: const MaterialApp(
             home: InvoiceDetailScreen(invoiceId: 'invoice-001'),
           ),
         ),

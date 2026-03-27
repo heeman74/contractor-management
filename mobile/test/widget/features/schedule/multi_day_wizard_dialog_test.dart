@@ -41,8 +41,8 @@ Widget buildWizardTestApp({
   Future<void> Function()? onCancelled,
 }) {
   final now = DateTime.now();
-  final start = DateTime(now.year, now.month, now.day, 9, 0);
-  final end = DateTime(now.year, now.month, now.day, 17, 0);
+  final start = DateTime(now.year, now.month, now.day, 9);
+  final end = DateTime(now.year, now.month, now.day, 17);
 
   return ProviderScope(
     overrides: [

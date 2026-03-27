@@ -17,7 +17,7 @@ class ClientNotesTab extends ConsumerWidget {
   final String jobId;
   final JobEntity job;
 
-  const ClientNotesTab({super.key, required this.jobId, required this.job});
+  const ClientNotesTab({required this.jobId, required this.job, super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

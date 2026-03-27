@@ -162,7 +162,7 @@ void main() {
     testWidgets('test_portal_shows_active_jobs: 3 jobs visible in list',
         (tester) async {
       final jobs = [
-        _makeJob(id: 'j1', description: 'Fix boiler', status: 'scheduled'),
+        _makeJob(id: 'j1', description: 'Fix boiler'),
         _makeJob(id: 'j2', description: 'Repair pipes', status: 'in_progress'),
         _makeJob(id: 'j3', description: 'Check wiring', status: 'quote'),
       ];
@@ -183,7 +183,6 @@ void main() {
         _makeJob(
           id: 'j1',
           description: 'Fix boiler',
-          status: 'scheduled',
           scheduledCompletionDate: eta,
         ),
       ];
@@ -211,7 +210,6 @@ void main() {
         _makeJob(
           id: 'j1',
           description: 'Fix boiler',
-          status: 'scheduled',
           statusHistory: delayHistory,
         ),
       ];
@@ -248,7 +246,7 @@ void main() {
         'test_portal_pending_requests_section: "Pending Requests" header visible',
         (tester) async {
       final requests = [
-        _makeRequest(id: 'req1', requestStatus: 'pending'),
+        _makeRequest(id: 'req1'),
       ];
 
       await tester.pumpWidget(
@@ -293,7 +291,7 @@ void main() {
     testWidgets('test_portal_my_jobs_section_header: "My Jobs" header visible',
         (tester) async {
       final jobs = [
-        _makeJob(id: 'j1', description: 'Test job', status: 'scheduled'),
+        _makeJob(id: 'j1', description: 'Test job'),
       ];
 
       await tester.pumpWidget(_buildPortalScreen(jobs: jobs, requests: []));
@@ -314,7 +312,6 @@ void main() {
       final job = _makeJob(
         id: 'job1',
         description: 'Fix the boiler',
-        status: 'scheduled',
       );
 
       await tester.pumpWidget(
@@ -366,7 +363,6 @@ void main() {
       final job = _makeJob(
         id: 'job1',
         description: 'Fix boiler',
-        status: 'scheduled',
         statusHistory: delayHistory,
       );
 
@@ -435,7 +431,6 @@ void main() {
       final job = _makeJob(
         id: 'job1',
         description: 'Multi-delay job',
-        status: 'scheduled',
         statusHistory: delayHistory,
       );
 
@@ -617,7 +612,7 @@ void main() {
   group('Phase 7 E2E: JobProgressStepper', () {
     testWidgets('stepper shows Quote completed for scheduled job',
         (tester) async {
-      final job = _makeJob(id: 'j1', description: 'Test', status: 'scheduled');
+      final job = _makeJob(id: 'j1', description: 'Test');
       await tester.pumpWidget(_buildDetailScreen(jobId: 'j1', job: job));
       await tester.pump();
       await tester.pump();

@@ -21,23 +21,20 @@
 //   - Real Drift in-memory DB via NativeDatabase.memory() for DAO tests
 //   - Fake notifiers extending real notifier classes for AsyncNotifierProvider
 
-import 'package:drift/drift.dart' hide isNotNull, isNull;
-import 'package:drift/native.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:contractorhub/core/database/app_database.dart' hide UserRole;
 import 'package:contractorhub/features/auth/domain/auth_state.dart';
 import 'package:contractorhub/features/auth/presentation/providers/auth_provider.dart';
-import 'package:contractorhub/features/projects/data/task_dao.dart';
-import 'package:contractorhub/features/projects/data/trade_scope_dao.dart';
 import 'package:contractorhub/features/projects/presentation/providers/project_providers.dart';
 import 'package:contractorhub/features/projects/presentation/screens/project_detail_screen.dart';
 import 'package:contractorhub/features/projects/presentation/screens/project_list_screen.dart';
 import 'package:contractorhub/features/projects/presentation/screens/trade_scope_detail_screen.dart';
 import 'package:contractorhub/features/projects/presentation/widgets/trade_scope_card.dart';
 import 'package:contractorhub/shared/models/user_role.dart';
+import 'package:drift/drift.dart' hide isNotNull, isNull;
+import 'package:drift/native.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 // ---------------------------------------------------------------------------
 // Test constants
@@ -175,17 +172,12 @@ Project _makeProject({
     id: id,
     companyId: _companyId,
     name: name,
-    description: null,
     address: address,
-    clientId: null,
     status: status,
     statusHistory: '[]',
-    targetStartDate: null,
-    targetEndDate: null,
     version: 1,
     createdAt: now,
     updatedAt: now,
-    deletedAt: null,
   );
 }
 
@@ -202,7 +194,6 @@ TradeScope _makeScope({
     id: id,
     companyId: _companyId,
     projectId: _project1Id,
-    tradeCatalogId: null,
     tradeName: tradeName,
     tradeColor: tradeColor,
     contractorId: contractorId,
@@ -212,7 +203,6 @@ TradeScope _makeScope({
     version: 1,
     createdAt: now,
     updatedAt: now,
-    deletedAt: null,
   );
 }
 
@@ -229,20 +219,15 @@ ProjectTask _makeTask({
     companyId: _companyId,
     tradeScopeId: _scope1Id,
     title: title,
-    description: null,
     status: status,
     sortOrder: 0,
     priority: priority,
-    estimatedHours: null,
-    estimatedCost: null,
     dueDate: dueDate,
     photoRequired: false,
-    assignedTo: null,
     materialsNeeded: '[]',
     version: 1,
     createdAt: now,
     updatedAt: now,
-    deletedAt: null,
   );
 }
 
@@ -309,9 +294,7 @@ void main() {
   testWidgets('project_list renders seeded projects', (tester) async {
     final projects = [
       _makeProject(
-          id: _project1Id,
-          name: 'Downtown Office Renovation',
-          status: 'active'),
+          name: 'Downtown Office Renovation'),
       _makeProject(
           id: _project2Id, name: 'Warehouse Extension', status: 'planning'),
     ];
@@ -369,9 +352,7 @@ void main() {
     // We use a pre-filtered list as the provider value to simulate the DAO behavior.
     final contractorProjects = [
       _makeProject(
-          id: _project1Id,
-          name: 'Downtown Office Renovation',
-          status: 'active'),
+          name: 'Downtown Office Renovation'),
       // project2 is excluded because contractor has no scope there
     ];
 
@@ -402,10 +383,10 @@ void main() {
   // ─── Test 4: project detail shows trade scope cards ─────────────────────
   testWidgets('project_detail shows trade scope cards', (tester) async {
     final projects = [
-      _makeProject(id: _project1Id, name: 'Downtown Office Renovation'),
+      _makeProject(name: 'Downtown Office Renovation'),
     ];
     final scopes = [
-      _makeScope(id: _scope1Id, tradeName: 'Electrical', sortOrder: 0),
+      _makeScope(),
       _makeScope(id: _scope2Id, tradeName: 'Plumbing', sortOrder: 1),
       _makeScope(id: _scope3Id, tradeName: 'Framing', sortOrder: 2),
     ];
@@ -514,11 +495,10 @@ void main() {
   // ─── Test 8: scope_detail shows task list ───────────────────────────────
   testWidgets('scope_detail shows task list from seeded tasks', (tester) async {
     final scopes = [
-      _makeScope(id: _scope1Id, tradeName: 'Electrical'),
+      _makeScope(),
     ];
     final tasks = [
       _makeTask(
-          id: _task1Id,
           title: 'Install panel box',
           status: 'complete',
           priority: 'high'),
@@ -599,11 +579,11 @@ void main() {
       'navigation step 1 — project list screen renders correctly',
       (tester) async {
     final projects = [
-      _makeProject(id: _project1Id, name: 'Downtown Office Renovation'),
+      _makeProject(name: 'Downtown Office Renovation'),
       _makeProject(id: _project2Id, name: 'Warehouse Extension'),
     ];
-    final scopes = [_makeScope(id: _scope1Id, tradeName: 'Electrical')];
-    final tasks = [_makeTask(id: _task1Id, title: 'Install panel box')];
+    final scopes = [_makeScope()];
+    final tasks = [_makeTask(title: 'Install panel box')];
 
     await tester.pumpWidget(
       ProviderScope(
@@ -636,14 +616,14 @@ void main() {
       'navigation step 2 — project detail screen renders trade scope cards',
       (tester) async {
     final projects = [
-      _makeProject(id: _project1Id, name: 'Downtown Office Renovation'),
+      _makeProject(name: 'Downtown Office Renovation'),
     ];
     final scopes = [
-      _makeScope(id: _scope1Id, tradeName: 'Electrical', sortOrder: 0),
+      _makeScope(),
       _makeScope(id: _scope2Id, tradeName: 'Plumbing', sortOrder: 1),
       _makeScope(id: _scope3Id, tradeName: 'Framing', sortOrder: 2),
     ];
-    final tasks = [_makeTask(id: _task1Id, title: 'Install panel box')];
+    final tasks = [_makeTask(title: 'Install panel box')];
 
     await tester.pumpWidget(
       ProviderScope(
@@ -678,13 +658,13 @@ void main() {
       'navigation step 3 — scope detail screen renders task list',
       (tester) async {
     final projects = [
-      _makeProject(id: _project1Id, name: 'Downtown Office Renovation'),
+      _makeProject(name: 'Downtown Office Renovation'),
     ];
     final scopes = [
-      _makeScope(id: _scope1Id, tradeName: 'Electrical'),
+      _makeScope(),
     ];
     final tasks = [
-      _makeTask(id: _task1Id, title: 'Install panel box', status: 'complete'),
+      _makeTask(title: 'Install panel box', status: 'complete'),
       _makeTask(
           id: _task2Id, title: 'Run conduit to HVAC', status: 'in_progress'),
     ];

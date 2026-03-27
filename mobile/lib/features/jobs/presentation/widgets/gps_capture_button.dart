@@ -45,7 +45,6 @@ class _GpsCaptureButtonState extends ConsumerState<GpsCaptureButton> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Enable location services in Settings.'),
-            duration: Duration(seconds: 4),
           ),
         );
       }

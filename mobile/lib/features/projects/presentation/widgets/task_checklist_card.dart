@@ -218,7 +218,6 @@ class TaskChecklistCard extends ConsumerWidget {
         localPath,
         quality: 85,
         minWidth: 1080,
-        minHeight: 1080,
       );
 
       final finalPath = compressed?.path ?? picked.path;
@@ -235,7 +234,7 @@ class TaskChecklistCard extends ConsumerWidget {
               taskId: task.id,
               attachmentType: 'photo',
               localPath: Value(finalPath),
-              sortOrder: Value(0),
+              sortOrder: const Value(0),
               createdAt: DateTime.now(),
               updatedAt: DateTime.now(),
             ),

@@ -1,8 +1,7 @@
 import 'dart:convert';
 
+import 'package:contractorhub/features/ai/data/ai_sse_client.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import '../../lib/features/ai/data/ai_sse_client.dart';
 
 void main() {
   group('parseSseEvent', () {

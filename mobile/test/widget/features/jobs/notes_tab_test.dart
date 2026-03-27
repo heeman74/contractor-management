@@ -93,7 +93,7 @@ void main() {
   group('NotesTab', () {
     testWidgets('renders note body text', (tester) async {
       final notes = [
-        makeNoteEntity(body: 'Checked the pipe — no leak found.'),
+        makeNoteEntity(),
       ];
 
       await tester.pumpWidget(buildNotesTab(notes));
@@ -104,7 +104,7 @@ void main() {
 
     testWidgets('truncates authorId to last 8 chars', (tester) async {
       // authorId = 'author-abcd1234' → displayed as '...bcd1234'
-      final notes = [makeNoteEntity(authorId: 'author-abcd1234')];
+      final notes = [makeNoteEntity()];
 
       await tester.pumpWidget(buildNotesTab(notes));
       await tester.pump();
@@ -117,7 +117,6 @@ void main() {
       final now = DateTime.now();
       final notes = [
         makeNoteEntity(
-          id: 'note-1',
           body: 'First note',
           createdAt: now.subtract(const Duration(hours: 2)),
         ),

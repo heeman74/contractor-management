@@ -14,9 +14,7 @@ import 'job_card.dart';
 /// [onJobTap] is forwarded to each [JobCard].
 class KanbanBoard extends StatelessWidget {
   const KanbanBoard({
-    super.key,
-    required this.jobs,
-    required this.onJobTap,
+    required this.jobs, required this.onJobTap, super.key,
   });
 
   /// All active jobs for the current company (pre-filtered — no deleted items).
@@ -206,7 +204,6 @@ class _EmptyColumn extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: Colors.grey[300]!,
-          style: BorderStyle.solid,
         ),
       ),
       child: Center(

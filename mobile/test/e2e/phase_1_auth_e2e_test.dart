@@ -559,8 +559,6 @@ void main() {
             email: 'solo@example.com',
             password: 'mypassword1',
             companyName: 'Solo LLC',
-            firstName: null,
-            lastName: null,
           )).called(1);
     });
   });

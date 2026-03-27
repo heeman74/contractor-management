@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/di/service_locator.dart';
 import '../../../../core/database/app_database.dart';
+import '../../../../core/di/service_locator.dart';
 import '../../domain/company_entity.dart';
 
 /// Reactive stream of all companies from the local Drift database.

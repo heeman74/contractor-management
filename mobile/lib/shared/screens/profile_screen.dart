@@ -84,8 +84,8 @@ class _ProfileContent extends StatelessWidget {
                 (role) => Chip(
                   label: Text(role.name.toUpperCase()),
                   avatar: Icon(_roleIcon(role), size: 16),
-                  backgroundColor: _roleColor(role).withOpacity(0.15),
-                  side: BorderSide(color: _roleColor(role).withOpacity(0.4)),
+                  backgroundColor: _roleColor(role).withValues(alpha: 0.15),
+                  side: BorderSide(color: _roleColor(role).withValues(alpha: 0.4)),
                 ),
               )
               .toList(),
@@ -95,9 +95,9 @@ class _ProfileContent extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.amber.withOpacity(0.1),
+            color: Colors.amber.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.amber.withOpacity(0.4)),
+            border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
           ),
           child: const Text(
             'Phase 1 — Mock user. Real profiles with name, photo, and '
@@ -109,7 +109,7 @@ class _ProfileContent extends StatelessWidget {
         FilledButton.tonal(
           onPressed: onLogout,
           style: FilledButton.styleFrom(
-            backgroundColor: Colors.red.withOpacity(0.1),
+            backgroundColor: Colors.red.withValues(alpha: 0.1),
             foregroundColor: Colors.red,
           ),
           child: const Text('Sign Out'),

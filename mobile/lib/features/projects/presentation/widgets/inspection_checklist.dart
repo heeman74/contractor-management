@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 /// Default inspection checklist items used when a trade scope has no
 /// custom [inspectionChecklist] JSON defined.
 const kDefaultInspectionChecklist = [
-  {"item": "Quality of work is acceptable", "id": "q1"},
-  {"item": "Correct materials were used", "id": "q2"},
-  {"item": "Work area is clean and safe", "id": "q3"},
-  {"item": "Safety requirements are met", "id": "q4"},
+  {'item': 'Quality of work is acceptable', 'id': 'q1'},
+  {'item': 'Correct materials were used', 'id': 'q2'},
+  {'item': 'Work area is clean and safe', 'id': 'q3'},
+  {'item': 'Safety requirements are met', 'id': 'q4'},
 ];
 
 /// A stateful widget that renders a list of checkable inspection items.
@@ -62,8 +62,8 @@ class _InspectionChecklistState extends State<InspectionChecklist> {
     final results = List.generate(
       widget.items.length,
       (i) => {
-        "item": widget.items[i]["item"] as String,
-        "checked": _checked[i] ?? false,
+        'item': widget.items[i]['item'] as String,
+        'checked': _checked[i] ?? false,
       },
     );
     widget.onResultsChanged(results);
@@ -86,7 +86,7 @@ class _InspectionChecklistState extends State<InspectionChecklist> {
           value: _checked[i] ?? false,
           onChanged: (val) => _onToggle(i, val),
           title: Text(
-            widget.items[i]["item"] as String? ?? '',
+            widget.items[i]['item'] as String? ?? '',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           contentPadding: EdgeInsets.zero,

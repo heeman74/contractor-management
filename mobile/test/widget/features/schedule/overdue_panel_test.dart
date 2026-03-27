@@ -88,7 +88,6 @@ void main() {
     testWidgets('empty state shows "No overdue jobs" with check icon',
         (tester) async {
       await tester.pumpWidget(buildOverduePanel(
-        isVisible: true,
         overdueJobs: [],
       ));
       await tester.pumpAndSettle();
@@ -99,7 +98,6 @@ void main() {
 
     testWidgets('panel header shows count of overdue jobs', (tester) async {
       await tester.pumpWidget(buildOverduePanel(
-        isVisible: true,
         overdueJobs: [
           makeOverdueInfo(jobId: 'j1', description: 'Job A'),
           makeOverdueInfo(jobId: 'j2', description: 'Job B'),
@@ -112,7 +110,6 @@ void main() {
 
     testWidgets('single overdue job uses singular "job"', (tester) async {
       await tester.pumpWidget(buildOverduePanel(
-        isVisible: true,
         overdueJobs: [makeOverdueInfo()],
       ));
       await tester.pumpAndSettle();
@@ -122,7 +119,6 @@ void main() {
 
     testWidgets('overdue job description is displayed', (tester) async {
       await tester.pumpWidget(buildOverduePanel(
-        isVisible: true,
         overdueJobs: [
           makeOverdueInfo(description: 'Replace gutters on north side'),
         ],
@@ -134,7 +130,6 @@ void main() {
 
     testWidgets('days overdue badge renders correctly', (tester) async {
       await tester.pumpWidget(buildOverduePanel(
-        isVisible: true,
         overdueJobs: [makeOverdueInfo(daysOverdue: 5)],
       ));
       await tester.pumpAndSettle();
@@ -144,7 +139,6 @@ void main() {
 
     testWidgets('CRITICAL severity chip displayed', (tester) async {
       await tester.pumpWidget(buildOverduePanel(
-        isVisible: true,
         overdueJobs: [
           makeOverdueInfo(severity: OverdueSeverity.critical, daysOverdue: 7),
         ],
@@ -156,9 +150,8 @@ void main() {
 
     testWidgets('WARNING severity chip displayed', (tester) async {
       await tester.pumpWidget(buildOverduePanel(
-        isVisible: true,
         overdueJobs: [
-          makeOverdueInfo(severity: OverdueSeverity.warning, daysOverdue: 2),
+          makeOverdueInfo(daysOverdue: 2),
         ],
       ));
       await tester.pumpAndSettle();
@@ -169,7 +162,6 @@ void main() {
     testWidgets('delay reason shown when hasDelayReport is true',
         (tester) async {
       await tester.pumpWidget(buildOverduePanel(
-        isVisible: true,
         overdueJobs: [
           makeOverdueInfo(
             hasDelayReport: true,
@@ -185,7 +177,6 @@ void main() {
 
     testWidgets('action buttons have correct tooltips', (tester) async {
       await tester.pumpWidget(buildOverduePanel(
-        isVisible: true,
         overdueJobs: [makeOverdueInfo()],
       ));
       await tester.pumpAndSettle();
@@ -196,7 +187,6 @@ void main() {
 
     testWidgets('header shows warning icon', (tester) async {
       await tester.pumpWidget(buildOverduePanel(
-        isVisible: true,
         overdueJobs: [makeOverdueInfo()],
       ));
       await tester.pumpAndSettle();
@@ -206,7 +196,6 @@ void main() {
 
     testWidgets('contractor name displayed when available', (tester) async {
       await tester.pumpWidget(buildOverduePanel(
-        isVisible: true,
         overdueJobs: [
           makeOverdueInfo(contractorName: 'contractor-42'),
         ],

@@ -63,7 +63,6 @@ Attachment makeAttachment({
     sortOrder: sortOrder,
     createdAt: now,
     updatedAt: now,
-    deletedAt: null,
   );
 }
 
@@ -99,7 +98,7 @@ void main() {
 
   tearDown(() async {
     service.dispose();
-    if (await tempFile.exists()) {
+    if (tempFile.existsSync()) {
       await tempFile.delete();
     }
   });

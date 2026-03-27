@@ -9,7 +9,7 @@ import 'package:drift/drift.dart';
 /// SyncEngine uses null to detect first-launch and trigger a full data download
 /// instead of a delta pull.
 ///
-/// Cursor-based delta sync: GET /sync?cursor=<lastPulledAt> returns all entities
+/// Cursor-based delta sync: GET `/sync?cursor=<lastPulledAt>` returns all entities
 /// changed since that timestamp. On success, the cursor is updated to the
 /// server-returned timestamp for the next delta pull.
 class SyncCursor extends Table {

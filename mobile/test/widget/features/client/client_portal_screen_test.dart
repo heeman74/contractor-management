@@ -71,8 +71,8 @@ void main() {
         clientJobHistoryNotifierProvider('client-1')
             .overrideWith((ref) => Stream.value(jobs)),
       ],
-      child: MaterialApp(
-        home: const ClientPortalScreen(),
+      child: const MaterialApp(
+        home: ClientPortalScreen(),
       ),
     );
   }
@@ -111,10 +111,7 @@ void main() {
     testWidgets('renders multiple jobs', (tester) async {
       await tester.pumpWidget(buildWidget(jobs: [
         _makeJob(
-            id: 'j-1',
-            description: 'Fix sink',
-            status: 'quote',
-            tradeType: 'Plumbing'),
+            id: 'j-1'),
         _makeJob(
             id: 'j-2',
             description: 'Paint walls',

@@ -11,7 +11,6 @@
 
 import 'package:contractorhub/features/jobs/presentation/screens/drawing_pad_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -19,8 +18,8 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   Widget buildTestApp() {
-    return MaterialApp(
-      home: const DrawingPadScreen(),
+    return const MaterialApp(
+      home: DrawingPadScreen(),
     );
   }
 

@@ -13,12 +13,6 @@
 
 import 'dart:async';
 
-import 'package:drift/drift.dart' hide isNotNull, isNull;
-import 'package:drift/native.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:contractorhub/core/database/app_database.dart' hide UserRole;
 import 'package:contractorhub/features/auth/domain/auth_state.dart';
 import 'package:contractorhub/features/auth/presentation/providers/auth_provider.dart';
@@ -35,6 +29,10 @@ import 'package:contractorhub/features/schedule/presentation/widgets/travel_time
 import 'package:contractorhub/features/users/domain/user_entity.dart';
 import 'package:contractorhub/features/users/presentation/providers/user_providers.dart';
 import 'package:contractorhub/shared/models/user_role.dart';
+import 'package:drift/native.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -65,8 +63,8 @@ UserEntity _makeUser({
     firstName: firstName,
     lastName: lastName,
     version: 1,
-    createdAt: DateTime(2026, 1, 1),
-    updatedAt: DateTime(2026, 1, 1),
+    createdAt: DateTime(2026),
+    updatedAt: DateTime(2026),
   );
 }
 
@@ -85,8 +83,8 @@ BookingEntity _makeBooking({
     timeRangeStart: start,
     timeRangeEnd: end,
     version: 1,
-    createdAt: DateTime(2026, 1, 1),
-    updatedAt: DateTime(2026, 1, 1),
+    createdAt: DateTime(2026),
+    updatedAt: DateTime(2026),
   );
 }
 
@@ -105,20 +103,13 @@ JobEntity _makeJob({
     statusHistory: const [],
     priority: 'medium',
     tags: const [],
-    notes: null,
-    purchaseOrderNumber: null,
-    externalReference: null,
     estimatedDurationMinutes: 60,
     scheduledCompletionDate: DateTime.now().subtract(const Duration(days: 3)),
     clientId: clientId,
     contractorId: contractorId,
-    gpsLatitude: null,
-    gpsLongitude: null,
-    gpsAddress: null,
     version: 1,
-    createdAt: DateTime(2026, 1, 1),
-    updatedAt: DateTime(2026, 1, 1),
-    deletedAt: null,
+    createdAt: DateTime(2026),
+    updatedAt: DateTime(2026),
   );
 }
 
@@ -218,7 +209,7 @@ void main() {
   // -------------------------------------------------------------------------
 
   group('int02_travel_block', () {
-    Widget _buildCalendarTestWidget({
+    Widget buildCalendarTestWidget({
       required List<BookingEntity> bookings,
       required List<UserEntity> contractors,
       required Map<String, JobEntity> jobs,
@@ -266,11 +257,9 @@ void main() {
 
         // Two bookings with a 20-minute gap between them.
         final booking1 = _makeBooking(
-          id: 'booking-001',
           contractorId: contractorId,
           start: day.add(const Duration(hours: 9)),              // 09:00
           end: day.add(const Duration(hours: 10)),               // 10:00
-          jobId: 'job-001',
         );
         final booking2 = _makeBooking(
           id: 'booking-002',
@@ -282,12 +271,12 @@ void main() {
 
         final contractor = _makeUser(id: contractorId);
         final jobs = {
-          'job-001': _makeJob(id: 'job-001'),
+          'job-001': _makeJob(),
           'job-002': _makeJob(id: 'job-002'),
         };
 
         await tester.pumpWidget(
-          _buildCalendarTestWidget(
+          buildCalendarTestWidget(
             bookings: [booking1, booking2],
             contractors: [contractor],
             jobs: jobs,
@@ -318,11 +307,9 @@ void main() {
 
         // Two back-to-back bookings with NO gap.
         final booking1 = _makeBooking(
-          id: 'booking-001',
           contractorId: contractorId,
           start: day.add(const Duration(hours: 9)),  // 09:00
           end: day.add(const Duration(hours: 10)),   // 10:00
-          jobId: 'job-001',
         );
         final booking2 = _makeBooking(
           id: 'booking-002',
@@ -334,12 +321,12 @@ void main() {
 
         final contractor = _makeUser(id: contractorId);
         final jobs = {
-          'job-001': _makeJob(id: 'job-001'),
+          'job-001': _makeJob(),
           'job-002': _makeJob(id: 'job-002'),
         };
 
         await tester.pumpWidget(
-          _buildCalendarTestWidget(
+          buildCalendarTestWidget(
             bookings: [booking1, booking2],
             contractors: [contractor],
             jobs: jobs,
@@ -391,13 +378,9 @@ void main() {
       (tester) async {
         final client = _makeUser(
           id: 'client-uuid-001',
-          firstName: 'Alice',
-          lastName: 'Smith',
         );
         final overdueJob = _makeJob(
           clientId: 'client-uuid-001',
-          contractorId: null,
-          status: 'scheduled',
         );
 
         // Use a ConsumerWidget to read the provider inside a real widget context.
@@ -431,7 +414,7 @@ void main() {
         await tester.pump(const Duration(milliseconds: 50));
 
         expect(capturedJobs, isNotNull);
-        expect(capturedJobs!, hasLength(1));
+        expect(capturedJobs, hasLength(1));
         // clientName should be "Alice Smith", not the raw UUID.
         expect(capturedJobs!.first.clientName, equals('Alice Smith'));
       },
@@ -446,7 +429,7 @@ void main() {
               () => _FakeAuthNotifier(const AuthState.unauthenticated()),
             ),
             jobListNotifierProvider.overrideWith(
-              () => _StubJobListNotifier([_makeJob(status: 'scheduled')]),
+              () => _StubJobListNotifier([_makeJob()]),
             ),
           ],
         );
@@ -480,7 +463,6 @@ void main() {
           hasDelayReport: false,
           clientName: 'Alice Smith',         // resolved from companyUsersProvider
           contractorName: 'Bob Jones',       // resolved from companyUsersProvider
-          latestDelayReason: null,
         );
 
         await tester.pumpWidget(

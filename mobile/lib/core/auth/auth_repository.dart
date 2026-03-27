@@ -129,7 +129,7 @@ class AuthRepository {
     final accessToken = data['access_token'];
     final refreshToken = data['refresh_token'];
     if (accessToken is! String || refreshToken is! String) {
-      throw FormatException('Invalid token response: missing access_token or refresh_token');
+      throw const FormatException('Invalid token response: missing access_token or refresh_token');
     }
 
     await _tokenStorage.saveTokens(
@@ -141,7 +141,7 @@ class AuthRepository {
     final companyId = data['company_id'];
     final rawRoles = data['roles'];
     if (userId is! String || companyId is! String || rawRoles is! List) {
-      throw FormatException('Invalid token response: missing user_id, company_id, or roles');
+      throw const FormatException('Invalid token response: missing user_id, company_id, or roles');
     }
 
     return AuthResult(

@@ -1,9 +1,9 @@
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
@@ -106,7 +106,6 @@ class _PendingAttachment {
     required this.type,
     required this.localPath,
     this.thumbnailPath,
-    this.caption,
   });
 }
 
@@ -418,7 +417,7 @@ class _AddNoteBottomSheetState extends State<AddNoteBottomSheet> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(null),
+            onPressed: () => Navigator.of(context).pop(),
             child: const Text('Cancel'),
           ),
           FilledButton(
