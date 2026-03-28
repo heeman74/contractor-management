@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -12,10 +12,15 @@ import { ChatInput } from "@/features/ai/components/ChatInput";
 import { TradeScopePreviewCard } from "@/features/ai/components/TradeScopePreviewCard";
 import { useIntakeChat } from "@/features/ai/hooks/useIntakeChat";
 
-// Note: metadata export is handled at layout level for client components
-// export const metadata: Metadata = { title: "New Project — AI Intake" };
-
 export default function AIIntakePage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center">Loading...</div>}>
+      <AIIntakeContent />
+    </Suspense>
+  );
+}
+
+function AIIntakeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const projectId = searchParams.get("project_id") ?? undefined;

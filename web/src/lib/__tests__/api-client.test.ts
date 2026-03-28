@@ -25,6 +25,19 @@ import { tracedFetch } from "@/lib/api/withTracing";
 
 const mockTracedFetch = tracedFetch as jest.MockedFunction<typeof tracedFetch>;
 
+// Suppress jsdom "not implemented: navigation" console.error when
+// window.location.href is assigned during token refresh failure tests.
+beforeAll(() => {
+  const original = jest.spyOn(console, "error").getMockImplementation();
+  jest.spyOn(console, "error").mockImplementation((...args) => {
+    if (typeof args[0] === "object" && args[0]?.type === "not implemented") return;
+    original?.(...args);
+  });
+});
+afterAll(() => {
+  jest.restoreAllMocks();
+});
+
 afterEach(() => {
   jest.clearAllMocks();
 });
