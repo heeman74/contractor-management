@@ -37,7 +37,6 @@ import 'package:contractorhub/features/schedule/presentation/screens/schedule_sc
 import 'package:contractorhub/features/schedule/presentation/widgets/calendar_day_view.dart';
 import 'package:contractorhub/features/schedule/presentation/widgets/calendar_month_view.dart';
 import 'package:contractorhub/features/schedule/presentation/widgets/calendar_week_view.dart';
-import 'package:contractorhub/features/schedule/presentation/widgets/overdue_panel.dart';
 import 'package:contractorhub/features/schedule/presentation/widgets/unscheduled_jobs_drawer.dart';
 import 'package:contractorhub/features/users/domain/user_entity.dart';
 import 'package:contractorhub/shared/models/user_role.dart';
