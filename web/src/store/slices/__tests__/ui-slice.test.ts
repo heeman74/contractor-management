@@ -87,7 +87,7 @@ describe("ui-slice", () => {
   });
 
   test("initSidebar defaults to false when localStorage is empty", () => {
-    localStorageMock.getItem.mockReturnValueOnce(null);
+    localStorageMock.getItem.mockReturnValueOnce(null as unknown as string);
     const state = uiReducer(initialState, initSidebar());
     expect(state.sidebarCollapsed).toBe(false);
   });
