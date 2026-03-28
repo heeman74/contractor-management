@@ -263,8 +263,6 @@ test.describe("Chat Panel", () => {
   test("test_send_message — type text, click send, POST called with payload", async ({
     page,
   }) => {
-    let capturedBody: Record<string, unknown> | null = null;
-
     await mockChatRoutes(page);
 
     // Override POST to capture payload
@@ -277,8 +275,6 @@ test.describe("Chat Panel", () => {
         method === "POST" &&
         pathParam.includes(`/api/v1/chat/threads/${THREAD_ID_SCOPE}/messages`)
       ) {
-        const body = route.request().postDataJSON() as Record<string, unknown>;
-        capturedBody = body;
         await route.fulfill({ status: 201, json: SENT_MESSAGE_RESPONSE });
         return;
       }

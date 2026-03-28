@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -407,9 +408,12 @@ export default function JobDetailPage({
                               className="rounded overflow-hidden focus:outline-none focus:ring-2 focus:ring-indigo-500"
                             >
                               {attachment.remote_url ? (
-                                <img
+                                <Image
                                   src={attachment.remote_url}
                                   alt={attachment.filename}
+                                  width={200}
+                                  height={200}
+                                  unoptimized
                                   className="aspect-square w-full rounded object-cover bg-gray-100"
                                   onError={(e) => {
                                     (e.currentTarget as HTMLImageElement).style.display =
@@ -856,8 +860,11 @@ export default function JobDetailPage({
       >
         <DialogContent className="max-w-3xl" showCloseButton>
           {lightboxPhoto?.remote_url ? (
-            <img
+            <Image
               src={lightboxPhoto.remote_url}
+              width={800}
+              height={600}
+              unoptimized
               className="w-full object-contain"
               alt="Photo note"
             />

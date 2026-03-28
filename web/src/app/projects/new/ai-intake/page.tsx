@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import type { Metadata } from "next";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { ChatBubble } from "@/features/ai/components/ChatBubble";
@@ -36,7 +35,7 @@ export default function AIIntakePage() {
   } = useIntakeChat();
 
   const [isSaving, setIsSaving] = useState(false);
-  const [projectName, setProjectName] = useState("");
+  const [projectName] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Start conversation on mount

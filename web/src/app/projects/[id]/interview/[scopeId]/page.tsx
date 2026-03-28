@@ -34,7 +34,7 @@ export default function AIInterviewPage() {
   } = useInterviewChat();
 
   const [isSaving, setIsSaving] = useState(false);
-  const [tradeName, setTradeName] = useState("this trade");
+  const [tradeName] = useState("this trade");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Start conversation on mount

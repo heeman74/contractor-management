@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Plus, Check, ChevronsUpDown } from "lucide-react";
@@ -33,7 +33,7 @@ import {
   createTradeScope,
   createTradeCatalogEntry,
 } from "@/lib/api/projects";
-import type { TradeScopeResponse, TradeCatalogResponse } from "@/types/projects";
+import type { TradeCatalogResponse } from "@/types/projects";
 
 interface AddTradeScopeSheetProps {
   open: boolean;

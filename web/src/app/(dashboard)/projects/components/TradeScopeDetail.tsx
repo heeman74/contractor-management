@@ -32,6 +32,7 @@ export function TradeScopeDetail({ scope, onSelectTask }: TradeScopeDetailProps)
   const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
   const updateStatusMutation = useMutation({
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     mutationFn: (newStatus: string) =>
       updateTradeScope(scope.id, { trade_name: scope.trade_name }),
     onSuccess: () => {

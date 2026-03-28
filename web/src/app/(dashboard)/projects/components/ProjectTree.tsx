@@ -71,6 +71,7 @@ function ScopeNode({
         }}
         tabIndex={0}
         role="treeitem"
+        aria-selected={isActive}
         aria-expanded={isExpanded}
       >
         <button
@@ -120,6 +121,7 @@ function ScopeNode({
                 }}
                 tabIndex={0}
                 role="treeitem"
+                aria-selected={isTaskActive}
               >
                 <CircleDot className="h-3 w-3 flex-shrink-0 text-gray-400" />
                 <span className="truncate">{task.title}</span>
@@ -186,6 +188,7 @@ function ProjectNode({
         }}
         tabIndex={0}
         role="treeitem"
+        aria-selected={isActive}
         aria-expanded={isExpanded}
       >
         <button

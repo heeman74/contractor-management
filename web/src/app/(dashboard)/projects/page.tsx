@@ -22,21 +22,6 @@ export default function ProjectsPage() {
   const allScopes = projects?.flatMap((p) => p.trade_scopes ?? []) ?? [];
   const allTasks = allScopes.flatMap((s) => s.tasks ?? []);
 
-  const selectedProject =
-    selectedNode?.type === "project"
-      ? projects?.find((p) => p.id === selectedNode.id)
-      : null;
-
-  const selectedScope =
-    selectedNode?.type === "scope"
-      ? allScopes.find((s) => s.id === selectedNode.id)
-      : null;
-
-  const selectedTask =
-    selectedNode?.type === "task"
-      ? allTasks.find((t) => t.id === selectedNode.id)
-      : null;
-
   // Auto-select first project on initial load
   const displayProjects = projects ?? [];
   const effectiveSelected: SelectedNode | null =

@@ -88,14 +88,6 @@ const MOCK_QUOTE_DECLINED = {
   decline_detail: "Budget constraints prevent approval at this price.",
 };
 
-const MOCK_QUOTE_EXPIRED = {
-  ...MOCK_QUOTE_DRAFT,
-  id: "eeffgg-5555-6666-7777-888899990000",
-  status: "expired",
-  sent_at: "2026-01-10T09:00:00Z",
-  expiry_date: "2026-02-01",
-};
-
 const MOCK_TEMPLATE = {
   id: "tmpl-1",
   company_id: "co-1",

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Search, ArrowUpDown, ArrowUp, ArrowDown, Plus } from "lucide-react";
+import { Search, ArrowUp, ArrowDown, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { apiGet, apiPost } from "@/lib/api-client";
 import { StatusBadge } from "@/components/shared/status-badge";

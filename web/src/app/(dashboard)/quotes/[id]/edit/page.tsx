@@ -30,7 +30,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -503,6 +503,7 @@ export default function QuoteEditPage({
   // Derived values (live financial summary)
   // ---------------------------------------------------------------------------
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- React Hook Form's watch() is intentionally non-memoizable
   const lineItems = watch("line_items");
   const taxRate = watch("tax_rate");
   const discountType = watch("discount_type");
