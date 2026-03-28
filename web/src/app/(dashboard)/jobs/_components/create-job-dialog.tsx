@@ -169,7 +169,7 @@ export function CreateJobDialog({ open, onOpenChange }: CreateJobDialogProps) {
             <Label>Trade Type *</Label>
             <Select<string>
               value={tradeType}
-              onValueChange={(v) => setTradeType(v)}
+              onValueChange={(v) => setTradeType(v ?? "")}
             >
               <SelectTrigger
                 className="w-full"
@@ -192,7 +192,7 @@ export function CreateJobDialog({ open, onOpenChange }: CreateJobDialogProps) {
             <Label>Priority</Label>
             <Select<string>
               value={priority}
-              onValueChange={(v) => setPriority(v)}
+              onValueChange={(v) => setPriority(v ?? "")}
             >
               <SelectTrigger
                 className="w-full"
@@ -215,7 +215,7 @@ export function CreateJobDialog({ open, onOpenChange }: CreateJobDialogProps) {
             <Label>Client (optional)</Label>
             <Select<string>
               value={clientId}
-              onValueChange={(v) => setClientId(v)}
+              onValueChange={(v) => setClientId(v ?? "")}
             >
               <SelectTrigger
                 className="w-full"
@@ -240,7 +240,7 @@ export function CreateJobDialog({ open, onOpenChange }: CreateJobDialogProps) {
             <Label>Contractor (optional)</Label>
             <Select<string>
               value={contractorId}
-              onValueChange={(v) => setContractorId(v)}
+              onValueChange={(v) => setContractorId(v ?? "")}
             >
               <SelectTrigger
                 className="w-full"
