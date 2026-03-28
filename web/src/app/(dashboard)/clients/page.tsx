@@ -92,7 +92,7 @@ export default function ClientsPage() {
 
   const sortedClients = clients ? sortClients(clients, sortField, sortDir) : [];
 
-  function SortIcon({ field }: { field: SortField }) {
+  function renderSortIcon(field: SortField) {
     if (sortField !== field) {
       return <ArrowUpDown className="ml-1 inline h-3 w-3 text-gray-400" />;
     }
@@ -168,7 +168,7 @@ export default function ClientsPage() {
                   onClick={() => handleSortChange("name")}
                 >
                   Name
-                  <SortIcon field="name" />
+                  {renderSortIcon("name")}
                 </TableHead>
                 <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                   Email
@@ -187,7 +187,7 @@ export default function ClientsPage() {
                   onClick={() => handleSortChange("jobs")}
                 >
                   Jobs
-                  <SortIcon field="jobs" />
+                  {renderSortIcon("jobs")}
                 </TableHead>
               </TableRow>
             </TableHeader>

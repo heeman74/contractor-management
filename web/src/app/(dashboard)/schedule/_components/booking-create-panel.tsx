@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { apiGet } from "@/lib/api-client";
@@ -37,10 +37,13 @@ export function BookingCreatePanel({
   const [notes, setNotes] = useState("");
 
   // Reset form state when the panel re-opens with a different slot
-  useEffect(() => {
+  const slotKey = `${contractorId}-${startTime.getTime()}-${endTime.getTime()}`;
+  const [prevSlotKey, setPrevSlotKey] = useState(slotKey);
+  if (prevSlotKey !== slotKey) {
+    setPrevSlotKey(slotKey);
     setSelectedJobId("");
     setNotes("");
-  }, [contractorId, startTime, endTime]);
+  }
 
   const createBooking = useCreateBookingMutation();
 

@@ -60,7 +60,9 @@ const AlertCard = memo(function AlertCard({
 
   // Use a ref for the mark-read callback to avoid re-creating the observer
   const onMarkReadRef = useRef(onMarkRead);
-  onMarkReadRef.current = onMarkRead;
+  useEffect(() => {
+    onMarkReadRef.current = onMarkRead;
+  });
 
   // Mark as read when card scrolls into view (batched via parent)
   useEffect(() => {
@@ -168,11 +170,13 @@ export function AlertPanel({ projectId }: AlertPanelProps) {
 
   // Use refs for all mutation functions to keep callbacks stable across renders
   const markReadMutateRef = useRef(markRead.mutate);
-  markReadMutateRef.current = markRead.mutate;
   const acceptMutateRef = useRef(acceptRescheduling.mutate);
-  acceptMutateRef.current = acceptRescheduling.mutate;
   const dismissMutateRef = useRef(dismissAlert.mutate);
-  dismissMutateRef.current = dismissAlert.mutate;
+  useEffect(() => {
+    markReadMutateRef.current = markRead.mutate;
+    acceptMutateRef.current = acceptRescheduling.mutate;
+    dismissMutateRef.current = dismissAlert.mutate;
+  });
 
   // Batch mark-as-read with debounce to avoid flooding the server
   const pendingMarkReadIds = useRef<Set<string>>(new Set());

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Calendar, MapPin, Plus, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -30,22 +30,24 @@ function ScopeProgressCard({
   const totalTasks = tasks?.length ?? 0;
   const completedTasks = tasks?.filter((t) => t.status === "complete").length ?? 0;
 
+  // Capture mount time in state to avoid impure Date.now() during render
+  const [mountTime] = useState(() => Date.now());
+
   // Format last activity from the most recently updated task
-  const lastActivity = tasks
-    ? (() => {
-        const sorted = [...tasks].sort(
-          (a, b) =>
-            new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-        );
-        if (sorted.length === 0) return undefined;
-        const diff = Date.now() - new Date(sorted[0].updated_at).getTime();
-        const hours = Math.floor(diff / (1000 * 60 * 60));
-        if (hours < 1) return "Just now";
-        if (hours < 24) return `${hours}h ago`;
-        const days = Math.floor(hours / 24);
-        return `${days}d ago`;
-      })()
-    : undefined;
+  const lastActivity = useMemo(() => {
+    if (!tasks) return undefined;
+    const sorted = [...tasks].sort(
+      (a, b) =>
+        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+    );
+    if (sorted.length === 0) return undefined;
+    const diff = mountTime - new Date(sorted[0].updated_at).getTime();
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    if (hours < 1) return "Just now";
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  }, [tasks, mountTime]);
 
   return (
     <TradeProgressCard

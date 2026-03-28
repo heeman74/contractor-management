@@ -116,14 +116,14 @@ export default function InvoiceDetailPage({
   });
 
   // Sync editable items when invoice loads
-  useEffect(() => {
-    if (invoice) {
-      setEditableItems(lineItemsFromInvoice(invoice.line_items));
-      setEditTaxRate(invoice.tax_rate);
-      setEditDiscountType(invoice.discount_type);
-      setEditDiscountValue(invoice.discount_value);
-    }
-  }, [invoice]);
+  const [prevInvoiceId, setPrevInvoiceId] = useState<string | undefined>(undefined);
+  if (invoice && prevInvoiceId !== invoice.id) {
+    setPrevInvoiceId(invoice.id);
+    setEditableItems(lineItemsFromInvoice(invoice.line_items));
+    setEditTaxRate(invoice.tax_rate);
+    setEditDiscountType(invoice.discount_type);
+    setEditDiscountValue(invoice.discount_value);
+  }
 
   // --- Breadcrumb title ---
   useEffect(() => {

@@ -96,10 +96,15 @@ export default function ScheduleEditorPage({
     enabled: !!contractorId,
   });
 
-  const today = new Date().toISOString().split("T")[0];
-  const ninetyDaysOut = new Date(Date.now() + 90 * 86400000)
-    .toISOString()
-    .split("T")[0];
+  const { today, ninetyDaysOut } = useMemo(() => {
+    const now = new Date();
+    return {
+      today: now.toISOString().split("T")[0],
+      ninetyDaysOut: new Date(now.getTime() + 90 * 86400000)
+        .toISOString()
+        .split("T")[0],
+    };
+  }, []);
 
   const { data: overrides, refetch: refetchOverrides } = useQuery({
     queryKey: ["date-overrides", contractorId],

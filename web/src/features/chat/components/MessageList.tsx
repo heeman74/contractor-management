@@ -180,7 +180,8 @@ export function MessageList({
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  const activeTyping = typingUsers.filter((t) => t.expiresAt > Date.now());
+  // typingUsers is already cleaned up by the 500ms interval, so use directly
+  const activeTyping = typingUsers;
 
   return (
     <div className="relative flex flex-1 flex-col overflow-hidden">

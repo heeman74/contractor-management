@@ -243,6 +243,9 @@ export function usePhotoAnnotation(
 
   // ── State (triggers re-render for toolbar UI updates) ────────────────────
   const [redrawTrigger, setRedrawTrigger] = useState(0);
+  const [annotationsSnapshot, setAnnotationsSnapshot] = useState<Annotation[]>(
+    initialAnnotations?.annotations ?? []
+  );
   const [activeTool, setActiveToolState] = useState<AnnotationTool>("arrow");
   const [activeColor, setActiveColorState] = useState<string>("#D32F2F");
 
@@ -260,17 +263,20 @@ export function usePhotoAnnotation(
       ...annotationsRef.current,
       { ...ann, id: crypto.randomUUID() },
     ];
+    setAnnotationsSnapshot(annotationsRef.current);
     setRedrawTrigger((t: number) => t + 1);
   }, []);
 
   const undoAnnotation = useCallback(() => {
     if (annotationsRef.current.length === 0) return;
     annotationsRef.current = annotationsRef.current.slice(0, -1);
+    setAnnotationsSnapshot(annotationsRef.current);
     setRedrawTrigger((t: number) => t + 1);
   }, []);
 
   const clearAnnotations = useCallback(() => {
     annotationsRef.current = [];
+    setAnnotationsSnapshot(annotationsRef.current);
     setRedrawTrigger((t: number) => t + 1);
   }, []);
 
@@ -296,7 +302,7 @@ export function usePhotoAnnotation(
 
   return {
     canvasRef,
-    annotations: annotationsRef.current,
+    annotations: annotationsSnapshot,
     activeTool,
     activeColor,
     addAnnotation,
