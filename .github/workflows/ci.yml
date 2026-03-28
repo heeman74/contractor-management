@@ -104,7 +104,7 @@ jobs:
         run: flutter test
 
   web:
-    name: Web Lint + Build
+    name: Web Lint + Test + Build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -122,5 +122,7 @@ jobs:
         run: npm run lint
       - name: TypeScript check
         run: npx tsc --noEmit
+      - name: Unit tests
+        run: npm test -- --passWithNoTests
       - name: Production build
         run: npm run build
