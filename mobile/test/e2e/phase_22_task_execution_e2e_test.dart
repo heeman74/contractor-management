@@ -868,6 +868,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            authNotifierProvider.overrideWith(
+              () => _FakeAuthNotifier(_adminAuth()),
+            ),
             tradeScopesProvider(_project1Id).overrideWith(
               (ref) => Stream.value([
                 _makeScope(),
@@ -878,6 +881,9 @@ void main() {
             ),
             taskAttachmentsProvider(_task1Id).overrideWith(
               (ref) => Stream.value(photos),
+            ),
+            punchItemsByScopeProvider(_scope1Id).overrideWith(
+              (ref) => Stream.value(<PunchListItem>[]),
             ),
           ],
           child: const MaterialApp(

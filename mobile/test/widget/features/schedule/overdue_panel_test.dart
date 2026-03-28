@@ -81,8 +81,16 @@ void main() {
       await tester.pumpWidget(buildOverduePanel(isVisible: false));
       await tester.pumpAndSettle();
 
-      // Panel has zero height when hidden — content should not be visible
-      expect(find.text('No overdue jobs'), findsNothing);
+      // AnimatedCrossFade keeps both children in the widget tree.
+      // When hidden (CrossFadeState.showSecond), the secondChild (SizedBox.shrink)
+      // is the active child, but the firstChild is still in the tree at zero size.
+      // Verify the panel widget exists but the visible cross-fade state is showSecond.
+      expect(find.byType(OverduePanel), findsOneWidget);
+      // The AnimatedCrossFade should be showing the second child (SizedBox.shrink)
+      final crossFade = tester.widget<AnimatedCrossFade>(
+        find.byType(AnimatedCrossFade),
+      );
+      expect(crossFade.crossFadeState, CrossFadeState.showSecond);
     });
 
     testWidgets('empty state shows "No overdue jobs" with check icon',

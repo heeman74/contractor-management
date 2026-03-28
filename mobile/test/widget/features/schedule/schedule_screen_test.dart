@@ -37,6 +37,7 @@ import 'package:contractorhub/features/schedule/presentation/screens/schedule_sc
 import 'package:contractorhub/features/schedule/presentation/widgets/calendar_day_view.dart';
 import 'package:contractorhub/features/schedule/presentation/widgets/calendar_month_view.dart';
 import 'package:contractorhub/features/schedule/presentation/widgets/calendar_week_view.dart';
+import 'package:contractorhub/features/schedule/presentation/widgets/overdue_panel.dart';
 import 'package:contractorhub/features/schedule/presentation/widgets/unscheduled_jobs_drawer.dart';
 import 'package:contractorhub/features/users/domain/user_entity.dart';
 import 'package:contractorhub/shared/models/user_role.dart';
@@ -80,6 +81,18 @@ class _StubJobListNotifier extends job_providers.JobListNotifier {
   Future<List<JobEntity>> build() async => [];
 }
 
+/// Stub notifier for week bookings — subclasses BookingsForWeekNotifier.
+class _StubWeekBookingsNotifier extends BookingsForWeekNotifier {
+  @override
+  Future<List<BookingEntity>> build() async => [];
+}
+
+/// Stub notifier for month bookings — subclasses BookingsForMonthNotifier.
+class _StubMonthBookingsNotifier extends BookingsForMonthNotifier {
+  @override
+  Future<List<BookingEntity>> build() async => [];
+}
+
 /// Build a ScheduleScreen with all providers overridden for isolation.
 Widget buildScheduleScreen({
   int overdueCount = 0,
@@ -94,7 +107,12 @@ Widget buildScheduleScreen({
           .overrideWith(() => _StubContractorsNotifier()),
       job_providers.jobListNotifierProvider
           .overrideWith(() => _StubJobListNotifier()),
+      bookingsForWeekProvider
+          .overrideWith(() => _StubWeekBookingsNotifier()),
+      bookingsForMonthProvider
+          .overrideWith(() => _StubMonthBookingsNotifier()),
       overdueJobCountProvider.overrideWithValue(overdueCount),
+      overdueJobsProvider.overrideWithValue(const []),
     ],
     child: const MaterialApp(
       home: Scaffold(
@@ -347,19 +365,49 @@ void main() {
       expect(find.text('5'), findsOneWidget);
     });
 
-    testWidgets('overdue badge tap toggles overdue panel', (tester) async {
-      await tester.pumpWidget(buildScheduleScreen(overdueCount: 2));
+    testWidgets('overdue badge tap toggles showOverduePanelProvider',
+        (tester) async {
+      // Build the schedule screen with an explicit ProviderScope container
+      // so we can read the provider state after tapping.
+      final container = ProviderContainer(
+        overrides: [
+          authNotifierProvider
+              .overrideWith(() => _StubAuthNotifier(_adminAuthState)),
+          bookingsForDateProvider
+              .overrideWith(() => _StubBookingsNotifier()),
+          contractorsProvider
+              .overrideWith(() => _StubContractorsNotifier()),
+          job_providers.jobListNotifierProvider
+              .overrideWith(() => _StubJobListNotifier()),
+          bookingsForWeekProvider
+              .overrideWith(() => _StubWeekBookingsNotifier()),
+          bookingsForMonthProvider
+              .overrideWith(() => _StubMonthBookingsNotifier()),
+          overdueJobCountProvider.overrideWithValue(2),
+          overdueJobsProvider.overrideWithValue(const []),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      // Initially the panel should be hidden
+      expect(container.read(showOverduePanelProvider), false);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            home: Scaffold(body: ScheduleScreen()),
+          ),
+        ),
+      );
       await tester.pumpAndSettle();
 
-      // Initially overdue panel is not visible — look for the placeholder text
-      expect(find.text('Overdue panel loading...'), findsNothing);
-
-      // Tap overdue badge (the GestureDetector wrapping the badge)
+      // Tap overdue badge (the GestureDetector wrapping the count text)
       await tester.tap(find.text('2'));
-      await tester.pumpAndSettle();
+      await tester.pump();
 
-      // The overdue panel placeholder should now be visible
-      expect(find.text('Overdue panel loading...'), findsOneWidget);
+      // After tap, showOverduePanelProvider should be true
+      expect(container.read(showOverduePanelProvider), true);
     });
   });
 }

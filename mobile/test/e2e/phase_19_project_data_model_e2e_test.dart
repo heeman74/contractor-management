@@ -28,6 +28,7 @@ import 'package:contractorhub/features/projects/presentation/providers/project_p
 import 'package:contractorhub/features/projects/presentation/screens/project_detail_screen.dart';
 import 'package:contractorhub/features/projects/presentation/screens/project_list_screen.dart';
 import 'package:contractorhub/features/projects/presentation/screens/trade_scope_detail_screen.dart';
+import 'package:contractorhub/features/projects/presentation/widgets/trade_progress_card.dart';
 import 'package:contractorhub/features/projects/presentation/widgets/trade_scope_card.dart';
 import 'package:contractorhub/shared/models/user_role.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
@@ -413,7 +414,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
-    expect(find.byType(TradeScopeCard), findsNWidgets(3));
+    // ProjectDetailScreen uses TradeProgressCard (not TradeScopeCard)
+    expect(find.byType(TradeProgressCard), findsNWidgets(3));
     expect(find.text('Electrical'), findsOneWidget);
     expect(find.text('Plumbing'), findsOneWidget);
     expect(find.text('Framing'), findsOneWidget);
@@ -651,7 +653,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.byType(ProjectDetailScreen), findsOneWidget);
-    expect(find.byType(TradeScopeCard), findsNWidgets(3));
+    // ProjectDetailScreen uses TradeProgressCard (not TradeScopeCard)
+    expect(find.byType(TradeProgressCard), findsNWidgets(3));
   });
 
   testWidgets(

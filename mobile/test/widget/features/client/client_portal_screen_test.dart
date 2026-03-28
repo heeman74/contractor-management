@@ -133,11 +133,11 @@ void main() {
       expect(find.text('Complete'), findsOneWidget);
     });
 
-    testWidgets('app bar shows Client Portal title', (tester) async {
+    testWidgets('app bar shows My Jobs title', (tester) async {
       await tester.pumpWidget(buildWidget());
       await tester.pumpAndSettle();
 
-      expect(find.text('Client Portal'), findsOneWidget);
+      expect(find.text('My Jobs'), findsOneWidget);
     });
   });
 }

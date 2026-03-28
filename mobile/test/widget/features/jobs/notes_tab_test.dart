@@ -141,11 +141,13 @@ void main() {
       expect(find.text('No notes yet'), findsOneWidget);
     });
 
-    testWidgets('empty state shows "Add the first note" button', (tester) async {
+    testWidgets('empty state shows FAB "Add Note" button', (tester) async {
       await tester.pumpWidget(buildNotesTab([]));
       await tester.pump();
 
-      expect(find.text('Add the first note'), findsOneWidget);
+      // The empty state has a description prompt and the FAB is always visible
+      expect(find.textContaining('Add field notes'), findsOneWidget);
+      expect(find.text('Add Note'), findsOneWidget);
     });
 
     testWidgets('FAB "Add Note" button is present when notes exist',

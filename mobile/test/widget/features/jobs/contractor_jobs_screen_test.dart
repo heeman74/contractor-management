@@ -143,7 +143,7 @@ void main() {
   });
 
   group('ContractorJobsScreen — job cards', () {
-    testWidgets('renders scheduled job with Start Work button',
+    testWidgets('renders scheduled job with Clock In button',
         (tester) async {
       await _seedJob(db,
           id: 'j-1',
@@ -156,12 +156,13 @@ void main() {
       expect(find.text('Fix pipe'), findsOneWidget);
       expect(find.text('plumber'), findsOneWidget);
       expect(find.text('Scheduled'), findsOneWidget);
-      expect(find.text('Start Work'), findsOneWidget);
+      // Redesigned card uses Clock In button instead of Start Work
+      expect(find.text('Clock In'), findsOneWidget);
 
       await _cleanup(tester);
     });
 
-    testWidgets('renders in-progress job with Mark Complete button',
+    testWidgets('renders in-progress job with Clock In button',
         (tester) async {
       await _seedJob(db,
           id: 'j-2',
@@ -173,7 +174,8 @@ void main() {
 
       expect(find.text('Wire kitchen'), findsOneWidget);
       expect(find.text('In Progress'), findsOneWidget);
-      expect(find.text('Mark Complete'), findsOneWidget);
+      // Redesigned card uses Clock In button; Mark Complete is in long-press menu
+      expect(find.text('Clock In'), findsOneWidget);
 
       await _cleanup(tester);
     });
@@ -207,17 +209,19 @@ void main() {
   });
 
   group('ContractorJobsScreen — status transitions', () {
-    testWidgets('Start Work transitions scheduled to in_progress',
+    testWidgets('Start Work transitions scheduled to in_progress via long-press menu',
         (tester) async {
       await _seedJob(db, id: 'j-1', status: 'scheduled');
 
       await tester.pumpWidget(buildWidget());
       await tester.pump();
 
-      // Invoke Start Work button directly
-      final button = tester.widget<FilledButton>(
-          find.widgetWithText(FilledButton, 'Start Work'));
-      button.onPressed!();
+      // Long-press on the status badge to open the transition menu
+      await tester.longPress(find.text('Scheduled'));
+      await tester.pumpAndSettle();
+
+      // Tap "Start Work" in the popup menu
+      await tester.tap(find.text('Start Work'));
       await tester.pump();
       await tester.pump(); // DB write completes
 
@@ -230,16 +234,19 @@ void main() {
       await _cleanup(tester);
     });
 
-    testWidgets('Mark Complete transitions in_progress to complete',
+    testWidgets('Mark Complete transitions in_progress to complete via long-press menu',
         (tester) async {
       await _seedJob(db, id: 'j-2', status: 'in_progress');
 
       await tester.pumpWidget(buildWidget());
       await tester.pump();
 
-      final button = tester.widget<FilledButton>(
-          find.widgetWithText(FilledButton, 'Mark Complete'));
-      button.onPressed!();
+      // Long-press on the status badge to open the transition menu
+      await tester.longPress(find.text('In Progress'));
+      await tester.pumpAndSettle();
+
+      // Tap "Mark Complete" in the popup menu
+      await tester.tap(find.text('Mark Complete'));
       await tester.pump();
       await tester.pump();
 

@@ -224,10 +224,14 @@ void main() {
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 300));
 
-        // Widget exists but content is hidden (AnimatedContainer height=0)
+        // Widget exists but content is hidden via AnimatedCrossFade (showSecond)
         expect(find.byType(OverduePanel), findsOneWidget);
-        // Job content not visible when collapsed
-        expect(find.text('Overdue Roof Repair'), findsNothing);
+        // AnimatedCrossFade keeps both children in the tree, so check the
+        // cross-fade state instead of looking for missing text.
+        final crossFade = tester.widget<AnimatedCrossFade>(
+          find.byType(AnimatedCrossFade),
+        );
+        expect(crossFade.crossFadeState, CrossFadeState.showSecond);
       },
     );
   });
