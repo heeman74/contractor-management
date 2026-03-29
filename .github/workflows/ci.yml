@@ -125,4 +125,4 @@ jobs:
       - name: Unit tests
         run: npm test -- --passWithNoTests
       - name: Production build
-        run: npx next build --no-turbopack
+        run: NEXT_TURBOPACK=0 npm run build
