@@ -40,6 +40,14 @@ testpaths = ["tests"]
 markers = [
     "slow: marks tests as slow (deselect with '-m not slow')",
 ]
+filterwarnings = [
+    "error",
+    # Third-party deprecation warnings we can't fix (awaiting library updates)
+    "ignore:'crypt' is deprecated:DeprecationWarning",
+    "ignore:datetime.datetime.utcnow:DeprecationWarning",
+    "ignore:Remove `format_exc_info`:UserWarning",
+    "ignore:fully NULL primary key:sqlalchemy.exc.SAWarning",
+]
 
 [dependency-groups]
 dev = [
