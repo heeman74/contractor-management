@@ -27,7 +27,7 @@ const MAX_ALERTS = 30;
 export function useDashboardProjects() {
   return useQuery<ProjectStatusCardData[]>({
     queryKey: ["dashboard-projects"],
-    queryFn: () => apiGet<ProjectStatusCardData[]>(`/api/dashboard?limit=${MAX_PROJECTS}`),
+    queryFn: () => apiGet<ProjectStatusCardData[]>(`/api/v1/dashboard?limit=${MAX_PROJECTS}`),
     refetchInterval: PROJECT_POLL_INTERVAL_MS,
     refetchIntervalInBackground: false,
     staleTime: PROJECT_STALE_TIME_MS,
@@ -42,7 +42,7 @@ export function useDashboardProjects() {
 export function useDashboardAlerts(projectId?: string) {
   const params = new URLSearchParams({ limit: String(MAX_ALERTS), unread_first: "true" });
   if (projectId) params.set("project_id", projectId);
-  const url = `/api/dashboard/alerts?${params.toString()}`;
+  const url = `/api/v1/dashboard/alerts?${params.toString()}`;
 
   return useQuery<DashboardAlert[]>({
     queryKey: ["dashboard-alerts", projectId],
@@ -62,7 +62,7 @@ export function useTradeTimeline(projectId: string) {
     queryKey: ["dashboard-timeline", projectId],
     queryFn: () =>
       apiGet<TradeTimelineData>(
-        `/api/dashboard/projects/${encodeURIComponent(projectId)}/timeline`
+        `/api/v1/dashboard/projects/${encodeURIComponent(projectId)}/timeline`
       ),
     enabled: Boolean(projectId),
   });
@@ -77,7 +77,7 @@ export function useTradeTasks(projectId: string, tradeScopeId: string) {
     queryKey: ["dashboard-tasks", projectId, tradeScopeId],
     queryFn: () =>
       apiGet<TradeTaskDetail[]>(
-        `/api/dashboard/projects/${encodeURIComponent(projectId)}/trades/${encodeURIComponent(tradeScopeId)}/tasks`
+        `/api/v1/dashboard/projects/${encodeURIComponent(projectId)}/trades/${encodeURIComponent(tradeScopeId)}/tasks`
       ),
     enabled: Boolean(projectId) && Boolean(tradeScopeId),
   });
@@ -92,7 +92,7 @@ export function useMarkAlertRead() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (alertId: string) =>
-      apiPost<void>(`/api/dashboard/alerts/${encodeURIComponent(alertId)}/read`, {}),
+      apiPost<void>(`/api/v1/dashboard/alerts/${encodeURIComponent(alertId)}/read`, {}),
     onMutate: async (alertId: string) => {
       // Cancel outgoing refetches so they don't overwrite our optimistic update
       await queryClient.cancelQueries({ queryKey: ["dashboard-alerts"] });
@@ -133,7 +133,7 @@ export function useAcceptRescheduling() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (alertId: string) =>
-      apiPost<void>(`/api/dashboard/alerts/${encodeURIComponent(alertId)}/accept`, {}),
+      apiPost<void>(`/api/v1/dashboard/alerts/${encodeURIComponent(alertId)}/accept`, {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["dashboard-alerts"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-projects"] });
@@ -148,7 +148,7 @@ export function useDismissAlert() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (alertId: string) =>
-      apiPost<void>(`/api/dashboard/alerts/${encodeURIComponent(alertId)}/dismiss`, {}),
+      apiPost<void>(`/api/v1/dashboard/alerts/${encodeURIComponent(alertId)}/dismiss`, {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["dashboard-alerts"] });
     },
