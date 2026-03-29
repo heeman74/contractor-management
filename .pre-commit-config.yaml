@@ -1,9 +1,39 @@
 repos:
+  # --- Backend (Python) ---
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.9.0
     hooks:
       - id: ruff
         args: [--fix]
         name: ruff-check
+        files: ^backend/
       - id: ruff-format
         name: ruff-format
+        files: ^backend/
+
+  # --- Web (TypeScript/React) ---
+  - repo: local
+    hooks:
+      - id: web-eslint
+        name: web-eslint
+        entry: bash -c 'cd web && npx eslint --max-warnings 0 --no-warn-ignored .'
+        language: system
+        files: ^web/src/.*\.(ts|tsx)$
+        pass_filenames: false
+
+      - id: web-typecheck
+        name: web-typecheck
+        entry: bash -c 'cd web && npx tsc --noEmit'
+        language: system
+        files: ^web/src/.*\.(ts|tsx)$
+        pass_filenames: false
+
+  # --- Mobile (Flutter/Dart) ---
+  - repo: local
+    hooks:
+      - id: flutter-analyze
+        name: flutter-analyze
+        entry: bash -c 'cd mobile && flutter analyze'
+        language: system
+        files: ^mobile/lib/.*\.dart$
+        pass_filenames: false

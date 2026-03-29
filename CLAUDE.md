@@ -94,8 +94,12 @@
 - **No dead code**: No unused imports, variables, functions, or commented-out code.
 
 ## General Rules
+- **Pre-commit hooks are installed** — they run automatically on `git commit` and must pass before the commit is created.
+- Pre-commit checks must match CI exactly. If CI checks it, pre-commit must too.
 - Run `ruff check` and `ruff format` before committing Python code.
 - Run `dart analyze` before committing Flutter code.
+- Run `npm run lint` (ESLint with `--max-warnings 0`) and `npx tsc --noEmit` before committing web code.
+- Run `docker compose up migrate` after adding new Alembic migrations to update the local Docker DB.
 - Prefer editing existing files over creating new ones.
 - No hardcoded secrets anywhere — use env vars or secure storage.
 
