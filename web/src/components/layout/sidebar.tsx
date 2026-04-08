@@ -20,6 +20,7 @@ import {
   LogOut,
   UserCheck,
   ClipboardList,
+  Smartphone,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
@@ -60,6 +61,7 @@ const navItems: NavItem[] = [
   { label: "My Projects", href: "/foreman/projects", icon: HardHat, roles: ["contractor"] },
   { label: "Daily Status", href: "/foreman/status", icon: ClipboardList, roles: ["contractor"] },
   { label: "Reports", href: "/reports", icon: BarChart3 },
+  { label: "Get Mobile App", href: "/download", icon: Smartphone },
 ];
 
 interface SidebarNavProps {

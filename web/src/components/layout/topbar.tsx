@@ -33,6 +33,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   contractors: "Contractors",
   reports: "Reports",
   requests: "Requests",
+  download: "Get Mobile App",
 };
 
 interface BreadcrumbSegment {
