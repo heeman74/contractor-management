@@ -1,6 +1,8 @@
 [tool.ruff]
 target-version = "py312"
 line-length = 100
+# .agents/skills are generated AI skill docs — don't lint/format their code examples
+extend-exclude = [".agents"]
 
 [tool.ruff.lint]
 select = [
