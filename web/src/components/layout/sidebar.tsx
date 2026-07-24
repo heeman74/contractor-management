@@ -23,6 +23,7 @@ import {
   ClipboardList,
   Smartphone,
   ShieldCheck,
+  FileSignature,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
@@ -58,6 +59,12 @@ const navItems: NavItem[] = [
   { label: "Projects", href: "/projects", icon: FolderKanban },
   { label: "Schedule", href: "/schedule", icon: Calendar },
   { label: "Quotes", href: "/quotes", icon: FileText },
+  {
+    label: "Contracts",
+    href: "/contracts",
+    icon: FileSignature,
+    permission: "contracts.manage",
+  },
   { label: "Invoices", href: "/invoices", icon: Receipt },
   { label: "Clients", href: "/clients", icon: Users },
   { label: "Contractors", href: "/contractors", icon: HardHat },

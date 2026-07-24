@@ -16,6 +16,14 @@ class Settings(BaseSettings):
     debug: bool = False
     ors_api_key: str | None = None  # OpenRouteService API key; omit to disable travel time
 
+    # Dropbox Sign (e-signature) — secrets from env only, no defaults.
+    dropbox_sign_api_key: str | None = None
+    dropbox_sign_client_id: str | None = None
+    dropbox_sign_test_mode: bool = True
+
+    # Public base URL for client-facing links (e.g. the magic-link /sign page).
+    public_web_url: str = "http://localhost:3000"
+
     # CORS origins (comma-separated in env, e.g. "http://localhost:3000,https://app.example.com")
     cors_origins: str = ""
 

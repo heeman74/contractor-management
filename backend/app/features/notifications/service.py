@@ -307,6 +307,45 @@ class NotificationService(BaseService[DeviceToken]):
                 task_id,
             )
 
+    async def send_contract_ready_notification(
+        self,
+        client_user_id: uuid.UUID,
+        contract_id: uuid.UUID,
+        magic_link: str,
+    ) -> None:
+        """Notify the client that a contract is ready to sign (FCM + magic-link).
+
+        Email delivery of the magic link is a TODO — the app has no email provider yet,
+        so the link is logged here and pushed via FCM. Never raises.
+        """
+        # TODO(29-02): send the magic link by email once an email provider is wired.
+        logger.info("Contract %s ready to sign — magic link: %s", contract_id, magic_link)
+        messaging = self._resolve_messaging(f"contract-ready notification {contract_id}")
+        if messaging is None:
+            return
+        try:
+            tokens = await self.repository.get_tokens_for_user(client_user_id)
+            if not tokens:
+                return
+            await self._dispatch_to_tokens(
+                tokens,
+                title="Contract ready to sign",
+                body="Your contractor sent a contract for your signature.",
+                data={
+                    "type": "contract_ready",
+                    "contract_id": str(contract_id),
+                    "sign_url": magic_link,
+                },
+                messaging=messaging,
+            )
+        except Exception:
+            logger.exception("send_contract_ready_notification failed for %s", contract_id)
+
+    async def send_contract_signed_notification(self, contract_id: uuid.UUID) -> None:
+        """Best-effort notice that a contract was signed (admin sees it on the dashboard)."""
+        # TODO(29-02): FCM/email to the admin once a target admin/email is available.
+        logger.info("Contract %s has been signed by the client.", contract_id)
+
     async def send_checklist_notification(
         self,
         contractor_id: uuid.UUID,

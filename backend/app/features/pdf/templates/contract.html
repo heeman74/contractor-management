@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: letter; margin: 2cm; }
+  body { font-family: "Helvetica Neue", Arial, sans-serif; color: #1a1a1a; font-size: 12px; line-height: 1.5; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 14px; margin: 18px 0 4px; border-bottom: 1px solid #ddd; padding-bottom: 2px; }
+  h3 { font-size: 12px; margin: 0 0 4px; text-transform: uppercase; letter-spacing: 0.04em; color: #666; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0e1726; padding-bottom: 10px; }
+  .company .name { font-size: 16px; font-weight: bold; }
+  .muted { color: #555; }
+  .parties { display: flex; gap: 24px; margin-top: 14px; }
+  .parties > div { flex: 1; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px; }
+  th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid #eee; }
+  th { background: #f5f5f3; }
+  td.num, th.num { text-align: right; }
+  .totals { margin-top: 8px; width: 40%; margin-left: auto; }
+  .totals td { border: none; padding: 2px 6px; }
+  .terms { margin-top: 10px; }
+  .review-banner { background: #fff3cd; border: 1px solid #f5a623; padding: 8px 12px; border-radius: 4px; font-size: 11px; color: #5a4a1f; }
+  .validity { margin-top: 12px; padding: 8px 12px; border: 1px solid #f5a623; background: #fff8ec; border-radius: 6px; font-size: 11px; }
+  .signature { margin-top: 28px; page-break-inside: avoid; }
+  .sig-line { margin-top: 30px; border-top: 1px solid #333; width: 60%; padding-top: 4px; font-size: 11px; color: #555; }
+  /* E-sign anchor tags — the provider reads these from the PDF text to place fields.
+     Rendered small/light so they do not distract on the printed copy. */
+  .sigtag { color: #ffffff; font-size: 6px; }
+  .footer { margin-top: 24px; font-size: 10px; color: #888; text-align: center; }
+</style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="company">
+      <div class="name">{{ company.name }}</div>
+      {% if company.address %}<div class="muted">{{ company.address }}</div>{% endif %}
+      {% if company.phone %}<div class="muted">{{ company.phone }}</div>{% endif %}
+      {% if company.license_number %}<div class="muted">CSLB License #{{ company.license_number }}</div>{% endif %}
+    </div>
+    <div style="text-align: right;">
+      <h1>Contract</h1>
+      <div class="muted">Quote #{{ quote.id }}</div>
+      <div class="muted">{{ generated_at }}</div>
+    </div>
+  </div>
+
+  <div class="parties">
+    <div>
+      <h3>Contractor</h3>
+      <div>{{ company.name }}</div>
+      {% if company.license_number %}<div class="muted">CSLB #{{ company.license_number }}</div>{% endif %}
+    </div>
+    <div>
+      <h3>Owner / Client</h3>
+      <div>{% if client_name %}{{ client_name }}{% else %}<em>Not specified</em>{% endif %}</div>
+      {% if client_address %}<div class="muted">{{ client_address }}</div>{% endif %}
+    </div>
+  </div>
+
+  <h2>Scope &amp; Pricing (from Quote)</h2>
+  <table>
+    <thead>
+      <tr><th>Description</th><th class="num">Qty</th><th class="num">Unit</th><th class="num">Unit Price</th><th class="num">Amount</th></tr>
+    </thead>
+    <tbody>
+      {% for item in line_items %}
+      <tr>
+        <td>{{ item.description }}</td>
+        <td class="num">{{ item.quantity }}</td>
+        <td class="num">{{ item.unit }}</td>
+        <td class="num">${{ '%.2f'|format(item.unit_price) }}</td>
+        <td class="num">${{ '%.2f'|format((item.quantity * item.unit_price)) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <table class="totals">
+    <tr><td>Subtotal</td><td class="num">${{ '%.2f'|format(subtotal) }}</td></tr>
+    {% if discount_amount and discount_amount > 0 %}<tr><td>Discount</td><td class="num">-${{ '%.2f'|format(discount_amount) }}</td></tr>{% endif %}
+    <tr><td>Tax</td><td class="num">${{ '%.2f'|format(tax_amount) }}</td></tr>
+    <tr><td><strong>Total</strong></td><td class="num"><strong>${{ '%.2f'|format(total) }}</strong></td></tr>
+  </table>
+
+  <h2>Terms &amp; Conditions</h2>
+  <div class="terms">{{ terms_html | safe }}</div>
+
+  {% if validity_statement %}
+  <div class="validity"><strong>Validity:</strong> {{ validity_statement }}</div>
+  {% endif %}
+
+  <div class="signature">
+    <h2>Acceptance &amp; Signature</h2>
+    <p>By signing below, the Owner agrees to the terms of this contract.</p>
+    <div class="sig-line">
+      Owner signature <span class="sigtag">[sig|req|signer1]</span>
+    </div>
+    <div class="sig-line">
+      Printed name: {% if client_name %}{{ client_name }}{% endif %}
+    </div>
+    <div class="sig-line">
+      Date <span class="sigtag">[date|req|signer1]</span>
+    </div>
+  </div>
+
+  <div class="footer">{{ company.name }} &mdash; generated {{ generated_at }}</div>
+</body>
+</html>

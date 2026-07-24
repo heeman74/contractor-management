@@ -9,6 +9,7 @@ import { QuoteStatusAlerts } from "./_components/quote-status-alerts";
 import { QuoteLineItemsCard } from "./_components/quote-line-items-card";
 import { QuoteActivityCard } from "./_components/quote-activity-card";
 import { QuoteActionsCard } from "./_components/quote-actions-card";
+import { QuoteContractCard } from "./_components/quote-contract-card";
 import { QuoteDetailsCard } from "./_components/quote-details-card";
 import { QuoteFinancialSummary } from "./_components/quote-financial-summary";
 import { LinkedInvoiceCard } from "./_components/linked-invoice-card";
@@ -130,6 +131,10 @@ export default function QuoteDetailPage({
             onDownloadPdf={detail.downloadPdf}
             onGenerateInvoice={detail.generateInvoice}
           />
+
+          {quote.status === "approved" && (
+            <QuoteContractCard quoteId={quote.id} clientName={job?.client_name} />
+          )}
 
           <QuoteDetailsCard quote={quote} job={job} />
 

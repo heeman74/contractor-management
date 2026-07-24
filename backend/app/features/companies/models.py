@@ -13,6 +13,8 @@ class Company(BaseEntityModel):
     address: Mapped[str | None] = mapped_column(String, nullable=True)
     phone: Mapped[str | None] = mapped_column(String, nullable=True)
     business_number: Mapped[str | None] = mapped_column(String, nullable=True)
+    # CSLB contractor license number — legally required on California contracts.
+    license_number: Mapped[str | None] = mapped_column(String, nullable=True)
     logo_url: Mapped[str | None] = mapped_column(String, nullable=True)
     # Trade types stored as PostgreSQL array of text
     trade_types: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)

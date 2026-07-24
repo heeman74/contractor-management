@@ -140,6 +140,9 @@ async def clean_tables(test_engine):
                 # Phase 8 business operations tables (reference jobs/users): children first.
                 "invoice_line_items, "
                 "invoices, "
+                # Phase 29 contracts (reference quotes/companies)
+                "contracts, "
+                "contract_templates, "
                 "quote_line_items, "
                 "quote_templates, "
                 "quotes, "

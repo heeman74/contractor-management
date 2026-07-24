@@ -25,6 +25,7 @@ import '../../features/client/presentation/screens/client_portal_screen.dart';
 import '../../features/client/presentation/screens/job_request_form_screen.dart';
 import '../../features/client/presentation/screens/photo_viewer_screen.dart';
 import '../../features/contractor/presentation/screens/availability_screen.dart';
+import '../../features/contracts/presentation/screens/contract_sign_screen.dart';
 import '../../features/foreman/presentation/screens/daily_status_screen.dart';
 import '../../features/foreman/presentation/screens/status_history_screen.dart';
 import '../../features/invoices/presentation/screens/invoice_detail_screen.dart';
@@ -323,6 +324,17 @@ final routerProvider = Provider.autoDispose<GoRouter>((ref) {
         path: RouteNames.foremanDailyStatus,
         builder: (context, state) => const DailyStatusScreen(),
       ),
+      // Phase 29: Client contract signing — embedded provider ceremony in a
+      // WebView. Client-gated via the `/client` prefix in _checkRoleAccess.
+      // Push via: context.push(RouteNames.contractSignPath(contractId))
+      // Returns `true` on completion (Navigator.pop).
+      GoRoute(
+        path: RouteNames.contractSign,
+        builder: (context, state) {
+          final contractId = state.pathParameters['contractId']!;
+          return ContractSignScreen(contractId: contractId);
+        },
+      ),
       // Foreman status history — list of past updates for a project.
       // Push via: context.push(RouteNames.foremanStatusHistoryPath(projectId))
       GoRoute(
@@ -475,7 +487,14 @@ final routerProvider = Provider.autoDispose<GoRouter>((ref) {
                 path: '/client/jobs/:id',
                 builder: (context, state) {
                   final jobId = state.pathParameters['id']!;
-                  return ClientJobDetailScreen(jobId: jobId);
+                  // Optional contractId (e.g. from a `contract_ready`
+                  // notification deep-link) surfaces the Contract card.
+                  final contractId =
+                      state.uri.queryParameters['contractId'];
+                  return ClientJobDetailScreen(
+                    jobId: jobId,
+                    contractId: contractId,
+                  );
                 },
               ),
             ],

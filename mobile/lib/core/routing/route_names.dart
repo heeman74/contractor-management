@@ -303,4 +303,18 @@ abstract final class RouteNames {
   /// Shows today's tasks with priority, materials, photo requirements.
   /// Navigate via: context.push(RouteNames.dailyChecklist)
   static const dailyChecklist = '/daily-checklist';
+
+  // --- Phase 29: Client contract e-signature routes ---
+
+  /// Client contract signing — hosts the provider's embedded ceremony in a
+  /// WebView. Client-gated (path under `/client`).
+  ///
+  /// Path param: contractId.
+  /// Navigate via: context.push(RouteNames.contractSignPath(contractId))
+  /// Returns `true` via Navigator.pop when signing completes.
+  static const contractSign = '/client/contracts/:contractId/sign';
+
+  /// Build the contract signing path for a specific contract.
+  static String contractSignPath(String contractId) =>
+      '/client/contracts/$contractId/sign';
 }

@@ -49,6 +49,9 @@ const colorMap: Record<string, string> = {
   // Trade scope / task statuses (Phase 19)
   not_started: "bg-gray-100 text-gray-700",
   blocked: "bg-red-100 text-red-800",
+  // Contract statuses (Phase 29)
+  signed: "bg-green-100 text-green-800",
+  voided: "bg-gray-100 text-gray-500",
 };
 
 export function StatusBadge({ status, size = "md" }: StatusBadgeProps) {

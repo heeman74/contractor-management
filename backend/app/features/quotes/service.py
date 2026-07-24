@@ -220,6 +220,9 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
 
         quote.status = "sent"
         quote.sent_at = datetime.now(UTC)
+        # "Valid today only": default expiry to the send date unless already set.
+        if quote.expiry_date is None:
+            quote.expiry_date = datetime.now(UTC).date()
         await self.db.flush()
         await self._append_job_status_event(quote.job_id, "quote_sent", None)
 

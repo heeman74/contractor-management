@@ -34,6 +34,7 @@ class CompanyUpdate(BaseModel):
     trade_types: list[str] | None = None
     logo_url: str | None = None
     business_number: str | None = None
+    license_number: str | None = None
 
 
 class CompanyResponse(BaseResponseSchema):
@@ -48,3 +49,4 @@ class CompanyResponse(BaseResponseSchema):
     trade_types: list[str] | None
     logo_url: str | None
     business_number: str | None
+    license_number: str | None = None

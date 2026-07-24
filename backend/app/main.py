@@ -20,6 +20,9 @@ from app.features.billing_milestones.router import router as billing_milestones_
 from app.features.chat.router import router as chat_router
 from app.features.checklists.router import router as checklists_router
 from app.features.companies.router import router as companies_router
+from app.features.contracts.router import public_router as contracts_public_router
+from app.features.contracts.router import router as contracts_router
+from app.features.contracts.router import templates_router as contract_templates_router
 from app.features.dashboard.router import router as dashboard_router
 from app.features.files.router import router as files_router
 from app.features.foreman.router import router as foreman_router
@@ -165,6 +168,9 @@ app.include_router(reports_router, prefix="/api/v1")
 # Foreman role: project assignments and daily status updates
 app.include_router(foreman_router, prefix="/api/v1")
 app.include_router(rbac_router, prefix="/api/v1")
+app.include_router(contracts_router, prefix="/api/v1")
+app.include_router(contract_templates_router, prefix="/api/v1")
+app.include_router(contracts_public_router, prefix="/api/v1")
 
 # Serve uploaded files (job request photos, note attachments etc.)
 # IMPORTANT: StaticFiles mounts MUST be added AFTER all router includes.

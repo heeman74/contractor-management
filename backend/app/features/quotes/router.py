@@ -40,6 +40,7 @@ from app.core.base_service import entity_or_404
 from app.core.database import get_db
 from app.core.security import CurrentUser, get_current_user, require_permission, require_roles
 from app.features.companies.models import Company
+from app.features.jobs.models import Job
 from app.features.pdf.service import pdf_service
 from app.features.quotes.schemas import (
     DeclineQuoteRequest,
@@ -50,6 +51,7 @@ from app.features.quotes.schemas import (
     QuoteUpdate,
 )
 from app.features.quotes.service import QuoteService
+from app.features.users.models import User
 
 
 class ExtendExpiryRequest(BaseModel):
@@ -305,7 +307,14 @@ async def download_quote_pdf(
     # Load the company for branding
     company = entity_or_404(await db.get(Company, quote.company_id), "Company not found")
 
-    pdf_bytes = await pdf_service.generate_quote_pdf(quote, company)
+    # Resolve the client (quote -> job -> client User) for the "Prepared For" block.
+    client = None
+    if quote.job_id is not None:
+        job = await db.get(Job, quote.job_id)
+        if job is not None and job.client_id is not None:
+            client = await db.get(User, job.client_id)
+
+    pdf_bytes = await pdf_service.generate_quote_pdf(quote, company, client=client)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

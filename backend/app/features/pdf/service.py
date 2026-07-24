@@ -112,12 +112,36 @@ class PdfService:
     # Public async API
     # -------------------------------------------------------------------------
 
-    async def generate_quote_pdf(self, quote: object, company: object) -> bytes:
+    @staticmethod
+    def _client_display(client: object | None) -> tuple[str | None, str | None]:
+        """Resolve (name, address) from a client User, or (None, None)."""
+        if client is None:
+            return None, None
+        first = getattr(client, "first_name", None) or ""
+        last = getattr(client, "last_name", None) or ""
+        name = f"{first} {last}".strip() or getattr(client, "email", None)
+        return name, getattr(client, "home_address", None)
+
+    @staticmethod
+    def quote_validity_statement(quote: object) -> str:
+        """The 'valid today only' statement shown on a sent quote."""
+        expiry = getattr(quote, "expiry_date", None)
+        if expiry is not None:
+            return (
+                f"This quote is valid only through {expiry.strftime('%B %d, %Y')} — "
+                "the day it was issued. Pricing is not guaranteed after this date."
+            )
+        return "This quote is valid only for the day it was issued."
+
+    async def generate_quote_pdf(
+        self, quote: object, company: object, client: object | None = None
+    ) -> bytes:
         """Generate a PDF for a quote.
 
         Args:
             quote:   Quote ORM instance — quote.line_items must be eagerly loaded.
             company: Company ORM instance — provides branding (name, address, phone).
+            client:  Optional client User — resolved by the caller from the quote's job.
 
         Returns:
             PDF bytes suitable for streaming as application/pdf response.
@@ -130,13 +154,7 @@ class PdfService:
             discount_value=Decimal(str(getattr(quote, "discount_value", 0))),
         )
 
-        # Attempt to resolve client info from quote's job
-        client_name: str | None = None
-        client_address: str | None = None
-        job = getattr(quote, "_job_context", None)  # may be pre-resolved by caller
-        if job is None:
-            # Caller can pre-set _job_context; without it, client info is omitted gracefully
-            pass
+        client_name, client_address = self._client_display(client)
 
         context = {
             "quote": quote,
@@ -144,6 +162,7 @@ class PdfService:
             "line_items": line_items,
             "client_name": client_name,
             "client_address": client_address,
+            "validity_statement": self.quote_validity_statement(quote),
             "subtotal": subtotal,
             "discount_amount": discount_amount,
             "tax_amount": tax_amount,
@@ -152,6 +171,21 @@ class PdfService:
         }
 
         html = self._render_html("quote.html", context)
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(_pdf_executor, self._html_to_pdf, html)
+
+    async def generate_contract_pdf(self, context: dict) -> bytes:
+        """Render the contract template to PDF bytes.
+
+        `context` is built by ContractService and includes: company, client_name,
+        client_address, terms_html (merged, safe HTML), validity_statement, line_items,
+        subtotal/tax_amount/total, quote.
+        """
+        context = {
+            **context,
+            "generated_at": datetime.now(UTC).strftime("%d %B %Y %H:%M UTC"),
+        }
+        html = self._render_html("contract.html", context)
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(_pdf_executor, self._html_to_pdf, html)
 

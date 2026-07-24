@@ -452,3 +452,93 @@ export interface RolePermissionsUpdate {
 export interface MyPermissionsResponse {
   permissions: string[];
 }
+
+// Company — mirrors backend CompanyResponse (Phase 29 adds license_number)
+export interface Company {
+  id: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  trade_types: string[] | null;
+  logo_url: string | null;
+  business_number: string | null;
+  license_number: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+// Fields the company-settings form may update (Phase 29 scope: license_number).
+export interface CompanyUpdate {
+  license_number?: string | null;
+}
+
+// Contracts & e-signature (Phase 29) --------------------------------------
+
+export type ContractStatus =
+  | "draft"
+  | "sent"
+  | "viewed"
+  | "signed"
+  | "declined"
+  | "voided";
+
+// Contract — mirrors backend ContractResponse exactly.
+export interface Contract {
+  id: string;
+  company_id: string;
+  quote_id: string;
+  job_id: string | null;
+  client_user_id: string | null;
+  template_id: string | null;
+  status: ContractStatus;
+  terms_snapshot: string;
+  validity_statement: string | null;
+  unsigned_pdf_url: string | null;
+  signed_pdf_url: string | null;
+  provider: string | null;
+  provider_request_id: string | null;
+  signer_name: string | null;
+  signer_email: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+// Company-editable contract-terms template.
+export interface ContractTemplate {
+  id: string;
+  company_id: string;
+  name: string;
+  body: string;
+  is_default: boolean;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ContractTemplateUpdate {
+  body: string;
+  name?: string;
+}
+
+// POST /contracts/{id}/send response.
+export interface SendContractResponse {
+  contract: Contract;
+  sign_url: string;
+  magic_link: string;
+}
+
+// GET /public/contracts/{token} — public, token-scoped view (no auth cookie).
+export interface PublicContractView {
+  contract_id: string;
+  status: ContractStatus;
+  company_name: string;
+  signer_name: string | null;
+  terms_snapshot: string;
+  validity_statement: string | null;
+  signed_pdf_url: string | null;
+  sign_url: string | null;
+}
