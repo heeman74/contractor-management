@@ -6,6 +6,7 @@ import 'package:riverpod/legacy.dart';
 import '../../../../core/di/service_locator.dart';
 import '../../../../features/auth/domain/auth_state.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
+import '../../data/job_creation_service.dart';
 import '../../data/job_dao.dart';
 import '../../domain/job_entity.dart';
 
@@ -17,6 +18,12 @@ import '../../domain/job_entity.dart';
 /// ProviderScope overrides. (CLAUDE.md: document GetIt<->Riverpod tradeoffs)
 final jobDaoProvider = Provider<JobDao>((ref) {
   return getIt<JobDao>();
+});
+
+/// Provides the [JobCreationService], wiring the [JobDao] read via provider so
+/// widget tests can override the DAO through ProviderScope.
+final jobCreationServiceProvider = Provider<JobCreationService>((ref) {
+  return JobCreationService(jobDao: ref.watch(jobDaoProvider));
 });
 
 // ────────────────────────────────────────────────────────────────────────────

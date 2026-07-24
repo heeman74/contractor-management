@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../domain/job_entity.dart';
 import '../../domain/job_status.dart';
+import '../../domain/job_status_colors.dart';
 
 /// Reusable card widget for displaying a job summary in list and kanban views.
 ///
@@ -33,7 +34,7 @@ class JobCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = job.jobStatus;
-    final statusColor = _statusColor(status);
+    final statusColor = JobStatusColors.pipeline(status);
     final theme = Theme.of(context);
 
     return Card(
@@ -184,17 +185,6 @@ class JobCard extends StatelessWidget {
     );
   }
 
-  /// Returns the Material color associated with each [JobStatus].
-  static Color _statusColor(JobStatus status) {
-    return switch (status) {
-      JobStatus.quote => Colors.blue,
-      JobStatus.scheduled => Colors.orange,
-      JobStatus.inProgress => Colors.amber[700]!,
-      JobStatus.complete => Colors.green,
-      JobStatus.invoiced => Colors.purple,
-      JobStatus.cancelled => Colors.grey,
-    };
-  }
 
   String _formatDate(DateTime dt) {
     final now = DateTime.now();

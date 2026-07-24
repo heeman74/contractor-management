@@ -11,9 +11,11 @@ import '../../../../features/quotes/domain/quote_entity.dart';
 import '../../../../features/quotes/presentation/providers/quote_providers.dart';
 import '../../../../features/schedule/presentation/widgets/delay_justification_dialog.dart';
 import '../../../../shared/models/user_role.dart';
+import '../../../../shared/utils/date_format_utils.dart';
 import '../../data/job_dao.dart';
 import '../../domain/job_entity.dart';
 import '../../domain/job_status.dart';
+import '../../domain/job_status_colors.dart';
 import '../providers/job_providers.dart';
 import '../providers/note_providers.dart';
 import '../widgets/gps_capture_button.dart';
@@ -108,7 +110,7 @@ class _JobDetailView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final statusColor = _statusColor(job.jobStatus);
+    final statusColor = JobStatusColors.detail(job.jobStatus);
     // Show "Report Delay" button only for Scheduled and In Progress jobs.
     final canReportDelay = job.jobStatus == JobStatus.scheduled ||
         job.jobStatus == JobStatus.inProgress;
@@ -175,16 +177,6 @@ class _JobDetailView extends ConsumerWidget {
     );
   }
 
-  Color _statusColor(JobStatus status) {
-    return switch (status) {
-      JobStatus.quote => Colors.grey,
-      JobStatus.scheduled => Colors.blue,
-      JobStatus.inProgress => Colors.orange,
-      JobStatus.complete => Colors.green,
-      JobStatus.invoiced => Colors.purple,
-      JobStatus.cancelled => Colors.red,
-    };
-  }
 }
 
 // ─── Report Delay bottom bar ───────────────────────────────────────────────────
@@ -230,7 +222,7 @@ class _ReportDelayBar extends StatelessWidget {
 
     if (confirmed && context.mounted) {
       final etaFormatted = job.scheduledCompletionDate != null
-          ? '${job.scheduledCompletionDate!.day}/${job.scheduledCompletionDate!.month}/${job.scheduledCompletionDate!.year}'
+          ? DateFormatUtils.formatNumericDate(job.scheduledCompletionDate!)
           : 'updated';
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -313,8 +305,8 @@ class _DetailsTabState extends ConsumerState<_DetailsTab> {
                 if (job.scheduledCompletionDate != null)
                   _DetailRow(
                     label: 'Completion Date',
-                    value:
-                        '${job.scheduledCompletionDate!.day}/${job.scheduledCompletionDate!.month}/${job.scheduledCompletionDate!.year}',
+                    value: DateFormatUtils.formatNumericDate(
+                        job.scheduledCompletionDate!),
                   ),
                 if (job.tags.isNotEmpty)
                   _DetailRow(label: 'Tags', value: job.tags.join(', ')),

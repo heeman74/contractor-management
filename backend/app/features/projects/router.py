@@ -18,6 +18,7 @@ CLAUDE.md rules:
 
 from __future__ import annotations
 
+import json
 import logging
 import uuid
 from pathlib import Path
@@ -28,10 +29,17 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Query, UploadFile, 
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.base_service import entity_or_404
 from app.core.database import get_db
-from app.core.security import CurrentUser, get_current_user
+from app.core.security import CurrentUser, get_current_user, require_permission
+from app.features.projects.repository import (
+    ContractorMatchRepository,
+    TaskAttachmentRepository,
+)
 from app.features.projects.schemas import (
     ConflictRecord,
+    ProjectAssignmentCreate,
+    ProjectAssignmentResponse,
     ProjectCreate,
     ProjectResponse,
     ProjectUpdate,
@@ -107,12 +115,9 @@ async def get_project(
 ) -> ProjectResponse:
     """Get a project detail with trade_scopes eager-loaded."""
     svc = ProjectService(db)
-    project = await svc.get_with_scopes(project_id)
-    if project is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Project {project_id} not found",
-        )
+    project = entity_or_404(
+        await svc.get_with_scopes(project_id), f"Project {project_id} not found"
+    )
     return ProjectResponse.model_validate(project)
 
 
@@ -131,12 +136,9 @@ async def update_project(
 
     # Apply non-status field updates first
     if update_data:
-        project = await svc.update(project_id, update_data)
-        if project is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Project {project_id} not found",
-            )
+        project = entity_or_404(
+            await svc.update(project_id, update_data), f"Project {project_id} not found"
+        )
 
     # Apply status transition if requested
     if new_status is not None:
@@ -144,12 +146,9 @@ async def update_project(
 
     # If nothing was updated, just return the existing project
     if not update_data and new_status is None:
-        project = await svc.repository.get_by_id(project_id)
-        if project is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Project {project_id} not found",
-            )
+        project = entity_or_404(
+            await svc.repository.get_by_id(project_id), f"Project {project_id} not found"
+        )
 
     return ProjectResponse.model_validate(project)
 
@@ -172,6 +171,96 @@ async def delete_project(
         )
 
 
+# ---------------------------------------------------------------------------
+# Project assignments — assign people (PM, contractor, foreman, …) to a project
+# ---------------------------------------------------------------------------
+
+
+def _assignment_response(assignment) -> ProjectAssignmentResponse:
+    """Serialize an assignment, enriching denormalized user/project name fields."""
+    resp = ProjectAssignmentResponse.model_validate(assignment)
+    user = assignment.user
+    if user is not None:
+        name = f"{user.first_name or ''} {user.last_name or ''}".strip()
+        resp.user_name = name or user.email
+    if assignment.project is not None:
+        resp.project_name = assignment.project.name
+    return resp
+
+
+@projects_router.get("/{project_id}/assignments", response_model=list[ProjectAssignmentResponse])
+async def list_project_assignments(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(get_current_user),
+) -> list[ProjectAssignmentResponse]:
+    """List everyone assigned to a project (RLS scopes to the caller's company)."""
+    from app.features.foreman.repository import ProjectAssignmentRepository
+
+    assignments = await ProjectAssignmentRepository(db).get_by_project(project_id)
+    return [_assignment_response(a) for a in assignments]
+
+
+@projects_router.post(
+    "/{project_id}/assignments",
+    response_model=ProjectAssignmentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def assign_to_project(
+    project_id: uuid.UUID,
+    data: ProjectAssignmentCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> ProjectAssignmentResponse:
+    """Assign a user to a project with a project-level role (owner/admin/PM)."""
+    await require_permission("projects.edit")(current_user, db)
+
+    from app.features.foreman.repository import ProjectAssignmentRepository
+    from app.features.users.service import UserRepository
+
+    # Both the project and the user must exist within the caller's company (RLS).
+    entity_or_404(
+        await ProjectService(db).repository.get_by_id(project_id),
+        f"Project {project_id} not found",
+    )
+    if await UserRepository(db).get_by_id(data.user_id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User not found in this company",
+        )
+
+    repo = ProjectAssignmentRepository(db)
+    assignment = await repo.assign(
+        current_user.company_id, project_id, data.user_id, role=data.role
+    )
+    full = await repo.get_by_id(assignment.id) or assignment
+    return _assignment_response(full)
+
+
+@projects_router.delete(
+    "/{project_id}/assignments/{assignment_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
+async def unassign_from_project(
+    project_id: uuid.UUID,
+    assignment_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> None:
+    """Remove a project assignment (soft delete)."""
+    await require_permission("projects.edit")(current_user, db)
+
+    from app.features.foreman.repository import ProjectAssignmentRepository
+
+    removed = await ProjectAssignmentRepository(db).unassign(assignment_id)
+    if not removed:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Assignment {assignment_id} not found",
+        )
+
+
 @projects_router.get("/{project_id}/quote-summary")
 async def project_quote_summary(
     project_id: uuid.UUID,
@@ -182,8 +271,7 @@ async def project_quote_summary(
 
     Returns {project_id, scopes: [{scope_id, trade_name, quote_count, subtotal}], grand_total}.
     """
-    if "admin" not in current_user.roles:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
+    await require_permission("projects.view")(current_user, db)
     from app.features.quotes.service import QuoteService
 
     svc = QuoteService(db)
@@ -201,8 +289,7 @@ async def project_invoice_summary(
     Returns {project_id, scopes: [{scope_id, trade_name, invoice_count, total_billed, total_paid, total_outstanding}],
     total_billed, total_paid, total_outstanding}.
     """
-    if "admin" not in current_user.roles:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
+    await require_permission("projects.view")(current_user, db)
     from app.features.invoices.service import InvoiceService
 
     svc = InvoiceService(db)
@@ -250,12 +337,9 @@ async def update_catalog_entry(
     """Update a trade catalog entry (name and/or color)."""
     svc = TradeCatalogService(db)
     update_data = data.model_dump(exclude_none=True)
-    entry = await svc.update(catalog_id, update_data)
-    if entry is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"TradeCatalog {catalog_id} not found",
-        )
+    entry = entity_or_404(
+        await svc.update(catalog_id, update_data), f"TradeCatalog {catalog_id} not found"
+    )
     return TradeCatalogResponse.model_validate(entry)
 
 
@@ -319,12 +403,9 @@ async def update_trade_scope(
     """Update a trade scope (contractor_id, status, status_override, sort_order, etc.)."""
     svc = TradeScopeService(db)
     update_data = data.model_dump(exclude_none=True)
-    scope = await svc.update(scope_id, update_data)
-    if scope is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"TradeScope {scope_id} not found",
-        )
+    scope = entity_or_404(
+        await svc.update(scope_id, update_data), f"TradeScope {scope_id} not found"
+    )
     return TradeScopeResponse.model_validate(scope)
 
 
@@ -395,20 +476,12 @@ async def update_task(
     new_status = update_data.get("status")
 
     # Track the previous status to avoid re-triggering on idempotent PATCHes
-    existing_task = await svc.repository.get_by_id(task_id)
-    if existing_task is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Task {task_id} not found",
-        )
+    existing_task = entity_or_404(
+        await svc.repository.get_by_id(task_id), f"Task {task_id} not found"
+    )
     previous_status = existing_task.status
 
-    task = await svc.update(task_id, update_data)
-    if task is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Task {task_id} not found",
-        )
+    task = entity_or_404(await svc.update(task_id, update_data), f"Task {task_id} not found")
 
     # When task transitions to 'complete' (not already complete), handle side effects
     if new_status == "complete" and previous_status != "complete":
@@ -508,6 +581,42 @@ async def list_task_notes(
 # ---------------------------------------------------------------------------
 
 _ALLOWED_TASK_ATTACHMENT_TYPES = frozenset({"photo", "video", "document"})
+_MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024
+
+
+def _parse_annotation_data(annotation_data: str | None) -> dict | None:
+    """Parse the optional annotation_data JSON string, raising 400 on malformed input."""
+    if not annotation_data:
+        return None
+    try:
+        return json.loads(annotation_data)
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="annotation_data must be a valid JSON string",
+        ) from exc
+
+
+async def _save_task_attachment_file(task_id: uuid.UUID, file: UploadFile) -> str:
+    """Persist an uploaded file under uploads/task-attachments/{task_id}/ and return its URL.
+
+    Enforces the size limit and returns the /files/-served remote URL.
+    """
+    suffix = Path(file.filename or "").suffix.lower() or ".bin"
+    unique_filename = f"{uuid.uuid4()}{suffix}"
+    upload_dir = Path("uploads") / "task-attachments" / str(task_id)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    content = await file.read()
+    if len(content) > _MAX_ATTACHMENT_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="File too large. Maximum size is 25 MB.",
+        )
+    async with aiofiles.open(upload_dir / unique_filename, "wb") as destination:
+        await destination.write(content)
+
+    return f"/files/task-attachments/{task_id}/{unique_filename}"
 
 
 @tasks_router.post(
@@ -538,9 +647,6 @@ async def upload_task_attachment(
     - 400 if no file provided
     - 400 if count limit exceeded
     """
-    import json
-
-    # Validate attachment_type
     if attachment_type not in _ALLOWED_TASK_ATTACHMENT_TYPES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -556,35 +662,8 @@ async def upload_task_attachment(
             detail="No file provided.",
         )
 
-    # Parse annotation_data JSON string if provided
-    parsed_annotation_data: dict | None = None
-    if annotation_data:
-        try:
-            parsed_annotation_data = json.loads(annotation_data)
-        except (json.JSONDecodeError, ValueError) as exc:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="annotation_data must be a valid JSON string",
-            ) from exc
-
-    # Save file to disk: uploads/task-attachments/{task_id}/{uuid}{ext}
-    original_suffix = Path(file.filename).suffix.lower() or ".bin"
-    unique_filename = f"{uuid.uuid4()}{original_suffix}"
-    upload_dir = Path("uploads") / "task-attachments" / str(task_id)
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    dest_path = upload_dir / unique_filename
-
-    content = await file.read()
-    if len(content) > 25 * 1024 * 1024:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="File too large. Maximum size is 25 MB.",
-        )
-    async with aiofiles.open(dest_path, "wb") as f:
-        await f.write(content)
-
-    # remote_url served by StaticFiles mount at /files/
-    remote_url = f"/files/task-attachments/{task_id}/{unique_filename}"
+    parsed_annotation_data = _parse_annotation_data(annotation_data)
+    remote_url = await _save_task_attachment_file(task_id, file)
 
     # Create DB record (enforces count limits)
     svc = TaskService(db)
@@ -607,17 +686,7 @@ async def list_task_attachments(
     _current_user: CurrentUser = Depends(get_current_user),
 ) -> list[TaskAttachmentResponse]:
     """List all non-deleted attachments for a task, ordered by sort_order."""
-    from sqlalchemy import select
-
-    from app.features.projects.models import TaskAttachment
-
-    result = await db.execute(
-        select(TaskAttachment)
-        .where(TaskAttachment.task_id == task_id)
-        .where(TaskAttachment.deleted_at.is_(None))
-        .order_by(TaskAttachment.sort_order)
-    )
-    attachments = result.scalars().all()
+    attachments = await TaskAttachmentRepository(db).list_by_task(task_id)
     return [TaskAttachmentResponse.model_validate(a) for a in attachments]
 
 
@@ -633,16 +702,11 @@ async def update_task_attachment(
     _current_user: CurrentUser = Depends(get_current_user),
 ) -> TaskAttachmentResponse:
     """Update a task attachment (caption, sort_order, annotation_data)."""
-    from app.features.projects.repository import TaskAttachmentRepository
-
     repo = TaskAttachmentRepository(db)
     update_data = data.model_dump(exclude_none=True)
-    attachment = await repo.update(attachment_id, update_data)
-    if attachment is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"TaskAttachment {attachment_id} not found",
-        )
+    attachment = entity_or_404(
+        await repo.update(attachment_id, update_data), f"TaskAttachment {attachment_id} not found"
+    )
     return TaskAttachmentResponse.model_validate(attachment)
 
 
@@ -658,8 +722,6 @@ async def delete_task_attachment(
     _current_user: CurrentUser = Depends(get_current_user),
 ) -> None:
     """Soft-delete a task attachment."""
-    from app.features.projects.repository import TaskAttachmentRepository
-
     repo = TaskAttachmentRepository(db)
     deleted = await repo.soft_delete(attachment_id)
     if not deleted:
@@ -694,7 +756,7 @@ async def list_contractors_by_specialty(
         default=None, description="Filter and sort by specialty match for this trade catalog entry"
     ),
     db: AsyncSession = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user),
+    _current_user: CurrentUser = Depends(get_current_user),
 ) -> list[ContractorMatchResponse]:
     """List contractors in the current company.
 
@@ -702,73 +764,8 @@ async def list_contractors_by_specialty(
     are returned first (has_specialty_match=True), then others (has_specialty_match=False).
     Within each group, sorted by name ascending.
     """
-    from sqlalchemy import String, case, func, select
-
-    from app.features.projects.models import UserTradeSpecialty
-    from app.features.users.models import User, UserRole
-
-    # Build query: all users with contractor role in current company.
-    # LEFT JOIN user_trade_specialties on (user_id, trade_catalog_id) if provided.
-    if trade_catalog_id is not None:
-        specialty_match_col = case(
-            (UserTradeSpecialty.id.is_not(None), True),
-            else_=False,
-        ).label("has_specialty_match")
-
-        stmt = (
-            select(
-                User.id,
-                func.concat(
-                    func.coalesce(User.first_name, ""),
-                    " ",
-                    func.coalesce(User.last_name, ""),
-                )
-                .cast(String)
-                .label("name"),
-                User.email,
-                specialty_match_col,
-            )
-            .join(UserRole, UserRole.user_id == User.id)
-            .outerjoin(
-                UserTradeSpecialty,
-                (UserTradeSpecialty.user_id == User.id)
-                & (UserTradeSpecialty.trade_catalog_id == trade_catalog_id),
-            )
-            .where(UserRole.role == "contractor")
-            .where(User.deleted_at.is_(None))
-            .order_by(specialty_match_col.desc(), User.email)
-        )
-    else:
-        stmt = (
-            select(
-                User.id,
-                func.concat(
-                    func.coalesce(User.first_name, ""),
-                    " ",
-                    func.coalesce(User.last_name, ""),
-                )
-                .cast(String)
-                .label("name"),
-                User.email,
-            )
-            .join(UserRole, UserRole.user_id == User.id)
-            .where(UserRole.role == "contractor")
-            .where(User.deleted_at.is_(None))
-            .order_by(User.email)
-        )
-
-    result = await db.execute(stmt)
-    rows = result.fetchall()
-
-    return [
-        ContractorMatchResponse(
-            id=row.id,
-            name=row.name.strip() or row.email,
-            email=row.email,
-            has_specialty_match=bool(row.has_specialty_match) if trade_catalog_id else False,
-        )
-        for row in rows
-    ]
+    contractors = await ContractorMatchRepository(db).list_contractors(trade_catalog_id)
+    return [ContractorMatchResponse.model_validate(contractor) for contractor in contractors]
 
 
 # ---------------------------------------------------------------------------

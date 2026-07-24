@@ -12,6 +12,7 @@ import '../../../../features/users/domain/user_entity.dart';
 import '../../data/booking_dao.dart';
 import '../../domain/booking_entity.dart';
 import '../../domain/overdue_service.dart';
+import '../../domain/schedule_time_format.dart';
 import '../providers/calendar_providers.dart';
 import '../widgets/calendar_grid_painter.dart';
 import '../widgets/contractor_lane.dart';
@@ -456,7 +457,8 @@ class _BookingListCard extends ConsumerWidget {
                 const Icon(Icons.access_time, size: 14, color: Colors.grey),
                 const SizedBox(width: 4),
                 Text(
-                  _formatTimeRange(booking.timeRangeStart, booking.timeRangeEnd),
+                  ScheduleTimeFormat.range(
+                      booking.timeRangeStart, booking.timeRangeEnd),
                   style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                 ),
               ],
@@ -536,17 +538,6 @@ class _BookingListCard extends ConsumerWidget {
     );
   }
 
-  String _formatTimeRange(DateTime start, DateTime end) {
-    return '${_formatTime(start)} - ${_formatTime(end)}';
-  }
-
-  String _formatTime(DateTime time) {
-    final hour = time.hour;
-    final minute = time.minute.toString().padLeft(2, '0');
-    final period = hour < 12 ? 'AM' : 'PM';
-    final h = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
-    return '$h:$minute $period';
-  }
 }
 
 // ─── Status chip ──────────────────────────────────────────────────────────────

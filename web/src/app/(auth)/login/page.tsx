@@ -68,8 +68,8 @@ export default function LoginPage() {
         const userMeta = (await response.json()) as AuthUser;
         dispatch(
           setAuthUser({
-            displayName: userMeta.user_id,
-            companyName: userMeta.company_id,
+            displayName: userMeta.display_name ?? userMeta.email ?? null,
+            companyName: userMeta.company_name ?? null,
             roles: userMeta.roles,
           })
         );
@@ -89,24 +89,30 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen">
-      {/* Left panel — blue gradient (hidden on mobile) */}
-      <div className="hidden md:flex flex-col justify-center items-center flex-1 bg-gradient-to-br from-indigo-600 to-blue-500 p-12">
-        <div className="max-w-md text-white">
-          <h1 className="text-4xl font-bold mb-4">ContractorHub</h1>
-          <p className="text-xl text-indigo-100">
-            Manage your contracting business with confidence
+      {/* Left panel — ink chrome with blueprint grid + hi-vis (hidden on mobile) */}
+      <div className="relative hidden flex-1 flex-col justify-center overflow-hidden bg-sidebar p-14 text-white md:flex">
+        <div className="blueprint-grid pointer-events-none absolute inset-0 text-white/70" />
+        <div className="absolute inset-x-0 top-0 h-1 bg-brand" />
+        <div className="relative max-w-md">
+          <p className="eyebrow mb-6 text-brand">Contractor operations</p>
+          <h1 className="mb-5 flex items-center gap-3 text-5xl font-extrabold tracking-tight">
+            <span className="inline-block h-7 w-7 rounded-[5px] bg-brand" />
+            ContractorHub
+          </h1>
+          <p className="text-2xl leading-relaxed text-white/70">
+            Run every job, quote, and invoice from one command center.
           </p>
-          <div className="mt-8 space-y-4 text-indigo-200">
+          <div className="mt-10 space-y-4 text-lg text-white/80">
             <div className="flex items-center gap-3">
-              <div className="w-2 h-2 rounded-full bg-white" />
+              <span className="inline-block h-2 w-2 rounded-[2px] bg-brand" />
               <span>Real-time job tracking and scheduling</span>
             </div>
             <div className="flex items-center gap-3">
-              <div className="w-2 h-2 rounded-full bg-white" />
+              <span className="inline-block h-2 w-2 rounded-[2px] bg-brand" />
               <span>Automated quotes and invoicing</span>
             </div>
             <div className="flex items-center gap-3">
-              <div className="w-2 h-2 rounded-full bg-white" />
+              <span className="inline-block h-2 w-2 rounded-[2px] bg-brand" />
               <span>Contractor and client management</span>
             </div>
           </div>
@@ -115,54 +121,64 @@ export default function LoginPage() {
 
       {/* Right panel — login form */}
       <div className="flex flex-col justify-center items-center flex-1 p-8 bg-white">
-        <div className="w-full max-w-sm">
+        <div className="w-full max-w-md">
           {/* Mobile logo */}
           <div className="mb-8 md:hidden text-center">
-            <h1 className="text-2xl font-bold text-indigo-600">ContractorHub</h1>
+            <h1 className="inline-flex items-center gap-2 text-3xl font-extrabold tracking-tight text-foreground">
+              <span className="inline-block h-5 w-5 rounded-[4px] bg-brand" />
+              ContractorHub
+            </h1>
           </div>
 
-          <div className="mb-6">
-            <h2 className="text-2xl font-semibold text-gray-900">Sign in</h2>
-            <p className="text-sm text-gray-500 mt-1">
+          <div className="mb-8">
+            <h2 className="text-3xl font-bold tracking-tight text-gray-900">
+              Sign in
+            </h2>
+            <p className="mt-2 text-base text-gray-500">
               Enter your credentials to access your dashboard
             </p>
           </div>
 
           {/* Inline error banner */}
           {loginError && (
-            <div className="mb-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            <div className="mb-5 flex items-center gap-2.5 rounded-lg border border-red-200 bg-red-50 p-3.5 text-sm text-red-700">
+              <AlertCircle className="h-5 w-5 flex-shrink-0" />
               <span>{loginError}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             {/* Email field */}
-            <div className="space-y-1">
-              <Label htmlFor="email">Email</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="email" className="text-base">
+                Email
+              </Label>
               <Input
                 id="email"
                 type="email"
                 placeholder="admin@example.com"
                 autoComplete="email"
+                className="h-11 text-base"
                 {...register("email")}
                 aria-invalid={!!errors.email}
               />
               {errors.email && (
-                <p className="text-xs text-red-600">{errors.email.message}</p>
+                <p className="text-sm text-red-600">{errors.email.message}</p>
               )}
             </div>
 
             {/* Password field */}
-            <div className="space-y-1">
-              <Label htmlFor="password">Password</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="password" className="text-base">
+                Password
+              </Label>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   autoComplete="current-password"
-                  className="pr-10"
+                  className="h-11 text-base pr-11"
                   {...register("password")}
                   aria-invalid={!!errors.password}
                 />
@@ -173,14 +189,14 @@ export default function LoginPage() {
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
+                    <EyeOff className="h-5 w-5" />
                   ) : (
-                    <Eye className="h-4 w-4" />
+                    <Eye className="h-5 w-5" />
                   )}
                 </button>
               </div>
               {errors.password && (
-                <p className="text-xs text-red-600">{errors.password.message}</p>
+                <p className="text-sm text-red-600">{errors.password.message}</p>
               )}
             </div>
 
@@ -188,7 +204,7 @@ export default function LoginPage() {
             <div className="flex justify-end">
               <button
                 type="button"
-                className="text-sm text-indigo-600 hover:text-indigo-500"
+                className="text-sm font-medium text-muted-foreground hover:text-foreground"
                 onClick={() =>
                   toast("Contact your administrator", {
                     description: "Password reset is managed by your system administrator.",
@@ -202,12 +218,13 @@ export default function LoginPage() {
             {/* Submit button */}
             <Button
               type="submit"
-              className="w-full bg-indigo-600 hover:bg-indigo-700"
+              variant="brand"
+              className="w-full h-11 text-base font-semibold"
               disabled={isSubmitting}
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                   Signing in...
                 </>
               ) : (

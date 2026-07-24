@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated test/report artifacts — never lint bundled/minified output.
+    "playwright-report/**",
+    "test-results/**",
+    "coverage/**",
+    "playwright/**",
   ]),
 ]);
 

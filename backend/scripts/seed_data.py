@@ -35,14 +35,20 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.core.config import settings
+
 # ---------------------------------------------------------------------------
 # Database connection
 # ---------------------------------------------------------------------------
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql+asyncpg://appuser:apppassword@localhost:5432/contractorhub",
-)
+# Target the same database the app uses (env-driven via settings) — no hardcoded
+# default, matching the app config and scripts/provision.py. The old hardcoded
+# default pointed at a `contractorhub` DB that may not exist.
+DATABASE_URL = settings.database_url
+
+# Shared password given to every seed user so they can actually log in locally.
+# DEV ONLY — never reuse for real accounts. Override via SEED_PASSWORD env if desired.
+SEED_PASSWORD = os.getenv("SEED_PASSWORD", "password123")
 
 # ---------------------------------------------------------------------------
 # Seed company definitions
@@ -84,6 +90,41 @@ ACE_USERS = [
         "last_name": "Thompson",
         "phone": "+61 400 001 004",
         "role": "client",
+    },
+    {
+        "email": "owner@ace.com",
+        "first_name": "Olivia",
+        "last_name": "Grant",
+        "phone": "+61 400 001 005",
+        "role": "owner",
+    },
+    {
+        "email": "pm@ace.com",
+        "first_name": "Priya",
+        "last_name": "Nair",
+        "phone": "+61 400 001 006",
+        "role": "project_manager",
+    },
+    {
+        "email": "gc@ace.com",
+        "first_name": "George",
+        "last_name": "Costa",
+        "phone": "+61 400 001 007",
+        "role": "gc",
+    },
+    {
+        "email": "foreman@ace.com",
+        "first_name": "Frank",
+        "last_name": "Doyle",
+        "phone": "+61 400 001 008",
+        "role": "foreman",
+    },
+    {
+        "email": "worker@ace.com",
+        "first_name": "Wendy",
+        "last_name": "Kim",
+        "phone": "+61 400 001 009",
+        "role": "worker",
     },
 ]
 
@@ -136,10 +177,12 @@ async def _seed_company(
 
     Uses raw SQL inserts to bypass RLS (seeding is a privileged operation).
     """
+    from app.core.security import hash_password
     from app.features.companies.models import Company
     from app.features.users.models import User, UserRole
 
     company_name = company_data["name"]
+    seed_password_hash = hash_password(SEED_PASSWORD)
 
     # Check idempotency
     if await _company_exists(session, company_name):
@@ -167,7 +210,11 @@ async def _seed_company(
             text(f"SET LOCAL app.current_company_id = '{company.id}'"),
         )
 
-        user = User(company_id=company.id, **user_data)
+        user = User(
+            company_id=company.id,
+            password_hash=seed_password_hash,
+            **user_data,
+        )
         session.add(user)
         await session.flush()
         await session.refresh(user)
@@ -583,6 +630,47 @@ async def _seed_phase4_ace(session: AsyncSession, verbose: bool = True) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Password backfill (for databases seeded before passwords were set)
+# ---------------------------------------------------------------------------
+
+
+async def _backfill_passwords(session: AsyncSession, verbose: bool = True) -> None:
+    """Give SEED_PASSWORD to any seed-company user still missing a password.
+
+    Older seed runs created users without a password_hash, so they could not log
+    in. This runs every time (even when companies already exist) and only touches
+    rows where password_hash IS NULL, so it is safe and idempotent.
+    """
+    from app.core.security import hash_password
+
+    password_hash = hash_password(SEED_PASSWORD)
+    updated_total = 0
+
+    for company_data in (ACE_COMPANY, BUILDRIGHT_COMPANY):
+        company = await _get_company_by_name(session, company_data["name"])
+        if company is None:
+            continue
+
+        # RLS tenant context so the UPDATE on the tenant-scoped users table passes.
+        # company.id is a PostgreSQL UUID, never user input — safe to interpolate.
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company.id}'"))
+        result = await session.execute(
+            text(
+                "UPDATE users SET password_hash = :hash "
+                "WHERE company_id = :cid AND password_hash IS NULL"
+            ),
+            {"hash": password_hash, "cid": str(company.id)},
+        )
+        updated_total += result.rowcount or 0
+
+    if verbose:
+        if updated_total:
+            print(f"  [OK] Backfilled passwords for {updated_total} seed user(s)")
+        else:
+            print("  [SKIP] All seed users already have passwords")
+
+
+# ---------------------------------------------------------------------------
 # Main seed function
 # ---------------------------------------------------------------------------
 
@@ -626,6 +714,11 @@ async def seed_data(verbose: bool = True) -> None:
             print("Seeding: Phase 4 job lifecycle data (Ace Plumbing & Electrical)")
         await _seed_phase4_ace(session, verbose=verbose)
 
+        # Ensure every seed user has a login password (creates new + backfills old).
+        if verbose:
+            print("Ensuring seed users have login passwords")
+        await _backfill_passwords(session, verbose=verbose)
+
         await session.commit()
 
     await engine.dispose()
@@ -633,6 +726,9 @@ async def seed_data(verbose: bool = True) -> None:
     if verbose:
         print("=" * 50)
         print("Seed data complete!")
+        print()
+        print(f"Login (all seed users share this dev password): {SEED_PASSWORD}")
+        print("  e.g. admin@ace.com / admin@buildright.com / john@ace.com")
         print()
         print("Phase 4 demo data:")
         print("  - 8 jobs at every lifecycle stage (quote -> invoiced + cancelled)")

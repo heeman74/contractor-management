@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.permissions import DEFAULT_ROLE_PERMISSIONS, expand
 from app.core.tenant import set_current_tenant_id, set_current_user_id
 
 # ---------------------------------------------------------------------------
@@ -162,3 +163,85 @@ async def get_current_user(
 def create_test_token(payload: dict[str, Any]) -> str:
     """Create a test JWT. For use in tests only."""
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=_ALGORITHM)
+
+
+# ---------------------------------------------------------------------------
+# Role capability groups
+#
+# These name the coarse privilege tiers and double as the source of the default
+# permission matrix seeded per company (see app/core/permissions.py). "owner"
+# implies "admin", so broadening require_admin here means no admin call site
+# needs to add "owner" explicitly.
+# ---------------------------------------------------------------------------
+OWNER_ROLES: tuple[str, ...] = ("owner",)
+ADMIN_ROLES: tuple[str, ...] = ("owner", "admin")
+MANAGER_ROLES: tuple[str, ...] = ("owner", "admin", "project_manager")
+GC_ROLES: tuple[str, ...] = ("owner", "admin", "gc")
+
+
+def require_roles(
+    current_user: CurrentUser,
+    *allowed_roles: str,
+    detail: str = "Insufficient role",
+) -> None:
+    """Raise 403 unless the current user has at least one of the allowed roles."""
+    if not any(role in current_user.roles for role in allowed_roles):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
+
+
+def require_owner(current_user: CurrentUser) -> None:
+    """Raise 403 unless the current user is a company owner."""
+    require_roles(current_user, *OWNER_ROLES, detail="Owner role required")
+
+
+def require_admin(current_user: CurrentUser) -> None:
+    """Raise 403 unless the current user is an owner or admin."""
+    require_roles(current_user, *ADMIN_ROLES, detail="Admin role required")
+
+
+def require_manager(current_user: CurrentUser) -> None:
+    """Raise 403 unless the current user can manage operations (owner/admin/PM)."""
+    require_roles(current_user, *MANAGER_ROLES, detail="Manager role required")
+
+
+def require_gc(current_user: CurrentUser) -> None:
+    """Raise 403 unless the current user oversees construction (owner/admin/gc)."""
+    require_roles(current_user, *GC_ROLES, detail="GC role required")
+
+
+async def effective_permissions(current_user: CurrentUser, db: AsyncSession) -> set[str]:
+    """Resolve the caller's effective permission keys (union across their roles).
+
+    Reads the tenant's editable role -> permission matrix, falling back to the
+    code-defined defaults for any role missing a stored row.
+    """
+    # Imported lazily: core must not import feature modules at load time.
+    from app.features.rbac.repository import RbacRepository
+
+    role_map = await RbacRepository(db).get_map()
+    granted: set[str] = set()
+    for role in current_user.roles:
+        keys = role_map.get(role, DEFAULT_ROLE_PERMISSIONS.get(role, []))
+        granted |= expand(keys)
+    return granted
+
+
+def require_permission(permission_key: str):
+    """Build a dependency that 403s unless the caller's roles grant permission_key.
+
+    Enforcement reads the per-company matrix, so an admin editing a role's
+    permissions changes access immediately.
+    """
+
+    async def _dependency(
+        current_user: CurrentUser = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db),
+    ) -> None:
+        granted = await effective_permissions(current_user, db)
+        if permission_key not in granted:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Missing permission: {permission_key}",
+            )
+
+    return _dependency

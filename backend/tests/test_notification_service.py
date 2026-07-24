@@ -137,10 +137,10 @@ async def test_send_notification_unregistered_error():
     mock_messaging.send.side_effect = _UnregisteredError("Not registered")
 
     await svc._send_to_token(
-        token_record=fake_token,
+        fake_token,
         title="Job Scheduled",
         body="Your job has been scheduled.",
-        job_id=uuid.uuid4(),
+        data={"job_id": str(uuid.uuid4()), "event": "job_update"},
         messaging=mock_messaging,
     )
 
@@ -174,10 +174,10 @@ async def test_send_notification_generic_error_token_not_deleted():
 
     # Should not raise — fire-and-forget
     await svc._send_to_token(
-        token_record=fake_token,
+        fake_token,
         title="Job Update",
         body="There is an update on your job.",
-        job_id=uuid.uuid4(),
+        data={"job_id": str(uuid.uuid4()), "event": "job_update"},
         messaging=mock_messaging,
     )
 
@@ -227,7 +227,7 @@ async def test_send_job_notification_success():
     ):
         send_calls = []
 
-        async def fake_send_to_token(**kwargs):
+        async def fake_send_to_token(token_record=None, **kwargs):
             send_calls.append(kwargs)
 
         svc._send_to_token = fake_send_to_token

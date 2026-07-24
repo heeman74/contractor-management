@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../domain/job_entity.dart';
 import '../../domain/job_status.dart';
+import '../../domain/job_status_colors.dart';
 import 'job_card.dart';
 
 /// Horizontally scrollable kanban board with one column per lifecycle stage.
@@ -118,16 +119,7 @@ class _KanbanColumn extends StatelessWidget {
     );
   }
 
-  static Color _columnColor(JobStatus status) {
-    return switch (status) {
-      JobStatus.quote => Colors.blue,
-      JobStatus.scheduled => Colors.orange,
-      JobStatus.inProgress => Colors.amber[700]!,
-      JobStatus.complete => Colors.green,
-      JobStatus.invoiced => Colors.purple,
-      JobStatus.cancelled => Colors.grey,
-    };
-  }
+  static Color _columnColor(JobStatus status) => JobStatusColors.pipeline(status);
 }
 
 // ─── Column header ───────────────────────────────────────────────────────────

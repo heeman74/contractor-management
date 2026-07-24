@@ -26,17 +26,27 @@ function generateRequestId(): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
+export interface TraceOptions {
+  /**
+   * Response statuses that are an expected outcome of this request (e.g. a 404
+   * from a "does a quote exist for this job?" lookup). These are logged at info
+   * level instead of error, so a normal not-found doesn't read as a failure.
+   */
+  silentStatuses?: number[];
+}
+
 /**
  * Wrap a fetch call with request tracing.
  *
  * - Injects X-Request-ID header
  * - Logs request start (debug) and response (info) with duration
- * - Logs errors at error level
+ * - Logs unexpected non-OK responses at error level (see TraceOptions.silentStatuses)
  * - Returns the Response as-is (does not consume the body)
  */
 export async function tracedFetch(
   input: string | URL | Request,
-  init?: RequestInit
+  init?: RequestInit,
+  options?: TraceOptions
 ): Promise<Response> {
   const requestId = generateRequestId();
 
@@ -55,18 +65,13 @@ export async function tracedFetch(
     const response = await fetch(url, { ...init, headers });
     const durationMs = Math.round(performance.now() - start);
 
-    if (response.ok) {
-      logger.info(TAG, `${method} ${url} -> ${response.status}`, {
-        status: response.status,
-        durationMs,
-        requestId,
-      });
+    const logContext = { status: response.status, durationMs, requestId };
+    const isExpected =
+      response.ok || (options?.silentStatuses?.includes(response.status) ?? false);
+    if (isExpected) {
+      logger.info(TAG, `${method} ${url} -> ${response.status}`, logContext);
     } else {
-      logger.error(TAG, `${method} ${url} -> ${response.status}`, {
-        status: response.status,
-        durationMs,
-        requestId,
-      });
+      logger.error(TAG, `${method} ${url} -> ${response.status}`, logContext);
     }
 
     return response;

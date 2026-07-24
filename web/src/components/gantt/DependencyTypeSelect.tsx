@@ -91,7 +91,7 @@ export function DependencyTypeSelect({
         </Button>
         <Button
           size="sm"
-          className="bg-indigo-600 hover:bg-indigo-700 text-white"
+          className="bg-primary hover:bg-primary/90 text-white"
           onClick={handleConfirm}
         >
           Create Dependency

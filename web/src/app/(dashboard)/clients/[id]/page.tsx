@@ -61,7 +61,7 @@ function PropertyRow({ property }: { property: ClientProperty }) {
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-gray-900">{label}</span>
           {property.is_default && (
-            <Badge className="bg-indigo-100 text-indigo-800 text-xs">Default</Badge>
+            <Badge className="bg-secondary text-foreground text-xs">Default</Badge>
           )}
         </div>
         {expanded ? (
@@ -262,7 +262,7 @@ export default function ClientDetailPage() {
               <InfoRow label="Email">
                 <a
                   href={`mailto:${client.email}`}
-                  className="text-indigo-600 hover:underline"
+                  className="text-foreground hover:underline"
                 >
                   {client.email}
                 </a>
@@ -287,7 +287,7 @@ export default function ClientDetailPage() {
                   {client.tags.map((tag) => (
                     <span
                       key={tag}
-                      className="bg-indigo-50 text-indigo-700 text-xs rounded-full px-2 py-0.5"
+                      className="bg-secondary text-foreground text-xs rounded-full px-2 py-0.5"
                     >
                       {tag}
                     </span>
@@ -335,7 +335,7 @@ export default function ClientDetailPage() {
               {client.preferred_contractor_id && client.preferred_contractor_name ? (
                 <Link
                   href={`/contractors/${client.preferred_contractor_id}`}
-                  className="text-sm text-indigo-600 hover:underline"
+                  className="text-sm text-foreground hover:underline"
                 >
                   {client.preferred_contractor_name}
                 </Link>

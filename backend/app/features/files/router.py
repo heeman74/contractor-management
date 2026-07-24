@@ -28,6 +28,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.base_service import entity_or_404
 from app.core.database import get_db
 from app.core.security import CurrentUser, get_current_user
 from app.features.jobs.models import Attachment, JobNote
@@ -83,12 +84,7 @@ async def upload_attachment(
     result = await db.execute(
         select(JobNote).where(JobNote.id == note_id).where(JobNote.deleted_at.is_(None))
     )
-    note = result.scalars().first()
-    if note is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Job note {note_id} not found",
-        )
+    entity_or_404(result.scalars().first(), f"Job note {note_id} not found")
 
     # Build destination path: uploads/attachments/{note_id}/{uuid}{ext}
     original_suffix = Path(file.filename).suffix.lower() or ".bin"

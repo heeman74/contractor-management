@@ -52,7 +52,16 @@ class RoleAssignment(BaseModel):
     """
 
     user_id: uuid.UUID
-    role: Literal["admin", "contractor", "client"]
+    role: Literal[
+        "owner",
+        "admin",
+        "project_manager",
+        "gc",
+        "foreman",
+        "contractor",
+        "worker",
+        "client",
+    ]
 
 
 class UserRoleResponse(TenantResponseSchema):

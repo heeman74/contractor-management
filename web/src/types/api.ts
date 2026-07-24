@@ -1,3 +1,5 @@
+import type { Role } from "@/lib/roles";
+
 // Auth
 export interface LoginRequest {
   email: string;
@@ -11,12 +13,18 @@ export interface TokenResponse {
   user_id: string;
   company_id: string;
   roles: string[];
+  email?: string | null;
+  display_name?: string | null;
+  company_name?: string | null;
 }
 
 export interface AuthUser {
   user_id: string;
   company_id: string;
   roles: string[];
+  email?: string | null;
+  display_name?: string | null;
+  company_name?: string | null;
 }
 
 // Job statuses
@@ -29,12 +37,25 @@ export type JobStatus =
   | "cancelled";
 
 // Status history entry
-export interface StatusHistoryEntry {
+// A job's status_history is a heterogeneous JSONB array holding two shapes:
+// status transitions ({status,...}) and audit events ({type,...} — e.g.
+// quote_created, quote_sent, invoice_generated, delay). Both carry a timestamp.
+export interface StatusChangeEntry {
   status: string;
   timestamp: string;
   changed_by?: string;
   reason?: string;
 }
+
+export interface JobEventEntry {
+  type: string;
+  timestamp: string;
+  user_id?: string | null;
+  reason?: string;
+  new_eta?: string;
+}
+
+export type StatusHistoryEntry = StatusChangeEntry | JobEventEntry;
 
 // Job -- matches backend JobResponse exactly
 export interface Job {
@@ -368,6 +389,21 @@ export interface UtilizationHeatmapResponse {
   contractors: UtilizationHeatmapContractor[];
 }
 
+// User — matches backend UserResponse (returned by GET /api/v1/users/)
+export interface UserResponse {
+  id: string;
+  company_id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  roles: string[];
+  version: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
 // Create Client types
 export interface UserCreateRequest {
   email: string;
@@ -385,5 +421,26 @@ export interface ClientProfileCreateRequest {
 
 export interface RoleAssignmentRequest {
   user_id: string;
-  role: "admin" | "contractor" | "client";
+  role: Role;
+}
+
+// RBAC — editable per-company role permission matrix (Phase 27)
+export interface PermissionCatalogItem {
+  key: string;
+  label: string;
+  group: string;
+}
+
+export interface RolePermissionsResponse {
+  catalog: PermissionCatalogItem[];
+  roles: Record<string, string[]>;
+  defaults: Record<string, string[]>;
+}
+
+export interface RolePermissionsUpdate {
+  permissions: string[];
+}
+
+export interface MyPermissionsResponse {
+  permissions: string[];
 }

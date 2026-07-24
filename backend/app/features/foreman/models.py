@@ -62,7 +62,7 @@ class ProjectAssignment(TenantScopedModel):
 
     __table_args__ = (
         CheckConstraint(
-            "role IN ('foreman')",
+            "role IN ('foreman', 'lead', 'inspector', 'project_manager', 'contractor')",
             name="project_assignments_role_check",
         ),
     )

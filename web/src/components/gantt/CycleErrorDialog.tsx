@@ -34,7 +34,7 @@ export function CycleErrorDialog({
           Remove one of these links to break the loop.
         </p>
         <DialogFooter>
-          <Button onClick={onClose} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+          <Button onClick={onClose} className="bg-primary hover:bg-primary/90 text-white">
             Got it
           </Button>
         </DialogFooter>

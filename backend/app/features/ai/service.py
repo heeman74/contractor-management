@@ -21,10 +21,13 @@ import json
 import logging
 import uuid
 from collections.abc import AsyncGenerator
+from datetime import UTC, datetime
+from itertools import pairwise
 from typing import Any
 
 import aiofiles
 from anthropic import APIError, APITimeoutError, AsyncAnthropic, RateLimitError
+from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,8 +40,25 @@ from app.features.ai.repository import (
     AIMessageRepository,
     AITokenUsageRepository,
 )
+from app.features.ai.schemas import IntakeCompleteRequest, InterviewCompleteRequest
+from app.features.projects.models import Task
+from app.features.projects.schemas import (
+    ProjectCreate,
+    TaskCreate,
+    TaskDependencyCreate,
+    TradeScopeCreate,
+)
+from app.features.projects.service import (
+    DependencyService,
+    ProjectService,
+    TaskService,
+    TradeScopeService,
+)
 
 logger = logging.getLogger(__name__)
+
+_CONVERSATION_STATUS_ACTIVE = "active"
+_DEFAULT_TRADE_COLOR = "#9E9E9E"
 
 # Module-level Anthropic client — reads ANTHROPIC_API_KEY from environment
 _anthropic_client = AsyncAnthropic()
@@ -499,3 +519,155 @@ class AIService(TenantScopedService[AIConversation]):
     async def mark_abandoned(self, conversation_id: uuid.UUID) -> None:
         """Mark a conversation as abandoned."""
         await self.repository.update(conversation_id, {"status": "abandoned"})
+
+    # -------------------------------------------------------------------------
+    # Commit flows — persist AI suggestions to the domain
+    # -------------------------------------------------------------------------
+
+    async def _require_active_conversation(
+        self,
+        conversation_id: uuid.UUID,
+        *,
+        require_scope: bool = False,
+    ) -> AIConversation:
+        """Load a conversation that must exist and be active; optionally require a scope."""
+        conv = await self.repository.get_by_id(conversation_id)
+        if conv is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Conversation {conversation_id} not found",
+            )
+        if conv.status != _CONVERSATION_STATUS_ACTIVE:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Conversation is not active",
+            )
+        if require_scope and conv.scope_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Conversation does not have an associated trade scope",
+            )
+        return conv
+
+    async def commit_intake(
+        self,
+        request: IntakeCompleteRequest,
+        user_id: uuid.UUID,
+    ) -> dict[str, list[str] | str]:
+        """Commit AI-suggested trade scopes: create project, scopes, and sequencing edges."""
+        await self._require_active_conversation(request.conversation_id)
+
+        project_id = await self._resolve_project_id(request, user_id)
+        created_scopes = await self._create_trade_scopes(request.trade_scopes, project_id, user_id)
+        await self._wire_scope_sequencing(created_scopes)
+
+        await self.mark_complete(request.conversation_id)
+        return {
+            "project_id": str(project_id),
+            "trade_scope_ids": [str(scope.id) for scope in created_scopes],
+        }
+
+    async def _resolve_project_id(
+        self,
+        request: IntakeCompleteRequest,
+        user_id: uuid.UUID,
+    ) -> uuid.UUID:
+        """Return the request's project_id, creating a new project when absent."""
+        if request.project_id is not None:
+            return request.project_id
+        project = await ProjectService(self.db).create(
+            ProjectCreate(name=request.project_name, description=request.project_description),
+            user_id=user_id,
+        )
+        await self.db.flush()
+        return project.id
+
+    async def _create_trade_scopes(
+        self,
+        trade_scopes: list[dict[str, Any]],
+        project_id: uuid.UUID,
+        user_id: uuid.UUID,
+    ) -> list[Any]:
+        """Create trade scopes (sorted by sort_order) and return them in creation order."""
+        scope_svc = TradeScopeService(self.db)
+        created_scopes: list[Any] = []
+        for scope_data in sorted(trade_scopes, key=lambda s: s.get("sort_order", 0)):
+            scope = await scope_svc.create(
+                TradeScopeCreate(
+                    project_id=project_id,
+                    trade_name=scope_data["trade_name"],
+                    trade_color=scope_data.get("trade_color", _DEFAULT_TRADE_COLOR),
+                ),
+                user_id=user_id,
+            )
+            await self.db.flush()
+            created_scopes.append(scope)
+        return created_scopes
+
+    async def _wire_scope_sequencing(self, created_scopes: list[Any]) -> None:
+        """Link consecutive scopes with FS dependency edges via placeholder tasks (D-23)."""
+        task_svc = TaskService(self.db)
+        dep_svc = DependencyService(self.db)
+
+        placeholder_task_ids: list[uuid.UUID] = []
+        for scope in created_scopes:
+            placeholder = await task_svc.create(
+                TaskCreate(
+                    trade_scope_id=scope.id,
+                    title=f"[Scope placeholder] {scope.trade_name}",
+                    description="Auto-created placeholder for cross-scope dependency sequencing.",
+                    priority="low",
+                )
+            )
+            await self.db.flush()
+            placeholder_task_ids.append(placeholder.id)
+
+        for predecessor_id, successor_id in pairwise(placeholder_task_ids):
+            await dep_svc.create_dependency(
+                successor_id,
+                TaskDependencyCreate(predecessor_task_id=predecessor_id),
+            )
+
+    async def commit_interview(self, request: InterviewCompleteRequest) -> dict[str, list[str]]:
+        """Replace a scope's tasks with the AI-suggested tasks and complete the conversation."""
+        conv = await self._require_active_conversation(request.conversation_id, require_scope=True)
+        scope_id = conv.scope_id
+
+        await self._soft_delete_scope_tasks(scope_id)
+        created_task_ids = await self._create_interview_tasks(scope_id, request.tasks)
+
+        await self.mark_complete(request.conversation_id)
+        return {"task_ids": [str(tid) for tid in created_task_ids]}
+
+    async def _soft_delete_scope_tasks(self, scope_id: uuid.UUID) -> None:
+        """Soft-delete all live tasks for a scope (D-19 re-interview cleanup)."""
+        result = await self.db.execute(
+            select(Task).where(Task.trade_scope_id == scope_id, Task.deleted_at.is_(None))
+        )
+        now = datetime.now(UTC)
+        for existing_task in result.scalars().all():
+            existing_task.deleted_at = now
+        await self.db.flush()
+
+    async def _create_interview_tasks(
+        self,
+        scope_id: uuid.UUID,
+        tasks: list[dict[str, Any]],
+    ) -> list[uuid.UUID]:
+        """Create tasks from interview data and return their ids in order."""
+        task_svc = TaskService(self.db)
+        created_task_ids: list[uuid.UUID] = []
+        for task_data in tasks:
+            task = await task_svc.create(
+                TaskCreate(
+                    trade_scope_id=scope_id,
+                    title=task_data["title"],
+                    description=task_data.get("description"),
+                    priority=task_data.get("priority", "medium"),
+                    estimated_hours=task_data.get("estimated_hours"),
+                    materials_needed=task_data.get("materials_needed", []),
+                )
+            )
+            await self.db.flush()
+            created_task_ids.append(task.id)
+        return created_task_ids

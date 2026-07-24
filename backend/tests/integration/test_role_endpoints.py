@@ -1,17 +1,33 @@
-"""Integration tests: Role assignment and retrieval for all three role types.
+"""Integration tests: Role assignment and retrieval for all eight role types.
 
 Tests verify that the role assignment CRUD endpoints work correctly:
-- All three role types (admin, contractor, client) can be assigned and retrieved.
+- All eight role types can be assigned to a user and retrieved (multi-role).
 - Invalid role types are rejected with HTTP 422 (Pydantic validation error).
+- Only owner/admin callers may assign roles (403 otherwise).
 - Role queries are tenant-scoped (RLS on user_roles table).
 """
 
+from uuid import UUID
+
 import pytest
+
+from app.core.security import create_access_token
+
+ALL_ROLES = (
+    "owner",
+    "admin",
+    "project_manager",
+    "gc",
+    "foreman",
+    "contractor",
+    "worker",
+    "client",
+)
 
 
 @pytest.mark.asyncio
 async def test_assign_all_role_types(tenant_a_client, seed_two_tenants):
-    """All three role types (admin, contractor, client) can be assigned to a user."""
+    """All eight role types can be assigned to a single user and retrieved."""
     # Create a user
     create_resp = await tenant_a_client.post(
         "/api/v1/users/",
@@ -22,7 +38,7 @@ async def test_assign_all_role_types(tenant_a_client, seed_two_tenants):
     user_id = user["id"]
 
     # Assign each role type
-    for role in ("admin", "contractor", "client"):
+    for role in ALL_ROLES:
         resp = await tenant_a_client.post(
             f"/api/v1/users/{user_id}/roles",
             json={"user_id": user_id, "role": role},
@@ -32,12 +48,35 @@ async def test_assign_all_role_types(tenant_a_client, seed_two_tenants):
         assert assigned["role"] == role
         assert assigned["user_id"] == user_id
 
-    # Retrieve all roles and verify all three are present
+    # Retrieve all roles and verify every role is present
     roles_resp = await tenant_a_client.get(f"/api/v1/users/{user_id}/roles")
     assert roles_resp.status_code == 200
     assigned_roles = {r["role"] for r in roles_resp.json()}
-    assert assigned_roles == {"admin", "contractor", "client"}, (
-        f"Expected all three roles, got: {assigned_roles}"
+    assert assigned_roles == set(ALL_ROLES), f"Expected all eight roles, got: {assigned_roles}"
+
+
+@pytest.mark.asyncio
+async def test_assign_role_forbidden_for_non_admin(async_client, tenant_a_client, seed_two_tenants):
+    """A caller lacking owner/admin cannot assign roles — the endpoint returns 403."""
+    # Admin creates a target user in Tenant A.
+    create_resp = await tenant_a_client.post(
+        "/api/v1/users/",
+        json={"email": "role-guard-target@tenant-a.com"},
+    )
+    assert create_resp.status_code == 201
+    user_id = create_resp.json()["id"]
+    company_id = seed_two_tenants["tenant_a_id"]
+
+    # Mint a contractor-only token (no owner/admin) for that user.
+    contractor_token = create_access_token(UUID(user_id), UUID(company_id), ["contractor"])
+
+    resp = await async_client.post(
+        f"/api/v1/users/{user_id}/roles",
+        json={"user_id": user_id, "role": "contractor"},
+        headers={"Authorization": f"Bearer {contractor_token}"},
+    )
+    assert resp.status_code == 403, (
+        f"Expected 403 for non-admin caller, got {resp.status_code}: {resp.text}"
     )
 
 

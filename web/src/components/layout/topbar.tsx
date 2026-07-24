@@ -96,7 +96,7 @@ export function Topbar() {
   const displayLabel = companyName ?? displayName ?? "User";
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center border-b bg-white px-4 gap-4">
+    <header className="sticky top-0 z-30 flex h-14 items-center border-b bg-card px-4 gap-4">
       {/* Mobile hamburger */}
       <MobileSidebar displayName={displayName} />
 
@@ -129,12 +129,12 @@ export function Topbar() {
       {/* Right: company name + user dropdown */}
       <div className="flex items-center gap-2">
         {companyName && (
-          <span className="hidden text-sm text-gray-500 sm:inline">{companyName}</span>
+          <span className="hidden text-sm text-muted-foreground sm:inline">{companyName}</span>
         )}
         <DropdownMenu>
           <DropdownMenuTrigger className="flex items-center gap-2 rounded-md p-1 hover:bg-gray-100 transition-colors outline-none">
             <Avatar>
-              <AvatarFallback className="bg-indigo-600 text-white text-xs">
+              <AvatarFallback className="bg-brand text-brand-foreground text-xs font-semibold">
                 {displayInitial}
               </AvatarFallback>
             </Avatar>

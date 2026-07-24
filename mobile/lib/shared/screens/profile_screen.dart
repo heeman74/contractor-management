@@ -119,14 +119,24 @@ class _ProfileContent extends StatelessWidget {
   }
 
   IconData _roleIcon(UserRole role) => switch (role) {
+        UserRole.owner => Icons.workspace_premium_outlined,
         UserRole.admin => Icons.admin_panel_settings_outlined,
+        UserRole.projectManager => Icons.assignment_ind_outlined,
+        UserRole.gc => Icons.engineering_outlined,
+        UserRole.foreman => Icons.hardware_outlined,
         UserRole.contractor => Icons.construction_outlined,
+        UserRole.worker => Icons.handyman_outlined,
         UserRole.client => Icons.person_outline,
       };
 
   Color _roleColor(UserRole role) => switch (role) {
+        UserRole.owner => Colors.deepPurple,
         UserRole.admin => Colors.blue,
+        UserRole.projectManager => Colors.indigo,
+        UserRole.gc => Colors.teal,
+        UserRole.foreman => Colors.brown,
         UserRole.contractor => Colors.orange,
+        UserRole.worker => Colors.amber,
         UserRole.client => Colors.green,
       };
 }

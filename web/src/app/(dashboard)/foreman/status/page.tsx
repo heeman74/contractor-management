@@ -47,7 +47,7 @@ export default function ForemanStatusIndexPage() {
             <Link
               key={a.id}
               href={`/foreman/status/${a.project_id}`}
-              className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all group"
+              className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm hover:border-brand/60 hover:shadow-md transition-all group"
             >
               <div>
                 <p className="text-sm font-medium text-gray-900">
@@ -57,7 +57,7 @@ export default function ForemanStatusIndexPage() {
                   Assigned {new Date(a.assigned_at).toLocaleDateString()}
                 </p>
               </div>
-              <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-indigo-500 transition-colors" />
+              <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-foreground transition-colors" />
             </Link>
           ))}
         </div>

@@ -44,6 +44,37 @@ from app.features.scheduling.models import Booking
 from app.features.users.models import User
 from app.features.users.models import UserRole as UserRoleModel
 
+_SECONDS_PER_HOUR = 3600
+_WORKDAY_HOURS = 8
+_WORKDAYS_PER_WEEK_RATIO = 5 / 7
+_DEFAULT_AVAILABLE_HOURS = Decimal("168")  # ~21 workdays * 8h (last 30 days)
+_WEEKLY_AVAILABLE_HOURS = Decimal("40")
+_CENTS = Decimal("0.01")
+_FULL_UTILIZATION = Decimal("100")
+_CONTRACTOR_ROLE = "contractor"
+
+
+def _booking_duration_hours_expr():
+    """SQL expression: a booking's duration in hours from its TSTZRANGE."""
+    return func.extract(
+        "epoch",
+        func.upper(Booking.time_range) - func.lower(Booking.time_range),
+    ) / cast(_SECONDS_PER_HOUR, Numeric)
+
+
+def _booked_hours_sum_expr():
+    """SQL expression: COALESCE(SUM(booking hours), 0), labelled 'booked_hours'."""
+    return func.coalesce(func.sum(_booking_duration_hours_expr()), cast(0, Numeric)).label(
+        "booked_hours"
+    )
+
+
+def _contractor_name_expr():
+    """SQL expression: 'first last' with NULL-safe COALESCE, labelled 'contractor_name'."""
+    return (func.coalesce(User.first_name, "") + " " + func.coalesce(User.last_name, "")).label(
+        "contractor_name"
+    )
+
 
 class ReportingService:
     """Aggregate reporting service. Not a TenantScopedService — uses RLS directly."""
@@ -66,6 +97,50 @@ class ReportingService:
             conditions.append(func.date(column) <= end_date)
         return conditions
 
+    @classmethod
+    def _booking_date_conditions(
+        cls,
+        start_date: date | None,
+        end_date: date | None,
+    ) -> list:
+        """WHERE conditions for live bookings whose start date falls in the range."""
+        return [
+            Booking.deleted_at.is_(None),
+            *cls._date_conditions(func.lower(Booking.time_range), start_date, end_date),
+        ]
+
+    @staticmethod
+    def _available_hours_for_range(start_date: date | None, end_date: date | None) -> Decimal:
+        """Approximate available work hours in a date range (5/7 days * 8h)."""
+        if start_date is None or end_date is None:
+            return _DEFAULT_AVAILABLE_HOURS
+        delta_days = (end_date - start_date).days + 1
+        workdays = max(1, int(delta_days * _WORKDAYS_PER_WEEK_RATIO))
+        return Decimal(str(workdays * _WORKDAY_HOURS))
+
+    @staticmethod
+    def _utilization_percent(booked_hours: Decimal, available_hours: Decimal) -> Decimal:
+        """Utilization = booked / available * 100, capped at 100 (0 when no availability)."""
+        if available_hours <= 0:
+            return Decimal("0")
+        pct = (booked_hours / available_hours * _FULL_UTILIZATION).quantize(_CENTS)
+        return min(_FULL_UTILIZATION, pct)
+
+    @classmethod
+    def _utilization_item(
+        cls,
+        contractor_name: str,
+        booked_hours: Decimal,
+        available_hours: Decimal,
+    ) -> ContractorUtilizationItem:
+        """Build a ContractorUtilizationItem from booked/available hours."""
+        return ContractorUtilizationItem(
+            contractor_name=contractor_name,
+            booked_hours=booked_hours.quantize(_CENTS),
+            available_hours=available_hours,
+            utilization_percent=cls._utilization_percent(booked_hours, available_hours),
+        )
+
     # -------------------------------------------------------------------------
     # Metric 1: Jobs by status
     # -------------------------------------------------------------------------
@@ -74,9 +149,12 @@ class ReportingService:
         self,
         start_date: date | None,
         end_date: date | None,
+        contractor_id: uuid.UUID | None = None,
     ) -> list[JobsByStatusItem]:
-        """Count non-deleted jobs per status in the date range."""
+        """Count non-deleted jobs per status in the date range (optionally per contractor)."""
         conditions = [Job.deleted_at.is_(None)]
+        if contractor_id is not None:
+            conditions.append(Job.contractor_id == contractor_id)
         conditions.extend(self._date_conditions(Job.created_at, start_date, end_date))
 
         result = await self.db.execute(
@@ -159,79 +237,36 @@ class ReportingService:
         Available hours: 8 hours/day * workdays in date range (simplified).
         Utilization: booked_hours / available_hours * 100, capped at 100.
         """
-        # Build date range for available hours calculation
-        if start_date is not None and end_date is not None:
-            delta_days = (end_date - start_date).days + 1
-            # Approximate workdays as 5/7 of total days
-            workdays = max(1, int(delta_days * 5 / 7))
-            available_hours_each = Decimal(str(workdays * 8))
-        else:
-            # Default: last 30 days ≈ 21 workdays * 8h = 168h
-            available_hours_each = Decimal("168")
+        available_hours_each = self._available_hours_for_range(start_date, end_date)
 
-        # Build booking conditions
-        # Booking uses TSTZRANGE (time_range); lower() extracts start timestamp.
-        booking_conditions = [Booking.deleted_at.is_(None)]
-        if start_date is not None:
-            booking_conditions.append(func.date(func.lower(Booking.time_range)) >= start_date)
-        if end_date is not None:
-            booking_conditions.append(func.date(func.lower(Booking.time_range)) <= end_date)
-
-        # SUM of booking durations per contractor.
-        # EXTRACT(EPOCH FROM upper(time_range) - lower(time_range)) gives seconds;
-        # divide by 3600 to get hours.
-        duration_hours_expr = func.extract(
-            "epoch",
-            func.upper(Booking.time_range) - func.lower(Booking.time_range),
-        ) / cast(3600, Numeric)
-        booked_hours_expr = func.coalesce(
-            func.sum(duration_hours_expr),
-            cast(0, Numeric),
-        ).label("booked_hours")
-
-        # COALESCE handles NULL first_name/last_name (nullable columns).
-        # Filter to users with contractor role via join on user_roles.
-        contractor_name_expr = (
-            func.coalesce(User.first_name, "") + " " + func.coalesce(User.last_name, "")
-        ).label("contractor_name")
         result = await self.db.execute(
             select(
                 User.id.label("contractor_id"),
-                contractor_name_expr,
-                booked_hours_expr,
+                _contractor_name_expr(),
+                _booked_hours_sum_expr(),
             )
             .join(
                 UserRoleModel,
-                (UserRoleModel.user_id == User.id) & (UserRoleModel.role == "contractor"),
+                (UserRoleModel.user_id == User.id) & (UserRoleModel.role == _CONTRACTOR_ROLE),
             )
             .join(Booking, Booking.contractor_id == User.id, isouter=True)
             .where(
                 User.deleted_at.is_(None),
                 UserRoleModel.deleted_at.is_(None),
             )
-            .where(*booking_conditions if booking_conditions else [])
+            .where(*self._booking_date_conditions(start_date, end_date))
             .group_by(User.id, User.first_name, User.last_name)
             .order_by(User.first_name, User.last_name)
         )
 
-        items = []
-        for row in result.all():
-            booked = Decimal(str(row.booked_hours or 0))
-            util_pct = min(
-                Decimal("100"),
-                (booked / available_hours_each * Decimal("100")).quantize(Decimal("0.01"))
-                if available_hours_each > 0
-                else Decimal("0"),
+        return [
+            self._utilization_item(
+                row.contractor_name,
+                Decimal(str(row.booked_hours or 0)),
+                available_hours_each,
             )
-            items.append(
-                ContractorUtilizationItem(
-                    contractor_name=row.contractor_name,
-                    booked_hours=booked.quantize(Decimal("0.01")),
-                    available_hours=available_hours_each,
-                    utilization_percent=util_pct,
-                )
-            )
-        return items
+            for row in result.all()
+        ]
 
     # -------------------------------------------------------------------------
     # Metric 4: Quote conversion
@@ -325,42 +360,23 @@ class ReportingService:
             'IYYY-"W"IW',
         ).label("iso_week")
 
-        # --- Duration in hours expression ---
-        duration_hours_expr = func.extract(
-            "epoch",
-            func.upper(Booking.time_range) - func.lower(Booking.time_range),
-        ) / cast(3600, Numeric)
-        booked_hours_expr = func.coalesce(
-            func.sum(duration_hours_expr),
-            cast(0, Numeric),
-        ).label("booked_hours")
-
-        # --- Contractor name expression ---
-        contractor_name_expr = (
-            func.coalesce(User.first_name, "") + " " + func.coalesce(User.last_name, "")
-        ).label("contractor_name")
-
-        # --- Booking date range WHERE conditions (applied to booking join, not user) ---
-        booking_date_conditions = [Booking.deleted_at.is_(None)]
-        if start_date is not None:
-            booking_date_conditions.append(func.date(func.lower(Booking.time_range)) >= start_date)
-        if end_date is not None:
-            booking_date_conditions.append(func.date(func.lower(Booking.time_range)) <= end_date)
-
         result = await self.db.execute(
             select(
                 User.id.label("contractor_id"),
-                contractor_name_expr,
+                _contractor_name_expr(),
                 iso_week_expr,
-                booked_hours_expr,
+                _booked_hours_sum_expr(),
             )
             .join(
                 UserRoleModel,
-                (UserRoleModel.user_id == User.id) & (UserRoleModel.role == "contractor"),
+                (UserRoleModel.user_id == User.id) & (UserRoleModel.role == _CONTRACTOR_ROLE),
             )
             .join(
                 Booking,
-                and_(Booking.contractor_id == User.id, *booking_date_conditions),
+                and_(
+                    Booking.contractor_id == User.id,
+                    *self._booking_date_conditions(start_date, end_date),
+                ),
                 isouter=True,
             )
             .where(
@@ -390,25 +406,20 @@ class ReportingService:
                 contractor_map[cid]["weeks"][row.iso_week] = Decimal(str(row.booked_hours or 0))
 
         ordered_weeks = sorted(all_weeks)
-        available_hours_per_week = Decimal("40")
 
         contractors_out: list[UtilizationHeatmapContractor] = []
         for cid, data in contractor_map.items():
             week_items: list[UtilizationWeekItem] = []
             for iso_week in ordered_weeks:
                 booked = data["weeks"].get(iso_week, Decimal("0"))
-                util_pct = min(
-                    Decimal("100"),
-                    (booked / available_hours_per_week * Decimal("100")).quantize(Decimal("0.01"))
-                    if available_hours_per_week > 0
-                    else Decimal("0"),
-                )
                 week_items.append(
                     UtilizationWeekItem(
                         iso_week=iso_week,
-                        booked_hours=booked.quantize(Decimal("0.01")),
-                        available_hours=available_hours_per_week,
-                        utilization_percent=util_pct,
+                        booked_hours=booked.quantize(_CENTS),
+                        available_hours=_WEEKLY_AVAILABLE_HOURS,
+                        utilization_percent=self._utilization_percent(
+                            booked, _WEEKLY_AVAILABLE_HOURS
+                        ),
                     )
                 )
             contractors_out.append(
@@ -434,74 +445,29 @@ class ReportingService:
 
         No revenue data returned — contractors see only their own workload metrics.
         """
-        # Jobs by status — filtered to this contractor's jobs only
-        conditions = [
-            Job.deleted_at.is_(None),
-            Job.contractor_id == contractor_id,
-        ]
-        conditions.extend(self._date_conditions(Job.created_at, start_date, end_date))
-
-        result = await self.db.execute(
-            select(Job.status, func.count().label("count"))
-            .where(*conditions)
-            .group_by(Job.status)
-            .order_by(Job.status)
+        jobs_by_status = await self._get_jobs_by_status(
+            start_date, end_date, contractor_id=contractor_id
         )
-        jobs_by_status = [
-            JobsByStatusItem(status=row.status, count=row.count) for row in result.all()
+
+        available_hours = self._available_hours_for_range(start_date, end_date)
+        booking_conditions = [
+            *self._booking_date_conditions(start_date, end_date),
+            Booking.contractor_id == contractor_id,
         ]
-
-        # Utilization — this contractor only
-        # Booking uses TSTZRANGE (time_range); lower() extracts start timestamp.
-        booking_conditions = [Booking.deleted_at.is_(None), Booking.contractor_id == contractor_id]
-        if start_date is not None:
-            booking_conditions.append(func.date(func.lower(Booking.time_range)) >= start_date)
-        if end_date is not None:
-            booking_conditions.append(func.date(func.lower(Booking.time_range)) <= end_date)
-
-        if start_date is not None and end_date is not None:
-            delta_days = (end_date - start_date).days + 1
-            workdays = max(1, int(delta_days * 5 / 7))
-            available_hours = Decimal(str(workdays * 8))
-        else:
-            available_hours = Decimal("168")
-
-        contractor_duration_hours_expr = func.extract(
-            "epoch",
-            func.upper(Booking.time_range) - func.lower(Booking.time_range),
-        ) / cast(3600, Numeric)
-        contractor_name_expr2 = (
-            func.coalesce(User.first_name, "") + " " + func.coalesce(User.last_name, "")
-        ).label("contractor_name")
         booking_result = await self.db.execute(
-            select(
-                contractor_name_expr2,
-                func.coalesce(
-                    func.sum(contractor_duration_hours_expr),
-                    cast(0, Numeric),
-                ).label("booked_hours"),
-            )
+            select(_contractor_name_expr(), _booked_hours_sum_expr())
             .join(Booking, Booking.contractor_id == User.id, isouter=True)
             .where(User.id == contractor_id, *booking_conditions)
             .group_by(User.id, User.first_name, User.last_name)
         )
-        contractor_utilization = []
-        for row in booking_result.all():
-            booked = Decimal(str(row.booked_hours or 0))
-            util_pct = min(
-                Decimal("100"),
-                (booked / available_hours * Decimal("100")).quantize(Decimal("0.01"))
-                if available_hours > 0
-                else Decimal("0"),
+        contractor_utilization = [
+            self._utilization_item(
+                row.contractor_name,
+                Decimal(str(row.booked_hours or 0)),
+                available_hours,
             )
-            contractor_utilization.append(
-                ContractorUtilizationItem(
-                    contractor_name=row.contractor_name,
-                    booked_hours=booked.quantize(Decimal("0.01")),
-                    available_hours=available_hours,
-                    utilization_percent=util_pct,
-                )
-            )
+            for row in booking_result.all()
+        ]
 
         return DashboardResponse(
             jobs_by_status=jobs_by_status,

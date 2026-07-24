@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_router import CRUDRouter
 from app.core.database import get_db
-from app.core.security import CurrentUser, get_current_user
+from app.core.security import CurrentUser, get_current_user, require_permission
 from app.features.users.schemas import (
     RoleAssignment,
     UserCreate,
@@ -51,8 +51,9 @@ class UserRouter(CRUDRouter):
             user_id: uuid.UUID,
             data: RoleAssignment,
             db: AsyncSession = Depends(get_db),
-            _current_user: CurrentUser = Depends(get_current_user),
+            current_user: CurrentUser = Depends(get_current_user),
         ) -> UserRoleResponse:
+            await require_permission("roles.assign")(current_user, db)
             svc = svc_cls(db)
             user_role = await svc.assign_role(user_id, data)
             return UserRoleResponse.model_validate(user_role)

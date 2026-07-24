@@ -34,7 +34,8 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.base_service import TenantScopedService
+from app.core.base_service import TenantScopedService, entity_or_404
+from app.features.jobs.mixins import JobEventsMixin
 from app.features.jobs.models import Job
 from app.features.projects.models import TradeScope
 from app.features.quotes.models import Quote, QuoteLineItem, QuoteTemplate
@@ -47,7 +48,7 @@ from app.features.quotes.schemas import (
 )
 
 
-class QuoteService(TenantScopedService[Quote]):
+class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
     """Service implementing the full quote lifecycle for a tenant."""
 
     repository_class = QuoteRepository
@@ -60,31 +61,6 @@ class QuoteService(TenantScopedService[Quote]):
     # -------------------------------------------------------------------------
     # Internal helpers
     # -------------------------------------------------------------------------
-
-    async def _append_status_history_event(
-        self,
-        job_id: uuid.UUID,
-        event_type: str,
-        user_id: uuid.UUID | None = None,
-    ) -> None:
-        """Append a status history event to the job's JSONB list.
-
-        Loads the job, appends {type, user_id, timestamp}, and flushes.
-        CLAUDE.md Pitfall 3: JSONB list must be replaced entirely (not mutated in-place).
-        """
-        job = await self.db.get(Job, job_id)
-        if job is None:
-            return
-        event = {
-            "type": event_type,
-            "user_id": str(user_id) if user_id else None,
-            "timestamp": datetime.now(UTC).isoformat(),
-        }
-        # Replace the list entirely to trigger SQLAlchemy dirty detection
-        current_history = list(job.status_history or [])
-        current_history.append(event)
-        job.status_history = current_history
-        await self.db.flush()
 
     async def _replace_line_items(
         self,
@@ -123,6 +99,27 @@ class QuoteService(TenantScopedService[Quote]):
                 f"Allowed statuses: {sorted(allowed)}",
             )
 
+    async def _get_quote_or_404(self, quote_id: uuid.UUID) -> Quote:
+        """Fetch a quote with line items eager-loaded, or raise 404."""
+        return entity_or_404(await self.repository.get_with_line_items(quote_id), "Quote not found")
+
+    @staticmethod
+    def _serialize_line_items_to_json(items: list) -> str:
+        """Serialize quote/schema line items to the template's JSON string."""
+        return json.dumps(
+            [
+                {
+                    "item_type": item.item_type,
+                    "description": item.description,
+                    "quantity": str(item.quantity),
+                    "unit": item.unit,
+                    "unit_price": str(item.unit_price),
+                    "sort_order": item.sort_order,
+                }
+                for item in items
+            ]
+        )
+
     # -------------------------------------------------------------------------
     # Core CRUD
     # -------------------------------------------------------------------------
@@ -139,12 +136,7 @@ class QuoteService(TenantScopedService[Quote]):
         Appends 'quote_created' to job.status_history.
         """
         # Load the job and verify status
-        job = await self.db.get(Job, data.job_id)
-        if job is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Job {data.job_id} not found",
-            )
+        job = entity_or_404(await self.db.get(Job, data.job_id), f"Job {data.job_id} not found")
         if job.status != "quote":
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -183,7 +175,7 @@ class QuoteService(TenantScopedService[Quote]):
             )
 
         await self.db.flush()
-        await self._append_status_history_event(data.job_id, "quote_created", user_id)
+        await self._append_job_status_event(data.job_id, "quote_created", user_id)
         await self.db.refresh(quote)
         return await self.repository.get_with_line_items(quote.id)  # type: ignore[return-value]
 
@@ -193,10 +185,7 @@ class QuoteService(TenantScopedService[Quote]):
         data: QuoteUpdate,
     ) -> Quote:
         """Update a draft quote. Full line item replacement if items provided."""
-        quote = await self.repository.get_with_line_items(quote_id)
-        if quote is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quote not found")
-
+        quote = await self._get_quote_or_404(quote_id)
         self._require_quote_status(quote, {"draft"}, "update")
 
         if data.tax_rate is not None:
@@ -226,32 +215,15 @@ class QuoteService(TenantScopedService[Quote]):
         Transitions draft -> sent. Appends 'quote_sent' to job.status_history.
         Triggers FCM notification to the job's client (fire-and-forget).
         """
-        quote = await self.repository.get_with_line_items(quote_id)
-        if quote is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quote not found")
-
+        quote = await self._get_quote_or_404(quote_id)
         self._require_quote_status(quote, {"draft"}, "send")
 
         quote.status = "sent"
         quote.sent_at = datetime.now(UTC)
         await self.db.flush()
-        await self._append_status_history_event(quote.job_id, "quote_sent", None)
+        await self._append_job_status_event(quote.job_id, "quote_sent", None)
 
-        # FCM notification to client (fire-and-forget)
-        try:
-            from app.features.notifications.service import NotificationService
-
-            job = await self.db.get(Job, quote.job_id)
-            if job is not None and job.client_id is not None:
-                notif_svc = NotificationService(self.db)
-                await notif_svc.send_job_notification(
-                    user_id=job.client_id,
-                    job_description=job.description,
-                    event="quote_sent",
-                    job_id=job.id,
-                )
-        except Exception:
-            pass  # Notification failures never block quote operations
+        await self._notify_job_client(quote.job_id, "quote_sent")
 
         return await self.repository.get_with_line_items(quote_id)  # type: ignore[return-value]
 
@@ -261,9 +233,7 @@ class QuoteService(TenantScopedService[Quote]):
         Sets viewed_at only if NULL. Transitions sent -> viewed.
         Appends 'quote_viewed' to job.status_history.
         """
-        quote = await self.repository.get_with_line_items(quote_id)
-        if quote is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quote not found")
+        quote = await self._get_quote_or_404(quote_id)
 
         if quote.status not in {"sent", "viewed"}:
             # Silently skip — view recording is best-effort
@@ -274,7 +244,7 @@ class QuoteService(TenantScopedService[Quote]):
             if quote.status == "sent":
                 quote.status = "viewed"
             await self.db.flush()
-            await self._append_status_history_event(quote.job_id, "quote_viewed", viewer_id)
+            await self._append_job_status_event(quote.job_id, "quote_viewed", viewer_id)
 
         return await self.repository.get_with_line_items(quote_id)  # type: ignore[return-value]
 
@@ -289,10 +259,7 @@ class QuoteService(TenantScopedService[Quote]):
         If job has contractor and booking, transitions job Quote->Scheduled.
         Triggers FCM notification to admin.
         """
-        quote = await self.repository.get_with_line_items(quote_id)
-        if quote is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quote not found")
-
+        quote = await self._get_quote_or_404(quote_id)
         self._require_quote_status(quote, {"sent", "viewed"}, "approve")
 
         # Check expiry
@@ -308,7 +275,7 @@ class QuoteService(TenantScopedService[Quote]):
         quote.status = "approved"
         quote.approved_at = datetime.now(UTC)
         await self.db.flush()
-        await self._append_status_history_event(quote.job_id, "quote_approved", client_user_id)
+        await self._append_job_status_event(quote.job_id, "quote_approved", client_user_id)
 
         # FCM notification to admin (fire-and-forget)
         # NOTE: Admin notification on quote approval is omitted here — admin_user_id is not
@@ -326,10 +293,7 @@ class QuoteService(TenantScopedService[Quote]):
         Transitions quote -> declined. Appends 'quote_declined' to job.status_history.
         Triggers FCM notification to admin.
         """
-        quote = await self.repository.get_with_line_items(quote_id)
-        if quote is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quote not found")
-
+        quote = await self._get_quote_or_404(quote_id)
         self._require_quote_status(quote, {"sent", "viewed"}, "decline")
 
         quote.status = "declined"
@@ -337,7 +301,7 @@ class QuoteService(TenantScopedService[Quote]):
         quote.decline_reason = data.reason
         quote.decline_detail = data.detail
         await self.db.flush()
-        await self._append_status_history_event(quote.job_id, "quote_declined", client_user_id)
+        await self._append_job_status_event(quote.job_id, "quote_declined", client_user_id)
 
         return await self.repository.get_with_line_items(quote_id)  # type: ignore[return-value]
 
@@ -352,10 +316,7 @@ class QuoteService(TenantScopedService[Quote]):
         Sets current quote status='revised'. Creates a NEW Quote row with
         revision_number+1, status='draft', copies line items. Returns new quote.
         """
-        old_quote = await self.repository.get_with_line_items(quote_id)
-        if old_quote is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quote not found")
-
+        old_quote = await self._get_quote_or_404(quote_id)
         self._require_quote_status(old_quote, {"sent", "viewed", "declined", "expired"}, "revise")
 
         # Mark current quote as revised
@@ -404,7 +365,7 @@ class QuoteService(TenantScopedService[Quote]):
             )
 
         await self.db.flush()
-        await self._append_status_history_event(old_quote.job_id, "quote_revised", user_id)
+        await self._append_job_status_event(old_quote.job_id, "quote_revised", user_id)
         return await self.repository.get_with_line_items(new_quote.id)  # type: ignore[return-value]
 
     async def extend_expiry(
@@ -416,9 +377,7 @@ class QuoteService(TenantScopedService[Quote]):
 
         If the quote's status is 'expired', resets it back to 'sent'.
         """
-        quote = await self.repository.get_with_line_items(quote_id)
-        if quote is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quote not found")
+        quote = await self._get_quote_or_404(quote_id)
 
         quote.expiry_date = new_expiry_date
         if quote.status == "expired":
@@ -437,26 +396,9 @@ class QuoteService(TenantScopedService[Quote]):
         template_name: str,
     ) -> QuoteTemplate:
         """Save a quote's line items as a reusable template."""
-        quote = await self.repository.get_with_line_items(quote_id)
-        if quote is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quote not found")
-
+        quote = await self._get_quote_or_404(quote_id)
         company_id = self._require_tenant_id()
-
-        # Serialize line items to JSON
-        items_json = json.dumps(
-            [
-                {
-                    "item_type": item.item_type,
-                    "description": item.description,
-                    "quantity": str(item.quantity),
-                    "unit": item.unit,
-                    "unit_price": str(item.unit_price),
-                    "sort_order": item.sort_order,
-                }
-                for item in quote.line_items
-            ]
-        )
+        items_json = self._serialize_line_items_to_json(quote.line_items)
 
         template = QuoteTemplate(
             company_id=company_id,
@@ -472,20 +414,7 @@ class QuoteService(TenantScopedService[Quote]):
     async def create_template(self, data: QuoteTemplateCreate) -> QuoteTemplate:
         """Create a new template from explicit data."""
         company_id = self._require_tenant_id()
-
-        items_json = json.dumps(
-            [
-                {
-                    "item_type": item.item_type,
-                    "description": item.description,
-                    "quantity": str(item.quantity),
-                    "unit": item.unit,
-                    "unit_price": str(item.unit_price),
-                    "sort_order": item.sort_order,
-                }
-                for item in data.line_items
-            ]
-        )
+        items_json = self._serialize_line_items_to_json(data.line_items)
 
         template = QuoteTemplate(
             company_id=company_id,
@@ -501,10 +430,7 @@ class QuoteService(TenantScopedService[Quote]):
 
     async def load_template(self, template_id: uuid.UUID) -> QuoteTemplate:
         """Return a template by ID (raises 404 if not found)."""
-        template = await self.db.get(QuoteTemplate, template_id)
-        if template is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
-        return template
+        return entity_or_404(await self.db.get(QuoteTemplate, template_id), "Template not found")
 
     async def list_templates(self) -> list[QuoteTemplate]:
         """Return all templates for the current tenant."""
@@ -529,12 +455,10 @@ class QuoteService(TenantScopedService[Quote]):
         Validates that the trade scope exists. Overrides data.trade_scope_id
         and sets job_id=None regardless of what was in the request body.
         """
-        trade_scope = await self.db.get(TradeScope, trade_scope_id)
-        if trade_scope is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"TradeScope {trade_scope_id} not found",
-            )
+        entity_or_404(
+            await self.db.get(TradeScope, trade_scope_id),
+            f"TradeScope {trade_scope_id} not found",
+        )
 
         company_id = self._require_tenant_id()
 

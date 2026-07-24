@@ -8,7 +8,8 @@ class UserRoles extends Table {
   TextColumn get id => text().clientDefault(() => const Uuid().v4())();
   TextColumn get userId => text().references(Users, #id)();
   TextColumn get companyId => text().references(Companies, #id)();
-  // Role values: 'admin' | 'contractor' | 'client'
+  // Role values: 'owner' | 'admin' | 'project_manager' | 'gc' | 'foreman'
+  //            | 'contractor' | 'worker' | 'client'
   TextColumn get role => text()();
   DateTimeColumn get createdAt => dateTime()();
   // Soft-delete for sync tombstone propagation across devices.

@@ -302,7 +302,8 @@ async def test_non_admin_cannot_assign(async_client: AsyncClient, seed_two_tenan
             },
         )
         assert resp.status_code == 403, f"Expected 403, got {resp.status_code}: {resp.text}"
-        assert "admin" in resp.json()["detail"].lower()
+        # Enforcement moved to permission keys (27-04): the gate is now foreman.assign.
+        assert "foreman.assign" in resp.json()["detail"]
 
 
 @pytest.mark.asyncio

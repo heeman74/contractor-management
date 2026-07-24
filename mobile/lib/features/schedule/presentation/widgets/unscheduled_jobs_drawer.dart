@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../features/auth/domain/auth_state.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
+import '../../domain/schedule_time_format.dart';
 import '../providers/calendar_providers.dart';
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -499,7 +500,7 @@ class _JobCardContent extends StatelessWidget {
                 Icon(Icons.schedule, size: 11, color: Colors.grey[600]),
                 const SizedBox(width: 3),
                 Text(
-                  _formatDuration(job.estimatedDurationMinutes!),
+                  ScheduleTimeFormat.duration(job.estimatedDurationMinutes!),
                   style:
                       TextStyle(fontSize: 10, color: Colors.grey[600]),
                 ),
@@ -524,12 +525,6 @@ class _JobCardContent extends StatelessWidget {
     );
   }
 
-  String _formatDuration(int minutes) {
-    if (minutes < 60) return '${minutes}m';
-    final h = minutes ~/ 60;
-    final m = minutes % 60;
-    return m == 0 ? '${h}h' : '${h}h ${m}m';
-  }
 
   Color _statusColor(String status) {
     return switch (status) {

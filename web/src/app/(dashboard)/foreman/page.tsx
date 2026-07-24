@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/api-client";
 import { useProjectAssignments, useAssignForeman, useUnassignForeman } from "@/lib/hooks/useForeman";
-import { useAppSelector } from "@/store/hooks";
+import { usePermissions } from "@/lib/hooks/usePermissions";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -30,8 +30,8 @@ interface UserListItem {
 }
 
 export default function ForemanAssignmentsPage() {
-  const roles = useAppSelector((state) => state.auth.roles);
-  const isAdmin = roles.includes("admin") || roles.includes("owner");
+  const { can, isLoading: permissionsLoading } = usePermissions();
+  const canAssignForemen = can("foreman.assign");
 
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -88,7 +88,7 @@ export default function ForemanAssignmentsPage() {
     [unassignMutation]
   );
 
-  if (!isAdmin) {
+  if (!permissionsLoading && !canAssignForemen) {
     return (
       <div className="rounded-xl border border-yellow-200 bg-yellow-50 px-6 py-12 text-center">
         <p className="text-sm text-yellow-700 font-medium">
@@ -122,7 +122,7 @@ export default function ForemanAssignmentsPage() {
             id="project-select"
             value={selectedProjectId}
             onChange={(e) => setSelectedProjectId(e.target.value)}
-            className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-ring"
           >
             <option value="">-- Choose a project --</option>
             {projects?.map((p) => (
@@ -210,7 +210,7 @@ export default function ForemanAssignmentsPage() {
               id="user-select"
               value={selectedUserId}
               onChange={(e) => setSelectedUserId(e.target.value)}
-              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-ring"
             >
               <option value="">-- Select a user --</option>
               {users?.map((u) => (

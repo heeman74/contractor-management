@@ -9,6 +9,7 @@ import '../../../../features/auth/domain/auth_state.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
 import '../../../../shared/models/user_role.dart';
 import '../../domain/invoice_entity.dart';
+import '../../domain/invoice_status_presentation.dart';
 import '../providers/invoice_providers.dart';
 
 /// Invoice detail screen — shows line items, totals, payment status, and PDF download.
@@ -476,16 +477,7 @@ class _InvoiceDetailContentState extends ConsumerState<_InvoiceDetailContent> {
     return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
 
-  String _statusLabel(String status) {
-    return switch (status) {
-      'unpaid' => 'Unpaid',
-      'partial' => 'Partially Paid',
-      'paid' => 'Paid',
-      'overdue' => 'Overdue',
-      'cancelled' => 'Cancelled',
-      _ => status,
-    };
-  }
+  String _statusLabel(String status) => InvoiceStatusPresentation.label(status);
 }
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
@@ -497,7 +489,8 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (label, color) = _statusStyle(status);
+    final label = InvoiceStatusPresentation.label(status);
+    final color = InvoiceStatusPresentation.color(status);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
@@ -516,16 +509,6 @@ class _StatusBadge extends StatelessWidget {
     );
   }
 
-  (String, Color) _statusStyle(String status) {
-    return switch (status) {
-      'unpaid' => ('Unpaid', Colors.red),
-      'partial' => ('Partially Paid', Colors.orange),
-      'paid' => ('Paid', Colors.green),
-      'overdue' => ('Overdue', Colors.deepOrange),
-      'cancelled' => ('Cancelled', Colors.grey),
-      _ => (status, Colors.grey),
-    };
-  }
 }
 
 // ─── Admin payment control ────────────────────────────────────────────────────

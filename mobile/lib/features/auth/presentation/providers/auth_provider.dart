@@ -32,7 +32,7 @@ class AuthNotifier extends Notifier<AuthState> {
         state = AuthState.authenticated(
           userId: result.userId,
           companyId: result.companyId,
-          roles: result.roles.map(UserRole.fromString).toSet(),
+          roles: result.roles.map(UserRole.fromString).whereType<UserRole>().toSet(),
         );
         // Register FCM token after session restore — fire-and-forget.
         // Failure must NOT block the restored auth state.
@@ -81,7 +81,7 @@ class AuthNotifier extends Notifier<AuthState> {
       state = AuthState.authenticated(
         userId: result.userId,
         companyId: result.companyId,
-        roles: result.roles.map(UserRole.fromString).toSet(),
+        roles: result.roles.map(UserRole.fromString).whereType<UserRole>().toSet(),
       );
       // Register FCM token after successful login — fire-and-forget.
       _registerFcmToken();
@@ -116,7 +116,7 @@ class AuthNotifier extends Notifier<AuthState> {
       state = AuthState.authenticated(
         userId: result.userId,
         companyId: result.companyId,
-        roles: result.roles.map(UserRole.fromString).toSet(),
+        roles: result.roles.map(UserRole.fromString).whereType<UserRole>().toSet(),
       );
       // Register FCM token after successful registration — fire-and-forget.
       _registerFcmToken();

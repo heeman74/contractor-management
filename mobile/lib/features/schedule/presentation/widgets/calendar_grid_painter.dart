@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../domain/schedule_constants.dart';
+
 /// A blocked time interval for a contractor's day.
 ///
 /// Used by [CalendarGridPainter] to shade non-working-hour regions and
@@ -84,7 +86,7 @@ class CalendarGridPainter extends CustomPainter {
 
     for (final interval in blockedIntervals) {
       // Travel buffers are rendered by TravelTimeBlock, not here.
-      if (interval.reason == 'travel_buffer') continue;
+      if (interval.reason == BlockedIntervalReason.travelBuffer) continue;
 
       final topY = _minutesFromDayStart(interval.start) * pixelsPerMinute;
       final bottomY = _minutesFromDayStart(interval.end) * pixelsPerMinute;

@@ -50,8 +50,10 @@ Design notes:
 
 from __future__ import annotations
 
+import contextlib
 import uuid
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Annotated
 
@@ -71,8 +73,10 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import Request
 
+from app.core.base_service import entity_or_404
 from app.core.database import get_db
-from app.core.security import CurrentUser, get_current_user
+from app.core.security import CurrentUser, get_current_user, require_permission
+from app.core.tenant import set_current_tenant_id
 
 # isort: split
 # Import scheduling models FIRST (before crm_service) so SQLAlchemy can resolve the
@@ -102,6 +106,7 @@ from app.features.jobs.schemas import (
     JobStatus,
     JobTransitionRequest,
     JobUpdate,
+    JobUrgency,
     RatingCreate,
     RatingResponse,
     TimeEntryAdjust,
@@ -124,22 +129,86 @@ _ALLOWED_PHOTO_TYPES = {"image/jpeg", "image/png", "image/heic", "image/heif"}
 _MAX_PHOTOS = 5
 # Single-day threshold: if estimated_duration_minutes <= 480 (8 hours), book as single day
 _SINGLE_DAY_MAX_MINUTES = 480
+_WORK_DAY_START = time(8, 0)
+_WORK_DAY_END = time(16, 0)
+_MINUTES_PER_HOUR = 60
+_MIN_MULTIDAY_BLOCKS = 2
 
 router = APIRouter(tags=["jobs"])
 
 
 # ---------------------------------------------------------------------------
-# Helper — admin role guard
+# Helpers — public job-request web form
 # ---------------------------------------------------------------------------
 
 
-def _require_admin(current_user: CurrentUser) -> None:
-    """Raise 403 if the current user is not an admin."""
-    if "admin" not in current_user.roles:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
+def _render_job_request_form(
+    request: Request,
+    company_id: uuid.UUID,
+    *,
+    success: bool,
+    error: str | None = None,
+    status_code: int = 200,
+) -> HTMLResponse:
+    """Render the job_request.html template, optionally with an error message."""
+    context: dict = {"company_id": str(company_id), "success": success}
+    if error is not None:
+        context["error"] = error
+    return templates.TemplateResponse(request, "job_request.html", context, status_code=status_code)
+
+
+def _collect_valid_photos(photos: list[UploadFile] | None) -> list[UploadFile]:
+    """Drop empty file inputs, keeping only uploads with a filename."""
+    return [photo for photo in (photos or []) if photo.filename]
+
+
+def _photo_validation_error(valid_photos: list[UploadFile]) -> str | None:
+    """Return an error message if the photos violate count or content-type rules."""
+    if len(valid_photos) > _MAX_PHOTOS:
+        return f"Maximum {_MAX_PHOTOS} photos allowed"
+    for photo in valid_photos:
+        if (photo.content_type or "").lower() not in _ALLOWED_PHOTO_TYPES:
+            return "Only JPEG, PNG, and HEIC images are accepted"
+    return None
+
+
+def _parse_optional_date(raw: str | None) -> date | None:
+    """Parse an ISO date string, returning None when absent or malformed."""
+    if not raw:
+        return None
+    with contextlib.suppress(ValueError):
+        return date.fromisoformat(raw)
+    return None
+
+
+def _parse_optional_decimal(raw: str | None) -> Decimal | None:
+    """Parse a decimal string, returning None when absent or malformed."""
+    if not raw:
+        return None
+    with contextlib.suppress(InvalidOperation):
+        return Decimal(raw)
+    return None
+
+
+async def _save_request_photos(
+    request_id: uuid.UUID,
+    valid_photos: list[UploadFile],
+) -> list[str]:
+    """Persist uploaded photos under uploads/job_requests/{request_id}/ and return their paths."""
+    if not valid_photos:
+        return []
+
+    upload_dir = Path("uploads") / "job_requests" / str(request_id)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    photo_paths: list[str] = []
+    for photo in valid_photos:
+        destination = upload_dir / Path(photo.filename or "photo").name
+        content = await photo.read()
+        async with aiofiles.open(destination, "wb") as file:
+            await file.write(content)
+        photo_paths.append(str(destination))
+    return photo_paths
 
 
 # ---------------------------------------------------------------------------
@@ -192,10 +261,97 @@ def _derive_booking_start(job) -> datetime:
             tzinfo=UTC,
         )
     # Fallback: tomorrow at 08:00 UTC
-    from datetime import timedelta
-
     tomorrow = datetime.now(UTC).date() + timedelta(days=1)
     return datetime.combine(tomorrow, time(8, 0), tzinfo=UTC)
+
+
+# ---------------------------------------------------------------------------
+# Helpers — derive scheduling bookings from a job's estimated duration
+# ---------------------------------------------------------------------------
+
+
+def _build_single_day_booking(job, duration_minutes: int) -> BookingCreate:  # type: ignore[type-arg]
+    """Build a single-day BookingCreate spanning duration_minutes from the job's start."""
+    start_dt = _derive_booking_start(job)
+    return BookingCreate(
+        contractor_id=job.contractor_id,
+        job_id=job.id,
+        job_site_id=None,
+        start=start_dt,
+        end=start_dt + timedelta(minutes=duration_minutes),
+    )
+
+
+def _partial_day_end_time(remaining_minutes: int) -> time:
+    """End time for a partial final work day that starts at _WORK_DAY_START."""
+    end_hour = _WORK_DAY_START.hour + (remaining_minutes // _MINUTES_PER_HOUR)
+    return time(end_hour, remaining_minutes % _MINUTES_PER_HOUR)
+
+
+def _derive_day_blocks(duration_minutes: int, base_date: date) -> list[DayBlock]:
+    """Split a multi-day duration into consecutive daily work blocks from base_date.
+
+    Full days span _WORK_DAY_START–_WORK_DAY_END; a final partial day covers the
+    remainder. The result always has at least _MIN_MULTIDAY_BLOCKS blocks, as
+    required by MultiDayBookingCreate.
+    """
+    full_days = duration_minutes // _SINGLE_DAY_MAX_MINUTES
+    remaining = duration_minutes % _SINGLE_DAY_MAX_MINUTES
+
+    day_blocks: list[DayBlock] = [
+        DayBlock(
+            date=base_date + timedelta(days=day_offset),
+            start_time=_WORK_DAY_START,
+            end_time=_WORK_DAY_END,
+        )
+        for day_offset in range(full_days)
+    ]
+    if remaining > 0:
+        day_blocks.append(
+            DayBlock(
+                date=base_date + timedelta(days=full_days),
+                start_time=_WORK_DAY_START,
+                end_time=_partial_day_end_time(remaining),
+            )
+        )
+
+    while len(day_blocks) < _MIN_MULTIDAY_BLOCKS:
+        day_blocks.append(
+            DayBlock(
+                date=base_date + timedelta(days=len(day_blocks)),
+                start_time=_WORK_DAY_START,
+                end_time=_partial_day_end_time(remaining or _MINUTES_PER_HOUR),
+            )
+        )
+    return day_blocks
+
+
+def _build_multiday_booking(job, duration_minutes: int) -> MultiDayBookingCreate:  # type: ignore[type-arg]
+    """Build a MultiDayBookingCreate covering duration_minutes across consecutive days."""
+    base_date = job.scheduled_completion_date or (datetime.now(UTC).date() + timedelta(days=1))
+    return MultiDayBookingCreate(
+        contractor_id=job.contractor_id,
+        job_id=job.id,
+        job_site_id=None,
+        day_blocks=_derive_day_blocks(duration_minutes, base_date),
+    )
+
+
+async def _create_bookings_for_scheduled_job(db: AsyncSession, job) -> None:  # type: ignore[type-arg]
+    """Create scheduling bookings for a job that just transitioned to 'scheduled'.
+
+    Single-day when duration <= _SINGLE_DAY_MAX_MINUTES, otherwise multi-day.
+    A non-positive duration books nothing. Propagates SchedulingConflictError.
+    """
+    duration_minutes = job.estimated_duration_minutes or 0
+    if duration_minutes <= 0:
+        return
+
+    scheduling_svc = SchedulingService(db)
+    if duration_minutes <= _SINGLE_DAY_MAX_MINUTES:
+        await scheduling_svc.book_slot(_build_single_day_booking(job, duration_minutes))
+    else:
+        await scheduling_svc.book_multiday_job(_build_multiday_booking(job, duration_minutes))
 
 
 # ---------------------------------------------------------------------------
@@ -299,11 +455,7 @@ async def render_job_request_form(
 
     No authentication required — this is the public-facing intake form.
     """
-    return templates.TemplateResponse(
-        request,
-        "job_request.html",
-        {"company_id": str(company_id), "success": False},
-    )
+    return _render_job_request_form(request, company_id, success=False)
 
 
 @router.post("/jobs/request/{company_id}", response_class=HTMLResponse, include_in_schema=False)
@@ -334,94 +486,33 @@ async def submit_job_request_form(
 
     No authentication required — this is the public-facing intake form.
     """
-    # Validate description is present
     if not description.strip():
-        return templates.TemplateResponse(
-            request,
-            "job_request.html",
-            {"company_id": str(company_id), "success": False, "error": "Description is required"},
-            status_code=400,
+        return _render_job_request_form(
+            request, company_id, success=False, error="Description is required", status_code=400
         )
 
-    # Validate photos
-    valid_photos: list[UploadFile] = []
-    if photos:
-        for photo in photos:
-            if photo.filename:  # skip empty file inputs
-                valid_photos.append(photo)
-
-    if len(valid_photos) > _MAX_PHOTOS:
-        return templates.TemplateResponse(
-            request,
-            "job_request.html",
-            {
-                "company_id": str(company_id),
-                "success": False,
-                "error": f"Maximum {_MAX_PHOTOS} photos allowed",
-            },
-            status_code=400,
+    valid_photos = _collect_valid_photos(photos)
+    photo_error = _photo_validation_error(valid_photos)
+    if photo_error is not None:
+        return _render_job_request_form(
+            request, company_id, success=False, error=photo_error, status_code=400
         )
-
-    for photo in valid_photos:
-        content_type = (photo.content_type or "").lower()
-        if content_type not in _ALLOWED_PHOTO_TYPES:
-            return templates.TemplateResponse(
-                request,
-                "job_request.html",
-                {
-                    "company_id": str(company_id),
-                    "success": False,
-                    "error": "Only JPEG, PNG, and HEIC images are accepted",
-                },
-                status_code=400,
-            )
-
-    # Parse optional date/decimal fields
-    import contextlib
-    from decimal import Decimal, InvalidOperation
-
-    parsed_start: date | None = None
-    parsed_end: date | None = None
-    parsed_budget_min: Decimal | None = None
-    parsed_budget_max: Decimal | None = None
-
-    if preferred_date_start:
-        with contextlib.suppress(ValueError):
-            parsed_start = date.fromisoformat(preferred_date_start)
-
-    if preferred_date_end:
-        with contextlib.suppress(ValueError):
-            parsed_end = date.fromisoformat(preferred_date_end)
-
-    if budget_min:
-        with contextlib.suppress(InvalidOperation):
-            parsed_budget_min = Decimal(budget_min)
-
-    if budget_max:
-        with contextlib.suppress(InvalidOperation):
-            parsed_budget_max = Decimal(budget_max)
 
     # Set tenant context so RLS allows anonymous user creation for web form submissions.
     # The web form has no JWT auth, so TenantMiddleware leaves _current_tenant_id=None.
-    # Without setting it here, any User INSERT triggered by submitted_email would fail
-    # the RLS policy (requires app.current_company_id to be set per transaction).
-    from app.core.tenant import set_current_tenant_id
-
+    # Without this, any User INSERT triggered by submitted_email would fail the RLS policy
+    # (which requires app.current_company_id to be set per transaction).
     set_current_tenant_id(company_id)
 
-    # Build request create schema
-    from app.features.jobs.schemas import JobUrgency
-
     urgency_value = JobUrgency.urgent if urgency == "urgent" else JobUrgency.normal
-
     job_request_data = JobRequestCreate(
         description=description,
         trade_type=trade_type or None,
         urgency=urgency_value,
-        preferred_date_start=parsed_start,
-        preferred_date_end=parsed_end,
-        budget_min=parsed_budget_min,
-        budget_max=parsed_budget_max,
+        preferred_date_start=_parse_optional_date(preferred_date_start),
+        preferred_date_end=_parse_optional_date(preferred_date_end),
+        budget_min=_parse_optional_decimal(budget_min),
+        budget_max=_parse_optional_decimal(budget_max),
         submitted_name=submitted_name,
         submitted_email=submitted_email,
         submitted_phone=submitted_phone,
@@ -432,33 +523,15 @@ async def submit_job_request_form(
         data=job_request_data,
         company_id=company_id,
         client_id=None,
-        photo_paths=[],  # files saved below after request is created
+        photo_paths=[],  # files saved below once the request ID exists
     )
 
-    # Save photos to disk after request is created (we need request ID for directory)
-    photo_paths: list[str] = []
-    if valid_photos:
-        upload_dir = Path("uploads") / "job_requests" / str(job_request.id)
-        upload_dir.mkdir(parents=True, exist_ok=True)
+    photo_paths = await _save_request_photos(job_request.id, valid_photos)
+    if photo_paths:
+        job_request.photos = photo_paths
+        await db.flush()
 
-        for photo in valid_photos:
-            safe_name = Path(photo.filename or "photo").name
-            dest = upload_dir / safe_name
-            content = await photo.read()
-            async with aiofiles.open(dest, "wb") as f:
-                await f.write(content)
-            photo_paths.append(str(dest))
-
-        # Update the photos list on the created request (list replacement per CLAUDE.md)
-        if photo_paths:
-            job_request.photos = photo_paths
-            await db.flush()
-
-    return templates.TemplateResponse(
-        request,
-        "job_request.html",
-        {"company_id": str(company_id), "success": True},
-    )
+    return _render_job_request_form(request, company_id, success=True)
 
 
 @router.post(
@@ -495,7 +568,7 @@ async def list_job_requests_early(
 
     Declared here (before /jobs/{job_id}) to prevent route shadowing.
     """
-    _require_admin(current_user)
+    await require_permission("jobs.view")(current_user, db)
     svc = RequestService(db)
     requests = await svc.list_pending_requests(
         company_id=current_user.company_id,
@@ -515,7 +588,7 @@ async def get_job_request_early(
 
     Declared here (before /jobs/{job_id}) to prevent route shadowing.
     """
-    _require_admin(current_user)
+    await require_permission("jobs.view")(current_user, db)
     svc = RequestService(db)
     job_request = await svc.get_request(request_id)
     return JobRequestResponse.model_validate(job_request)
@@ -532,7 +605,7 @@ async def review_job_request_early(
 
     Declared here (before /jobs/{job_id}) to prevent route shadowing.
     """
-    _require_admin(current_user)
+    await require_permission("jobs.edit")(current_user, db)
     svc = RequestService(db)
     result = await svc.review_request(
         request_id=request_id,
@@ -688,7 +761,7 @@ async def adjust_time_entry(
     and recalculates duration_seconds.
     Raises 404 if not found.
     """
-    _require_admin(current_user)
+    await require_permission("jobs.edit")(current_user, db)
     svc = JobService(db)
     entry = await svc.adjust_time_entry(
         entry_id=entry_id,
@@ -721,12 +794,7 @@ async def get_job(
 ) -> JobResponse:
     """Get a single job by ID. Returns 404 if not found."""
     svc = JobService(db)
-    job = await svc.get_job(job_id)
-    if job is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Job {job_id} not found",
-        )
+    job = entity_or_404(await svc.get_job(job_id), f"Job {job_id} not found")
     return _job_with_client_name(job)
 
 
@@ -738,7 +806,7 @@ async def update_job(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> JobResponse:
     """Partial update of non-lifecycle fields (PATCH semantics). Returns 404 if not found."""
-    _require_admin(current_user)
+    await require_permission("jobs.edit")(current_user, db)
     svc = JobService(db)
     job = await svc.update_job(job_id, data)
     return _job_with_client_name(job)
@@ -784,77 +852,8 @@ async def transition_job(
 
     # Wired decision from CONTEXT.md: "Bookings are created when scheduling"
     if data.new_status == JobStatus.scheduled:
-        scheduling_svc = SchedulingService(db)
-        duration = job.estimated_duration_minutes or 0
-
         try:
-            if duration > 0 and duration <= _SINGLE_DAY_MAX_MINUTES:
-                # Single-day booking
-                from datetime import timedelta
-
-                start_dt = _derive_booking_start(job)
-                end_dt = start_dt + timedelta(minutes=duration)
-                booking_data = BookingCreate(
-                    contractor_id=job.contractor_id,  # type: ignore[arg-type]
-                    job_id=job.id,
-                    job_site_id=None,
-                    start=start_dt,
-                    end=end_dt,
-                )
-                await scheduling_svc.book_slot(booking_data)
-            elif duration > _SINGLE_DAY_MAX_MINUTES:
-                # Multi-day booking — derive day blocks from job data
-                # Build minimal two-day blocks (scheduler enforces min_length=2)
-                from datetime import timedelta
-
-                base_date = (
-                    job.scheduled_completion_date
-                    if job.scheduled_completion_date
-                    else (datetime.now(UTC).date() + timedelta(days=1))
-                )
-                minutes_per_day = _SINGLE_DAY_MAX_MINUTES
-                num_full_days = duration // minutes_per_day
-                remaining = duration % minutes_per_day
-
-                day_blocks: list[DayBlock] = []
-                for i in range(num_full_days):
-                    day_date = base_date + timedelta(days=i)
-                    day_blocks.append(
-                        DayBlock(
-                            date=day_date,
-                            start_time=time(8, 0),
-                            end_time=time(16, 0),
-                        )
-                    )
-                if remaining > 0:
-                    extra_date = base_date + timedelta(days=num_full_days)
-                    end_hour = 8 + (remaining // 60)
-                    end_minute = remaining % 60
-                    day_blocks.append(
-                        DayBlock(
-                            date=extra_date,
-                            start_time=time(8, 0),
-                            end_time=time(end_hour, end_minute),
-                        )
-                    )
-                # Ensure at least 2 blocks (MultiDayBookingCreate.day_blocks min_length=2)
-                if len(day_blocks) < 2:
-                    extra_date = base_date + timedelta(days=len(day_blocks))
-                    day_blocks.append(
-                        DayBlock(
-                            date=extra_date,
-                            start_time=time(8, 0),
-                            end_time=time(8 + (remaining // 60 or 1), remaining % 60),
-                        )
-                    )
-
-                booking_data_multi = MultiDayBookingCreate(
-                    contractor_id=job.contractor_id,  # type: ignore[arg-type]
-                    job_id=job.id,
-                    job_site_id=None,
-                    day_blocks=day_blocks,
-                )
-                await scheduling_svc.book_multiday_job(booking_data_multi)
+            await _create_bookings_for_scheduled_job(db, job)
         except SchedulingConflictError as exc:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -874,7 +873,7 @@ async def delete_job(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> None:
     """Admin hard-removal: sets deleted_at (distinct from cancellation). Returns 204."""
-    _require_admin(current_user)
+    await require_permission("jobs.delete")(current_user, db)
     svc = JobService(db)
     await svc.soft_delete_job(job_id, current_user.user_id)
 
@@ -912,12 +911,9 @@ async def get_client(
 ) -> ClientProfileResponse:
     """Get a client profile. Returns 404 if not found."""
     svc = CrmService(db)
-    profile = await svc.get_profile(user_id)
-    if profile is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Client profile not found for user {user_id}",
-        )
+    profile = entity_or_404(
+        await svc.get_profile(user_id), f"Client profile not found for user {user_id}"
+    )
     return ClientProfileResponse.model_validate(profile)
 
 
@@ -1035,12 +1031,7 @@ async def create_rating(
     from app.features.jobs.models import Job
 
     result = await db.execute(select(Job).where(Job.id == job_id))
-    job = result.scalars().first()
-    if job is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Job {job_id} not found",
-        )
+    job = entity_or_404(result.scalars().first(), f"Job {job_id} not found")
 
     # Determine ratee based on direction
     from app.features.jobs.schemas import RatingDirection

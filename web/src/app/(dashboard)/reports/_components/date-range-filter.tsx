@@ -74,7 +74,7 @@ export function DateRangeFilter({
           aria-pressed={activePreset === preset}
           className={
             activePreset === preset
-              ? "bg-indigo-50 text-indigo-600 border-indigo-200"
+              ? "bg-brand/10 text-foreground border-brand font-semibold"
               : ""
           }
           onClick={() => handlePresetClick(preset)}
@@ -87,7 +87,7 @@ export function DateRangeFilter({
           className={[
             "inline-flex shrink-0 items-center justify-center rounded-lg border text-sm font-medium h-7 gap-1 px-2.5 text-[0.8rem] transition-all",
             activePreset === "custom"
-              ? "bg-indigo-50 text-indigo-600 border-indigo-200"
+              ? "bg-brand/10 text-foreground border-brand font-semibold"
               : "border-border bg-background hover:bg-muted hover:text-foreground",
           ].join(" ")}
           aria-pressed={activePreset === "custom"}

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useParams } from "next/navigation";
 import { useStatusUpdates, useLatestStatus } from "@/lib/hooks/useForeman";
 import { useAppSelector } from "@/store/hooks";
+import { isGc } from "@/lib/roles";
 import type { ProjectStatusUpdate } from "@/lib/types/foreman";
 import { StatusUpdateForm } from "../_components/StatusUpdateForm";
 import {
@@ -35,7 +36,7 @@ export default function ProjectStatusPage() {
   const params = useParams<{ projectId: string }>();
   const projectId = params.projectId;
   const roles = useAppSelector((state) => state.auth.roles);
-  const isForeman = roles.includes("foreman") || roles.includes("admin") || roles.includes("owner");
+  const isForeman = roles.includes("foreman") || isGc(roles);
 
   const [showForm, setShowForm] = useState(false);
 
@@ -64,7 +65,7 @@ export default function ProjectStatusPage() {
         {isForeman && (
           <button
             onClick={() => setShowForm((prev) => !prev)}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors"
           >
             {showForm ? "Cancel" : "New Status Update"}
           </button>
@@ -81,9 +82,9 @@ export default function ProjectStatusPage() {
 
       {/* Latest status highlight */}
       {latestStatus && !showForm && (
-        <div className="rounded-xl border-2 border-indigo-200 bg-indigo-50 p-4">
+        <div className="rounded-xl border-2 border-brand/40 bg-secondary p-4">
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-indigo-600">
+            <span className="text-xs font-semibold uppercase tracking-wide text-foreground">
               Latest Update
             </span>
             <span className="text-xs text-gray-500">

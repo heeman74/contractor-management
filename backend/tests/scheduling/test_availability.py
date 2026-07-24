@@ -19,19 +19,11 @@ from zoneinfo import ZoneInfo
 import pytest
 from sqlalchemy import text
 
-from app.features.scheduling.service import SchedulingService
+from app.features.scheduling.availability import compute_free_windows
 
 # ---------------------------------------------------------------------------
-# Unit tests for _compute_free_windows (pure logic, no DB)
+# Unit tests for compute_free_windows (pure logic, no DB)
 # ---------------------------------------------------------------------------
-
-
-def make_service():
-    """Create a SchedulingService instance without a real DB for unit testing pure logic."""
-    from unittest.mock import MagicMock
-
-    mock_db = MagicMock()
-    return SchedulingService(db=mock_db)
 
 
 def make_dt(hour: int, minute: int = 0, day: int = 10, tz=UTC) -> datetime:
@@ -40,16 +32,15 @@ def make_dt(hour: int, minute: int = 0, day: int = 10, tz=UTC) -> datetime:
 
 
 class TestFreeWindowComputation:
-    """Unit tests for _compute_free_windows (pure algorithmic logic)."""
+    """Unit tests for compute_free_windows (pure algorithmic logic)."""
 
     def test_free_windows_with_no_bookings(self):
         """Contractor with two working blocks and no bookings returns two free windows."""
-        svc = make_service()
         working_blocks = [
             (make_dt(7), make_dt(12)),
             (make_dt(13), make_dt(16)),
         ]
-        free_windows, blocked = svc._compute_free_windows(
+        free_windows, blocked = compute_free_windows(
             working_blocks=working_blocks,
             blocked_intervals=[],
             min_duration_minutes=30,
@@ -63,13 +54,12 @@ class TestFreeWindowComputation:
 
     def test_free_windows_with_one_booking(self):
         """Booking 9am-11am splits the morning block into [7-9] and [11-12]."""
-        svc = make_service()
         working_blocks = [
             (make_dt(7), make_dt(12)),
             (make_dt(13), make_dt(16)),
         ]
         blocked_intervals = [(make_dt(9), make_dt(11), "existing_job")]
-        free_windows, blocked = svc._compute_free_windows(
+        free_windows, blocked = compute_free_windows(
             working_blocks=working_blocks,
             blocked_intervals=blocked_intervals,
             min_duration_minutes=30,
@@ -84,11 +74,10 @@ class TestFreeWindowComputation:
 
     def test_free_windows_respects_buffer(self):
         """15-min buffer shrinks adjacent free windows around a booking."""
-        svc = make_service()
         working_blocks = [(make_dt(7), make_dt(12))]
         # Booking 9am-11am; 15min buffer -> blocked zone is 8:45-11:15
         blocked_intervals = [(make_dt(9), make_dt(11), "existing_job")]
-        free_windows, blocked = svc._compute_free_windows(
+        free_windows, blocked = compute_free_windows(
             working_blocks=working_blocks,
             blocked_intervals=blocked_intervals,
             min_duration_minutes=30,
@@ -102,8 +91,7 @@ class TestFreeWindowComputation:
 
     def test_free_windows_on_day_off_empty_working_blocks(self):
         """When working_blocks is empty, return empty free windows."""
-        svc = make_service()
-        free_windows, blocked = svc._compute_free_windows(
+        free_windows, blocked = compute_free_windows(
             working_blocks=[],
             blocked_intervals=[],
             min_duration_minutes=30,
@@ -114,11 +102,10 @@ class TestFreeWindowComputation:
 
     def test_free_windows_below_min_duration_excluded(self):
         """A free gap of 20 minutes is excluded when min_duration_minutes=30."""
-        svc = make_service()
         # Working 7-12; booking 7:40-11:45 leaves: [7:00-7:40]=40min, [11:45-12:00]=15min
         working_blocks = [(make_dt(7), make_dt(12))]
         blocked_intervals = [(make_dt(7, 40), make_dt(11, 45), "existing_job")]
-        free_windows, blocked = svc._compute_free_windows(
+        free_windows, blocked = compute_free_windows(
             working_blocks=working_blocks,
             blocked_intervals=blocked_intervals,
             min_duration_minutes=30,
@@ -131,12 +118,11 @@ class TestFreeWindowComputation:
 
     def test_free_windows_include_gap_reasons(self):
         """Blocked intervals include correct reason classification."""
-        svc = make_service()
         working_blocks = [(make_dt(7), make_dt(12))]
         blocked_intervals = [
             (make_dt(9), make_dt(10), "existing_job"),
         ]
-        free_windows, blocked = svc._compute_free_windows(
+        free_windows, blocked = compute_free_windows(
             working_blocks=working_blocks,
             blocked_intervals=blocked_intervals,
             min_duration_minutes=30,
@@ -150,9 +136,8 @@ class TestFreeWindowComputation:
 
     def test_free_windows_full_day_free(self):
         """Entire working block is free: single free window returned."""
-        svc = make_service()
         working_blocks = [(make_dt(7), make_dt(16))]
-        free_windows, blocked = svc._compute_free_windows(
+        free_windows, blocked = compute_free_windows(
             working_blocks=working_blocks,
             blocked_intervals=[],
             min_duration_minutes=30,

@@ -23,7 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
 from app.core.base_repository import TenantScopedRepository
-from app.core.base_service import TenantScopedService
+from app.core.base_service import TenantScopedService, entity_or_404
 from app.features.jobs.models import Job, Rating
 from app.features.jobs.schemas import JobStatus, RatingDirection
 
@@ -156,12 +156,9 @@ class RatingService(TenantScopedService[Rating]):
         Raises 404 if rating not found.
         Raises 403 if the caller is not the rater.
         """
-        rating = await self.rating_repo.get_by_id(rating_id)
-        if rating is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Rating {rating_id} not found",
-            )
+        rating = entity_or_404(
+            await self.rating_repo.get_by_id(rating_id), f"Rating {rating_id} not found"
+        )
 
         if rating.rater_id != user_id:
             raise HTTPException(
@@ -198,13 +195,7 @@ class RatingService(TenantScopedService[Rating]):
     async def _get_job_or_404(self, job_id: uuid.UUID) -> Job:
         """Fetch the Job by ID or raise 404."""
         result = await self.db.execute(select(Job).where(Job.id == job_id))
-        job = result.scalars().first()
-        if job is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Job {job_id} not found",
-            )
-        return job
+        return entity_or_404(result.scalars().first(), f"Job {job_id} not found")
 
     def _validate_rating_window(self, job: Job) -> None:
         """Enforce the 30-day rating window based on status_history.

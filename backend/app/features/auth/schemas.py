@@ -37,3 +37,7 @@ class TokenResponse(BaseModel):
     user_id: uuid.UUID
     company_id: uuid.UUID
     roles: list[str]
+    # Human-readable identity for the UI (avoids showing raw UUIDs).
+    email: str | None = None
+    display_name: str | None = None
+    company_name: str | None = None

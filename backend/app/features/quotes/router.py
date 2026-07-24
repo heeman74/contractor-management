@@ -36,8 +36,9 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.base_service import entity_or_404
 from app.core.database import get_db
-from app.core.security import CurrentUser, get_current_user
+from app.core.security import CurrentUser, get_current_user, require_permission, require_roles
 from app.features.companies.models import Company
 from app.features.pdf.service import pdf_service
 from app.features.quotes.schemas import (
@@ -73,22 +74,9 @@ router = APIRouter(prefix="/quotes", tags=["quotes"])
 scope_quote_router = APIRouter(prefix="/trade-scopes/{scope_id}", tags=["trade-scope-quotes"])
 
 
-def _require_admin(current_user: CurrentUser) -> None:
-    """Raise 403 if the current user is not an admin."""
-    if "admin" not in current_user.roles:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
-
-
 def _require_client(current_user: CurrentUser) -> None:
     """Raise 403 if the current user is not a client."""
-    if "client" not in current_user.roles:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Client role required",
-        )
+    require_roles(current_user, "client", detail="Client role required")
 
 
 # ---------------------------------------------------------------------------
@@ -103,7 +91,7 @@ async def save_template(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> QuoteTemplateResponse:
     """Create a new quote template from explicit data (admin only)."""
-    _require_admin(current_user)
+    await require_permission("quotes.create")(current_user, db)
     svc = QuoteService(db)
     template = await svc.create_template(data)
     return QuoteTemplateResponse.model_validate(template)
@@ -115,7 +103,7 @@ async def list_templates(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> list[QuoteTemplateResponse]:
     """List all quote templates for the current tenant (admin only)."""
-    _require_admin(current_user)
+    await require_permission("quotes.view")(current_user, db)
     svc = QuoteService(db)
     templates = await svc.list_templates()
     return [QuoteTemplateResponse.model_validate(t) for t in templates]
@@ -128,7 +116,7 @@ async def get_template(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> QuoteTemplateResponse:
     """Get a specific quote template (admin only)."""
-    _require_admin(current_user)
+    await require_permission("quotes.view")(current_user, db)
     svc = QuoteService(db)
     template = await svc.load_template(template_id)
     return QuoteTemplateResponse.model_validate(template)
@@ -141,7 +129,7 @@ async def delete_template(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> None:
     """Delete a quote template (admin only)."""
-    _require_admin(current_user)
+    await require_permission("quotes.delete")(current_user, db)
     svc = QuoteService(db)
     deleted = await svc.delete_template(template_id)
     if not deleted:
@@ -161,7 +149,7 @@ async def list_quotes(
     Optional `status` query param filters by quote status (e.g. draft, sent, approved).
     Paginated via offset/limit.
     """
-    _require_admin(current_user)
+    await require_permission("quotes.view")(current_user, db)
     svc = QuoteService(db)
     quotes = await svc.repository.get_active_quotes()
     if status is not None:
@@ -179,9 +167,7 @@ async def get_quote_for_job(
 ) -> QuoteResponse:
     """Get the latest non-revised quote for a job."""
     svc = QuoteService(db)
-    quote = await svc.repository.get_for_job(job_id)
-    if quote is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No quote found for job")
+    quote = entity_or_404(await svc.repository.get_for_job(job_id), "No quote found for job")
     return QuoteResponse.from_orm_with_totals(quote)
 
 
@@ -197,7 +183,7 @@ async def create_quote(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> QuoteResponse:
     """Create a new draft quote for a job (admin only)."""
-    _require_admin(current_user)
+    await require_permission("quotes.create")(current_user, db)
     svc = QuoteService(db)
     quote = await svc.create_quote(data, current_user.user_id)
     return QuoteResponse.from_orm_with_totals(quote)
@@ -219,9 +205,7 @@ async def get_quote(
         # record_view triggers status sent -> viewed and appends status_history
         quote = await svc.record_view(quote_id, current_user.user_id)
     else:
-        quote = await svc.repository.get_with_line_items(quote_id)
-        if quote is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quote not found")
+        quote = entity_or_404(await svc.repository.get_with_line_items(quote_id), "Quote not found")
 
     return QuoteResponse.from_orm_with_totals(quote)
 
@@ -234,7 +218,7 @@ async def update_quote(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> QuoteResponse:
     """Update a draft quote (admin only). Full line item replacement if provided."""
-    _require_admin(current_user)
+    await require_permission("quotes.edit")(current_user, db)
     svc = QuoteService(db)
     quote = await svc.update_quote(quote_id, data)
     return QuoteResponse.from_orm_with_totals(quote)
@@ -247,7 +231,7 @@ async def send_quote(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> QuoteResponse:
     """Send a draft quote to the client (admin only)."""
-    _require_admin(current_user)
+    await require_permission("quotes.edit")(current_user, db)
     svc = QuoteService(db)
     quote = await svc.send_quote(quote_id)
     return QuoteResponse.from_orm_with_totals(quote)
@@ -288,7 +272,7 @@ async def revise_quote(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> QuoteResponse:
     """Create a new revision of a sent/viewed/declined/expired quote (admin only)."""
-    _require_admin(current_user)
+    await require_permission("quotes.edit")(current_user, db)
     svc = QuoteService(db)
     new_quote = await svc.revise_quote(quote_id, data, current_user.user_id)
     return QuoteResponse.from_orm_with_totals(new_quote)
@@ -302,7 +286,7 @@ async def extend_expiry(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> QuoteResponse:
     """Extend the expiry date of a quote. Resets expired -> sent (admin only)."""
-    _require_admin(current_user)
+    await require_permission("quotes.edit")(current_user, db)
     svc = QuoteService(db)
     quote = await svc.extend_expiry(quote_id, data.new_expiry_date)
     return QuoteResponse.from_orm_with_totals(quote)
@@ -316,14 +300,10 @@ async def download_quote_pdf(
 ) -> Response:
     """Download a quote as a PDF file (admin or client)."""
     svc = QuoteService(db)
-    quote = await svc.repository.get_with_line_items(quote_id)
-    if quote is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quote not found")
+    quote = entity_or_404(await svc.repository.get_with_line_items(quote_id), "Quote not found")
 
     # Load the company for branding
-    company = await db.get(Company, quote.company_id)
-    if company is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found")
+    company = entity_or_404(await db.get(Company, quote.company_id), "Company not found")
 
     pdf_bytes = await pdf_service.generate_quote_pdf(quote, company)
     return Response(
@@ -353,7 +333,7 @@ async def create_scope_quote(
     The quote is linked to the trade scope, not a job. scope_id in the URL
     overrides any trade_scope_id or job_id in the request body.
     """
-    _require_admin(current_user)
+    await require_permission("quotes.create")(current_user, db)
     # Provide a dummy trade_scope_id to satisfy the QuoteCreate model_validator;
     # create_for_scope overrides it with the URL scope_id anyway.
     data_with_scope = QuoteCreate(
@@ -377,7 +357,7 @@ async def list_scope_quotes(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> list[QuoteResponse]:
     """List all quotes for a trade scope (admin only)."""
-    _require_admin(current_user)
+    await require_permission("quotes.view")(current_user, db)
     svc = QuoteService(db)
     quotes = await svc.list_by_scope(scope_id)
     return [QuoteResponse.from_orm_with_totals(q) for q in quotes]

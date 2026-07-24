@@ -20,7 +20,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import CurrentUser, get_current_user
+from app.core.security import (
+    ADMIN_ROLES,
+    GC_ROLES,
+    CurrentUser,
+    get_current_user,
+    require_permission,
+    require_roles,
+)
+from app.features.foreman.repository import ProjectAssignmentRepository
 from app.features.foreman.schemas import (
     ProjectAssignmentCreate,
     ProjectAssignmentResponse,
@@ -40,17 +48,47 @@ def _format_user_name(user) -> str:
     return name or getattr(user, "email", "")
 
 
-def _enrich_assignment(resp: ProjectAssignmentResponse, obj) -> None:
-    """Populate denormalized project_name and user_name from eager-loaded relations."""
+def _assignment_response(obj) -> ProjectAssignmentResponse:
+    """Serialize an assignment ORM object, enriching denormalized name fields."""
+    resp = ProjectAssignmentResponse.model_validate(obj)
     with contextlib.suppress(Exception):
         resp.project_name = obj.project.name
         resp.user_name = _format_user_name(obj.user)
+    return resp
 
 
-def _enrich_status_update(resp: StatusUpdateResponse, obj) -> None:
-    """Populate denormalized author_name from eager-loaded author relation."""
+def _status_update_response(obj) -> StatusUpdateResponse:
+    """Serialize a status-update ORM object, enriching the author_name field."""
+    resp = StatusUpdateResponse.model_validate(obj)
     with contextlib.suppress(Exception):
         resp.author_name = _format_user_name(obj.author)
+    return resp
+
+
+def _require_contractor_or_admin(current_user: CurrentUser) -> None:
+    """Raise 403 unless the user has the contractor, owner, or admin role."""
+    require_roles(
+        current_user, "contractor", *ADMIN_ROLES, detail="Contractor or admin role required"
+    )
+
+
+async def _require_admin_or_assigned_foreman(
+    current_user: CurrentUser,
+    db: AsyncSession,
+    project_id: uuid.UUID,
+) -> None:
+    """Allow owner/admin/gc; otherwise require a contractor assigned to the project."""
+    if any(role in current_user.roles for role in GC_ROLES):
+        return
+    require_roles(current_user, "contractor", detail="Admin or contractor role required")
+    assigned_ids = await ProjectAssignmentRepository(db).get_project_ids_for_user(
+        current_user.user_id
+    )
+    if project_id not in assigned_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not assigned to this project",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -69,26 +107,14 @@ async def assign_foreman(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> ProjectAssignmentResponse:
     """Assign a foreman to a project. Admin only."""
-    if "admin" not in current_user.roles:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
+    await require_permission("foreman.assign")(current_user, db)
 
     svc = ForemanService(db)
     assignment = await svc.assign_to_project(data.project_id, data.user_id)
 
-    # Eagerly fetch for response — re-query with joins
-    from app.features.foreman.repository import ProjectAssignmentRepository
-
-    repo = ProjectAssignmentRepository(db)
-    full = await repo.get_by_id(assignment.id)
-    if full is None:
-        full = assignment
-
-    resp = ProjectAssignmentResponse.model_validate(full)
-    _enrich_assignment(resp, full)
-    return resp
+    # Eagerly re-fetch with joins for the enriched response.
+    full = await ProjectAssignmentRepository(db).get_by_id(assignment.id) or assignment
+    return _assignment_response(full)
 
 
 @router.delete(
@@ -102,11 +128,7 @@ async def unassign_foreman(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> None:
     """Remove a foreman from a project. Admin only."""
-    if "admin" not in current_user.roles:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
+    await require_permission("foreman.assign")(current_user, db)
 
     svc = ForemanService(db)
     await svc.unassign_from_project(assignment_id)
@@ -122,31 +144,11 @@ async def list_project_foremen(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> list[ProjectAssignmentResponse]:
     """List all foremen assigned to a project. Admin or assigned contractor."""
-    if "admin" not in current_user.roles:
-        if "contractor" not in current_user.roles:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Admin or contractor role required",
-            )
-        # Verify contractor is assigned as foreman to this project
-        from app.features.foreman.repository import ProjectAssignmentRepository
-
-        repo = ProjectAssignmentRepository(db)
-        assigned_ids = await repo.get_project_ids_for_user(current_user.user_id)
-        if project_id not in assigned_ids:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You are not assigned to this project",
-            )
+    await _require_admin_or_assigned_foreman(current_user, db, project_id)
 
     svc = ForemanService(db)
     assignments = await svc.get_project_assignments(project_id)
-    results = []
-    for a in assignments:
-        resp = ProjectAssignmentResponse.model_validate(a)
-        _enrich_assignment(resp, a)
-        results.append(resp)
-    return results
+    return [_assignment_response(a) for a in assignments]
 
 
 @router.get(
@@ -158,20 +160,11 @@ async def list_my_assignments(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> list[ProjectAssignmentResponse]:
     """List projects assigned to the current user (foreman view)."""
-    if "contractor" not in current_user.roles and "admin" not in current_user.roles:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Contractor or admin role required",
-        )
+    _require_contractor_or_admin(current_user)
 
     svc = ForemanService(db)
     assignments = await svc.get_assigned_projects(current_user.user_id)
-    results = []
-    for a in assignments:
-        resp = ProjectAssignmentResponse.model_validate(a)
-        _enrich_assignment(resp, a)
-        results.append(resp)
-    return results
+    return [_assignment_response(a) for a in assignments]
 
 
 # ---------------------------------------------------------------------------
@@ -190,18 +183,11 @@ async def create_status_update(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> StatusUpdateResponse:
     """Create a daily status update. Must be an assigned foreman (contractor) for the project."""
-    if "contractor" not in current_user.roles and "admin" not in current_user.roles:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Contractor or admin role required",
-        )
+    _require_contractor_or_admin(current_user)
 
     svc = ForemanService(db)
     update = await svc.create_status_update(data, author_id=current_user.user_id)
-
-    resp = StatusUpdateResponse.model_validate(update)
-    _enrich_status_update(resp, update)
-    return resp
+    return _status_update_response(update)
 
 
 @router.get(
@@ -216,32 +202,11 @@ async def list_status_updates(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> StatusUpdateListResponse:
     """List status updates for a project. Admin or assigned foreman (contractor)."""
-    # Check access: admin can see all, contractor only if assigned as foreman
-    if "admin" not in current_user.roles:
-        if "contractor" not in current_user.roles:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Admin or contractor role required",
-            )
-        # Verify contractor is assigned as foreman
-        from app.features.foreman.repository import ProjectAssignmentRepository
-
-        repo = ProjectAssignmentRepository(db)
-        assigned_ids = await repo.get_project_ids_for_user(current_user.user_id)
-        if project_id not in assigned_ids:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You are not assigned to this project",
-            )
+    await _require_admin_or_assigned_foreman(current_user, db, project_id)
 
     svc = ForemanService(db)
     items, total = await svc.get_status_updates(project_id, limit=limit, offset=offset)
-
-    update_responses = []
-    for item in items:
-        resp = StatusUpdateResponse.model_validate(item)
-        _enrich_status_update(resp, item)
-        update_responses.append(resp)
+    update_responses = [_status_update_response(item) for item in items]
 
     return StatusUpdateListResponse(
         items=update_responses,
@@ -265,7 +230,4 @@ async def get_latest_status_update(
     update = await svc.get_latest_status(project_id)
     if update is None:
         return None
-
-    resp = StatusUpdateResponse.model_validate(update)
-    _enrich_status_update(resp, update)
-    return resp
+    return _status_update_response(update)

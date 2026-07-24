@@ -97,7 +97,7 @@ export function TaskDetail({ task }: TaskDetailProps) {
           </div>
         )}
         {task.photo_required && (
-          <div className="flex items-center gap-2 text-indigo-600">
+          <div className="flex items-center gap-2 text-foreground">
             <Camera className="h-4 w-4" />
             <span className="font-medium">Photo required</span>
           </div>

@@ -5,11 +5,15 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/di/service_locator.dart';
 import '../../../../core/routing/route_names.dart';
 import '../../../../core/sync/sync_engine.dart';
+import '../../../../shared/utils/date_format_utils.dart';
+import '../../../invoices/domain/invoice_entity.dart';
+import '../../../invoices/domain/invoice_status_presentation.dart';
 import '../../../invoices/presentation/providers/invoice_providers.dart';
 import '../../../jobs/domain/job_entity.dart';
 import '../../../jobs/domain/job_status.dart';
 import '../../../quotes/data/quote_dao.dart';
 import '../../../quotes/domain/quote_entity.dart';
+import '../../../quotes/domain/quote_status_presentation.dart';
 import '../providers/client_providers.dart';
 import '../widgets/client_notes_tab.dart';
 import '../widgets/delay_banner.dart';
@@ -137,7 +141,7 @@ class _JobDetailContentState extends ConsumerState<_JobDetailContent>
               child: Align(
                 alignment: Alignment.centerRight,
                 child: Text(
-                  'Last updated: ${_relativeTime(job.updatedAt)}',
+                  'Last updated: ${DateFormatUtils.relativeTime(job.updatedAt)}',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
@@ -187,19 +191,6 @@ class _JobDetailContentState extends ConsumerState<_JobDetailContent>
     );
   }
 
-  String _relativeTime(DateTime dt) {
-    final now = DateTime.now();
-    final diff = now.difference(dt);
-    if (diff.inMinutes < 1) return 'just now';
-    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    final local = dt.toLocal();
-    final months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-    return '${months[local.month - 1]} ${local.day}';
-  }
 }
 
 // ─── Cancelled banner ─────────────────────────────────────────────────────────
@@ -309,7 +300,8 @@ class _DetailsTab extends ConsumerWidget {
                   const Divider(),
                   _DetailRow(
                     label: 'Expected Completion',
-                    value: _formatDate(job.scheduledCompletionDate!),
+                    value: DateFormatUtils.formatLongDate(
+                        job.scheduledCompletionDate!),
                   ),
                 ],
               ],
@@ -328,125 +320,101 @@ class _DetailsTab extends ConsumerWidget {
 
         // Invoice section — shown when an invoice exists for this job
         invoicesAsync.when(
-          data: (invoices) {
-            if (invoices.isEmpty) return const SizedBox.shrink();
-
-            final invoice = invoices.first;
-            final statusColors = {
-              'unpaid': Colors.red,
-              'partial': Colors.orange,
-              'paid': Colors.green,
-              'overdue': Colors.deepOrange,
-              'cancelled': Colors.grey,
-            };
-            final statusLabels = {
-              'unpaid': 'Unpaid',
-              'partial': 'Partially Paid',
-              'paid': 'Paid',
-              'overdue': 'Overdue',
-              'cancelled': 'Cancelled',
-            };
-            final statusColor =
-                statusColors[invoice.status] ?? Colors.grey;
-            final statusLabel =
-                statusLabels[invoice.status] ?? invoice.status;
-
-            return Column(
-              children: [
-                const SizedBox(height: 16),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.receipt_outlined,
-                              size: 18,
-                              color: theme.colorScheme.primary,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Invoice',
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              invoice.invoiceNumber,
-                              style: theme.textTheme.bodyLarge?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color:
-                                    statusColor.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: statusColor
-                                      .withValues(alpha: 0.4),
-                                ),
-                              ),
-                              child: Text(
-                                statusLabel,
-                                style: TextStyle(
-                                  color: statusColor,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Total: \$${invoice.total.toStringAsFixed(2)}',
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            icon: const Icon(Icons.open_in_new, size: 16),
-                            label: const Text('View Invoice'),
-                            onPressed: () => context.push(
-                              RouteNames.invoiceDetailPath(invoice.id),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
+          data: (invoices) => invoices.isEmpty
+              ? const SizedBox.shrink()
+              : _InvoiceSummaryCard(invoice: invoices.first),
           loading: () => const SizedBox.shrink(),
           error: (_, __) => const SizedBox.shrink(),
         ),
       ],
     );
   }
+}
 
-  String _formatDate(DateTime dt) {
-    final months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December',
-    ];
-    return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
+/// Read-only invoice summary shown in the client's Details tab.
+class _InvoiceSummaryCard extends StatelessWidget {
+  const _InvoiceSummaryCard({required this.invoice});
+
+  final InvoiceEntity invoice;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final statusColor = InvoiceStatusPresentation.color(invoice.status);
+    final statusLabel = InvoiceStatusPresentation.label(invoice.status);
+
+    return Column(
+      children: [
+        const SizedBox(height: 16),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.receipt_outlined,
+                        size: 18, color: theme.colorScheme.primary),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Invoice',
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      invoice.invoiceNumber,
+                      style: theme.textTheme.bodyLarge
+                          ?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                            color: statusColor.withValues(alpha: 0.4)),
+                      ),
+                      child: Text(
+                        statusLabel,
+                        style: TextStyle(
+                          color: statusColor,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Total: \$${invoice.total.toStringAsFixed(2)}',
+                  style: theme.textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.open_in_new, size: 16),
+                    label: const Text('View Invoice'),
+                    onPressed: () => context.push(
+                      RouteNames.invoiceDetailPath(invoice.id),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -680,7 +648,7 @@ class _QuoteTab extends ConsumerWidget {
         }
 
         final quote = clientQuotes.first;
-        final statusColor = _quoteStatusColor(quote.status);
+        final statusColor = QuoteStatusPresentation.color(quote.status);
 
         return ListView(
           padding: const EdgeInsets.all(16),
@@ -690,7 +658,7 @@ class _QuoteTab extends ConsumerWidget {
                 leading: Icon(Icons.description, color: statusColor),
                 title: Text('Quote v${quote.revisionNumber}'),
                 subtitle: Text(
-                  _quoteStatusLabel(quote.status),
+                  QuoteStatusPresentation.label(quote.status),
                   style: TextStyle(color: statusColor),
                 ),
                 trailing: const Icon(Icons.chevron_right),
@@ -739,20 +707,4 @@ class _QuoteTab extends ConsumerWidget {
     );
   }
 
-  Color _quoteStatusColor(String status) => switch (status) {
-        'approved' => Colors.green,
-        'declined' => Colors.red,
-        'expired' => Colors.orange,
-        _ => Colors.blue,
-      };
-
-  String _quoteStatusLabel(String status) => switch (status) {
-        'sent' => 'Awaiting your approval',
-        'viewed' => 'Awaiting your approval',
-        'approved' => 'Approved',
-        'declined' => 'Declined',
-        'expired' => 'Expired',
-        'revised' => 'Revised',
-        _ => status,
-      };
 }

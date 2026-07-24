@@ -10,7 +10,7 @@ import uuid
 from fastapi import HTTPException, status
 from sqlalchemy import text
 
-from app.core.base_service import TenantScopedService
+from app.core.base_service import TenantScopedService, entity_or_404
 from app.features.billing_milestones.models import BillingMilestone
 from app.features.billing_milestones.repository import BillingMilestoneRepository
 from app.features.billing_milestones.schemas import BillingMilestoneCreate, BillingMilestoneUpdate
@@ -43,20 +43,12 @@ class BillingMilestoneService(TenantScopedService[BillingMilestone]):
         self, milestone_id: uuid.UUID, data: BillingMilestoneUpdate
     ) -> BillingMilestone:
         """Update milestone fields. Raises 404 if milestone not found."""
-        milestone = await self._milestone_repo.get_by_id(milestone_id)
-        if milestone is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Billing milestone not found",
-            )
+        entity_or_404(
+            await self._milestone_repo.get_by_id(milestone_id), "Billing milestone not found"
+        )
         update_data = {k: v for k, v in data.model_dump().items() if v is not None}
         updated = await self._milestone_repo.update(milestone_id, update_data)
-        if updated is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Billing milestone not found",
-            )
-        return updated
+        return entity_or_404(updated, "Billing milestone not found")
 
     async def delete_milestone(self, milestone_id: uuid.UUID) -> bool:
         """Soft-delete a billing milestone. Returns False if not found."""
@@ -86,10 +78,7 @@ class BillingMilestoneService(TenantScopedService[BillingMilestone]):
                 detail="Milestone already invoiced",
             )
         await self.db.flush()
-        milestone = await self._milestone_repo.get_by_id(milestone_id)
-        if milestone is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Billing milestone not found after update",
-            )
-        return milestone
+        return entity_or_404(
+            await self._milestone_repo.get_by_id(milestone_id),
+            "Billing milestone not found after update",
+        )

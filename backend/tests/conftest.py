@@ -19,9 +19,13 @@ import os
 import subprocess
 import sys
 
-# Set required env vars BEFORE importing app (Settings crashes without these)
-os.environ.setdefault(
-    "DATABASE_URL", "postgresql+asyncpg://appuser:apppassword@localhost:5432/contractorhub_test"
+# Set required env vars BEFORE importing app (Settings crashes without these).
+# Force the app-under-test onto the dedicated TEST database, ignoring any dev
+# DATABASE_URL — so running the suite can never truncate development data. CI sets
+# TEST_DATABASE_URL; locally it defaults to contractorhub_test.
+os.environ["DATABASE_URL"] = os.environ.get(
+    "TEST_DATABASE_URL",
+    "postgresql+asyncpg://appuser:apppassword@localhost:5432/contractorhub_test",
 )
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key-for-integration-tests-min-32")
 
@@ -187,6 +191,8 @@ async def clean_tables(test_engine):
                 # Auth + core tables
                 "refresh_tokens, "
                 "user_roles, "
+                # Phase 27 RBAC (references companies)
+                "company_role_permissions, "
                 "users, "
                 "companies"
             )

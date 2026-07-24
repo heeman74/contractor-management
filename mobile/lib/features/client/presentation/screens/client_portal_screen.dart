@@ -7,6 +7,7 @@ import '../../../../core/routing/route_names.dart';
 import '../../../../core/sync/sync_engine.dart';
 import '../../../../features/auth/domain/auth_state.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
+import '../../../../shared/utils/date_format_utils.dart';
 import '../../../jobs/domain/job_entity.dart';
 import '../../../jobs/domain/job_request_entity.dart';
 import '../../../jobs/domain/job_status.dart';
@@ -47,7 +48,7 @@ class ClientPortalScreen extends ConsumerWidget {
           child: Padding(
             padding: const EdgeInsets.only(bottom: 4),
             child: Text(
-              'Updated ${_relativeTime(lastSync)}',
+              'Updated ${DateFormatUtils.relativeTime(lastSync)}',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
@@ -72,14 +73,6 @@ class ClientPortalScreen extends ConsumerWidget {
     );
   }
 
-  String _relativeTime(DateTime dt) {
-    final now = DateTime.now();
-    final diff = now.difference(dt);
-    if (diff.inMinutes < 1) return 'just now';
-    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    return '${dt.day}/${dt.month}/${dt.year}';
-  }
 }
 
 // ─── Portal body ──────────────────────────────────────────────────────────────
@@ -452,7 +445,7 @@ class _RequestCard extends StatelessWidget {
             ],
             const SizedBox(height: 4),
             Text(
-              'Submitted ${_relativeTime(request.createdAt)}',
+              'Submitted ${DateFormatUtils.relativeTime(request.createdAt)}',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -463,16 +456,6 @@ class _RequestCard extends StatelessWidget {
     );
   }
 
-  String _relativeTime(DateTime dt) {
-    final now = DateTime.now();
-    final diff = now.difference(dt);
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    final months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-    return '${months[dt.month - 1]} ${dt.day}';
-  }
 }
 
 // ─── Empty state ──────────────────────────────────────────────────────────────

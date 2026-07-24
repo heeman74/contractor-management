@@ -15,9 +15,10 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.base_service import entity_or_404
 from app.core.database import get_db
 from app.core.security import CurrentUser, get_current_user
 from app.features.dashboard.schemas import (
@@ -105,9 +106,7 @@ async def mark_alert_read(
 ) -> AlertResponse:
     """Mark an alert as read."""
     svc = DashboardService(db)
-    alert = await svc.mark_alert_read(alert_id)
-    if alert is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
+    alert = entity_or_404(await svc.mark_alert_read(alert_id), "Alert not found")
     return AlertResponse.model_validate(alert)
 
 
@@ -119,9 +118,7 @@ async def accept_rescheduling(
 ) -> AlertResponse:
     """Accept the AI rescheduling suggestion — updates task dates from rescheduling_payload."""
     svc = DashboardService(db)
-    alert = await svc.accept_rescheduling(alert_id)
-    if alert is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
+    alert = entity_or_404(await svc.accept_rescheduling(alert_id), "Alert not found")
     return AlertResponse.model_validate(alert)
 
 
@@ -133,7 +130,5 @@ async def dismiss_alert(
 ) -> AlertResponse:
     """Dismiss an alert without applying rescheduling changes."""
     svc = DashboardService(db)
-    alert = await svc.dismiss_alert(alert_id)
-    if alert is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
+    alert = entity_or_404(await svc.dismiss_alert(alert_id), "Alert not found")
     return AlertResponse.model_validate(alert)

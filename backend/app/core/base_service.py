@@ -13,6 +13,26 @@ from app.core.base_repository import BaseRepository
 from app.core.database import Base
 from app.core.tenant import get_current_tenant_id
 
+_DEFAULT_NOT_FOUND_DETAIL = "Resource not found"
+
+
+def entity_or_404[E](entity: E | None, detail: str = _DEFAULT_NOT_FOUND_DETAIL) -> E:
+    """Return the entity, or raise HTTP 404 when it is None.
+
+    Fetch-agnostic: use it after any lookup (repository.get_by_id, db.get,
+    or a specialized eager-loading query) to collapse the None-check + raise.
+    """
+    if entity is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
+    return entity
+
+
+def active_entity_or_404[E](entity: E | None, detail: str = _DEFAULT_NOT_FOUND_DETAIL) -> E:
+    """Like entity_or_404, but also treats a soft-deleted entity (deleted_at set) as absent."""
+    if entity is None or getattr(entity, "deleted_at", None) is not None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
+    return entity
+
 
 class BaseService[T: Base]:
     """Base service providing standard CRUD via a repository."""
@@ -26,6 +46,13 @@ class BaseService[T: Base]:
     async def get(self, entity_id: uuid.UUID) -> T | None:
         """Retrieve an entity by ID."""
         return await self.repository.get_by_id(entity_id)
+
+    async def get_or_404(self, entity_id: uuid.UUID, *, detail: str | None = None) -> T:
+        """Retrieve an entity by ID or raise HTTP 404."""
+        return entity_or_404(
+            await self.repository.get_by_id(entity_id),
+            detail or _DEFAULT_NOT_FOUND_DETAIL,
+        )
 
     async def list(self) -> list[T]:
         """List all entities (RLS filters automatically)."""

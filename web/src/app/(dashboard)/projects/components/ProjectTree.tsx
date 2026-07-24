@@ -51,7 +51,7 @@ function ScopeNode({
         className={cn(
           "flex cursor-pointer items-center gap-1 rounded-md py-1 pl-5 pr-2 text-sm transition-colors",
           isActive
-            ? "bg-indigo-50 text-indigo-700 font-medium"
+            ? "bg-secondary text-foreground font-medium"
             : "text-gray-700 hover:bg-gray-100"
         )}
         onClick={() => onSelectNode({ type: "scope", id: scope.id })}
@@ -109,7 +109,7 @@ function ScopeNode({
                 className={cn(
                   "flex cursor-pointer items-center gap-1.5 rounded-md py-1 pl-10 pr-2 text-sm transition-colors",
                   isTaskActive
-                    ? "bg-indigo-50 text-indigo-700 font-medium"
+                    ? "bg-secondary text-foreground font-medium"
                     : "text-gray-600 hover:bg-gray-100"
                 )}
                 onClick={() => onSelectNode({ type: "task", id: task.id })}
@@ -168,7 +168,7 @@ function ProjectNode({
         className={cn(
           "flex cursor-pointer items-center gap-1 rounded-md py-1.5 px-2 text-sm font-medium transition-colors",
           isActive
-            ? "bg-indigo-50 text-indigo-700 font-medium"
+            ? "bg-secondary text-foreground font-medium"
             : "text-gray-800 hover:bg-gray-100"
         )}
         onClick={() => onSelectNode({ type: "project", id: project.id })}
@@ -207,7 +207,7 @@ function ProjectNode({
           )}
         </button>
         {isExpanded ? (
-          <FolderOpen className="h-4 w-4 flex-shrink-0 text-indigo-400" />
+          <FolderOpen className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
         ) : (
           <Folder className="h-4 w-4 flex-shrink-0 text-gray-400" />
         )}

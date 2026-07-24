@@ -1,7 +1,5 @@
-import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_database.dart' hide UserRole;
 import '../../../../core/di/service_locator.dart';
@@ -10,6 +8,7 @@ import '../../../../features/auth/presentation/providers/auth_provider.dart';
 import '../../../../features/users/domain/user_entity.dart';
 import '../../../../features/users/presentation/providers/user_providers.dart';
 import '../../../../shared/models/user_role.dart';
+import '../../data/team_management_service.dart';
 
 /// Admin team management screen — view members, add new ones, assign roles.
 ///
@@ -238,14 +237,19 @@ class _RoleChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (Color bg, Color fg) = switch (role) {
+      UserRole.owner => (Colors.deepPurple.shade100, Colors.deepPurple.shade800),
       UserRole.admin => (Colors.blue.shade100, Colors.blue.shade800),
+      UserRole.projectManager => (Colors.indigo.shade100, Colors.indigo.shade800),
+      UserRole.gc => (Colors.teal.shade100, Colors.teal.shade800),
+      UserRole.foreman => (Colors.brown.shade100, Colors.brown.shade800),
       UserRole.contractor => (Colors.orange.shade100, Colors.orange.shade800),
+      UserRole.worker => (Colors.amber.shade100, Colors.amber.shade900),
       UserRole.client => (Colors.green.shade100, Colors.green.shade800),
     };
 
     return Chip(
       label: Text(
-        role.name[0].toUpperCase() + role.name.substring(1),
+        role.displayLabel,
         style: TextStyle(fontSize: 12, color: fg),
       ),
       backgroundColor: bg,
@@ -292,9 +296,7 @@ class _AssignRoleDialogState extends State<_AssignRoleDialog> {
                 .map(
                   (r) => DropdownMenuItem(
                     value: r,
-                    child: Text(
-                      r.name[0].toUpperCase() + r.name.substring(1),
-                    ),
+                    child: Text(r.displayLabel),
                   ),
                 )
                 .toList(),
@@ -336,31 +338,11 @@ class _AssignRoleDialogState extends State<_AssignRoleDialog> {
       _error = null;
     });
     try {
-      final db = getIt<AppDatabase>();
-      final now = DateTime.now();
-      await db.userDao.assignRole(
-        UserRolesCompanion.insert(
-          id: Value(const Uuid().v4()),
-          userId: widget.user.id,
-          companyId: widget.companyId,
-          role: _selectedRole.name,
-          createdAt: now,
-        ),
+      await _teamService.assignRole(
+        userId: widget.user.id,
+        companyId: widget.companyId,
+        role: _selectedRole,
       );
-
-      // Auto-create ClientProfile when assigning client role
-      if (_selectedRole == UserRole.client) {
-        await db.jobDao.insertClientProfile(
-          ClientProfilesCompanion.insert(
-            id: Value(const Uuid().v4()),
-            companyId: widget.companyId,
-            userId: widget.user.id,
-            createdAt: now,
-            updatedAt: now,
-          ),
-        );
-      }
-
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
@@ -371,6 +353,9 @@ class _AssignRoleDialogState extends State<_AssignRoleDialog> {
       }
     }
   }
+
+  TeamManagementService get _teamService =>
+      TeamManagementService(database: getIt<AppDatabase>());
 }
 
 // ---------------------------------------------------------------------------
@@ -479,9 +464,7 @@ class _AddMemberSheetState extends State<_AddMemberSheet> {
                     .map(
                       (r) => DropdownMenuItem(
                         value: r,
-                        child: Text(
-                          r.name[0].toUpperCase() + r.name.substring(1),
-                        ),
+                        child: Text(r.displayLabel),
                       ),
                     )
                     .toList(),
@@ -526,55 +509,17 @@ class _AddMemberSheetState extends State<_AddMemberSheet> {
     });
 
     try {
-      final db = getIt<AppDatabase>();
-      final userId = const Uuid().v4();
-      final now = DateTime.now();
-
-      // Insert user
-      await db.userDao.insertUser(
-        UsersCompanion.insert(
-          id: Value(userId),
-          companyId: widget.companyId,
+      final service = TeamManagementService(database: getIt<AppDatabase>());
+      await service.addMember(
+        companyId: widget.companyId,
+        member: NewMember(
           email: _emailCtrl.text.trim(),
-          firstName: Value(_firstNameCtrl.text.trim().isNotEmpty
-              ? _firstNameCtrl.text.trim()
-              : null),
-          lastName: Value(_lastNameCtrl.text.trim().isNotEmpty
-              ? _lastNameCtrl.text.trim()
-              : null),
-          phone: Value(_phoneCtrl.text.trim().isNotEmpty
-              ? _phoneCtrl.text.trim()
-              : null),
-          version: const Value(1),
-          createdAt: now,
-          updatedAt: now,
+          role: _selectedRole,
+          firstName: _trimmedOrNull(_firstNameCtrl.text),
+          lastName: _trimmedOrNull(_lastNameCtrl.text),
+          phone: _trimmedOrNull(_phoneCtrl.text),
         ),
       );
-
-      // Assign role
-      await db.userDao.assignRole(
-        UserRolesCompanion.insert(
-          id: Value(const Uuid().v4()),
-          userId: userId,
-          companyId: widget.companyId,
-          role: _selectedRole.name,
-          createdAt: now,
-        ),
-      );
-
-      // Auto-create ClientProfile when role is client
-      if (_selectedRole == UserRole.client) {
-        await db.jobDao.insertClientProfile(
-          ClientProfilesCompanion.insert(
-            id: Value(const Uuid().v4()),
-            companyId: widget.companyId,
-            userId: userId,
-            createdAt: now,
-            updatedAt: now,
-          ),
-        );
-      }
-
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
@@ -584,6 +529,11 @@ class _AddMemberSheetState extends State<_AddMemberSheet> {
         });
       }
     }
+  }
+
+  String? _trimmedOrNull(String value) {
+    final trimmed = value.trim();
+    return trimmed.isNotEmpty ? trimmed : null;
   }
 }
 

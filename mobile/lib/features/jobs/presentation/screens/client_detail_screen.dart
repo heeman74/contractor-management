@@ -5,7 +5,7 @@ import '../../../../features/auth/domain/auth_state.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
 import '../../domain/client_profile_entity.dart';
 import '../../domain/job_entity.dart';
-import '../../domain/job_status.dart';
+import '../../domain/job_status_colors.dart';
 import '../providers/crm_providers.dart';
 
 /// Full client profile detail screen.
@@ -581,7 +581,7 @@ class _JobHistoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusColor = _statusColor(job.jobStatus);
+    final statusColor = JobStatusColors.detail(job.jobStatus);
 
     return ListTile(
       onTap: onTap,
@@ -613,16 +613,6 @@ class _JobHistoryTile extends StatelessWidget {
     );
   }
 
-  Color _statusColor(JobStatus status) {
-    return switch (status) {
-      JobStatus.quote => Colors.grey,
-      JobStatus.scheduled => Colors.blue,
-      JobStatus.inProgress => Colors.orange,
-      JobStatus.complete => Colors.green,
-      JobStatus.invoiced => Colors.purple,
-      JobStatus.cancelled => Colors.red,
-    };
-  }
 
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';

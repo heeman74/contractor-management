@@ -23,7 +23,6 @@ import uuid
 from datetime import UTC, date, datetime
 from typing import Any
 
-from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
@@ -34,7 +33,7 @@ from app.core.ai_utils import (
     call_claude_json,
     gather_with_concurrency,
 )
-from app.core.base_service import TenantScopedService
+from app.core.base_service import TenantScopedService, entity_or_404
 from app.core.logging_config import get_logger
 from app.features.dashboard.models import DashboardAlert
 from app.features.dashboard.prompts.alert_system import ALERT_SYSTEM_PROMPT
@@ -54,6 +53,7 @@ logger = get_logger(__name__)
 # Schedule slip detection thresholds
 MIN_SLIP_DAYS_THRESHOLD = 1
 ALERT_DEDUP_HOURS = 24
+SCHEDULE_SLIP_ALERT_TYPE = "schedule_slip"
 
 
 def _compute_trade_status(tasks: list[Task], today: date) -> str:
@@ -209,13 +209,7 @@ class DashboardService(TenantScopedService[DashboardAlert]):
             stmt = stmt.where(TradeScope.project_id == project_id)
 
         result = await self.db.execute(stmt)
-        scope = result.scalars().first()
-
-        if scope is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Trade scope not found for this project",
-            )
+        scope = entity_or_404(result.scalars().first(), "Trade scope not found for this project")
 
         details: list[TradeTaskDetail] = []
         for task in scope.tasks:
@@ -376,7 +370,8 @@ class DashboardService(TenantScopedService[DashboardAlert]):
         filtered_items = [
             item
             for item in slip_items
-            if (item["project_id"], item["scope_id"], "schedule_slip") not in existing_alert_keys
+            if (item["project_id"], item["scope_id"], SCHEDULE_SLIP_ALERT_TYPE)
+            not in existing_alert_keys
         ]
 
         ai_results = await gather_with_concurrency(filtered_items, self._call_claude_for_slip)
@@ -421,68 +416,76 @@ class DashboardService(TenantScopedService[DashboardAlert]):
         )
 
         slip_items: list[dict[str, Any]] = []
-
         for project in projects:
-            scope_days_behind: dict[uuid.UUID, int] = {}
-            scope_overdue_tasks: dict[uuid.UUID, list[dict[str, Any]]] = {}
-
-            for scope in project.trade_scopes:
-                if scope.deleted_at is not None:
-                    continue
-
-                overdue_tasks = [
-                    t
-                    for t in scope.tasks
-                    if t.status not in DONE_STATUSES
-                    and t.deleted_at is None
-                    and t.due_date is not None
-                    and t.due_date < target_date
-                ]
-
-                if not overdue_tasks:
-                    continue
-
-                max_days = max((target_date - t.due_date).days for t in overdue_tasks)
-                if max_days <= MIN_SLIP_DAYS_THRESHOLD:
-                    continue
-
-                scope_days_behind[scope.id] = max_days
-                scope_overdue_tasks[scope.id] = [
-                    {
-                        "id": str(t.id),
-                        "title": t.title,
-                        "due_date": t.due_date.isoformat() if t.due_date else None,
-                        "status": t.status,
-                    }
-                    for t in overdue_tasks
-                ]
-
-            for scope in project.trade_scopes:
-                if scope.id not in scope_days_behind:
-                    continue
-
-                days_behind = scope_days_behind[scope.id]
-                overdue_task_dicts = scope_overdue_tasks[scope.id]
-
-                affected_scope_ids = self._find_affected_downstream_scopes(
-                    scope.id, project.trade_scopes, scope_days_behind
-                )
-
-                slip_items.append(
-                    {
-                        "company_id": company_id,
-                        "project_id": project.id,
-                        "project_name": project.name,
-                        "project_description": project.description,
-                        "scope_id": scope.id,
-                        "trade_name": scope.trade_name,
-                        "overdue_tasks": overdue_task_dicts,
-                        "days_behind": days_behind,
-                        "affected_scope_ids": affected_scope_ids,
-                    }
-                )
+            slip_items.extend(self._collect_project_slip_items(project, target_date, company_id))
 
         return slip_items, existing_alert_keys
+
+    def _collect_project_slip_items(
+        self,
+        project: Project,
+        target_date: date,
+        company_id: uuid.UUID,
+    ) -> list[dict[str, Any]]:
+        """Build slip items for every slipping trade scope within a single project."""
+        scope_days_behind: dict[uuid.UUID, int] = {}
+        scope_overdue_tasks: dict[uuid.UUID, list[dict[str, Any]]] = {}
+
+        for scope in project.trade_scopes:
+            if scope.deleted_at is not None:
+                continue
+
+            overdue_tasks = self._overdue_tasks_for_scope(scope, target_date)
+            if not overdue_tasks:
+                continue
+
+            max_days = max((target_date - t.due_date).days for t in overdue_tasks)
+            if max_days <= MIN_SLIP_DAYS_THRESHOLD:
+                continue
+
+            scope_days_behind[scope.id] = max_days
+            scope_overdue_tasks[scope.id] = [self._serialize_overdue_task(t) for t in overdue_tasks]
+
+        # Downstream analysis needs every slipping scope's days_behind first.
+        return [
+            {
+                "company_id": company_id,
+                "project_id": project.id,
+                "project_name": project.name,
+                "project_description": project.description,
+                "scope_id": scope.id,
+                "trade_name": scope.trade_name,
+                "overdue_tasks": scope_overdue_tasks[scope.id],
+                "days_behind": scope_days_behind[scope.id],
+                "affected_scope_ids": self._find_affected_downstream_scopes(
+                    scope.id, project.trade_scopes, scope_days_behind
+                ),
+            }
+            for scope in project.trade_scopes
+            if scope.id in scope_days_behind
+        ]
+
+    @staticmethod
+    def _overdue_tasks_for_scope(scope: TradeScope, target_date: date) -> list[Task]:
+        """Return a scope's incomplete, non-deleted tasks whose due_date is before target_date."""
+        return [
+            task
+            for task in scope.tasks
+            if task.status not in DONE_STATUSES
+            and task.deleted_at is None
+            and task.due_date is not None
+            and task.due_date < target_date
+        ]
+
+    @staticmethod
+    def _serialize_overdue_task(task: Task) -> dict[str, Any]:
+        """Serialize a task to the plain dict passed to the Claude prompt (no ORM leakage)."""
+        return {
+            "id": str(task.id),
+            "title": task.title,
+            "due_date": task.due_date.isoformat() if task.due_date else None,
+            "status": task.status,
+        }
 
     async def _persist_alerts(
         self,
@@ -501,7 +504,7 @@ class DashboardService(TenantScopedService[DashboardAlert]):
                 project_id=item["project_id"],
                 trade_scope_id=item["scope_id"],
                 severity=ai_result["severity"],
-                alert_type="schedule_slip",
+                alert_type=SCHEDULE_SLIP_ALERT_TYPE,
                 days_behind=item["days_behind"],
                 impact_text=ai_result["impact_text"],
                 remediation_text=ai_result.get("remediation_text"),

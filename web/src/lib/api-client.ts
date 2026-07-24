@@ -11,8 +11,23 @@
  * original request. If refresh fails, redirects to /login.
  */
 
-import { tracedFetch } from "@/lib/api/withTracing";
+import { tracedFetch, type TraceOptions } from "@/lib/api/withTracing";
 import { logger } from "@/lib/logger";
+
+export type ApiRequestOptions = TraceOptions;
+
+// A 401 on a retryable request is the normal expired-access-token path — the
+// refresh-and-retry flow below handles it — so log it quietly rather than as an
+// error. A 401 on the post-refresh retry stays loud, since it's unexpected.
+function traceOptionsForAttempt(
+  options: ApiRequestOptions | undefined,
+  retry: boolean
+): TraceOptions | undefined {
+  if (!retry) return options;
+  const silentStatuses = [...(options?.silentStatuses ?? [])];
+  if (!silentStatuses.includes(401)) silentStatuses.push(401);
+  return { ...options, silentStatuses };
+}
 
 const TAG = "ApiClient";
 
@@ -45,11 +60,12 @@ export class ApiError extends Error {
 export async function apiClient<T>(
   path: string,
   init?: RequestInit,
-  retry = true
+  retry = true,
+  options?: ApiRequestOptions
 ): Promise<T> {
   const proxyUrl = `/api/proxy?path=${encodeURIComponent(path)}`;
 
-  const resp = await tracedFetch(proxyUrl, init);
+  const resp = await tracedFetch(proxyUrl, init, traceOptionsForAttempt(options, retry));
 
   if (resp.status === 401 && retry) {
     // Attempt token refresh (coalesced across concurrent 401s)
@@ -58,7 +74,7 @@ export async function apiClient<T>(
 
     if (refreshed) {
       // Retry original request once (no further retries)
-      return apiClient<T>(path, init, false);
+      return apiClient<T>(path, init, false, options);
     } else {
       // Refresh failed — redirect to login
       logger.warn(TAG, "Token refresh failed, redirecting to login", { path });
@@ -85,8 +101,8 @@ export async function apiClient<T>(
 
 // Convenience methods
 
-export function apiGet<T>(path: string): Promise<T> {
-  return apiClient<T>(path, { method: "GET" });
+export function apiGet<T>(path: string, options?: ApiRequestOptions): Promise<T> {
+  return apiClient<T>(path, { method: "GET" }, true, options);
 }
 
 export function apiPost<T>(path: string, body: unknown): Promise<T> {
@@ -128,7 +144,7 @@ export async function apiFetchRaw(
   retry = true
 ): Promise<Response> {
   const proxyUrl = `/api/proxy?path=${encodeURIComponent(path)}`;
-  const resp = await tracedFetch(proxyUrl, init);
+  const resp = await tracedFetch(proxyUrl, init, traceOptionsForAttempt(undefined, retry));
 
   if (resp.status === 401 && retry) {
     logger.info(TAG, "401 received on raw fetch, attempting token refresh", { path });

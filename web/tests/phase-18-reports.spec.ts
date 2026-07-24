@@ -198,16 +198,16 @@ test.describe("Phase 18: Reports - Date Filtering (RPT-02)", () => {
     await expect(page.locator('[aria-label="Revenue by Month chart"]')).toBeVisible();
   });
 
-  test("active preset button gets indigo styling", async ({ page }) => {
+  test("active preset button gets active styling", async ({ page }) => {
     await page.goto("/reports");
     await expect(page.locator('[aria-label="Revenue by Month chart"]')).toBeVisible();
 
     const btn7d = page.getByRole("button", { name: /7d/i });
     await btn7d.click();
 
-    // Active button should have indigo background class
-    await expect(btn7d).toHaveClass(/bg-indigo-50/);
-    await expect(btn7d).toHaveClass(/text-indigo-600/);
+    // Active button gets the brand-tinted active styling
+    await expect(btn7d).toHaveClass(/bg-brand/);
+    await expect(btn7d).toHaveClass(/border-brand/);
   });
 
   test("date preset changes query parameters in API call", async ({ page }) => {

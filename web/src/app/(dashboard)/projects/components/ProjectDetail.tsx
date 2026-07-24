@@ -5,6 +5,7 @@ import { Calendar, MapPin, Plus, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { AddTradeScopeSheet } from "./AddTradeScopeSheet";
+import { ProjectAssignmentsCard } from "./ProjectAssignmentsCard";
 import { useTradeScopes, useTasks } from "@/lib/api/projects";
 import { TradeProgressCard } from "@/features/tasks/components/TradeProgressCard";
 import type { ProjectResponse, TradeScopeResponse } from "@/types/projects";
@@ -120,6 +121,9 @@ export function ProjectDetail({ project, onSelectScope }: ProjectDetailProps) {
           </span>
         )}
       </div>
+
+      {/* Team assignments (PM, contractor) */}
+      <ProjectAssignmentsCard projectId={project.id} />
 
       {/* Trade scopes with progress */}
       <div>

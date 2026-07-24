@@ -15,8 +15,9 @@ All CLAUDE.md rules apply:
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import String, case, func, or_, select
 from sqlalchemy.orm import selectinload
 
 from app.core.base_repository import BaseRepository, TenantScopedRepository
@@ -29,7 +30,11 @@ from app.features.projects.models import (
     TaskNote,
     TradeCatalog,
     TradeScope,
+    UserTradeSpecialty,
 )
+from app.features.users.models import User, UserRole
+
+_CONTRACTOR_ROLE = "contractor"
 
 
 class ProjectRepository(TenantScopedRepository[Project]):
@@ -142,6 +147,76 @@ class TaskAttachmentRepository(BaseRepository[TaskAttachment]):
     """Repository for TaskAttachment entities."""
 
     model = TaskAttachment
+
+    async def list_by_task(self, task_id: uuid.UUID) -> list[TaskAttachment]:
+        """List non-deleted attachments for a task ordered by sort_order."""
+        result = await self.db.execute(
+            select(TaskAttachment)
+            .where(TaskAttachment.task_id == task_id)
+            .where(TaskAttachment.deleted_at.is_(None))
+            .order_by(TaskAttachment.sort_order)
+        )
+        return list(result.scalars().all())
+
+
+@dataclass(frozen=True)
+class ContractorMatch:
+    """A contractor row annotated with whether they match a requested specialty."""
+
+    id: uuid.UUID
+    name: str
+    email: str
+    has_specialty_match: bool
+
+
+class ContractorMatchRepository(BaseRepository[User]):
+    """Reads contractors, optionally ranked by trade-specialty match."""
+
+    model = User
+
+    async def list_contractors(
+        self,
+        trade_catalog_id: uuid.UUID | None = None,
+    ) -> list[ContractorMatch]:
+        """List company contractors; when trade_catalog_id is given, matches sort first."""
+        name_col = (
+            func.concat(
+                func.coalesce(User.first_name, ""),
+                " ",
+                func.coalesce(User.last_name, ""),
+            )
+            .cast(String)
+            .label("name")
+        )
+        match_col = case(
+            (UserTradeSpecialty.id.is_not(None), True),
+            else_=False,
+        ).label("has_specialty_match")
+
+        stmt = (
+            select(User.id, name_col, User.email, match_col)
+            .join(UserRole, UserRole.user_id == User.id)
+            .outerjoin(
+                UserTradeSpecialty,
+                (UserTradeSpecialty.user_id == User.id)
+                & (UserTradeSpecialty.trade_catalog_id == trade_catalog_id),
+            )
+            .where(UserRole.role == _CONTRACTOR_ROLE)
+            .where(User.deleted_at.is_(None))
+            .order_by(match_col.desc(), User.email)
+        )
+
+        result = await self.db.execute(stmt)
+        matched = trade_catalog_id is not None
+        return [
+            ContractorMatch(
+                id=row.id,
+                name=row.name.strip() or row.email,
+                email=row.email,
+                has_specialty_match=bool(row.has_specialty_match) if matched else False,
+            )
+            for row in result.fetchall()
+        ]
 
 
 class TaskDependencyRepository(TenantScopedRepository[TaskDependency]):

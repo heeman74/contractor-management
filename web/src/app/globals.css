@@ -7,8 +7,21 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(
+    --font-geist-sans,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif
+  );
+  --font-mono: var(--font-geist-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  --font-display: var(--font-archivo, var(--font-geist-sans), ui-sans-serif, sans-serif);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -47,73 +60,95 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* ===========================================================================
+   Job Ticket — tool-brand industrial identity for ContractorHub.
+   Ink structural chrome + one hi-vis amber accent + warm worksite paper.
+   =========================================================================== */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --radius: 0.4rem; /* squared, technical — reads like a work order, not a card */
+
+  --background: #f7f6f2; /* warm worksite paper */
+  --foreground: #0e1726; /* ink */
+
+  --card: #ffffff;
+  --card-foreground: #0e1726;
+  --popover: #ffffff;
+  --popover-foreground: #0e1726;
+
+  --primary: #0e1726; /* ink — main buttons & emphasis */
+  --primary-foreground: #f7f6f2;
+
+  --secondary: #ece9e1; /* warm slate-paper */
+  --secondary-foreground: #0e1726;
+
+  --muted: #ece9e1;
+  --muted-foreground: #59637a; /* slate */
+
+  --accent: #ece9e1; /* subtle hover fill */
+  --accent-foreground: #0e1726;
+
+  /* Brand — the single hi-vis accent: active nav, focus, links, hero CTAs */
+  --brand: #f5a623;
+  --brand-foreground: #0e1726;
+
+  --destructive: #d64545;
+
+  --border: #e4e1d8; /* warm hairline */
+  --input: #e4e1d8;
+  --ring: #f5a623; /* hi-vis focus */
+
+  /* Charts — hi-vis + ink + steel, cohesive with the identity */
+  --chart-1: #f5a623;
+  --chart-2: #0e1726;
+  --chart-3: #33415c;
+  --chart-4: #6b7a99;
+  --chart-5: #c79a4b;
+
+  /* Sidebar — ink chrome with hi-vis active state */
+  --sidebar: #0e1726;
+  --sidebar-foreground: #c3cad8;
+  --sidebar-primary: #f5a623;
+  --sidebar-primary-foreground: #0e1726;
+  --sidebar-accent: #182338;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #1e2a44;
+  --sidebar-ring: #f5a623;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
+  --background: #0b1220;
+  --foreground: #eef1f6;
+  --card: #111a2b;
+  --card-foreground: #eef1f6;
+  --popover: #111a2b;
+  --popover-foreground: #eef1f6;
+  --primary: #f5a623;
+  --primary-foreground: #0e1726;
+  --secondary: #1a2436;
+  --secondary-foreground: #eef1f6;
+  --muted: #1a2436;
+  --muted-foreground: #93a0b8;
+  --accent: #1a2436;
+  --accent-foreground: #eef1f6;
+  --brand: #f5a623;
+  --brand-foreground: #0e1726;
+  --destructive: #ef5d5d;
   --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --input: oklch(1 0 0 / 14%);
+  --ring: #f5a623;
+  --chart-1: #f5a623;
+  --chart-2: #cdd6e6;
+  --chart-3: #6b7a99;
+  --chart-4: #9fb0d0;
+  --chart-5: #c79a4b;
+  --sidebar: #0b1220;
+  --sidebar-foreground: #c3cad8;
+  --sidebar-primary: #f5a623;
+  --sidebar-primary-foreground: #0e1726;
+  --sidebar-accent: #16213a;
+  --sidebar-accent-foreground: #ffffff;
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar-ring: #f5a623;
 }
 
 @layer base {
@@ -125,5 +160,45 @@
   }
   html {
     @apply font-sans;
+  }
+  /* Display headings — Archivo grotesque, app-wide, so every page inherits the
+     industrial signage voice without per-page edits. */
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.011em;
+  }
+}
+
+@layer components {
+  /* Mono numeric ledger — job IDs, money, quantities, durations, dates. */
+  .num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+  /* Blueprint grid texture for ink chrome / hero panels (inherits currentColor). */
+  .blueprint-grid {
+    background-image:
+      linear-gradient(
+        to right,
+        color-mix(in srgb, currentColor 9%, transparent) 1px,
+        transparent 1px
+      ),
+      linear-gradient(
+        to bottom,
+        color-mix(in srgb, currentColor 9%, transparent) 1px,
+        transparent 1px
+      );
+    background-size: 26px 26px;
+  }
+  /* Hi-vis eyebrow label — small mono caps for section framing. */
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    line-height: 1;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
   }
 }

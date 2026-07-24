@@ -13,7 +13,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
   const collapsed = useAppSelector((state) => state.ui.sidebarCollapsed);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       {/* Desktop sidebar */}
       <Sidebar />
 

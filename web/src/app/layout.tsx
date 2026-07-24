@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Archivo, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { StoreProvider } from "@/store/provider";
 import { QueryProvider } from "@/components/providers/query-provider";
@@ -16,6 +16,14 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// Archivo — industrial grotesque used with restraint on display headings.
+const archivo = Archivo({
+  variable: "--font-archivo",
+  subsets: ["latin"],
+  weight: ["600", "700", "800"],
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "ContractorHub",
   description: "Web admin dashboard for ContractorHub",
@@ -29,10 +37,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${archivo.variable} antialiased`}
       >
         {/* NProgress-style thin progress bar for route transitions */}
-        <NextTopLoader color="#4f46e5" showSpinner={false} />
+        <NextTopLoader color="#f5a623" showSpinner={false} />
         <StoreProvider>
           <QueryProvider>{children}</QueryProvider>
         </StoreProvider>

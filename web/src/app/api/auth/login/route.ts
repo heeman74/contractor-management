@@ -58,6 +58,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     user_id: tokenData.user_id,
     company_id: tokenData.company_id,
     roles: tokenData.roles,
+    email: tokenData.email,
+    display_name: tokenData.display_name,
+    company_name: tokenData.company_name,
   };
 
   return NextResponse.json(userMeta, { status: 200 });

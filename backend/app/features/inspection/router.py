@@ -20,11 +20,11 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import CurrentUser, get_current_user
+from app.core.security import CurrentUser, get_current_user, require_permission
 from app.features.inspection.schemas import (
     ConvertFlagRequest,
     CreatePunchListItemRequest,
@@ -42,15 +42,6 @@ from app.features.inspection.service import (
 )
 
 inspection_router = APIRouter(tags=["inspection"])
-
-
-def _require_gc_or_admin(current_user: CurrentUser) -> None:
-    """Raise 403 if the user does not have gc or admin role."""
-    if not any(role in current_user.roles for role in ("gc", "admin")):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only GC or admin users can perform inspections",
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -75,9 +66,9 @@ async def inspect_task(
     - decision='rejected': creates a TaskInspection record, sets task.status='rejected',
       re-blocks successor tasks, and fires a FCM rejection notification (fire-and-forget).
 
-    Requires GC or admin role.
+    Requires the inspections.manage permission.
     """
-    _require_gc_or_admin(current_user)
+    await require_permission("inspections.perform")(current_user, db)
     svc = InspectionService(db)
     inspection = await svc.inspect_task(
         task_id=task_id,

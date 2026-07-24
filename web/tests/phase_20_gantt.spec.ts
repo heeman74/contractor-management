@@ -322,9 +322,11 @@ test.describe("Phase 20: Gantt Timeline Page", () => {
       page.getByText("1 scheduling conflict detected")
     ).toBeVisible({ timeout: 10000 });
 
-    // Conflict badge should mention the trade names
+    // Conflict badge should mention the trade names. Scope to the badge's
+    // "Conflict:" text so we don't also match the Gantt bar-row labels (which
+    // contain the same task/trade names and otherwise trip strict mode).
     await expect(
-      page.getByText(/Plumbing.*Electrical|Electrical.*Plumbing/)
+      page.getByText(/Conflict: (Plumbing and Electrical|Electrical and Plumbing)/)
     ).toBeVisible({ timeout: 10000 });
   });
 

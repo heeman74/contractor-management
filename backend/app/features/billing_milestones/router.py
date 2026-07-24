@@ -23,7 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import CurrentUser, get_current_user
+from app.core.security import CurrentUser, get_current_user, require_permission
 from app.features.billing_milestones.schemas import (
     BillingMilestoneCreate,
     BillingMilestoneResponse,
@@ -35,15 +35,6 @@ router = APIRouter(
     prefix="/trade-scopes/{scope_id}/milestones",
     tags=["billing-milestones"],
 )
-
-
-def _require_admin(current_user: CurrentUser) -> None:
-    """Raise 403 if the current user is not an admin."""
-    if "admin" not in current_user.roles:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
 
 
 @router.get("/", response_model=list[BillingMilestoneResponse])
@@ -65,8 +56,8 @@ async def create_milestone(
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> BillingMilestoneResponse:
-    """Create a new billing milestone for a trade scope. Admin only."""
-    _require_admin(current_user)
+    """Create a new billing milestone for a trade scope. Requires invoices.manage."""
+    await require_permission("invoices.create")(current_user, db)
     # Ensure the scope_id in URL matches the body (override for consistency)
     data_with_scope = BillingMilestoneCreate(
         trade_scope_id=scope_id,
@@ -91,8 +82,8 @@ async def update_milestone(
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> BillingMilestoneResponse:
-    """Update a billing milestone. Admin only."""
-    _require_admin(current_user)
+    """Update a billing milestone. Requires invoices.manage."""
+    await require_permission("invoices.edit")(current_user, db)
     svc = BillingMilestoneService(db)
     milestone = await svc.update_milestone(milestone_id, data)
     return BillingMilestoneResponse.from_model(milestone)
@@ -105,8 +96,8 @@ async def delete_milestone(
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> Response:
-    """Soft-delete a billing milestone. Admin only."""
-    _require_admin(current_user)
+    """Soft-delete a billing milestone. Requires invoices.manage."""
+    await require_permission("invoices.delete")(current_user, db)
     svc = BillingMilestoneService(db)
     deleted = await svc.delete_milestone(milestone_id)
     if not deleted:
@@ -131,7 +122,7 @@ async def mark_invoiced(
 
     Returns 409 Conflict if milestone is already invoiced (double-billing prevention).
     """
-    _require_admin(current_user)
+    await require_permission("billing.trade.approve")(current_user, db)
     svc = BillingMilestoneService(db)
     milestone = await svc.mark_invoiced(milestone_id)
     return BillingMilestoneResponse.from_model(milestone)

@@ -29,6 +29,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
 
 import aiofiles
@@ -44,6 +45,7 @@ from fastapi import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.base_service import entity_or_404
 from app.core.database import get_db
 from app.core.security import CurrentUser, decode_token, get_current_user
 from app.core.tenant import set_current_tenant_id
@@ -107,6 +109,129 @@ def _message_to_response(message) -> ChatMessageResponse:
 
 
 # ------------------------------------------------------------------
+# WebSocket helpers
+# ------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class _ChatConnection:
+    """Immutable per-connection context passed to WebSocket message handlers."""
+
+    websocket: WebSocket
+    chat_service: ChatService
+    thread_id: uuid.UUID
+    user_id: uuid.UUID
+    company_id: uuid.UUID
+
+
+def _decode_ws_identity(token: str) -> tuple[uuid.UUID, uuid.UUID] | None:
+    """Decode the WS access token, returning (user_id, company_id) or None if invalid."""
+    payload = decode_token(token)
+    if payload is None or payload.get("type") != "access":
+        return None
+    try:
+        return uuid.UUID(payload["sub"]), uuid.UUID(payload["company_id"])
+    except (KeyError, ValueError):
+        return None
+
+
+def _build_message_broadcast_payload(message, thread_id: uuid.UUID, sender_id: uuid.UUID) -> dict:
+    """Build the WebSocket broadcast payload for a newly persisted chat message."""
+    return {
+        "type": "message",
+        "id": str(message.id),
+        "thread_id": str(thread_id),
+        "sender_id": str(sender_id),
+        "content": message.content,
+        "seq": message.seq,
+        "attachment_url": message.attachment_url,
+        "attachment_type": message.attachment_type,
+        "annotation_data": message.annotation_data,
+        "mentions": message.mentions or [],
+        "mention_all": message.mention_all,
+        "created_at": message.created_at.isoformat() if message.created_at else None,
+    }
+
+
+async def _handle_typing(conn: _ChatConnection) -> None:
+    """Broadcast a typing indicator to the thread."""
+    await manager.broadcast_to_thread(
+        str(conn.thread_id),
+        {"type": "typing", "user_id": str(conn.user_id)},
+    )
+
+
+async def _handle_read(conn: _ChatConnection, data: dict) -> None:
+    """Persist a read cursor and broadcast the resulting read receipt."""
+    seq = data.get("seq")
+    if not isinstance(seq, int):
+        return
+    await conn.chat_service.mark_read(
+        thread_id=conn.thread_id,
+        user_id=conn.user_id,
+        company_id=conn.company_id,
+        seq=seq,
+    )
+    await manager.broadcast_to_thread(
+        str(conn.thread_id),
+        {"type": "read_receipt", "user_id": str(conn.user_id), "seq": seq},
+    )
+
+
+async def _handle_incoming_message(conn: _ChatConnection, data: dict) -> None:
+    """Persist an incoming chat message, broadcast it, and fire FCM for offline members."""
+    raw_id = data.get("id")
+    if not raw_id or not _is_valid_uuid(raw_id):
+        return
+
+    message = await conn.chat_service.send_message(
+        thread_id=conn.thread_id,
+        sender_id=conn.user_id,
+        company_id=conn.company_id,
+        message_id=uuid.UUID(raw_id),
+        content=data.get("content"),
+        attachment_url=data.get("attachment_url"),
+        attachment_type=data.get("attachment_type"),
+        annotation_data=data.get("annotation_data"),
+        mentions=[uuid.UUID(m) for m in data.get("mentions", []) if m and _is_valid_uuid(m)],
+        mention_all=bool(data.get("mention_all", False)),
+    )
+    if message is None:
+        return
+
+    await manager.broadcast_to_thread(
+        str(conn.thread_id),
+        _build_message_broadcast_payload(message, conn.thread_id, conn.user_id),
+    )
+
+    # Fire-and-forget FCM for offline recipients — task creates its own DB session.
+    asyncio.create_task(
+        _fire_chat_fcm(
+            thread_id=conn.thread_id,
+            user_id=conn.user_id,
+            company_id=conn.company_id,
+            message_content=message.content,
+            message_mentions=message.mentions,
+            message_mention_all=message.mention_all,
+            thread_id_str=str(conn.thread_id),
+        )
+    )
+
+
+async def _dispatch_ws_message(conn: _ChatConnection, data: dict) -> None:
+    """Route an incoming WebSocket frame to the handler for its message type."""
+    msg_type = data.get("type")
+    if msg_type == "ping":
+        await conn.websocket.send_json({"type": "pong"})
+    elif msg_type == "typing":
+        await _handle_typing(conn)
+    elif msg_type == "read":
+        await _handle_read(conn, data)
+    elif msg_type == "message":
+        await _handle_incoming_message(conn, data)
+
+
+# ------------------------------------------------------------------
 # WebSocket endpoint
 # ------------------------------------------------------------------
 
@@ -138,61 +263,39 @@ async def websocket_chat(
     - 4401: JWT invalid, expired, or re-validation failed
     - 4403: user is not a member of the requested thread
     """
-    # ----------------------------------------------------------------
     # Step 1: Validate JWT BEFORE accept()
-    # ----------------------------------------------------------------
-    payload = decode_token(token)
-    if payload is None or payload.get("type") != "access":
+    identity = _decode_ws_identity(token)
+    if identity is None:
         await websocket.close(code=4401)
         return
+    user_id, company_id = identity
 
-    try:
-        user_id = uuid.UUID(payload["sub"])
-        company_id = uuid.UUID(payload["company_id"])
-    except (KeyError, ValueError):
-        await websocket.close(code=4401)
-        return
-
-    # ----------------------------------------------------------------
     # Step 2: Set RLS tenant context for DB operations
-    # ----------------------------------------------------------------
     set_current_tenant_id(company_id)
 
-    # ----------------------------------------------------------------
     # Step 3: Verify thread membership
-    # ----------------------------------------------------------------
-    from sqlalchemy import select
-
-    from app.features.chat.models import ChatMembership
-
     chat_service = ChatService(db)
-    membership_result = await db.execute(
-        select(ChatMembership).where(
-            ChatMembership.thread_id == thread_id,
-            ChatMembership.user_id == user_id,
-        )
-    )
-    membership = membership_result.scalars().first()
-    if membership is None:
+    if not await chat_service.is_member(thread_id, user_id):
         await websocket.close(code=4403)
         return
 
-    # ----------------------------------------------------------------
     # Step 4: Accept the connection and register with ConnectionManager
-    # ----------------------------------------------------------------
     await manager.connect(websocket, str(thread_id), str(user_id))
 
-    # ----------------------------------------------------------------
     # Step 5: Message loop with JWT re-validation every 5 minutes
-    # ----------------------------------------------------------------
+    conn = _ChatConnection(
+        websocket=websocket,
+        chat_service=chat_service,
+        thread_id=thread_id,
+        user_id=user_id,
+        company_id=company_id,
+    )
     last_validated = asyncio.get_event_loop().time()
     try:
         while True:
-            # JWT re-validation check
             now = asyncio.get_event_loop().time()
             if now - last_validated > _WS_JWT_REVALIDATE_INTERVAL:
-                revalidated = decode_token(token)
-                if revalidated is None or revalidated.get("type") != "access":
+                if _decode_ws_identity(token) is None:
                     logger.info(
                         "WebSocket JWT expired — closing thread=%s user=%s", thread_id, user_id
                     )
@@ -208,89 +311,7 @@ async def websocket_chat(
             except WebSocketDisconnect:
                 break
 
-            msg_type = data.get("type")
-
-            if msg_type == "ping":
-                await websocket.send_json({"type": "pong"})
-
-            elif msg_type == "typing":
-                await manager.broadcast_to_thread(
-                    str(thread_id),
-                    {"type": "typing", "user_id": str(user_id)},
-                )
-
-            elif msg_type == "read":
-                seq = data.get("seq")
-                if isinstance(seq, int):
-                    await chat_service.mark_read(
-                        thread_id=thread_id,
-                        user_id=user_id,
-                        company_id=company_id,
-                        seq=seq,
-                    )
-                    await manager.broadcast_to_thread(
-                        str(thread_id),
-                        {"type": "read_receipt", "user_id": str(user_id), "seq": seq},
-                    )
-
-            elif msg_type == "message":
-                message_uuid = data.get("id")
-                if not message_uuid:
-                    continue
-
-                try:
-                    msg_id = uuid.UUID(message_uuid)
-                except ValueError:
-                    continue
-
-                message = await chat_service.send_message(
-                    thread_id=thread_id,
-                    sender_id=user_id,
-                    company_id=company_id,
-                    message_id=msg_id,
-                    content=data.get("content"),
-                    attachment_url=data.get("attachment_url"),
-                    attachment_type=data.get("attachment_type"),
-                    annotation_data=data.get("annotation_data"),
-                    mentions=[
-                        uuid.UUID(m) for m in data.get("mentions", []) if m and _is_valid_uuid(m)
-                    ],
-                    mention_all=bool(data.get("mention_all", False)),
-                )
-
-                if message is not None:
-                    # Broadcast message to all connected thread members
-                    broadcast_payload = {
-                        "type": "message",
-                        "id": str(message.id),
-                        "thread_id": str(thread_id),
-                        "sender_id": str(user_id),
-                        "content": message.content,
-                        "seq": message.seq,
-                        "attachment_url": message.attachment_url,
-                        "attachment_type": message.attachment_type,
-                        "annotation_data": message.annotation_data,
-                        "mentions": message.mentions or [],
-                        "mention_all": message.mention_all,
-                        "created_at": message.created_at.isoformat()
-                        if message.created_at
-                        else None,
-                    }
-                    await manager.broadcast_to_thread(str(thread_id), broadcast_payload)
-
-                    # Fire FCM for offline recipients (fire-and-forget)
-                    # Pass primitive data — task creates its own DB session
-                    asyncio.create_task(
-                        _fire_chat_fcm(
-                            thread_id=thread_id,
-                            user_id=user_id,
-                            company_id=company_id,
-                            message_content=message.content,
-                            message_mentions=message.mentions,
-                            message_mention_all=message.mention_all,
-                            thread_id_str=str(thread_id),
-                        )
-                    )
+            await _dispatch_ws_message(conn, data)
 
     except WebSocketDisconnect:
         pass
@@ -583,9 +604,7 @@ async def send_message_rest(
         from app.features.chat.models import ChatMessage
 
         result = await db.execute(select(ChatMessage).where(ChatMessage.id == body.id))
-        message = result.scalars().first()
-        if message is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
+        message = entity_or_404(result.scalars().first(), "Message not found")
     else:
         # Broadcast via Redis so connected clients see the message
         broadcast_payload = {
@@ -683,12 +702,7 @@ async def upload_chat_attachment(
             ChatMessage.id == message_id,
         )
     )
-    message = result.scalars().first()
-    if message is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Message {message_id} not found",
-        )
+    message = entity_or_404(result.scalars().first(), f"Message {message_id} not found")
 
     if not file.filename:
         raise HTTPException(
@@ -736,13 +750,11 @@ async def toggle_mute(
 ) -> None:
     """Toggle the muted notification preference for the current user in a thread."""
     chat_service = ChatService(db)
-    result = await chat_service.toggle_mute(
-        thread_id=thread_id,
-        user_id=current_user.user_id,
-        muted=body.muted,
+    entity_or_404(
+        await chat_service.toggle_mute(
+            thread_id=thread_id,
+            user_id=current_user.user_id,
+            muted=body.muted,
+        ),
+        "Membership not found — user is not a member of this thread",
     )
-    if result is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Membership not found — user is not a member of this thread",
-        )

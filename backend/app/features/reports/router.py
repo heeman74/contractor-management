@@ -15,11 +15,11 @@ from __future__ import annotations
 
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import CurrentUser, get_current_user
+from app.core.security import CurrentUser, get_current_user, require_admin, require_roles
 from app.features.reports.schemas import DashboardResponse, UtilizationHeatmapResponse
 from app.features.reports.service import ReportingService
 
@@ -48,11 +48,7 @@ async def get_dashboard(
     3. contractor_utilization: Booked hours vs available hours per contractor
     4. quote_conversion: Approved / (approved + declined) funnel
     """
-    if "admin" not in current_user.roles:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
+    require_admin(current_user)
 
     svc = ReportingService(db)
     return await svc.get_dashboard(
@@ -75,11 +71,7 @@ async def get_utilization_heatmap(
     Contractors with zero bookings still appear — zero-filled week items.
     Available hours fixed at 40h/week. Utilization capped at 100%.
     """
-    if "admin" not in current_user.roles:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
+    require_admin(current_user)
 
     svc = ReportingService(db)
     return await svc.get_utilization_heatmap(
@@ -101,11 +93,7 @@ async def get_contractor_stats(
     Accessible by contractor role. Revenue data is not included.
     Admin may also call this endpoint to view any contractor's stats (uses own ID).
     """
-    if "contractor" not in current_user.roles and "admin" not in current_user.roles:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Contractor or admin role required",
-        )
+    require_roles(current_user, "contractor", "admin", detail="Contractor or admin role required")
 
     svc = ReportingService(db)
     return await svc.get_contractor_stats(

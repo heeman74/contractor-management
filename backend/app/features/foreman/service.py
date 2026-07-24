@@ -20,7 +20,7 @@ from datetime import date
 from fastapi import HTTPException, status
 from sqlalchemy import select
 
-from app.core.base_service import TenantScopedService
+from app.core.base_service import TenantScopedService, entity_or_404
 from app.features.foreman.models import ProjectAssignment, ProjectStatusUpdate
 from app.features.foreman.repository import (
     ProjectAssignmentRepository,
@@ -61,12 +61,7 @@ class ForemanService(TenantScopedService[ProjectAssignment]):
         company_id = self._require_tenant_id()
 
         # Validate user exists
-        user = await self.db.get(User, user_id)
-        if user is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found",
-            )
+        entity_or_404(await self.db.get(User, user_id), "User not found")
 
         # Validate user has contractor role (foreman is a project-level role, not user-level)
         role_stmt = (
@@ -83,12 +78,7 @@ class ForemanService(TenantScopedService[ProjectAssignment]):
             )
 
         # Validate project exists
-        project = await self.db.get(Project, project_id)
-        if project is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Project not found",
-            )
+        entity_or_404(await self.db.get(Project, project_id), "Project not found")
 
         repo = ProjectAssignmentRepository(self.db)
         return await repo.assign(company_id, project_id, user_id, role="foreman")
@@ -136,12 +126,7 @@ class ForemanService(TenantScopedService[ProjectAssignment]):
         company_id = self._require_tenant_id()
 
         # Validate project exists
-        project = await self.db.get(Project, data.project_id)
-        if project is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Project not found",
-            )
+        entity_or_404(await self.db.get(Project, data.project_id), "Project not found")
 
         # Validate foreman is assigned to project
         repo = ProjectAssignmentRepository(self.db)

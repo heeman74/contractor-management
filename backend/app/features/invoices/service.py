@@ -32,18 +32,28 @@ from fastapi import HTTPException, status
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import selectinload
 
-from app.core.base_service import TenantScopedService
+from app.core.base_service import TenantScopedService, entity_or_404
 from app.features.billing_milestones.models import BillingMilestone
 from app.features.companies.models import Company
 from app.features.invoices.models import Invoice, InvoiceLineItem
 from app.features.invoices.repository import InvoiceRepository
 from app.features.invoices.schemas import InvoiceCreate, InvoiceUpdate, MarkPaidRequest
+from app.features.jobs.mixins import JobEventsMixin
 from app.features.jobs.models import Job
 from app.features.projects.models import Task, TradeScope
 from app.features.quotes.models import Quote, QuoteLineItem
 
+# Domain status literals (mirror DB CheckConstraints)
+_JOB_STATUS_COMPLETE = "complete"
+_JOB_STATUS_INVOICED = "invoiced"
+_TASK_STATUS_COMPLETE = "complete"
+_QUOTE_STATUS_APPROVED = "approved"
+_INVOICE_STATUS_UNPAID = "unpaid"
+_INVOICE_STATUS_PAID = "paid"
+_INVOICE_GENERATED_EVENT = "invoice_generated"
 
-class InvoiceService(TenantScopedService[Invoice]):
+
+class InvoiceService(JobEventsMixin, TenantScopedService[Invoice]):
     """Service implementing invoice generation and lifecycle for a tenant."""
 
     repository_class = InvoiceRepository
@@ -64,12 +74,7 @@ class InvoiceService(TenantScopedService[Invoice]):
         result = await self.db.execute(
             select(Company).where(Company.id == company_id).with_for_update()
         )
-        company = result.scalars().first()
-        if company is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Company {company_id} not found",
-            )
+        company = entity_or_404(result.scalars().first(), f"Company {company_id} not found")
 
         company.invoice_sequence = company.invoice_sequence + 1
         prefix = company.invoice_prefix or "INV"
@@ -77,37 +82,14 @@ class InvoiceService(TenantScopedService[Invoice]):
 
         return f"{prefix}-{company.invoice_sequence:04d}"
 
-    async def _append_status_history_event(
-        self,
-        job_id: uuid.UUID,
-        event_type: str,
-        user_id: uuid.UUID | None = None,
-    ) -> None:
-        """Append a status history event to the job's JSONB list."""
-        job = await self.db.get(Job, job_id)
-        if job is None:
-            return
-        event = {
-            "type": event_type,
-            "user_id": str(user_id) if user_id else None,
-            "timestamp": datetime.now(UTC).isoformat(),
-        }
-        current_history = list(job.status_history or [])
-        current_history.append(event)
-        job.status_history = current_history
-        await self.db.flush()
-
-    async def _replace_line_items(
+    def _add_source_line_items(
         self,
         invoice_id: uuid.UUID,
         company_id: uuid.UUID,
-        items_data: list,
+        sources: list,
     ) -> None:
-        """Delete all existing line items for an invoice and create new ones."""
-        await self.db.execute(
-            delete(InvoiceLineItem).where(InvoiceLineItem.invoice_id == invoice_id)
-        )
-        for item in items_data:
+        """Add InvoiceLineItem rows copied from quote/schema line-item objects."""
+        for item in sources:
             self.db.add(
                 InvoiceLineItem(
                     invoice_id=invoice_id,
@@ -120,7 +102,66 @@ class InvoiceService(TenantScopedService[Invoice]):
                     sort_order=item.sort_order,
                 )
             )
+
+    async def _replace_line_items(
+        self,
+        invoice_id: uuid.UUID,
+        company_id: uuid.UUID,
+        items_data: list,
+    ) -> None:
+        """Delete all existing line items for an invoice and create new ones."""
+        await self.db.execute(
+            delete(InvoiceLineItem).where(InvoiceLineItem.invoice_id == invoice_id)
+        )
+        self._add_source_line_items(invoice_id, company_id, items_data)
         await self.db.flush()
+
+    async def _get_invoice_or_404(self, invoice_id: uuid.UUID) -> Invoice:
+        """Fetch an invoice with line items eager-loaded, or raise 404."""
+        return entity_or_404(
+            await self.repository.get_with_line_items(invoice_id), "Invoice not found"
+        )
+
+    async def _load_complete_job(self, job_id: uuid.UUID) -> Job:
+        """Fetch a job that must be in 'complete' status before invoicing."""
+        job = entity_or_404(await self.db.get(Job, job_id), "Job not found")
+        if job.status != _JOB_STATUS_COMPLETE:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Job must be in '{_JOB_STATUS_COMPLETE}' status to generate "
+                    f"an invoice (current: {job.status})"
+                ),
+            )
+        return job
+
+    async def _mark_job_invoiced(self, job: Job, user_id: uuid.UUID) -> None:
+        """Transition a job to 'invoiced', bump its version, and record the event."""
+        job.status = _JOB_STATUS_INVOICED
+        job.version = (job.version or 0) + 1  # Maintain optimistic locking consistency
+        await self.db.flush()
+        await self._append_job_status_event(job.id, _INVOICE_GENERATED_EVENT, user_id)
+
+    async def _latest_approved_quote_for_scope(
+        self,
+        trade_scope_id: uuid.UUID,
+        *,
+        load_line_items: bool = False,
+    ) -> Quote | None:
+        """Return the most recent approved, non-deleted quote for a trade scope."""
+        stmt = (
+            select(Quote)
+            .where(
+                Quote.trade_scope_id == trade_scope_id,
+                Quote.status == _QUOTE_STATUS_APPROVED,
+                Quote.deleted_at.is_(None),
+            )
+            .order_by(Quote.created_at.desc())
+        )
+        if load_line_items:
+            stmt = stmt.options(selectinload(Quote.line_items))
+        result = await self.db.execute(stmt)
+        return result.scalars().first()
 
     # -------------------------------------------------------------------------
     # Invoice generation
@@ -145,25 +186,13 @@ class InvoiceService(TenantScopedService[Invoice]):
         5. Appends 'invoice_generated' to job.status_history
         6. Sends FCM notification to client (fire-and-forget)
         """
-        # Load job
-        job = await self.db.get(Job, job_id)
-        if job is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
-
-        if job.status != "complete":
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Job must be in 'complete' status to generate an invoice (current: {job.status})",
-            )
-
-        # Find approved quote for this job
-        from sqlalchemy.orm import selectinload
+        job = await self._load_complete_job(job_id)
 
         result = await self.db.execute(
             select(Quote)
             .where(
                 Quote.job_id == job_id,
-                Quote.status == "approved",
+                Quote.status == _QUOTE_STATUS_APPROVED,
                 Quote.deleted_at.is_(None),
             )
             .options(selectinload(Quote.line_items))
@@ -184,7 +213,7 @@ class InvoiceService(TenantScopedService[Invoice]):
             job_id=job_id,
             quote_id=approved_quote.id,
             invoice_number=invoice_number,
-            status="unpaid",
+            status=_INVOICE_STATUS_UNPAID,
             tax_rate=approved_quote.tax_rate,
             discount_type=approved_quote.discount_type,
             discount_value=approved_quote.discount_value,
@@ -193,41 +222,9 @@ class InvoiceService(TenantScopedService[Invoice]):
         self.db.add(invoice)
         await self.db.flush()  # get invoice.id
 
-        # Copy line items from approved quote
-        for item in approved_quote.line_items:
-            self.db.add(
-                InvoiceLineItem(
-                    invoice_id=invoice.id,
-                    company_id=company_id,
-                    item_type=item.item_type,
-                    description=item.description,
-                    quantity=item.quantity,
-                    unit=item.unit,
-                    unit_price=item.unit_price,
-                    sort_order=item.sort_order,
-                )
-            )
-
-        # Transition job to invoiced
-        job.status = "invoiced"
-        job.version = (job.version or 0) + 1  # Maintain optimistic locking consistency
-        await self.db.flush()
-        await self._append_status_history_event(job_id, "invoice_generated", user_id)
-
-        # FCM notification to client (fire-and-forget)
-        try:
-            from app.features.notifications.service import NotificationService
-
-            if job.client_id is not None:
-                notif_svc = NotificationService(self.db)
-                await notif_svc.send_job_notification(
-                    user_id=job.client_id,
-                    job_description=job.description,
-                    event="invoice_generated",
-                    job_id=job.id,
-                )
-        except Exception:
-            pass
+        self._add_source_line_items(invoice.id, company_id, approved_quote.line_items)
+        await self._mark_job_invoiced(job, user_id)
+        await self._notify_client(job, _INVOICE_GENERATED_EVENT)
 
         return await self.repository.get_with_line_items(invoice.id)  # type: ignore[return-value]
 
@@ -241,16 +238,7 @@ class InvoiceService(TenantScopedService[Invoice]):
         Useful for jobs that skip the quote step (e.g., emergency call-outs).
         Transitions job to 'invoiced'.
         """
-        job = await self.db.get(Job, data.job_id)
-        if job is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
-
-        # Manual invoicing allowed from 'complete' status
-        if job.status != "complete":
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Job must be in 'complete' status to invoice (current: {job.status})",
-            )
+        job = await self._load_complete_job(data.job_id)
 
         company_id = self._require_tenant_id()
         invoice_number = await self._generate_invoice_number(company_id)
@@ -260,7 +248,7 @@ class InvoiceService(TenantScopedService[Invoice]):
             job_id=data.job_id,
             quote_id=data.quote_id,
             invoice_number=invoice_number,
-            status="unpaid",
+            status=_INVOICE_STATUS_UNPAID,
             tax_rate=data.tax_rate,
             discount_type=data.discount_type,
             discount_value=data.discount_value,
@@ -270,24 +258,8 @@ class InvoiceService(TenantScopedService[Invoice]):
         self.db.add(invoice)
         await self.db.flush()  # get invoice.id
 
-        for item in data.line_items:
-            self.db.add(
-                InvoiceLineItem(
-                    invoice_id=invoice.id,
-                    company_id=company_id,
-                    item_type=item.item_type,
-                    description=item.description,
-                    quantity=item.quantity,
-                    unit=item.unit,
-                    unit_price=item.unit_price,
-                    sort_order=item.sort_order,
-                )
-            )
-
-        job.status = "invoiced"
-        job.version = (job.version or 0) + 1  # Maintain optimistic locking consistency
-        await self.db.flush()
-        await self._append_status_history_event(data.job_id, "invoice_generated", user_id)
+        self._add_source_line_items(invoice.id, company_id, data.line_items)
+        await self._mark_job_invoiced(job, user_id)
 
         return await self.repository.get_with_line_items(invoice.id)  # type: ignore[return-value]
 
@@ -301,9 +273,7 @@ class InvoiceService(TenantScopedService[Invoice]):
         data: InvoiceUpdate,
     ) -> Invoice:
         """Update an invoice before finalization. Full line item replacement if items provided."""
-        invoice = await self.repository.get_with_line_items(invoice_id)
-        if invoice is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+        invoice = await self._get_invoice_or_404(invoice_id)
 
         if invoice.finalized_at is not None:
             raise HTTPException(
@@ -328,9 +298,7 @@ class InvoiceService(TenantScopedService[Invoice]):
 
     async def finalize_invoice(self, invoice_id: uuid.UUID) -> Invoice:
         """Finalize an invoice — set finalized_at, prevent further edits."""
-        invoice = await self.repository.get_with_line_items(invoice_id)
-        if invoice is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+        invoice = await self._get_invoice_or_404(invoice_id)
 
         if invoice.finalized_at is not None:
             raise HTTPException(
@@ -356,12 +324,10 @@ class InvoiceService(TenantScopedService[Invoice]):
         - partially_paid -> unpaid (e.g. chargeback)
         - paid -> unpaid is NOT allowed (prevents fraud)
         """
-        invoice = await self.repository.get_with_line_items(invoice_id)
-        if invoice is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+        invoice = await self._get_invoice_or_404(invoice_id)
 
         # Prevent paid -> unpaid/partially_paid regression
-        if invoice.status == "paid" and data.status != "paid":
+        if invoice.status == _INVOICE_STATUS_PAID and data.status != _INVOICE_STATUS_PAID:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Cannot revert a paid invoice to an unpaid status",
@@ -387,19 +353,17 @@ class InvoiceService(TenantScopedService[Invoice]):
         Each completed task becomes a line item. Inherits tax_rate from the
         approved quote on this scope if one exists. unit_price=0.00 — GC fills in.
         """
-        trade_scope = await self.db.get(TradeScope, trade_scope_id)
-        if trade_scope is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"TradeScope {trade_scope_id} not found",
-            )
+        entity_or_404(
+            await self.db.get(TradeScope, trade_scope_id),
+            f"TradeScope {trade_scope_id} not found",
+        )
 
         # Load completed tasks for this scope
         tasks_result = await self.db.execute(
             select(Task)
             .where(
                 Task.trade_scope_id == trade_scope_id,
-                Task.status == "complete",
+                Task.status == _TASK_STATUS_COMPLETE,
                 Task.deleted_at.is_(None),
             )
             .order_by(Task.sort_order)
@@ -407,16 +371,7 @@ class InvoiceService(TenantScopedService[Invoice]):
         completed_tasks = list(tasks_result.scalars().all())
 
         # Look for an approved quote to inherit tax_rate and discounts
-        approved_quote_result = await self.db.execute(
-            select(Quote)
-            .where(
-                Quote.trade_scope_id == trade_scope_id,
-                Quote.status == "approved",
-                Quote.deleted_at.is_(None),
-            )
-            .order_by(Quote.created_at.desc())
-        )
-        approved_quote = approved_quote_result.scalars().first()
+        approved_quote = await self._latest_approved_quote_for_scope(trade_scope_id)
 
         tax_rate = approved_quote.tax_rate if approved_quote else Decimal("0")
         discount_type = approved_quote.discount_type if approved_quote else None
@@ -431,7 +386,7 @@ class InvoiceService(TenantScopedService[Invoice]):
             trade_scope_id=trade_scope_id,
             quote_id=approved_quote.id if approved_quote else None,
             invoice_number=invoice_number,
-            status="unpaid",
+            status=_INVOICE_STATUS_UNPAID,
             tax_rate=tax_rate,
             discount_type=discount_type,
             discount_value=discount_value,
@@ -469,12 +424,10 @@ class InvoiceService(TenantScopedService[Invoice]):
         Uses atomic UPDATE ... WHERE is_invoiced=FALSE to prevent double-billing.
         Requires an approved quote on the trade scope to compute the invoice amount.
         """
-        milestone = await self.db.get(BillingMilestone, milestone_id)
-        if milestone is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"BillingMilestone {milestone_id} not found",
-            )
+        milestone = entity_or_404(
+            await self.db.get(BillingMilestone, milestone_id),
+            f"BillingMilestone {milestone_id} not found",
+        )
 
         # Atomic double-billing prevention: UPDATE ... WHERE is_invoiced=FALSE RETURNING id
         stmt = text(
@@ -492,17 +445,9 @@ class InvoiceService(TenantScopedService[Invoice]):
             )
 
         # Require approved quote for this scope to compute amount
-        approved_quote_result = await self.db.execute(
-            select(Quote)
-            .where(
-                Quote.trade_scope_id == trade_scope_id,
-                Quote.status == "approved",
-                Quote.deleted_at.is_(None),
-            )
-            .options(selectinload(Quote.line_items))
-            .order_by(Quote.created_at.desc())
+        approved_quote = await self._latest_approved_quote_for_scope(
+            trade_scope_id, load_line_items=True
         )
-        approved_quote = approved_quote_result.scalars().first()
         if approved_quote is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -547,7 +492,7 @@ class InvoiceService(TenantScopedService[Invoice]):
             milestone_id=milestone_id,
             quote_id=approved_quote.id,
             invoice_number=invoice_number,
-            status="unpaid",
+            status=_INVOICE_STATUS_UNPAID,
             tax_rate=approved_quote.tax_rate,
             discount_type=None,
             discount_value=Decimal("0"),

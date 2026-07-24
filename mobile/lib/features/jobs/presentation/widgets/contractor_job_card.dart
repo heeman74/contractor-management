@@ -12,6 +12,7 @@ import '../../data/attachment_dao.dart';
 import '../../data/note_dao.dart';
 import '../../domain/job_entity.dart';
 import '../../domain/job_status.dart';
+import '../../domain/job_status_colors.dart';
 import '../providers/job_providers.dart';
 import '../providers/timer_providers.dart';
 import 'add_note_bottom_sheet.dart';
@@ -47,7 +48,7 @@ class ContractorJobCard extends ConsumerWidget {
         job.jobStatus == JobStatus.invoiced ||
         job.jobStatus == JobStatus.cancelled;
 
-    final statusColor = _statusColor(job.jobStatus);
+    final statusColor = JobStatusColors.detail(job.jobStatus);
 
     Widget card = Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -290,16 +291,6 @@ class ContractorJobCard extends ConsumerWidget {
     return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
-  Color _statusColor(JobStatus status) {
-    return switch (status) {
-      JobStatus.quote => Colors.grey,
-      JobStatus.scheduled => Colors.blue,
-      JobStatus.inProgress => Colors.orange,
-      JobStatus.complete => Colors.green,
-      JobStatus.invoiced => Colors.purple,
-      JobStatus.cancelled => Colors.red,
-    };
-  }
 }
 
 // ─── Pulsing dot ──────────────────────────────────────────────────────────────

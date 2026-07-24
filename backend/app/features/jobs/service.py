@@ -31,7 +31,8 @@ from typing import Any
 
 from fastapi import HTTPException, status
 
-from app.core.base_service import TenantScopedService
+from app.core.base_service import TenantScopedService, entity_or_404
+from app.features.jobs.mixins import JobEventsMixin
 from app.features.jobs.models import Job, JobNote, TimeEntry
 from app.features.jobs.repository import JobRepository
 from app.features.jobs.schemas import (
@@ -114,6 +115,14 @@ def is_backward(current: str, next_status: str) -> bool:
     return (current, next_status) in BACKWARD_TRANSITIONS
 
 
+# Job statuses that notify the client, mapped to the notification event name.
+_STATUS_NOTIFICATION_EVENTS: dict[str, str] = {
+    JobStatus.scheduled: "scheduled",
+    JobStatus.in_progress: "started",
+    JobStatus.complete: "completed",
+}
+
+
 # ---------------------------------------------------------------------------
 # Custom exceptions
 # ---------------------------------------------------------------------------
@@ -142,7 +151,7 @@ class InvalidTransitionError(Exception):
 # ---------------------------------------------------------------------------
 
 
-class JobService(TenantScopedService[Job]):
+class JobService(JobEventsMixin, TenantScopedService[Job]):
     """Service for job lifecycle operations.
 
     Inherits TenantScopedService[Job] which wires up self.repository via
@@ -153,6 +162,32 @@ class JobService(TenantScopedService[Job]):
 
     # Expose typed repository reference for IDE completion
     repository: JobRepository
+
+    # -------------------------------------------------------------------------
+    # Shared helpers
+    # -------------------------------------------------------------------------
+
+    async def _get_job_or_404(self, job_id: uuid.UUID) -> Job:
+        """Fetch a job by id or raise 404."""
+        return await self.get_or_404(job_id, detail=f"Job {job_id} not found")
+
+    @staticmethod
+    def _check_version(job: Job, expected_version: int) -> None:
+        """Raise 409 if the client's expected version is stale (optimistic locking)."""
+        if job.version != expected_version:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Version conflict: expected version {expected_version}, "
+                    f"job is at version {job.version}. "
+                    "Fetch the latest job and retry."
+                ),
+            )
+
+    @staticmethod
+    def _append_history(job: Job, entry: dict[str, Any]) -> None:
+        """Append a history entry via list replacement (never in-place — Pitfall 3)."""
+        job.status_history = [*job.status_history, entry]
 
     async def create_job(
         self,
@@ -219,102 +254,61 @@ class JobService(TenantScopedService[Job]):
         - Status history list replacement (NOT in-place append, per Pitfall 3)
         - Version increment after successful transition
         """
-        job = await self.repository.get_by_id(job_id)
-        if job is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Job {job_id} not found",
-            )
+        job = await self._get_job_or_404(job_id)
+        self._check_version(job, expected_version)
+        self._validate_transition(job, new_status, role=role, user_id=user_id, reason=reason)
 
-        # Optimistic locking — reject stale clients
-        if job.version != expected_version:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    f"Version conflict: expected version {expected_version}, "
-                    f"job is at version {job.version}. "
-                    "Fetch the latest job and retry."
-                ),
-            )
-
-        # Role-based transition guard
-        allowed = ALLOWED_TRANSITIONS.get((job.status, role), frozenset())
-        if new_status not in allowed:
-            raise InvalidTransitionError(
-                from_status=job.status,
-                to_status=new_status,
-                role=role,
-            )
-
-        # Backward transitions require a reason
-        if is_backward(job.status, new_status) and not reason:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="A reason is required for backward transitions.",
-            )
-
-        # Contractor: own jobs only
-        if role == "contractor" and job.contractor_id != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Contractors can only transition their own assigned jobs.",
-            )
-
-        # Capture original status before mutation (needed for post-transition logic)
         original_status = job.status
-
-        # Append history entry via list replacement (Pitfall 3: never in-place)
-        new_entry: dict[str, Any] = {
-            "status": new_status,
-            "timestamp": datetime.now(UTC).isoformat(),
-            "user_id": str(user_id),
-            "reason": reason,
-        }
-        job.status_history = [*job.status_history, new_entry]
-
-        # Apply the transition
+        self._append_history(
+            job,
+            {
+                "status": new_status,
+                "timestamp": datetime.now(UTC).isoformat(),
+                "user_id": str(user_id),
+                "reason": reason,
+            },
+        )
         job.status = new_status
         job.version = job.version + 1  # type: ignore[assignment]
 
-        # Free bookings when cancelling or when backing out of scheduled stage
-        # (use original_status — job.status is now new_status)
+        # Free bookings when cancelling or backing out of the scheduled stage.
         if new_status == JobStatus.cancelled or is_backward(original_status, new_status):
             await self.repository.cancel_job_bookings(job_id)
 
         await self.db.flush()
         await self.db.refresh(job)
 
-        # Send push notification to client on key milestone transitions.
-        # Fire-and-forget: errors are logged inside NotificationService — never raised.
-        if job.client_id and new_status in (
-            JobStatus.scheduled,
-            JobStatus.in_progress,
-            JobStatus.complete,
-        ):
-            _status_to_event = {
-                JobStatus.scheduled: "scheduled",
-                JobStatus.in_progress: "started",
-                JobStatus.complete: "completed",
-            }
-            event = _status_to_event[new_status]
-            try:
-                from app.features.notifications.service import NotificationService
-
-                notif_svc = NotificationService(self.db)
-                await notif_svc.send_job_notification(
-                    user_id=job.client_id,
-                    job_description=job.description,
-                    event=event,
-                    job_id=job.id,
-                )
-            except Exception:
-                import logging
-
-                logging.getLogger(__name__).exception(
-                    "Failed to send job notification for job %s event %s", job.id, event
-                )
+        event = _STATUS_NOTIFICATION_EVENTS.get(new_status)
+        if event is not None:
+            await self._notify_client(job, event)
 
         return job
+
+    def _validate_transition(
+        self,
+        job: Job,
+        new_status: str,
+        *,
+        role: str,
+        user_id: uuid.UUID,
+        reason: str | None,
+    ) -> None:
+        """Enforce role, backward-reason, and contractor-ownership rules for a transition."""
+        allowed = ALLOWED_TRANSITIONS.get((job.status, role), frozenset())
+        if new_status not in allowed:
+            raise InvalidTransitionError(from_status=job.status, to_status=new_status, role=role)
+
+        if is_backward(job.status, new_status) and not reason:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="A reason is required for backward transitions.",
+            )
+
+        if role == "contractor" and job.contractor_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Contractors can only transition their own assigned jobs.",
+            )
 
     async def update_job(
         self,
@@ -327,12 +321,7 @@ class JobService(TenantScopedService[Job]):
         should refresh their cached version before attempting a transition.
         Returns updated Job or raises 404 if not found.
         """
-        job = await self.repository.get_by_id(job_id)
-        if job is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Job {job_id} not found",
-            )
+        job = await self._get_job_or_404(job_id)
 
         update_data = data.model_dump(exclude_unset=True)
         if not update_data:
@@ -415,23 +404,8 @@ class JobService(TenantScopedService[Job]):
             409 — version conflict (stale client must re-fetch and retry)
             422 — job status is not 'scheduled' or 'in_progress'
         """
-        job = await self.repository.get_by_id(job_id)
-        if job is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Job {job_id} not found",
-            )
-
-        # Optimistic locking — reject stale clients
-        if job.version != data.version:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    f"Version conflict: expected version {data.version}, "
-                    f"job is at version {job.version}. "
-                    "Fetch the latest job and retry."
-                ),
-            )
+        job = await self._get_job_or_404(job_id)
+        self._check_version(job, data.version)
 
         # Delays only apply to active jobs (scheduled or in_progress)
         if job.status not in (JobStatus.scheduled, JobStatus.in_progress):
@@ -443,42 +417,23 @@ class JobService(TenantScopedService[Job]):
                 ),
             )
 
-        # Build delay entry and append via list replacement (Pitfall 3: never in-place)
-        delay_entry: dict = {
-            "type": "delay",
-            "reason": data.reason,
-            "new_eta": data.new_eta.isoformat(),
-            "timestamp": datetime.now(UTC).isoformat(),
-            "user_id": str(user_id),
-        }
-        job.status_history = [*job.status_history, delay_entry]
-
-        # Update scheduled completion date and bump version
+        self._append_history(
+            job,
+            {
+                "type": "delay",
+                "reason": data.reason,
+                "new_eta": data.new_eta.isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
+                "user_id": str(user_id),
+            },
+        )
         job.scheduled_completion_date = data.new_eta
         job.version = job.version + 1  # type: ignore[assignment]
 
         await self.db.flush()
         await self.db.refresh(job)
 
-        # Send delay notification to client — fire-and-forget.
-        if job.client_id:
-            try:
-                from app.features.notifications.service import NotificationService
-
-                notif_svc = NotificationService(self.db)
-                await notif_svc.send_job_notification(
-                    user_id=job.client_id,
-                    job_description=job.description,
-                    event="delayed",
-                    job_id=job.id,
-                )
-            except Exception:
-                import logging
-
-                logging.getLogger(__name__).exception(
-                    "Failed to send delay notification for job %s", job.id
-                )
-
+        await self._notify_client(job, "delayed")
         return job
 
     # -------------------------------------------------------------------------
@@ -496,12 +451,7 @@ class JobService(TenantScopedService[Job]):
 
         Raises 404 if job not found.
         """
-        job = await self.repository.get_by_id(job_id)
-        if job is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Job {job_id} not found",
-            )
+        await self._get_job_or_404(job_id)
 
         note = JobNote(
             company_id=company_id,
@@ -536,12 +486,7 @@ class JobService(TenantScopedService[Job]):
 
         Raises 404 if job not found.
         """
-        job = await self.repository.get_by_id(job_id)
-        if job is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Job {job_id} not found",
-            )
+        job = await self._get_job_or_404(job_id)
 
         # Close any existing active session for this contractor (across any job)
         active = await self.repository.get_active_time_entry(contractor_id)
@@ -587,12 +532,10 @@ class JobService(TenantScopedService[Job]):
         Sets clocked_out_at, computes duration, and sets session_status='completed'.
         Raises 404 if entry not found, 422 if entry is not active.
         """
-        entry = await self.repository.get_time_entry_by_id(entry_id)
-        if entry is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Time entry {entry_id} not found",
-            )
+        entry = entity_or_404(
+            await self.repository.get_time_entry_by_id(entry_id),
+            f"Time entry {entry_id} not found",
+        )
 
         if entry.session_status != "active":
             raise HTTPException(
@@ -629,12 +572,10 @@ class JobService(TenantScopedService[Job]):
         sets session_status='adjusted', and recalculates duration_seconds.
         Raises 404 if entry not found.
         """
-        entry = await self.repository.get_time_entry_by_id(entry_id)
-        if entry is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Time entry {entry_id} not found",
-            )
+        entry = entity_or_404(
+            await self.repository.get_time_entry_by_id(entry_id),
+            f"Time entry {entry_id} not found",
+        )
 
         # Build audit log entry before mutation
         log_entry: dict[str, Any] = {
@@ -692,12 +633,7 @@ class JobService(TenantScopedService[Job]):
         """
         from app.core.config import settings
 
-        job = await self.repository.get_by_id(job_id)
-        if job is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Job {job_id} not found",
-            )
+        job = await self._get_job_or_404(job_id)
 
         job.gps_latitude = latitude  # type: ignore[assignment]
         job.gps_longitude = longitude  # type: ignore[assignment]
@@ -743,12 +679,7 @@ class JobService(TenantScopedService[Job]):
         Per CONTEXT.md: "Cancelled is a separate status (not soft-delete) —
         job stays visible in history with Cancelled badge."
         """
-        job = await self.repository.get_by_id(job_id)
-        if job is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Job {job_id} not found",
-            )
+        job = await self._get_job_or_404(job_id)
 
         job.deleted_at = datetime.now(UTC)  # type: ignore[assignment]
         # Free any associated booking slots

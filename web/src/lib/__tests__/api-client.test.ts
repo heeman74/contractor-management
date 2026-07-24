@@ -81,7 +81,9 @@ describe("apiClient", () => {
     await apiClient("/api/v1/projects/test path");
     expect(mockTracedFetch).toHaveBeenCalledWith(
       `/api/proxy?path=${encodeURIComponent("/api/v1/projects/test path")}`,
-      undefined
+      undefined,
+      // Retryable requests mark 401 silent so the refresh flow isn't logged as an error.
+      { silentStatuses: [401] }
     );
   });
 
@@ -92,7 +94,8 @@ describe("apiClient", () => {
     await apiClient("/test", init);
     expect(mockTracedFetch).toHaveBeenCalledWith(
       expect.any(String),
-      init
+      init,
+      { silentStatuses: [401] }
     );
   });
 
@@ -175,7 +178,8 @@ describe("convenience methods", () => {
     await apiGet("/items");
     expect(mockTracedFetch).toHaveBeenCalledWith(
       "/api/proxy?path=%2Fitems",
-      { method: "GET" }
+      { method: "GET" },
+      { silentStatuses: [401] }
     );
   });
 
@@ -190,7 +194,8 @@ describe("convenience methods", () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }
+      },
+      { silentStatuses: [401] }
     );
   });
 
@@ -204,7 +209,8 @@ describe("convenience methods", () => {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: "updated" }),
-      }
+      },
+      { silentStatuses: [401] }
     );
   });
 
@@ -214,7 +220,8 @@ describe("convenience methods", () => {
     await apiDelete("/items/1");
     expect(mockTracedFetch).toHaveBeenCalledWith(
       "/api/proxy?path=%2Fitems%2F1",
-      { method: "DELETE" }
+      { method: "DELETE" },
+      { silentStatuses: [401] }
     );
   });
 });

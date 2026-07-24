@@ -52,18 +52,22 @@ const colorMap: Record<string, string> = {
 };
 
 export function StatusBadge({ status, size = "md" }: StatusBadgeProps) {
-  const normalizedStatus = status.toLowerCase().replace(/ /g, "_");
+  // Defend against missing status — API data (e.g. heterogeneous status_history
+  // entries) can omit it, and a hard crash here would take down the whole page.
+  const safeStatus = status ?? "";
+  const normalizedStatus = safeStatus.toLowerCase().replace(/ /g, "_");
   const colorClasses = colorMap[normalizedStatus] ?? "bg-gray-100 text-gray-700";
+  const label = safeStatus.replace(/_/g, " ").replace(/-/g, " ") || "unknown";
 
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full font-medium",
-        size === "sm" ? "px-2 py-0.5 text-xs" : "px-2.5 py-0.5 text-xs",
+        "inline-flex items-center gap-1 rounded-sm border border-black/5 font-mono font-semibold uppercase tracking-wide tabular-nums",
+        size === "sm" ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-0.5 text-[11px]",
         colorClasses
       )}
     >
-      {status.replace(/_/g, " ").replace(/-/g, " ")}
+      {label}
     </span>
   );
 }

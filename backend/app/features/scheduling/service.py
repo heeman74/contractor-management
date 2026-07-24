@@ -19,13 +19,19 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, date, datetime, timedelta
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import select as sa_select
 from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_service import TenantScopedService
+from app.features.scheduling.availability import (
+    compute_free_windows,
+    day_block_to_utc_range,
+    get_zoneinfo,
+    haversine_distance_km,
+    resolve_working_blocks,
+)
 from app.features.scheduling.models import (
     Booking,
     ContractorDateOverride,
@@ -40,8 +46,6 @@ from app.features.scheduling.schemas import (
     BookingCreate,
     ConflictDetail,
     DateSuggestion,
-    DayBlock,
-    FreeWindow,
     MultiDayBookingCreate,
     SchedulingConfig,
     TimeBlock,
@@ -130,226 +134,6 @@ class SchedulingService(TenantScopedService[Booking]):
     # Private helpers
     # -------------------------------------------------------------------------
 
-    def _get_contractor_tz(self, tz_name: str) -> ZoneInfo:
-        """Return ZoneInfo for the given IANA timezone name.
-
-        Falls back to UTC if the zone name is invalid or unknown.
-        """
-        try:
-            return ZoneInfo(tz_name)
-        except (ZoneInfoNotFoundError, KeyError):
-            return ZoneInfo("UTC")
-
-    def _resolve_working_blocks(
-        self,
-        target_date: date,
-        weekly_schedule: list[ContractorWeeklySchedule],
-        date_overrides: list[ContractorDateOverride],
-        contractor_tz: ZoneInfo,
-        default_config: SchedulingConfig,
-    ) -> list[tuple[datetime, datetime]]:
-        """Resolve working hours for target_date as UTC datetime ranges.
-
-        Resolution order (two-level override model):
-        1. Date override exists + is_unavailable=True  -> return [] (day off)
-        2. Date override exists with custom blocks      -> use those blocks
-        3. Weekly schedule for that day_of_week         -> use those blocks
-        4. Company default_working_hours for that DOW   -> use those blocks
-        5. None of the above                            -> return [] (not schedulable)
-
-        All time blocks are converted from contractor local time to UTC using
-        DST-safe zoneinfo conversion.
-        """
-        # Check for date override
-        day_overrides = [o for o in date_overrides if o.override_date == target_date]
-
-        if day_overrides:
-            # If any block is marked unavailable, the whole day is off
-            if any(o.is_unavailable for o in day_overrides):
-                return []
-            # Custom override blocks
-            return self._blocks_to_utc(
-                target_date,
-                [(o.start_time, o.end_time) for o in day_overrides if o.start_time and o.end_time],
-                contractor_tz,
-            )
-
-        # ISO weekday: Monday=1 ... Sunday=7; our model: 0=Mon ... 6=Sun
-        day_of_week = target_date.isoweekday() - 1
-        weekly_blocks = [s for s in weekly_schedule if s.day_of_week == day_of_week]
-
-        if weekly_blocks:
-            return self._blocks_to_utc(
-                target_date,
-                [(b.start_time, b.end_time) for b in weekly_blocks],
-                contractor_tz,
-            )
-
-        # Fall back to company-level default working hours
-        day_key = str(day_of_week)
-        if default_config.default_working_hours and day_key in default_config.default_working_hours:
-            from datetime import time
-
-            raw_blocks = default_config.default_working_hours[day_key]
-            parsed_blocks: list[tuple] = []
-            for block in raw_blocks:
-                try:
-                    start_parts = [int(p) for p in block["start"].split(":")]
-                    end_parts = [int(p) for p in block["end"].split(":")]
-                    start_t = time(start_parts[0], start_parts[1] if len(start_parts) > 1 else 0)
-                    end_t = time(end_parts[0], end_parts[1] if len(end_parts) > 1 else 0)
-                    parsed_blocks.append((start_t, end_t))
-                except (KeyError, ValueError, IndexError):
-                    continue
-            return self._blocks_to_utc(target_date, parsed_blocks, contractor_tz)
-
-        return []
-
-    def _blocks_to_utc(
-        self,
-        target_date: date,
-        blocks: list[tuple],
-        contractor_tz: ZoneInfo,
-    ) -> list[tuple[datetime, datetime]]:
-        """Convert (start_time, end_time) pairs to UTC datetime tuples for target_date.
-
-        Uses zoneinfo for DST-safe conversion. Each block becomes a UTC range.
-        Blocks with end <= start are skipped (malformed data guard).
-        """
-        utc_blocks: list[tuple[datetime, datetime]] = []
-        for start_t, end_t in blocks:
-            if start_t is None or end_t is None:
-                continue
-            local_start = datetime(
-                target_date.year,
-                target_date.month,
-                target_date.day,
-                start_t.hour,
-                start_t.minute,
-                tzinfo=contractor_tz,
-            )
-            local_end = datetime(
-                target_date.year,
-                target_date.month,
-                target_date.day,
-                end_t.hour,
-                end_t.minute,
-                tzinfo=contractor_tz,
-            )
-            utc_start = local_start.astimezone(ZoneInfo("UTC"))
-            utc_end = local_end.astimezone(ZoneInfo("UTC"))
-            if utc_end > utc_start:
-                utc_blocks.append((utc_start, utc_end))
-        return utc_blocks
-
-    def _compute_free_windows(
-        self,
-        working_blocks: list[tuple[datetime, datetime]],
-        blocked_intervals: list[tuple[datetime, datetime, str]],
-        min_duration_minutes: int,
-        buffer_minutes: int,
-    ) -> tuple[list[FreeWindow], list[BlockedInterval]]:
-        """Interval subtraction: working_blocks - blocked_intervals = free windows.
-
-        Algorithm:
-        1. Expand each blocked interval by buffer_minutes on each side.
-        2. Merge overlapping blocked intervals (sort by start, sweep).
-        3. For each working block, subtract merged blocked intervals.
-        4. Keep resulting free windows >= min_duration_minutes.
-        5. Build BlockedInterval list with gap reasons for the UI.
-
-        Returns:
-            (free_windows, all_blocked_intervals_with_reasons)
-        """
-        if not working_blocks:
-            return [], []
-
-        # Step 1: Expand blocked intervals by buffer on each side
-        buffer = timedelta(minutes=buffer_minutes)
-        expanded: list[tuple[datetime, datetime, str]] = []
-        for start, end, reason in blocked_intervals:
-            expanded_start = start - buffer
-            expanded_end = end + buffer
-            expanded.append((expanded_start, expanded_end, reason))
-
-        # Step 2: Sort and merge overlapping blocked intervals
-        # Keep track of reasons for each merged block
-        expanded.sort(key=lambda x: x[0])
-        merged_blocks: list[tuple[datetime, datetime, list[str]]] = []
-        for start, end, reason in expanded:
-            if merged_blocks and start <= merged_blocks[-1][1]:
-                prev_start, prev_end, prev_reasons = merged_blocks[-1]
-                new_end = max(prev_end, end)
-                merged_blocks[-1] = (prev_start, new_end, [*prev_reasons, reason])
-            else:
-                merged_blocks.append((start, end, [reason]))
-
-        # Step 3 & 4: Subtract from working blocks and collect free windows
-        free_windows: list[FreeWindow] = []
-        result_blocked: list[BlockedInterval] = []
-
-        for work_start, work_end in working_blocks:
-            # Add "outside_working_hours" blocked intervals at day boundaries
-            # (implicit — the FreeWindow reason_before will document this)
-            current = work_start
-
-            for block_start, block_end, reasons in merged_blocks:
-                # Skip blocks entirely outside this working window
-                if block_end <= work_start or block_start >= work_end:
-                    continue
-
-                # Clamp block to working window
-                clamped_start = max(block_start, work_start)
-                clamped_end = min(block_end, work_end)
-
-                # Free window before this block
-                if current < clamped_start:
-                    duration_min = (clamped_start - current).total_seconds() / 60
-                    if duration_min >= min_duration_minutes:
-                        reason_before: str | None = None
-                        if current == work_start:
-                            reason_before = "outside_working_hours"
-                        elif result_blocked:
-                            reason_before = result_blocked[-1].reason
-                        free_windows.append(
-                            FreeWindow(
-                                start=current,
-                                end=clamped_start,
-                                reason_before=reason_before,
-                            )
-                        )
-
-                # Record the blocked interval with primary reason
-                primary_reason = reasons[0] if reasons else "existing_job"
-                result_blocked.append(
-                    BlockedInterval(
-                        start=clamped_start,
-                        end=clamped_end,
-                        reason=primary_reason,
-                    )
-                )
-                current = clamped_end
-
-            # Free window after last block (tail of working day)
-            if current < work_end:
-                duration_min = (work_end - current).total_seconds() / 60
-                if duration_min >= min_duration_minutes:
-                    reason_before = None
-                    if current == work_start:
-                        # Entire working block is free (no blocked intervals within)
-                        reason_before = "outside_working_hours"
-                    elif result_blocked:
-                        reason_before = result_blocked[-1].reason
-                    free_windows.append(
-                        FreeWindow(
-                            start=current,
-                            end=work_end,
-                            reason_before=reason_before,
-                        )
-                    )
-
-        return free_windows, result_blocked
-
     async def _get_travel_buffers(
         self,
         existing_bookings: list[Booking],
@@ -424,53 +208,6 @@ class SchedulingService(TenantScopedService[Booking]):
 
         return travel_intervals
 
-    def _to_utc_range(
-        self,
-        day_block: DayBlock,
-        contractor_tz: ZoneInfo,
-    ) -> tuple[datetime, datetime]:
-        """Convert a DayBlock (date + start_time + end_time) to UTC datetime range.
-
-        Uses zoneinfo for DST-safe conversion. Returns (utc_start, utc_end).
-        """
-        local_start = datetime(
-            day_block.date.year,
-            day_block.date.month,
-            day_block.date.day,
-            day_block.start_time.hour,
-            day_block.start_time.minute,
-            tzinfo=contractor_tz,
-        )
-        local_end = datetime(
-            day_block.date.year,
-            day_block.date.month,
-            day_block.date.day,
-            day_block.end_time.hour,
-            day_block.end_time.minute,
-            tzinfo=contractor_tz,
-        )
-        return local_start.astimezone(ZoneInfo("UTC")), local_end.astimezone(ZoneInfo("UTC"))
-
-    def _compute_distance_km(
-        self,
-        lat1: float,
-        lng1: float,
-        lat2: float,
-        lng2: float,
-    ) -> float:
-        """Compute approximate great-circle distance in km using the Haversine formula."""
-        import math
-
-        r = 6371.0  # Earth radius in km
-        d_lat = math.radians(lat2 - lat1)
-        d_lng = math.radians(lng2 - lng1)
-        a = (
-            math.sin(d_lat / 2) ** 2
-            + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(d_lng / 2) ** 2
-        )
-        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-        return r * c
-
     # -------------------------------------------------------------------------
     # Public methods — availability
     # -------------------------------------------------------------------------
@@ -536,7 +273,7 @@ class SchedulingService(TenantScopedService[Booking]):
             if contractor is None:
                 continue
 
-            contractor_tz = self._get_contractor_tz(contractor.timezone)
+            contractor_tz = get_zoneinfo(contractor.timezone)
             contractor_name = f"{contractor.first_name or ''} {contractor.last_name or ''}".strip()
             if not contractor_name:
                 contractor_name = contractor.email
@@ -551,7 +288,7 @@ class SchedulingService(TenantScopedService[Booking]):
             )
 
             # Resolve working hours as UTC blocks
-            working_blocks = self._resolve_working_blocks(
+            working_blocks = resolve_working_blocks(
                 target_date, weekly_schedule, date_overrides, contractor_tz, config
             )
 
@@ -587,7 +324,7 @@ class SchedulingService(TenantScopedService[Booking]):
 
             all_blocked = booking_intervals + travel_buffers
 
-            free_windows, blocked_intervals = self._compute_free_windows(
+            free_windows, blocked_intervals = compute_free_windows(
                 working_blocks=working_blocks,
                 blocked_intervals=all_blocked,
                 min_duration_minutes=config.default_min_job_duration_minutes,
@@ -602,7 +339,7 @@ class SchedulingService(TenantScopedService[Booking]):
                 and contractor.home_latitude is not None
                 and contractor.home_longitude is not None
             ):
-                distance_km = self._compute_distance_km(
+                distance_km = haversine_distance_km(
                     float(contractor.home_latitude),
                     float(contractor.home_longitude),
                     job_site_lat,
@@ -696,13 +433,13 @@ class SchedulingService(TenantScopedService[Booking]):
         if contractor is None:
             raise OutsideWorkingHoursError(f"Contractor {contractor_id} not found")
 
-        contractor_tz = self._get_contractor_tz(contractor.timezone)
+        contractor_tz = get_zoneinfo(contractor.timezone)
         booking_date = booking_data.start.astimezone(contractor_tz).date()
         weekly_schedule = await self.repository.get_weekly_schedule(contractor_id)
         date_overrides = await self.repository.get_date_overrides(
             contractor_id, booking_date, booking_date
         )
-        working_blocks = self._resolve_working_blocks(
+        working_blocks = resolve_working_blocks(
             booking_date, weekly_schedule, date_overrides, contractor_tz, config
         )
 
@@ -772,13 +509,13 @@ class SchedulingService(TenantScopedService[Booking]):
         if contractor is None:
             raise OutsideWorkingHoursError(f"Contractor {contractor_id} not found")
 
-        contractor_tz = self._get_contractor_tz(contractor.timezone)
+        contractor_tz = get_zoneinfo(contractor.timezone)
         config = await self.repository.get_company_scheduling_config(company_id)
 
         # Convert all DayBlocks to UTC ranges
         utc_ranges: list[tuple[datetime, datetime]] = []
         for day_block in booking_data.day_blocks:
-            utc_start, utc_end = self._to_utc_range(day_block, contractor_tz)
+            utc_start, utc_end = day_block_to_utc_range(day_block, contractor_tz)
             utc_ranges.append((utc_start, utc_end))
 
         # Validate durations
@@ -822,7 +559,7 @@ class SchedulingService(TenantScopedService[Booking]):
         for day_block, (utc_start, utc_end) in zip(
             booking_data.day_blocks, utc_ranges, strict=True
         ):
-            working_blocks = self._resolve_working_blocks(
+            working_blocks = resolve_working_blocks(
                 day_block.date, weekly_schedule, date_overrides, contractor_tz, config
             )
             if not working_blocks:
@@ -896,7 +633,7 @@ class SchedulingService(TenantScopedService[Booking]):
         if contractor is None:
             return []
 
-        contractor_tz = self._get_contractor_tz(contractor.timezone)
+        contractor_tz = get_zoneinfo(contractor.timezone)
         config = await self.repository.get_company_scheduling_config(company_id)
         min_duration_minutes = int(duration_hours * 60)
 
@@ -928,7 +665,7 @@ class SchedulingService(TenantScopedService[Booking]):
         # Find eligible dates (have free window >= min_duration_minutes)
         eligible_dates: list[date] = []
         for candidate_date in all_dates_in_window:
-            working_blocks = self._resolve_working_blocks(
+            working_blocks = resolve_working_blocks(
                 candidate_date, weekly_schedule, date_overrides, contractor_tz, config
             )
             if not working_blocks:
@@ -951,7 +688,7 @@ class SchedulingService(TenantScopedService[Booking]):
                 if b.time_range.lower and b.time_range.upper
             ]
 
-            free_windows, _ = self._compute_free_windows(
+            free_windows, _ = compute_free_windows(
                 working_blocks=working_blocks,
                 blocked_intervals=booking_intervals,
                 min_duration_minutes=min_duration_minutes,

@@ -110,14 +110,8 @@ class NotificationService(BaseService[DeviceToken]):
             event:            One of 'scheduled', 'started', 'completed', 'delayed'.
             job_id:           Job UUID for deep-link in notification data payload.
         """
-        firebase_app = _get_firebase_app()
-        if firebase_app is None:
-            # Graceful degradation — FCM not configured in this environment
-            logger.debug(
-                "FCM not configured — skipping notification for user %s event %s",
-                user_id,
-                event,
-            )
+        messaging = self._resolve_messaging(f"notification for user {user_id} event {event}")
+        if messaging is None:
             return
 
         tokens = await self.repository.get_tokens_for_user(user_id)
@@ -126,21 +120,13 @@ class NotificationService(BaseService[DeviceToken]):
             return
 
         title, body = _build_notification_content(job_description, event)
-
-        try:
-            from firebase_admin import messaging
-        except ImportError:
-            logger.exception("firebase_admin.messaging not available — FCM skipped")
-            return
-
-        for device_token in tokens:
-            await self._send_to_token(
-                token_record=device_token,
-                title=title,
-                body=body,
-                job_id=job_id,
-                messaging=messaging,
-            )
+        await self._dispatch_to_tokens(
+            tokens,
+            title=title,
+            body=body,
+            data={"job_id": str(job_id), "event": "job_update"},
+            messaging=messaging,
+        )
 
     async def queue_task_completion_digest(
         self,
@@ -166,15 +152,11 @@ class NotificationService(BaseService[DeviceToken]):
             company_id:         Tenant company UUID — used to scope the user lookup.
             completed_by_name:  Display name of the user who completed the task.
         """
-        firebase_app = _get_firebase_app()
-        if firebase_app is None:
-            logger.debug(
-                "FCM not configured — skipping task completion digest for task %s", task_id
-            )
+        messaging = self._resolve_messaging(f"task completion digest for task {task_id}")
+        if messaging is None:
             return
 
         try:
-            from firebase_admin import messaging
             from sqlalchemy import select
 
             from app.features.users.models import User, UserRole
@@ -190,46 +172,21 @@ class NotificationService(BaseService[DeviceToken]):
             result = await self.db.execute(stmt)
             gc_users = result.scalars().all()
 
-            title = "Task Completed"
-            body = f"{completed_by_name} completed '{task_title}' in {trade_scope_name}"
-            data_payload = {
-                "type": "task_completion_digest",
-                "task_id": str(task_id),
-                "trade_scope_name": trade_scope_name,
-            }
-
-            # Bulk-fetch all GC user IDs, then fetch all tokens in one query
-            gc_user_ids = [u.id for u in gc_users]
             all_tokens: list[DeviceToken] = []
-            for uid in gc_user_ids:
-                all_tokens.extend(await self.repository.get_tokens_for_user(uid))
+            for gc_user in gc_users:
+                all_tokens.extend(await self.repository.get_tokens_for_user(gc_user.id))
 
-            loop = asyncio.get_event_loop()
-            for device_token in all_tokens:
-                try:
-                    message = messaging.Message(
-                        notification=messaging.Notification(title=title, body=body),
-                        data=data_payload,
-                        token=device_token.token,
-                    )
-                    await loop.run_in_executor(_fcm_executor, messaging.send, message)
-                    logger.debug(
-                        "Task completion digest FCM sent to token %s...",
-                        device_token.token[:12],
-                    )
-                except messaging.UnregisteredError:
-                    logger.info(
-                        "FCM token unregistered — removing token %s... for user %s",
-                        device_token.token[:12],
-                        device_token.user_id,
-                    )
-                    await self.repository.delete_token(device_token.token)
-                except Exception:
-                    logger.exception(
-                        "FCM task digest send failed for token %s... user %s",
-                        device_token.token[:12],
-                        device_token.user_id,
-                    )
+            await self._dispatch_to_tokens(
+                all_tokens,
+                title="Task Completed",
+                body=f"{completed_by_name} completed '{task_title}' in {trade_scope_name}",
+                data={
+                    "type": "task_completion_digest",
+                    "task_id": str(task_id),
+                    "trade_scope_name": trade_scope_name,
+                },
+                messaging=messaging,
+            )
         except Exception:
             # Outer catch: never let notification logic break the task status update
             logger.exception(
@@ -269,18 +226,11 @@ class NotificationService(BaseService[DeviceToken]):
             mentioned_user_ids:   Specific users mentioned — overrides mute for them.
             muted_user_ids:       Users who have muted this thread.
         """
-        firebase_app = _get_firebase_app()
-        if firebase_app is None:
-            logger.debug("FCM not configured — skipping chat notification for thread %s", thread_id)
-            return
-
         if not recipient_user_ids:
             return
 
-        try:
-            from firebase_admin import messaging
-        except ImportError:
-            logger.exception("firebase_admin.messaging not available — FCM skipped")
+        messaging = self._resolve_messaging(f"chat notification for thread {thread_id}")
+        if messaging is None:
             return
 
         # Build notification body per D-14
@@ -288,54 +238,25 @@ class NotificationService(BaseService[DeviceToken]):
             body = f"{sender_name} ({trade_scope_name}): {message_preview[:100]}"
         else:
             body = f"{sender_name}: {message_preview[:100]}"
-        title = "New Message"
 
-        data_payload = {
-            "type": "chat_message",
-            "thread_id": str(thread_id),
-        }
-
+        data_payload = {"type": "chat_message", "thread_id": str(thread_id)}
         muted_set = {str(uid) for uid in muted_user_ids}
         mentioned_set = {str(uid) for uid in mentioned_user_ids}
 
-        loop = asyncio.get_event_loop()
         for user_id in recipient_user_ids:
             uid_str = str(user_id)
-            is_muted = uid_str in muted_set
-
             # Skip muted users UNLESS they are mentioned or mention_all is set
-            if is_muted and not mention_all and uid_str not in mentioned_set:
+            if uid_str in muted_set and not mention_all and uid_str not in mentioned_set:
                 continue
 
             tokens = await self.repository.get_tokens_for_user(user_id)
-            for device_token in tokens:
-                try:
-                    message = messaging.Message(
-                        notification=messaging.Notification(title=title, body=body),
-                        data=data_payload,
-                        token=device_token.token,
-                    )
-                    await loop.run_in_executor(_fcm_executor, messaging.send, message)
-                    logger.debug(
-                        "Chat FCM sent to user %s token %s... thread %s",
-                        user_id,
-                        device_token.token[:12],
-                        thread_id,
-                    )
-                except messaging.UnregisteredError:
-                    logger.info(
-                        "FCM token unregistered — removing token %s... for user %s",
-                        device_token.token[:12],
-                        user_id,
-                    )
-                    await self.repository.delete_token(device_token.token)
-                except Exception:
-                    logger.exception(
-                        "Chat FCM send failed for token %s... user %s thread %s",
-                        device_token.token[:12],
-                        user_id,
-                        thread_id,
-                    )
+            await self._dispatch_to_tokens(
+                tokens,
+                title="New Message",
+                body=body,
+                data=data_payload,
+                messaging=messaging,
+            )
 
     async def send_task_rejection_notification(
         self,
@@ -357,15 +278,10 @@ class NotificationService(BaseService[DeviceToken]):
             rejection_reason: Short rejection reason for notification body.
             contractor_id:    UUID of the contractor assigned to the task.
         """
-        firebase_app = _get_firebase_app()
-        if firebase_app is None:
-            logger.debug(
-                "FCM not configured — skipping rejection notification for task %s", task_id
-            )
+        messaging = self._resolve_messaging(f"rejection notification for task {task_id}")
+        if messaging is None:
             return
         try:
-            from firebase_admin import messaging
-
             tokens = await self.repository.get_tokens_for_user(contractor_id)
             if not tokens:
                 logger.debug(
@@ -374,42 +290,17 @@ class NotificationService(BaseService[DeviceToken]):
                 )
                 return
 
-            title = "Task Rejected"
-            body = f"Task '{task_title}' was rejected: {rejection_reason}"
-            data_payload = {
-                "type": "task_rejection",
-                "task_id": str(task_id),
-                "rejection_reason": rejection_reason,
-            }
-
-            loop = asyncio.get_event_loop()
-            for device_token in tokens:
-                try:
-                    message = messaging.Message(
-                        notification=messaging.Notification(title=title, body=body),
-                        data=data_payload,
-                        token=device_token.token,
-                    )
-                    await loop.run_in_executor(_fcm_executor, messaging.send, message)
-                    logger.debug(
-                        "Task rejection FCM sent to contractor %s token %s... task %s",
-                        contractor_id,
-                        device_token.token[:12],
-                        task_id,
-                    )
-                except messaging.UnregisteredError:
-                    logger.info(
-                        "FCM token unregistered — removing %s... for contractor %s",
-                        device_token.token[:12],
-                        contractor_id,
-                    )
-                    await self.repository.delete_token(device_token.token)
-                except Exception:
-                    logger.exception(
-                        "FCM rejection send failed for token %s... contractor %s",
-                        device_token.token[:12],
-                        contractor_id,
-                    )
+            await self._dispatch_to_tokens(
+                tokens,
+                title="Task Rejected",
+                body=f"Task '{task_title}' was rejected: {rejection_reason}",
+                data={
+                    "type": "task_rejection",
+                    "task_id": str(task_id),
+                    "rejection_reason": rejection_reason,
+                },
+                messaging=messaging,
+            )
         except Exception:
             logger.exception(
                 "send_task_rejection_notification failed for task %s — continuing",
@@ -434,16 +325,12 @@ class NotificationService(BaseService[DeviceToken]):
             summary_text:   Short text for FCM body ("You have 5 tasks today: ...").
             checklist_id:   UUID of the DailyChecklist record (for deep-link data payload).
         """
-        firebase_app = _get_firebase_app()
-        if firebase_app is None:
-            logger.debug(
-                "FCM not configured — skipping checklist notification for contractor %s",
-                contractor_id,
-            )
+        messaging = self._resolve_messaging(
+            f"checklist notification for contractor {contractor_id}"
+        )
+        if messaging is None:
             return
         try:
-            from firebase_admin import messaging
-
             tokens = await self.repository.get_tokens_for_user(contractor_id)
             if not tokens:
                 logger.debug(
@@ -452,56 +339,62 @@ class NotificationService(BaseService[DeviceToken]):
                 )
                 return
 
-            title = "Your Daily Checklist is Ready"
-            data_payload = {
-                "type": "daily_checklist",
-                "checklist_id": str(checklist_id),
-            }
-
-            loop = asyncio.get_event_loop()
-            for device_token in tokens:
-                try:
-                    message = messaging.Message(
-                        notification=messaging.Notification(title=title, body=summary_text),
-                        data=data_payload,
-                        token=device_token.token,
-                    )
-                    await loop.run_in_executor(_fcm_executor, messaging.send, message)
-                    logger.debug(
-                        "Checklist FCM sent to contractor %s token %s... checklist %s",
-                        contractor_id,
-                        device_token.token[:12],
-                        checklist_id,
-                    )
-                except messaging.UnregisteredError:
-                    logger.info(
-                        "FCM token unregistered — removing %s... for contractor %s",
-                        device_token.token[:12],
-                        contractor_id,
-                    )
-                    await self.repository.delete_token(device_token.token)
-                except Exception:
-                    logger.exception(
-                        "FCM checklist send failed for token %s... contractor %s",
-                        device_token.token[:12],
-                        contractor_id,
-                    )
+            await self._dispatch_to_tokens(
+                tokens,
+                title="Your Daily Checklist is Ready",
+                body=summary_text,
+                data={"type": "daily_checklist", "checklist_id": str(checklist_id)},
+                messaging=messaging,
+            )
         except Exception:
             logger.exception(
                 "send_checklist_notification failed for contractor %s — continuing",
                 contractor_id,
             )
 
-    async def _send_to_token(
+    def _resolve_messaging(self, skip_context: str) -> Any | None:
+        """Return the firebase messaging module, or None when FCM is unavailable.
+
+        Combines the Firebase-app credential check and the messaging import that
+        every send_* method needs. On unavailability it logs and returns None so
+        callers degrade gracefully.
+        """
+        if _get_firebase_app() is None:
+            logger.debug("FCM not configured — skipping %s", skip_context)
+            return None
+        try:
+            from firebase_admin import messaging
+
+            return messaging
+        except ImportError:
+            logger.exception("firebase_admin.messaging not available — FCM skipped")
+            return None
+
+    async def _dispatch_to_tokens(
         self,
+        tokens: list[DeviceToken],
         *,
-        token_record: DeviceToken,
         title: str,
         body: str,
-        job_id: uuid.UUID,
+        data: dict[str, str],
         messaging: Any,
     ) -> None:
-        """Send FCM message to a single device token.
+        """Send the same notification to each device token (fire-and-forget per token)."""
+        for token_record in tokens:
+            await self._send_to_token(
+                token_record, title=title, body=body, data=data, messaging=messaging
+            )
+
+    async def _send_to_token(
+        self,
+        token_record: DeviceToken,
+        *,
+        title: str,
+        body: str,
+        data: dict[str, str],
+        messaging: Any,
+    ) -> None:
+        """Send an FCM message to a single device token.
 
         On success: no action (fire-and-forget).
         On UnregisteredError: delete the stale token from the registry.
@@ -510,7 +403,7 @@ class NotificationService(BaseService[DeviceToken]):
         try:
             message = messaging.Message(
                 notification=messaging.Notification(title=title, body=body),
-                data={"job_id": str(job_id), "event": "job_update"},
+                data=data,
                 token=token_record.token,
             )
             loop = asyncio.get_event_loop()
@@ -531,7 +424,7 @@ class NotificationService(BaseService[DeviceToken]):
         except Exception:
             # Any other FCM error — log and continue (fire-and-forget)
             logger.exception(
-                "FCM send failed for token %s... user %s event",
+                "FCM send failed for token %s... user %s",
                 token_record.token[:12],
                 token_record.user_id,
             )

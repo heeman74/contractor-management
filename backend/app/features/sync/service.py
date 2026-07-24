@@ -9,12 +9,12 @@ so all queries are automatically scoped to the current tenant. No explicit
 company_id WHERE clause is needed (except get_companies_since — companies
 table has no RLS).
 
-Phase 4 additions:
-  - get_jobs_since: delta sync for Job records (eager-loads client, contractor)
-  - get_client_profiles_since: delta sync for ClientProfile records
-  - get_job_requests_since: delta sync for JobRequest records
+Model imports are kept inside each method: the SQLAlchemy mapper registry must
+have the relevant models registered (via side-effect imports in sync/router.py)
+before these queries build their relationship options.
 """
 
+import uuid
 from datetime import datetime
 
 from sqlalchemy import or_, select
@@ -26,6 +26,7 @@ from app.features.users.models import User, UserRole
 
 # Maximum records per sync batch to prevent memory exhaustion on first sync
 _SYNC_MAX_LIMIT = 1000
+_CLIENT_VISIBLE_QUOTE_STATUSES = ["sent", "viewed", "approved", "declined"]
 
 
 class SyncService:
@@ -34,54 +35,67 @@ class SyncService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def get_companies_since(self, since: datetime) -> list[Company]:
-        """Return all companies changed since the given cursor timestamp.
+    # -------------------------------------------------------------------------
+    # Shared delta-query helpers
+    # -------------------------------------------------------------------------
 
-        Includes both active records (updated_at > since) and tombstones
-        (deleted_at > since) for correct offline tombstone propagation.
+    @staticmethod
+    def _changed_since(model, since: datetime):
+        """Predicate: record was updated or tombstoned after the cursor."""
+        return or_(model.updated_at > since, model.deleted_at > since)
 
-        Note: companies table has no RLS — all tenants see all companies.
-        This is intentional: companies are the tenant root, not scoped by it.
+    async def _delta(
+        self,
+        model,
+        since: datetime,
+        *,
+        options: tuple = (),
+        extra_conditions: tuple = (),
+        unique: bool = False,
+        limit: int = _SYNC_MAX_LIMIT,
+    ) -> list:
+        """Run the standard delta query for a model changed since the cursor.
+
+        options:          eager-load options (joinedload/selectinload).
+        extra_conditions: additional WHERE clauses (e.g. client-scoped filters).
+        unique:           dedupe rows (required when joinedload fans out one-to-many).
         """
-        result = await self.db.execute(
-            select(Company)
-            .where(or_(Company.updated_at > since, Company.deleted_at > since))
-            .order_by(Company.updated_at)
-            .limit(_SYNC_MAX_LIMIT)
-        )
-        return list(result.scalars().all())
+        stmt = select(model).where(self._changed_since(model, since))
+        if options:
+            stmt = stmt.options(*options)
+        if extra_conditions:
+            stmt = stmt.where(*extra_conditions)
+        stmt = stmt.order_by(model.updated_at).limit(limit)
 
-    async def get_users_since(self, since: datetime) -> list[User]:
-        """Return all users changed since the given cursor timestamp.
+        result = await self.db.execute(stmt)
+        scalars = result.scalars().unique() if unique else result.scalars()
+        return list(scalars.all())
 
-        Includes both active records (updated_at > since) and tombstones
-        (deleted_at > since). RLS automatically restricts to current tenant.
-        """
-        result = await self.db.execute(
-            select(User)
-            .where(or_(User.updated_at > since, User.deleted_at > since))
-            .options(selectinload(User.roles))
-            .order_by(User.updated_at)
-            .limit(_SYNC_MAX_LIMIT)
-        )
-        return list(result.scalars().all())
+    @staticmethod
+    def _client_job_ids(client_user_id: str):
+        """Scalar subquery of Job.id owned by the given client user."""
+        from app.features.jobs.models import Job
 
-    async def get_user_roles_since(self, since: datetime) -> list[UserRole]:
-        """Return all user roles changed since the given cursor timestamp.
-
-        Includes both active records (updated_at > since) and tombstones
-        (deleted_at > since). RLS automatically restricts to current tenant.
-        """
-        result = await self.db.execute(
-            select(UserRole)
-            .where(or_(UserRole.updated_at > since, UserRole.deleted_at > since))
-            .order_by(UserRole.updated_at)
-            .limit(_SYNC_MAX_LIMIT)
-        )
-        return list(result.scalars().all())
+        return select(Job.id).where(Job.client_id == uuid.UUID(client_user_id))
 
     # -------------------------------------------------------------------------
-    # Phase 4 — job lifecycle entity sync methods
+    # Tenant-root & identity entities
+    # -------------------------------------------------------------------------
+
+    async def get_companies_since(self, since: datetime) -> list[Company]:
+        """Companies changed since the cursor (no RLS — companies are the tenant root)."""
+        return await self._delta(Company, since)
+
+    async def get_users_since(self, since: datetime) -> list[User]:
+        """Users changed since the cursor, with roles eager-loaded."""
+        return await self._delta(User, since, options=(selectinload(User.roles),))
+
+    async def get_user_roles_since(self, since: datetime) -> list[UserRole]:
+        """User roles changed since the cursor."""
+        return await self._delta(UserRole, since)
+
+    # -------------------------------------------------------------------------
+    # Phase 4 — job lifecycle entities
     # -------------------------------------------------------------------------
 
     async def get_jobs_since(
@@ -91,75 +105,35 @@ class SyncService:
         client_user_id: str | None = None,
         limit: int = _SYNC_MAX_LIMIT,
     ) -> list:
-        """Return all jobs changed since the given cursor timestamp.
-
-        Includes both active records and tombstones (deleted_at > since).
-        Eager-loads client (many-to-one) and contractor (many-to-one) via
-        joinedload to prevent N+1 queries per CLAUDE.md rules.
-
-        RLS automatically restricts to the current tenant's company_id.
-
-        Args:
-            since:          High-water mark cursor timestamp.
-            client_user_id: When provided (client role), restricts results to jobs
-                            where Job.client_id == client_user_id. Ensures clients
-                            only receive their own jobs in the delta sync (CLNT-05).
-            limit:          Max records to return (prevents memory exhaustion).
-        """
-        import uuid
-
+        """Jobs changed since the cursor (client role sees only their own jobs)."""
         from app.features.jobs.models import Job
 
-        stmt = (
-            select(Job)
-            .where(or_(Job.updated_at > since, Job.deleted_at > since))
-            .options(
-                joinedload(Job.client),
-                joinedload(Job.contractor),
-            )
-            .order_by(Job.updated_at)
-            .limit(limit)
-        )
+        extra = ()
         if client_user_id is not None:
-            stmt = stmt.where(Job.client_id == uuid.UUID(client_user_id))
-
-        result = await self.db.execute(stmt)
-        return list(result.scalars().unique().all())
+            extra = (Job.client_id == uuid.UUID(client_user_id),)
+        return await self._delta(
+            Job,
+            since,
+            options=(joinedload(Job.client), joinedload(Job.contractor)),
+            extra_conditions=extra,
+            unique=True,
+            limit=limit,
+        )
 
     async def get_client_profiles_since(self, since: datetime) -> list:
-        """Return all client profiles changed since the given cursor timestamp.
-
-        Includes both active records and tombstones (deleted_at > since).
-        RLS automatically restricts to the current tenant.
-        """
+        """Client profiles changed since the cursor."""
         from app.features.jobs.models import ClientProfile
 
-        result = await self.db.execute(
-            select(ClientProfile)
-            .where(or_(ClientProfile.updated_at > since, ClientProfile.deleted_at > since))
-            .order_by(ClientProfile.updated_at)
-            .limit(_SYNC_MAX_LIMIT)
-        )
-        return list(result.scalars().all())
+        return await self._delta(ClientProfile, since)
 
     async def get_job_requests_since(self, since: datetime) -> list:
-        """Return all job requests changed since the given cursor timestamp.
-
-        Includes both active records and tombstones (deleted_at > since).
-        RLS automatically restricts to the current tenant.
-        """
+        """Job requests changed since the cursor."""
         from app.features.jobs.models import JobRequest
 
-        result = await self.db.execute(
-            select(JobRequest)
-            .where(or_(JobRequest.updated_at > since, JobRequest.deleted_at > since))
-            .order_by(JobRequest.updated_at)
-            .limit(_SYNC_MAX_LIMIT)
-        )
-        return list(result.scalars().all())
+        return await self._delta(JobRequest, since)
 
     # -------------------------------------------------------------------------
-    # Phase 5 — calendar & dispatch entity sync methods
+    # Phase 5 — calendar & dispatch entities
     # -------------------------------------------------------------------------
 
     async def get_bookings_since(
@@ -169,59 +143,22 @@ class SyncService:
         client_user_id: str | None = None,
         limit: int = _SYNC_MAX_LIMIT,
     ) -> list:
-        """Return all bookings changed since the given cursor timestamp.
-
-        Includes both active records and tombstones (deleted_at > since).
-        RLS automatically restricts to the current tenant.
-
-        Args:
-            since:          High-water mark cursor timestamp.
-            client_user_id: When provided, restricts bookings to those whose
-                            job_id belongs to the client's jobs (via subquery).
-
-        Note: scheduling.models must be imported before calling this method
-        to ensure Booking is registered in the SQLAlchemy mapper registry.
-        This is handled by the side-effect import in sync/router.py.
-        """
-        import uuid
-
+        """Bookings changed since the cursor (client role scoped to their jobs)."""
         from app.features.scheduling.models import Booking
 
-        stmt = (
-            select(Booking)
-            .where(or_(Booking.updated_at > since, Booking.deleted_at > since))
-            .order_by(Booking.updated_at)
-            .limit(limit)
-        )
-
+        extra = ()
         if client_user_id is not None:
-            from app.features.jobs.models import Job
-
-            client_uuid = uuid.UUID(client_user_id)
-            client_job_ids = select(Job.id).where(Job.client_id == client_uuid)
-            stmt = stmt.where(Booking.job_id.in_(client_job_ids))
-
-        result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+            extra = (Booking.job_id.in_(self._client_job_ids(client_user_id)),)
+        return await self._delta(Booking, since, extra_conditions=extra, limit=limit)
 
     async def get_job_sites_since(self, since: datetime) -> list:
-        """Return all job sites changed since the given cursor timestamp.
-
-        Includes both active records and tombstones (deleted_at > since).
-        RLS automatically restricts to the current tenant.
-        """
+        """Job sites changed since the cursor."""
         from app.features.scheduling.models import JobSite
 
-        result = await self.db.execute(
-            select(JobSite)
-            .where(or_(JobSite.updated_at > since, JobSite.deleted_at > since))
-            .order_by(JobSite.updated_at)
-            .limit(_SYNC_MAX_LIMIT)
-        )
-        return list(result.scalars().all())
+        return await self._delta(JobSite, since)
 
     # -------------------------------------------------------------------------
-    # Phase 6 — field workflow entity sync methods
+    # Phase 6 — field workflow entities
     # -------------------------------------------------------------------------
 
     async def get_job_notes_since(
@@ -230,54 +167,24 @@ class SyncService:
         *,
         client_user_id: str | None = None,
     ) -> list:
-        """Return all job notes changed since the given cursor timestamp.
-
-        Includes both active records and tombstones (deleted_at > since).
-        Eager-loads attachments (one-to-many) so JobNoteResponse.attachments is populated.
-        RLS automatically restricts to the current tenant.
-
-        Args:
-            since:          High-water mark cursor timestamp.
-            client_user_id: When provided, restricts notes to those whose
-                            job_id belongs to the client's jobs (via subquery).
-        """
-        import uuid
-
+        """Job notes changed since the cursor, with attachments eager-loaded."""
         from app.features.jobs.models import JobNote
 
-        stmt = (
-            select(JobNote)
-            .where(or_(JobNote.updated_at > since, JobNote.deleted_at > since))
-            .options(selectinload(JobNote.attachments))
-            .order_by(JobNote.updated_at)
-            .limit(_SYNC_MAX_LIMIT)
-        )
-
+        extra = ()
         if client_user_id is not None:
-            from app.features.jobs.models import Job
-
-            client_uuid = uuid.UUID(client_user_id)
-            client_job_ids = select(Job.id).where(Job.client_id == client_uuid)
-            stmt = stmt.where(JobNote.job_id.in_(client_job_ids))
-
-        result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+            extra = (JobNote.job_id.in_(self._client_job_ids(client_user_id)),)
+        return await self._delta(
+            JobNote,
+            since,
+            options=(selectinload(JobNote.attachments),),
+            extra_conditions=extra,
+        )
 
     async def get_time_entries_since(self, since: datetime) -> list:
-        """Return all time entries changed since the given cursor timestamp.
-
-        Includes both active records and tombstones (deleted_at > since).
-        RLS automatically restricts to the current tenant.
-        """
+        """Time entries changed since the cursor."""
         from app.features.jobs.models import TimeEntry
 
-        result = await self.db.execute(
-            select(TimeEntry)
-            .where(or_(TimeEntry.updated_at > since, TimeEntry.deleted_at > since))
-            .order_by(TimeEntry.updated_at)
-            .limit(_SYNC_MAX_LIMIT)
-        )
-        return list(result.scalars().all())
+        return await self._delta(TimeEntry, since)
 
     async def get_attachments_since(
         self,
@@ -285,41 +192,19 @@ class SyncService:
         *,
         client_user_id: str | None = None,
     ) -> list:
-        """Return all attachments changed since the given cursor timestamp.
+        """Attachments changed since the cursor (client role scoped via their notes)."""
+        from app.features.jobs.models import Attachment, JobNote
 
-        Includes both active records and tombstones (deleted_at > since).
-        RLS automatically restricts to the current tenant.
-
-        Args:
-            since:          High-water mark cursor timestamp.
-            client_user_id: When provided, restricts attachments to those whose
-                            note's job_id belongs to the client's jobs (via subquery
-                            through JobNote).
-        """
-        import uuid
-
-        from app.features.jobs.models import Attachment
-
-        stmt = (
-            select(Attachment)
-            .where(or_(Attachment.updated_at > since, Attachment.deleted_at > since))
-            .order_by(Attachment.updated_at)
-            .limit(_SYNC_MAX_LIMIT)
-        )
-
+        extra = ()
         if client_user_id is not None:
-            from app.features.jobs.models import Job, JobNote
-
-            client_uuid = uuid.UUID(client_user_id)
-            client_job_ids = select(Job.id).where(Job.client_id == client_uuid)
-            client_note_ids = select(JobNote.id).where(JobNote.job_id.in_(client_job_ids))
-            stmt = stmt.where(Attachment.note_id.in_(client_note_ids))
-
-        result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+            client_note_ids = select(JobNote.id).where(
+                JobNote.job_id.in_(self._client_job_ids(client_user_id))
+            )
+            extra = (Attachment.note_id.in_(client_note_ids),)
+        return await self._delta(Attachment, since, extra_conditions=extra)
 
     # -------------------------------------------------------------------------
-    # Phase 8 — business operations entity sync methods
+    # Phase 8 — business operations entities
     # -------------------------------------------------------------------------
 
     async def get_quotes_since(
@@ -328,58 +213,31 @@ class SyncService:
         *,
         client_user_id: str | None = None,
     ) -> list:
-        """Return all quotes changed since the given cursor timestamp.
+        """Quotes changed since the cursor, with line items eager-loaded.
 
-        For client-role users, only includes sent/viewed/approved/declined quotes
-        (not drafts or revised ones) to prevent premature quote disclosure.
-        Admin and contractor roles receive all non-draft quotes.
-        Includes line_items eagerly loaded (selectinload) — no N+1.
-
-        Args:
-            since:          High-water mark cursor timestamp.
-            client_user_id: When provided (client role), restricts to sent/viewed/
-                            approved/declined quotes for the client's own jobs.
+        Client-role users only receive sent/viewed/approved/declined quotes for
+        their own jobs; admin and contractor roles receive all.
         """
-        from sqlalchemy.orm import selectinload
-
         from app.features.quotes.models import Quote
 
-        stmt = (
-            select(Quote)
-            .where(or_(Quote.updated_at > since, Quote.deleted_at > since))
-            .options(selectinload(Quote.line_items))
-            .order_by(Quote.updated_at)
-            .limit(_SYNC_MAX_LIMIT)
-        )
-
+        extra = ()
         if client_user_id is not None:
-            import uuid
-
-            from app.features.jobs.models import Job
-
-            client_uuid = uuid.UUID(client_user_id)
-            client_job_ids = select(Job.id).where(Job.client_id == client_uuid)
-            stmt = stmt.where(
-                Quote.job_id.in_(client_job_ids),
-                Quote.status.in_(["sent", "viewed", "approved", "declined"]),
+            extra = (
+                Quote.job_id.in_(self._client_job_ids(client_user_id)),
+                Quote.status.in_(_CLIENT_VISIBLE_QUOTE_STATUSES),
             )
-        # Admin/contractor: exclude drafts for cleanliness (admin sees all via API)
-        # Actually per plan: client sees only sent/viewed/approved/declined — no filter for admin
-
-        result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        return await self._delta(
+            Quote,
+            since,
+            options=(selectinload(Quote.line_items),),
+            extra_conditions=extra,
+        )
 
     async def get_quote_line_items_since(self, since: datetime) -> list:
-        """Return all quote line items changed since the given cursor timestamp."""
+        """Quote line items changed since the cursor."""
         from app.features.quotes.models import QuoteLineItem
 
-        result = await self.db.execute(
-            select(QuoteLineItem)
-            .where(or_(QuoteLineItem.updated_at > since, QuoteLineItem.deleted_at > since))
-            .order_by(QuoteLineItem.updated_at)
-            .limit(_SYNC_MAX_LIMIT)
-        )
-        return list(result.scalars().all())
+        return await self._delta(QuoteLineItem, since)
 
     async def get_invoices_since(
         self,
@@ -387,48 +245,21 @@ class SyncService:
         *,
         client_user_id: str | None = None,
     ) -> list:
-        """Return all invoices changed since the given cursor timestamp.
-
-        Includes line_items eagerly loaded (selectinload) — no N+1.
-        Client role users see invoices for their own jobs.
-
-        Args:
-            since:          High-water mark cursor timestamp.
-            client_user_id: When provided (client role), restricts to invoices
-                            for the client's own jobs.
-        """
-        from sqlalchemy.orm import selectinload
-
+        """Invoices changed since the cursor, with line items eager-loaded."""
         from app.features.invoices.models import Invoice
 
-        stmt = (
-            select(Invoice)
-            .where(or_(Invoice.updated_at > since, Invoice.deleted_at > since))
-            .options(selectinload(Invoice.line_items))
-            .order_by(Invoice.updated_at)
-            .limit(_SYNC_MAX_LIMIT)
-        )
-
+        extra = ()
         if client_user_id is not None:
-            import uuid
-
-            from app.features.jobs.models import Job
-
-            client_uuid = uuid.UUID(client_user_id)
-            client_job_ids = select(Job.id).where(Job.client_id == client_uuid)
-            stmt = stmt.where(Invoice.job_id.in_(client_job_ids))
-
-        result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+            extra = (Invoice.job_id.in_(self._client_job_ids(client_user_id)),)
+        return await self._delta(
+            Invoice,
+            since,
+            options=(selectinload(Invoice.line_items),),
+            extra_conditions=extra,
+        )
 
     async def get_invoice_line_items_since(self, since: datetime) -> list:
-        """Return all invoice line items changed since the given cursor timestamp."""
+        """Invoice line items changed since the cursor."""
         from app.features.invoices.models import InvoiceLineItem
 
-        result = await self.db.execute(
-            select(InvoiceLineItem)
-            .where(or_(InvoiceLineItem.updated_at > since, InvoiceLineItem.deleted_at > since))
-            .order_by(InvoiceLineItem.updated_at)
-            .limit(_SYNC_MAX_LIMIT)
-        )
-        return list(result.scalars().all())
+        return await self._delta(InvoiceLineItem, since)

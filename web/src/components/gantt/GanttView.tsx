@@ -205,7 +205,7 @@ export function GanttView({
             onClick={() => setZoomLevel(idx)}
             className={`px-3 py-1 text-xs rounded-md border transition-colors ${
               zoomLevel === idx
-                ? "bg-indigo-600 text-white border-indigo-600"
+                ? "bg-primary text-white border-brand"
                 : "text-gray-600 border-gray-300 hover:bg-gray-100"
             }`}
             aria-pressed={zoomLevel === idx}

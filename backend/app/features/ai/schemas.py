@@ -1,7 +1,7 @@
 """Pydantic schemas for AI conversation and chat turn request/response."""
 
 import uuid
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -50,3 +50,20 @@ class ImageUploadResponse(BaseResponseSchema):
     original_filename: str
     media_type: str
     file_size_bytes: int
+
+
+class IntakeCompleteRequest(BaseModel):
+    """Request body for POST /ai/intake/complete."""
+
+    conversation_id: uuid.UUID
+    project_name: str = Field(min_length=1, max_length=200)
+    project_description: str | None = None
+    project_id: uuid.UUID | None = None
+    trade_scopes: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class InterviewCompleteRequest(BaseModel):
+    """Request body for POST /ai/interview/complete."""
+
+    conversation_id: uuid.UUID
+    tasks: list[dict[str, Any]] = Field(default_factory=list)

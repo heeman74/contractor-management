@@ -95,7 +95,7 @@ const AlertCard = memo(function AlertCard({
     <div
       ref={cardRef}
       className={`rounded-lg border border-gray-200 border-l-4 ${borderClass} bg-white p-3 shadow-sm ${
-        !alert.is_read ? "bg-indigo-50/30" : ""
+        !alert.is_read ? "bg-secondary/30" : ""
       }`}
     >
       <div className="flex items-start gap-2">
@@ -129,7 +129,7 @@ const AlertCard = memo(function AlertCard({
               <button
                 onClick={() => onAcceptRescheduling(alert.id)}
                 disabled={isAccepting}
-                className="rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-white hover:bg-primary/90 disabled:opacity-50 transition-colors"
               >
                 {isAccepting ? "Applying..." : "Accept Rescheduling"}
               </button>
@@ -233,7 +233,7 @@ export function AlertPanel({ projectId }: AlertPanelProps) {
       <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
         <h2 className="text-sm font-semibold text-gray-900">AI Alerts</h2>
         {unreadCount > 0 && (
-          <span className="inline-flex items-center rounded-full bg-indigo-600 px-2 py-0.5 text-xs font-medium text-white">
+          <span className="inline-flex items-center rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-white">
             {unreadCount} new
           </span>
         )}

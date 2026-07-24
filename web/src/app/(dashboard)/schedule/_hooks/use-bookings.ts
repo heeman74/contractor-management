@@ -15,6 +15,10 @@ import {
 import type { BookingResponse, CalendarBooking, CalendarView } from "@/types/schedule";
 import type { Job } from "@/types/api";
 
+// The jobs list endpoint caps `limit` at 200 (requesting more returns 422).
+// We pull the max page so bookings can resolve their job details from one call.
+const JOBS_LOOKUP_PAGE_SIZE = 200;
+
 export function useBookings(
   date: Date,
   view: CalendarView,
@@ -53,7 +57,7 @@ export function useBookings(
         apiGet<BookingResponse[]>(
           `/api/v1/scheduling/bookings?date_from=${dateFrom}&date_to=${dateTo}`
         ),
-        apiGet<Job[]>("/api/v1/jobs?limit=500"),
+        apiGet<Job[]>(`/api/v1/jobs?limit=${JOBS_LOOKUP_PAGE_SIZE}`),
       ]);
       return { rawBookings, rawJobs };
     },

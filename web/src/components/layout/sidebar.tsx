@@ -11,6 +11,7 @@ import {
   FolderKanban,
   Receipt,
   Users,
+  UsersRound,
   HardHat,
   BarChart3,
   Activity,
@@ -21,9 +22,11 @@ import {
   UserCheck,
   ClipboardList,
   Smartphone,
+  ShieldCheck,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/lib/hooks/usePermissions";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { toggleSidebar, setSidebarCollapsed } from "@/store/slices/ui-slice";
 import { clearAuth } from "@/store/slices/auth-slice";
@@ -42,8 +45,10 @@ interface NavItem {
   label: string;
   href: string;
   icon: LucideIcon;
-  /** If set, item only shows when user has at least one of these roles */
+  /** If set, item only shows when the user holds at least one of these roles. */
   roles?: string[];
+  /** If set, item only shows when the user has this effective permission. */
+  permission?: string;
 }
 
 const navItems: NavItem[] = [
@@ -56,11 +61,29 @@ const navItems: NavItem[] = [
   { label: "Invoices", href: "/invoices", icon: Receipt },
   { label: "Clients", href: "/clients", icon: Users },
   { label: "Contractors", href: "/contractors", icon: HardHat },
-  // Foreman section — role-gated
-  { label: "Foreman Assignments", href: "/foreman", icon: UserCheck, roles: ["admin", "owner"] },
-  { label: "My Projects", href: "/foreman/projects", icon: HardHat, roles: ["contractor"] },
-  { label: "Daily Status", href: "/foreman/status", icon: ClipboardList, roles: ["contractor"] },
+  { label: "Team", href: "/team", icon: UsersRound, permission: "users.view" },
+  // Foreman section
+  { label: "Foreman Assignments", href: "/foreman", icon: UserCheck, permission: "foreman.assign" },
+  {
+    label: "My Projects",
+    href: "/foreman/projects",
+    icon: HardHat,
+    roles: ["contractor", "foreman"],
+  },
+  {
+    label: "Daily Status",
+    href: "/foreman/status",
+    icon: ClipboardList,
+    roles: ["contractor", "foreman"],
+  },
   { label: "Reports", href: "/reports", icon: BarChart3 },
+  // Access control — only visible to roles that can edit permissions
+  {
+    label: "Roles & Permissions",
+    href: "/settings/roles",
+    icon: ShieldCheck,
+    permission: "roles.permissions.manage",
+  },
   { label: "Get Mobile App", href: "/download", icon: Smartphone },
 ];
 
@@ -80,24 +103,31 @@ function SidebarNav({ collapsed, displayName, roles, onLogout, onToggle }: Sideb
     return pathname.startsWith(href);
   };
 
-  // Filter nav items by role
+  const { can } = usePermissions();
+
+  // Permission-gated items use effective permissions; role-gated items use the
+  // JWT role set; ungated items are always visible.
   const visibleItems = navItems.filter((item) => {
-    if (!item.roles) return true;
-    return item.roles.some((r) => roles.includes(r));
+    if (item.permission) return can(item.permission);
+    if (item.roles) return item.roles.some((r) => roles.includes(r));
+    return true;
   });
 
   return (
-    <div className="flex h-full flex-col bg-gray-900 text-white">
+    <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
       {/* Header with toggle */}
-      <div className="flex h-14 items-center justify-between px-3">
+      <div className="flex h-14 items-center justify-between border-b border-sidebar-border px-3">
         {!collapsed && (
-          <span className="text-sm font-semibold text-indigo-300">ContractorHub</span>
+          <span className="flex items-center gap-2 font-display text-sm font-bold tracking-tight text-white">
+            <span className="inline-block h-3.5 w-3.5 rounded-[3px] bg-brand" />
+            ContractorHub
+          </span>
         )}
         {onToggle && (
           <button
             onClick={onToggle}
             className={cn(
-              "flex h-8 w-8 items-center justify-center rounded-md text-gray-400 hover:bg-gray-800 hover:text-white transition-colors",
+              "flex h-8 w-8 items-center justify-center rounded-md text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-white transition-colors",
               collapsed && "mx-auto"
             )}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -118,21 +148,29 @@ function SidebarNav({ collapsed, displayName, roles, onLogout, onToggle }: Sideb
             key={href}
             href={href}
             className={cn(
-              "flex items-center gap-3 rounded-md px-2 py-2 text-sm font-medium transition-colors",
+              "group relative flex items-center gap-3 rounded-md px-2.5 py-2 text-sm font-medium transition-colors",
               isActive(href)
-                ? "bg-indigo-600 text-white"
-                : "text-gray-300 hover:bg-gray-800 hover:text-white",
+                ? "bg-sidebar-accent text-white"
+                : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-white",
               collapsed && "justify-center px-0"
             )}
             title={collapsed ? label : undefined}
           >
-            <Icon className="h-5 w-5 flex-shrink-0" />
+            {isActive(href) && (
+              <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-full bg-brand" />
+            )}
+            <Icon
+              className={cn(
+                "h-5 w-5 flex-shrink-0",
+                isActive(href) ? "text-brand" : "text-current"
+              )}
+            />
             {!collapsed && <span>{label}</span>}
           </Link>
         ))}
       </nav>
 
-      <Separator className="border-gray-700 bg-gray-700" />
+      <Separator className="bg-sidebar-border" />
 
       {/* Bottom: user section */}
       <div className="p-2">
@@ -142,20 +180,20 @@ function SidebarNav({ collapsed, displayName, roles, onLogout, onToggle }: Sideb
             collapsed && "justify-center px-0"
           )}
         >
-          <Avatar className="flex-shrink-0 bg-indigo-600">
-            <AvatarFallback className="bg-indigo-600 text-white text-xs">
+          <Avatar className="flex-shrink-0 bg-brand">
+            <AvatarFallback className="bg-brand text-brand-foreground text-xs font-semibold">
               {displayName ? displayName.charAt(0).toUpperCase() : "U"}
             </AvatarFallback>
           </Avatar>
           {!collapsed && (
-            <span className="flex-1 truncate text-xs text-gray-300">
+            <span className="flex-1 truncate text-xs text-sidebar-foreground">
               {displayName ?? "User"}
             </span>
           )}
           <button
             onClick={onLogout}
             className={cn(
-              "flex items-center justify-center rounded-md p-1.5 text-gray-400 hover:bg-gray-800 hover:text-white transition-colors",
+              "flex items-center justify-center rounded-md p-1.5 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-white transition-colors",
               collapsed && "mx-auto"
             )}
             title="Log out"
@@ -197,14 +235,14 @@ export function MobileSidebar({ displayName }: MobileSidebarProps) {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center justify-center rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors lg:hidden"
+        className="flex items-center justify-center rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors lg:hidden"
         aria-label="Open menu"
       >
         <Menu className="h-5 w-5" />
       </button>
 
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="left" className="p-0 w-[240px] bg-gray-900">
+        <SheetContent side="left" className="p-0 w-[240px] bg-sidebar border-sidebar-border">
           <SheetHeader className="sr-only">
             <SheetTitle>Navigation</SheetTitle>
           </SheetHeader>

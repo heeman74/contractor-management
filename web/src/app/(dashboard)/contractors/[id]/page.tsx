@@ -182,7 +182,7 @@ export default function ContractorProfilePage({
                         <div
                           className={`w-full rounded px-1 py-2 text-center ${
                             hasBlocks
-                              ? "bg-indigo-100 text-indigo-800"
+                              ? "bg-secondary text-foreground"
                               : "bg-gray-100 text-gray-400"
                           }`}
                         >
@@ -322,15 +322,15 @@ export default function ContractorProfilePage({
               </p>
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1">
-                  <div className="rounded-md bg-indigo-50 p-2 w-fit">
-                    <Briefcase className="h-4 w-4 text-indigo-600" />
+                  <div className="rounded-md bg-secondary p-2 w-fit">
+                    <Briefcase className="h-4 w-4 text-foreground" />
                   </div>
                   <p className="text-2xl font-bold text-gray-900">{activeJobsCount}</p>
                   <p className="text-xs text-gray-500">Active Jobs</p>
                 </div>
                 <div className="flex flex-col gap-1">
-                  <div className="rounded-md bg-indigo-50 p-2 w-fit">
-                    <Clock className="h-4 w-4 text-indigo-600" />
+                  <div className="rounded-md bg-secondary p-2 w-fit">
+                    <Clock className="h-4 w-4 text-foreground" />
                   </div>
                   <p className="text-2xl font-bold text-gray-900">{hoursThisWeek}h</p>
                   <p className="text-xs text-gray-500">Hours This Week</p>

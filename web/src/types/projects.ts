@@ -28,6 +28,20 @@ export interface ProjectResponse {
   trade_scopes?: TradeScopeResponse[];
 }
 
+export interface ProjectAssignmentResponse {
+  id: string;
+  company_id: string;
+  project_id: string;
+  user_id: string;
+  role: string;
+  assigned_at: string;
+  user_name: string;
+  project_name: string;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface TradeCatalogResponse {
   id: string;
   company_id: string;

@@ -7,6 +7,7 @@ import '../../../../core/routing/route_names.dart';
 import '../../../../features/jobs/domain/job_entity.dart';
 import '../../domain/booking_entity.dart';
 import '../../domain/overdue_service.dart';
+import '../../domain/schedule_time_format.dart';
 import '../providers/calendar_providers.dart';
 
 /// Height of the resize handle strips at top and bottom edges of a booking card.
@@ -158,7 +159,7 @@ class _BookingCardState extends State<BookingCard> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                 child: Text(
-                  '${_formatTime(newStart)} - ${_formatTime(newEnd)}',
+                  ScheduleTimeFormat.range(newStart, newEnd),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 10,
@@ -361,13 +362,6 @@ class _BookingCardState extends State<BookingCard> {
     }
   }
 
-  String _formatTime(DateTime time) {
-    final hour = time.hour;
-    final minute = time.minute.toString().padLeft(2, '0');
-    final period = hour < 12 ? 'AM' : 'PM';
-    final h = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
-    return '$h:$minute $period';
-  }
 
   /// Returns true if the job's status history contains a delay entry.
   bool _hasDelayEntry(List<Map<String, dynamic>> statusHistory) {

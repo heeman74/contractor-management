@@ -7,13 +7,12 @@ This prevents tenant isolation bypass vulnerabilities.
 
 import uuid
 
-from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import selectinload
 
 from app.core.base_repository import TenantScopedRepository
-from app.core.base_service import TenantScopedService
+from app.core.base_service import TenantScopedService, entity_or_404
 from app.features.users.models import User, UserRole
 from app.features.users.schemas import RoleAssignment, UserCreate
 
@@ -117,12 +116,7 @@ class UserService(TenantScopedService[User]):
         company_id = self._require_tenant_id()
 
         # Verify user exists
-        user = await self.db.get(User, user_id)
-        if user is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found",
-            )
+        entity_or_404(await self.db.get(User, user_id), "User not found")
 
         user_role = UserRole(
             user_id=user_id,

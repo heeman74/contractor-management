@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Briefcase, FileText, Receipt, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { apiGet } from "@/lib/api-client";
+import { formatRelativeTime } from "@/lib/format";
 import { KpiCard } from "@/components/shared/kpi-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import type { Job } from "@/types/api";
@@ -13,25 +14,6 @@ import type { Job } from "@/types/api";
 interface JobsListResponse {
   items?: Job[];
   total?: number;
-}
-
-function formatRelativeTime(dateStr: string): string {
-  try {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMin = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMin / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffMin < 1) return "just now";
-    if (diffMin < 60) return `${diffMin}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
-  } catch {
-    return "";
-  }
 }
 
 export default function DashboardPage() {

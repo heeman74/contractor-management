@@ -79,7 +79,7 @@ class UserDao extends DatabaseAccessor<AppDatabase> with _$UserDaoMixin {
     return (select(userRoles)
           ..where((tbl) => tbl.userId.equals(userId)))
         .watch()
-        .map((rows) => rows.map(_rowToUserRoleEntity).toList());
+        .map((rows) => rows.map(_rowToUserRoleEntity).whereType<UserRoleEntity>().toList());
   }
 
   /// Insert a new user and atomically enqueue a CREATE sync item.
@@ -182,12 +182,17 @@ class UserDao extends DatabaseAccessor<AppDatabase> with _$UserDaoMixin {
   }
 
   /// Map a Drift [UserRole] row to a [UserRoleEntity] domain object.
-  UserRoleEntity _rowToUserRoleEntity(UserRole row) {
+  ///
+  /// Returns null for an unrecognized role slug so a single unknown row does not
+  /// break the whole list; callers filter with whereType.
+  UserRoleEntity? _rowToUserRoleEntity(UserRole row) {
+    final role = role_enum.UserRole.fromString(row.role);
+    if (role == null) return null;
     return UserRoleEntity(
       id: row.id,
       userId: row.userId,
       companyId: row.companyId,
-      role: role_enum.UserRole.fromString(row.role),
+      role: role,
       createdAt: row.createdAt,
     );
   }

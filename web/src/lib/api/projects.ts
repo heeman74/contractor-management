@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api-client";
 import type {
   ProjectResponse,
+  ProjectAssignmentResponse,
   TradeCatalogResponse,
   TradeScopeResponse,
   TaskResponse,
@@ -32,6 +33,43 @@ export function fetchProject(id: string): Promise<ProjectResponse> {
 
 export function createProject(data: ProjectCreate): Promise<ProjectResponse> {
   return apiPost<ProjectResponse>("/api/v1/projects/", data);
+}
+
+// --- Project assignments (PM / contractor / …) ---
+
+export function fetchProjectAssignments(
+  projectId: string
+): Promise<ProjectAssignmentResponse[]> {
+  return apiGet<ProjectAssignmentResponse[]>(
+    `/api/v1/projects/${projectId}/assignments`
+  );
+}
+
+export function assignToProject(
+  projectId: string,
+  data: { user_id: string; role: string }
+): Promise<ProjectAssignmentResponse> {
+  return apiPost<ProjectAssignmentResponse>(
+    `/api/v1/projects/${projectId}/assignments`,
+    data
+  );
+}
+
+export function unassignFromProject(
+  projectId: string,
+  assignmentId: string
+): Promise<void> {
+  return apiDelete<void>(
+    `/api/v1/projects/${projectId}/assignments/${assignmentId}`
+  );
+}
+
+export function useProjectAssignments(projectId: string) {
+  return useQuery({
+    queryKey: ["project-assignments", projectId],
+    queryFn: () => fetchProjectAssignments(projectId),
+    enabled: !!projectId,
+  });
 }
 
 export function updateProject(

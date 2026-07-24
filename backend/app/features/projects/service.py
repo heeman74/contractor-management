@@ -29,7 +29,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.core.base_service import TenantScopedService
+from app.core.base_service import TenantScopedService, active_entity_or_404
 from app.features.projects.models import (
     Project,
     ProjectZone,
@@ -129,12 +129,7 @@ class ProjectService(TenantScopedService[Project]):
                 f"Valid values: {sorted(_VALID_PROJECT_STATUSES)}",
             )
 
-        project = await self.repository.get_by_id(project_id)
-        if project is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Project {project_id} not found",
-            )
+        project = await self.get_or_404(project_id, detail=f"Project {project_id} not found")
 
         history_entry: dict = {
             "status": new_status,
@@ -420,12 +415,7 @@ class TaskNoteService(TenantScopedService[TaskNote]):
         company_id = self._require_tenant_id()
 
         # Verify task exists (RLS will also enforce tenant scoping)
-        task = await self.db.get(Task, task_id)
-        if task is None or task.deleted_at is not None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Task {task_id} not found",
-            )
+        active_entity_or_404(await self.db.get(Task, task_id), f"Task {task_id} not found")
 
         note = TaskNote(
             company_id=company_id,

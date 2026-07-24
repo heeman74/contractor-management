@@ -13,10 +13,10 @@ Design notes:
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -112,6 +112,33 @@ class ProjectResponse(TenantResponseSchema):
     target_end_date: date | None = None
     status: str
     status_history: list[Any] = []
+
+
+# ---------------------------------------------------------------------------
+# Project assignment schemas — assign people (PM, contractor, foreman, …) to a project
+# ---------------------------------------------------------------------------
+
+# Project-level roles a user can be assigned to a project. Must stay in sync with
+# the project_assignments_role_check DB constraint (migration 0028).
+ProjectAssignmentRole = Literal["project_manager", "contractor", "foreman", "lead", "inspector"]
+
+
+class ProjectAssignmentCreate(BaseModel):
+    """Schema for assigning a user to a project with a project-level role."""
+
+    user_id: uuid.UUID
+    role: ProjectAssignmentRole
+
+
+class ProjectAssignmentResponse(TenantResponseSchema):
+    """A project assignment, with denormalized user/project names for display."""
+
+    project_id: uuid.UUID
+    user_id: uuid.UUID
+    role: str
+    assigned_at: datetime
+    user_name: str = ""
+    project_name: str = ""
 
 
 # ---------------------------------------------------------------------------

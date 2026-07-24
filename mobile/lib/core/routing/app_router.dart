@@ -393,7 +393,7 @@ final routerProvider = Provider.autoDispose<GoRouter>((ref) {
                       container.read(authNotifierProvider);
                   final isContractor = authState is AuthAuthenticated &&
                       authState.roles.contains(UserRole.contractor) &&
-                      !authState.roles.contains(UserRole.admin);
+                      !authState.roles.any((r) => r.isAdminLevel);
 
                   return isContractor
                       ? const ContractorScheduleScreen()
@@ -493,7 +493,7 @@ final routerProvider = Provider.autoDispose<GoRouter>((ref) {
                   final container = ProviderScope.containerOf(context);
                   final authState = container.read(authNotifierProvider);
                   final isAdmin = authState is AuthAuthenticated &&
-                      authState.roles.contains(UserRole.admin);
+                      authState.roles.any((r) => r.isAdminLevel);
 
                   return isAdmin
                       ? const AdminReportsScreen()
@@ -604,21 +604,29 @@ final routerProvider = Provider.autoDispose<GoRouter>((ref) {
 /// Routes not in any role-gated prefix are freely accessible to all
 /// authenticated users (home, jobs, schedule, profile).
 String? _checkRoleAccess(String location, Set<UserRole> roles) {
-  // Admin-gated routes
+  // Admin-gated routes — owner satisfies admin
   if (location.startsWith('/admin')) {
-    if (!roles.contains(UserRole.admin)) return RouteNames.unauthorized;
+    if (!roles.any((r) => r.isAdminLevel)) return RouteNames.unauthorized;
   }
-  // Contractor-gated routes
+  // Contractor-gated routes — open to the field roles
   else if (location.startsWith('/contractor')) {
-    if (!roles.contains(UserRole.contractor)) return RouteNames.unauthorized;
+    if (!roles.any((r) =>
+        r == UserRole.contractor ||
+        r == UserRole.foreman ||
+        r == UserRole.worker)) {
+      return RouteNames.unauthorized;
+    }
   }
   // Client-gated routes
   else if (location.startsWith('/client')) {
     if (!roles.contains(UserRole.client)) return RouteNames.unauthorized;
   }
-  // Foreman-gated routes — foremen are contractors with project assignments
+  // Foreman-gated routes — managers/GC oversee; foremen access their own
   else if (location.startsWith('/foreman')) {
-    if (!roles.contains(UserRole.contractor)) return RouteNames.unauthorized;
+    if (!roles.any((r) =>
+        r.isManagerLevel || r.isGcLevel || r == UserRole.foreman)) {
+      return RouteNames.unauthorized;
+    }
   }
 
   // Allow: authenticated user accessing a non-role-gated route,

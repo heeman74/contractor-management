@@ -8,6 +8,7 @@ import '../../../../core/routing/route_names.dart';
 import '../../../../features/jobs/domain/job_entity.dart';
 import '../../../../features/users/domain/user_entity.dart';
 import '../../domain/booking_entity.dart';
+import '../../domain/schedule_constants.dart';
 import '../providers/calendar_providers.dart';
 import 'calendar_grid_painter.dart';
 import 'contractor_lane.dart';
@@ -216,12 +217,12 @@ class _CalendarDayViewState extends ConsumerState<CalendarDayView> {
         BlockedInterval(
           start: dayStart,
           end: workStart,
-          reason: 'outside_working_hours',
+          reason: BlockedIntervalReason.outsideWorkingHours,
         ),
         BlockedInterval(
           start: workEnd,
           end: dayStart.add(const Duration(days: 1)),
-          reason: 'outside_working_hours',
+          reason: BlockedIntervalReason.outsideWorkingHours,
         ),
       ];
 
@@ -241,12 +242,13 @@ class _CalendarDayViewState extends ConsumerState<CalendarDayView> {
         final current = sortedContractorBookings[i];
         final next = sortedContractorBookings[i + 1];
         final gap = next.timeRangeStart.difference(current.timeRangeEnd);
-        if (gap.inMinutes > 0 && gap.inMinutes <= 60) {
+        if (gap.inMinutes > 0 &&
+            gap.inMinutes <= ScheduleConstants.maxTravelBufferMinutes) {
           blockedIntervals.add(
             BlockedInterval(
               start: current.timeRangeEnd,
               end: next.timeRangeStart,
-              reason: 'travel_buffer',
+              reason: BlockedIntervalReason.travelBuffer,
             ),
           );
         }

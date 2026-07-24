@@ -84,7 +84,7 @@ export function TradeScopeDetail({ scope, onSelectTask }: TradeScopeDetailProps)
             <button
               onClick={() => setOverrideMode(true)}
               title="Click to override status"
-              className="cursor-pointer rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="cursor-pointer rounded focus:outline-none focus:ring-2 focus:ring-ring"
               aria-label="Override status"
             >
               <StatusBadge status={scope.status} />
@@ -109,7 +109,7 @@ export function TradeScopeDetail({ scope, onSelectTask }: TradeScopeDetailProps)
         </div>
         <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
           <div
-            className="h-2 rounded-full bg-indigo-500 transition-all"
+            className="h-2 rounded-full bg-brand transition-all"
             style={{ width: `${progressPercent}%` }}
             role="progressbar"
             aria-valuenow={progressPercent}

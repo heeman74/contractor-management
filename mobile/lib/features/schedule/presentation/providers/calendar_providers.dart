@@ -1,11 +1,8 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // StateProvider moved to legacy in Riverpod 3 — explicitly imported.
 // ignore: depend_on_referenced_packages
 import 'package:riverpod/legacy.dart';
-import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/di/service_locator.dart';
@@ -13,6 +10,28 @@ import '../../../../features/auth/domain/auth_state.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
 import '../../../../features/schedule/domain/booking_entity.dart';
 import '../../../../features/users/domain/user_entity.dart';
+import '../../data/booking_operations_service.dart';
+import '../../domain/booking_operation_models.dart';
+import '../../domain/schedule_constants.dart';
+
+// Re-export models so existing importers keep a single import site.
+export '../../domain/booking_operation_models.dart'
+    show BookingDragData, ConflictInfo, UndoAction, UndoActionType, DayBlock;
+
+/// Subscribes [state] to [stream], propagating data/errors and cancelling on
+/// dispose. Returns the first emission for the AsyncNotifier's initial value.
+Future<List<T>> _bindStream<T>(
+  Ref ref,
+  void Function(AsyncValue<List<T>>) setState,
+  Stream<List<T>> stream,
+) async {
+  final subscription = stream.listen(
+    (items) => setState(AsyncData(items)),
+    onError: (Object error, StackTrace st) => setState(AsyncError(error, st)),
+  );
+  ref.onDispose(subscription.cancel);
+  return stream.first;
+}
 
 // ────────────────────────────────────────────────────────────────────────────
 // View mode enum
@@ -48,8 +67,9 @@ const Map<String, Color> statusColorMap = {
 };
 
 /// Pixels per minute scale factor for the time axis and booking card sizing.
-/// 2.0 px/min = 120px/hour — readable density on mobile without excessive scrolling.
-const double pixelsPerMinute = 2.0;
+///
+/// Alias for [ScheduleConstants.pixelsPerMinute] kept for existing importers.
+const double pixelsPerMinute = ScheduleConstants.pixelsPerMinute;
 
 // ────────────────────────────────────────────────────────────────────────────
 // Calendar state providers (UI state, no async)
@@ -136,20 +156,11 @@ class BookingsForDateNotifier extends AsyncNotifier<List<BookingEntity>> {
     );
     final dayEnd = dayStart.add(const Duration(days: 1));
 
-    final stream = dao.watchBookingsByCompanyAndDateRange(
-      companyId,
-      dayStart,
-      dayEnd,
+    return _bindStream(
+      ref,
+      (value) => state = value,
+      dao.watchBookingsByCompanyAndDateRange(companyId, dayStart, dayEnd),
     );
-
-    // Keep the provider alive while the stream emits; propagate errors.
-    final sub = stream.listen(
-      (bookings) => state = AsyncData(bookings),
-      onError: (Object e, StackTrace st) => state = AsyncError(e, st),
-    );
-    ref.onDispose(sub.cancel);
-
-    return await stream.first;
   }
 }
 
@@ -186,19 +197,11 @@ class BookingsForWeekNotifier extends AsyncNotifier<List<BookingEntity>> {
     // Sunday end = Monday + 7 days
     final sundayEnd = monday.add(const Duration(days: 7));
 
-    final stream = dao.watchBookingsByCompanyAndDateRange(
-      companyId,
-      monday,
-      sundayEnd,
+    return _bindStream(
+      ref,
+      (value) => state = value,
+      dao.watchBookingsByCompanyAndDateRange(companyId, monday, sundayEnd),
     );
-
-    final sub = stream.listen(
-      (bookings) => state = AsyncData(bookings),
-      onError: (Object e, StackTrace st) => state = AsyncError(e, st),
-    );
-    ref.onDispose(sub.cancel);
-
-    return await stream.first;
   }
 }
 
@@ -232,19 +235,11 @@ class BookingsForMonthNotifier extends AsyncNotifier<List<BookingEntity>> {
     // First day of the next month (exclusive end)
     final monthEnd = DateTime(selectedDate.year, selectedDate.month + 1);
 
-    final stream = dao.watchBookingsByCompanyAndDateRange(
-      companyId,
-      monthStart,
-      monthEnd,
+    return _bindStream(
+      ref,
+      (value) => state = value,
+      dao.watchBookingsByCompanyAndDateRange(companyId, monthStart, monthEnd),
     );
-
-    final sub = stream.listen(
-      (bookings) => state = AsyncData(bookings),
-      onError: (Object e, StackTrace st) => state = AsyncError(e, st),
-    );
-    ref.onDispose(sub.cancel);
-
-    return await stream.first;
   }
 }
 
@@ -272,15 +267,11 @@ class ContractorsNotifier extends AsyncNotifier<List<UserEntity>> {
     final db = ref.watch(appDatabaseProvider);
     final companyId = authState.companyId;
 
-    final stream = db.userDao.watchUsersByRole(companyId, 'contractor');
-
-    final sub = stream.listen(
-      (users) => state = AsyncData(users),
-      onError: (Object e, StackTrace st) => state = AsyncError(e, st),
+    return _bindStream(
+      ref,
+      (value) => state = value,
+      db.userDao.watchUsersByRole(companyId, 'contractor'),
     );
-    ref.onDispose(sub.cancel);
-
-    return await stream.first;
   }
 }
 
@@ -323,8 +314,7 @@ final filteredContractorsProvider = Provider<AsyncValue<List<UserEntity>>>(
         filtered = users;
       }
 
-      // Paginate: 5 contractors per page.
-      const perPage = 5;
+      const perPage = ScheduleConstants.contractorsPerPage;
       final start = pageIndex * perPage;
       if (start >= filtered.length) return <UserEntity>[];
       final end =
@@ -340,74 +330,16 @@ final filteredContractorsProvider = Provider<AsyncValue<List<UserEntity>>>(
 final contractorPageCountProvider = Provider<int>((ref) {
   final contractorsAsync = ref.watch(contractorsProvider);
   return contractorsAsync.maybeWhen(
-    data: (users) => (users.length / 5).ceil().clamp(1, 999),
+    data: (users) => (users.length / ScheduleConstants.contractorsPerPage)
+        .ceil()
+        .clamp(1, 999),
     orElse: () => 1,
   );
 });
 
 // ────────────────────────────────────────────────────────────────────────────
-// Drag-and-drop data model
+// Conflict info provider
 // ────────────────────────────────────────────────────────────────────────────
-
-/// Data payload carried by LongPressDraggable for scheduling drag operations.
-///
-/// Used by both the unscheduled jobs drawer (new booking) and existing booking
-/// cards (reassign/move). When [existingBookingId] is non-null, the drag
-/// represents a reassignment rather than a new booking creation.
-class BookingDragData {
-  const BookingDragData({
-    required this.jobId,
-    required this.durationMinutes,
-    this.existingBookingId,
-    this.sourceContractorId,
-    this.previousStart,
-    this.previousEnd,
-    this.previousVersion,
-  });
-
-  /// The job being scheduled or reassigned.
-  final String jobId;
-
-  /// Estimated or actual booking duration in minutes.
-  final int durationMinutes;
-
-  /// Non-null when dragging an existing booking (reassign/move operation).
-  final String? existingBookingId;
-
-  /// Non-null when dragging an existing booking from another contractor's lane.
-  final String? sourceContractorId;
-
-  /// Original start time of the booking being dragged (for cross-lane reassignment).
-  final DateTime? previousStart;
-
-  /// Original end time of the booking being dragged (for cross-lane reassignment).
-  final DateTime? previousEnd;
-
-  /// Version of the booking being dragged (for optimistic concurrency).
-  final int? previousVersion;
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Conflict info model and provider
-// ────────────────────────────────────────────────────────────────────────────
-
-/// Information about a detected scheduling conflict.
-///
-/// Written by ContractorLane's DragTarget.onWillAcceptWithDetails when a
-/// conflict is detected during drag. Read by schedule_screen.dart in
-/// LongPressDraggable.onDragEnd(wasAccepted: false) to show a snackbar.
-class ConflictInfo {
-  const ConflictInfo({
-    required this.conflictingJobDescription,
-    required this.conflictingTimeRange,
-  });
-
-  /// Description of the job that already occupies the target slot.
-  final String conflictingJobDescription;
-
-  /// Human-readable time range of the conflicting booking, e.g. "9:00 AM - 11:30 AM".
-  final String conflictingTimeRange;
-}
 
 /// Holds conflict information detected during a drag operation.
 ///
@@ -427,86 +359,41 @@ final conflictInfoProvider = StateProvider<ConflictInfo?>((ref) => null);
 final showOverduePanelProvider = StateProvider<bool>((ref) => false);
 
 // ────────────────────────────────────────────────────────────────────────────
-// Undo stack model
+// Undo stack + booking operations
 // ────────────────────────────────────────────────────────────────────────────
 
-/// Type of booking mutation for undo tracking.
-enum UndoActionType { create, reassign, resize, multiDayCreate }
-
-/// Snapshot of a booking state before a mutation, enabling undo.
-class UndoAction {
-  const UndoAction({
-    required this.type,
-    required this.bookingId,
-    required this.expectedVersion,
-    this.previousContractorId,
-    this.previousStart,
-    this.previousEnd,
-    this.childBookingIds = const [],
-    this.childExpectedVersions = const [],
-  });
-
-  final UndoActionType type;
-  final String bookingId;
-
-  /// The version the booking will be at after the forward mutation.
-  ///
-  /// Used by [undoLastBooking] as the currentVersion for the reverse operation.
-  /// - For creates: 1 (booking starts at version 1, undo soft-deletes with version 1).
-  /// - For reassign/resize: currentVersion+1 (the version after the forward mutation).
-  /// - For multiDayCreate: 1 for all child bookings (each starts at version 1).
-  final int expectedVersion;
-
-  /// Original contractorId before a reassign operation.
-  final String? previousContractorId;
-
-  /// Original start time before a reassign or resize operation.
-  final DateTime? previousStart;
-
-  /// Original end time before a reassign or resize operation.
-  final DateTime? previousEnd;
-
-  /// Child booking IDs for multi-day creates (all removed on undo).
-  final List<String> childBookingIds;
-
-  /// Expected versions for child bookings (parallel to [childBookingIds]).
-  final List<int> childExpectedVersions;
-}
-
-/// Stack of undoable booking operations (max depth 10).
+/// Stack of undoable booking operations (max [ScheduleConstants.maxUndoDepth]).
 ///
-/// Pushed on every booking mutation. Popped by undoLastBooking().
+/// Pushed on every booking mutation. Popped by
+/// [BookingOperationsNotifier.undoLastBooking].
 final undoStackProvider = StateProvider<List<UndoAction>>((ref) => []);
 
-// ────────────────────────────────────────────────────────────────────────────
-// Booking operations notifier
-// ────────────────────────────────────────────────────────────────────────────
+/// Provides the [BookingOperationsService], wiring the booking and job DAOs.
+///
+/// NOTE: GetIt is used because BookingDao and JobDao are database accessors
+/// registered at startup. This matches the pattern for schedule providers.
+/// (CLAUDE.md: document GetIt<->Riverpod tradeoffs)
+final bookingOperationsServiceProvider =
+    Provider<BookingOperationsService>((ref) {
+  return BookingOperationsService(
+    bookingDao: getIt<BookingDao>(),
+    jobDao: getIt<JobDao>(),
+  );
+});
 
-/// Provides booking mutation methods for the dispatch calendar.
+/// Exposes booking mutation commands for the dispatch calendar.
 ///
-/// Methods: bookSlot, reassignBooking, resizeBooking, undoLastBooking,
-/// bookMultiDay.
-///
-/// All mutations write to Drift + sync queue (offline-first). The undo stack
-/// captures enough state to reverse each operation.
-///
-/// NOTE: GetIt is used to access BookingDao and JobDao because they are
-/// database accessors registered at startup. This is the established pattern
-/// for schedule providers (see bookingDaoProvider). (CLAUDE.md: document
-/// GetIt<->Riverpod tradeoffs)
+/// Delegates all persistence to [BookingOperationsService] and owns only the
+/// Riverpod undo-stack state — keeping business logic out of the UI layer.
 class BookingOperationsNotifier extends Notifier<void> {
-  // Fire-and-forget async pattern: build() is sync because this notifier
-  // exposes imperative methods, not reactive state. Methods are called by UI
-  // and return Futures directly.
+  // build() is sync: this notifier exposes imperative commands, not reactive
+  // state. Methods are called by the UI and return Futures directly.
   @override
   void build() {}
 
-  /// Create a new booking at [slotStart] for [contractorId] on [jobId].
-  ///
-  /// Steps:
-  ///   1. Insert booking into Drift via BookingDao (offline-first).
-  ///   2. If job status is 'quote', auto-transition to 'scheduled' via JobDao.
-  ///   3. Push CREATE to undo stack.
+  BookingOperationsService get _service =>
+      ref.read(bookingOperationsServiceProvider);
+
   Future<String> bookSlot({
     required String companyId,
     required String contractorId,
@@ -517,55 +404,20 @@ class BookingOperationsNotifier extends Notifier<void> {
     int jobCurrentVersion = 1,
     List<Map<String, dynamic>>? jobStatusHistory,
   }) async {
-    final bookingId = const Uuid().v4();
-    final now = DateTime.now();
-    final slotEnd = slotStart.add(Duration(minutes: durationMinutes));
-
-    final bookingDao = getIt<BookingDao>();
-    final jobDao = getIt<JobDao>();
-
-    await bookingDao.createBooking(
-      id: bookingId,
+    final result = await _service.bookSlot(
       companyId: companyId,
       contractorId: contractorId,
       jobId: jobId,
-      timeRangeStart: slotStart,
-      timeRangeEnd: slotEnd,
+      slotStart: slotStart,
+      durationMinutes: durationMinutes,
+      jobCurrentStatus: jobCurrentStatus,
+      jobCurrentVersion: jobCurrentVersion,
+      jobStatusHistory: jobStatusHistory,
     );
-
-    // Auto-transition quote -> scheduled when booking is created.
-    if (jobCurrentStatus == 'quote') {
-      final history = List<Map<String, dynamic>>.from(jobStatusHistory ?? []);
-      history.add({
-        'status': 'scheduled',
-        'timestamp': now.toIso8601String(),
-        'userId': 'system',
-        'reason': 'booking_created',
-      });
-      await jobDao.updateJobStatus(
-        jobId,
-        'scheduled',
-        jsonEncode(history),
-        jobCurrentVersion + 1,
-      );
-    }
-
-    // Push to undo stack (max 10 items).
-    // New bookings start at version 1, so undo soft-delete passes version 1.
-    _pushUndo(UndoAction(
-      type: UndoActionType.create,
-      bookingId: bookingId,
-      expectedVersion: 1,
-    ));
-
-    return bookingId;
+    _pushUndo(result.undo);
+    return result.bookingId;
   }
 
-  /// Reassign an existing booking to a new contractor and/or time slot.
-  ///
-  /// Steps:
-  ///   1. Update booking in Drift (contractorId + time) via BookingDao.
-  ///   2. Push REASSIGN to undo stack with previous state.
   Future<void> reassignBooking({
     required String bookingId,
     required String newContractorId,
@@ -576,32 +428,19 @@ class BookingOperationsNotifier extends Notifier<void> {
     required DateTime previousEnd,
     required int currentVersion,
   }) async {
-    final bookingDao = getIt<BookingDao>();
-
-    await bookingDao.updateBookingContractorAndTime(
-      bookingId,
-      newContractorId,
-      newStart,
-      newEnd,
-      currentVersion,
-    );
-
-    // After reassign, version is currentVersion+1. Undo needs that version.
-    _pushUndo(UndoAction(
-      type: UndoActionType.reassign,
+    final undo = await _service.reassignBooking(
       bookingId: bookingId,
-      expectedVersion: currentVersion + 1,
+      newContractorId: newContractorId,
+      newStart: newStart,
+      newEnd: newEnd,
       previousContractorId: previousContractorId,
       previousStart: previousStart,
       previousEnd: previousEnd,
-    ));
+      currentVersion: currentVersion,
+    );
+    _pushUndo(undo);
   }
 
-  /// Resize a booking's time range.
-  ///
-  /// Steps:
-  ///   1. Update booking time in Drift via BookingDao.
-  ///   2. Push RESIZE to undo stack with previous times.
   Future<void> resizeBooking({
     required String bookingId,
     required DateTime newStart,
@@ -610,142 +449,67 @@ class BookingOperationsNotifier extends Notifier<void> {
     required DateTime previousEnd,
     required int currentVersion,
   }) async {
-    final bookingDao = getIt<BookingDao>();
-
-    await bookingDao.updateBookingTime(
-      bookingId,
-      newStart,
-      newEnd,
-      currentVersion,
-    );
-
-    // After resize, version is currentVersion+1. Undo needs that version.
-    _pushUndo(UndoAction(
-      type: UndoActionType.resize,
+    final undo = await _service.resizeBooking(
       bookingId: bookingId,
-      expectedVersion: currentVersion + 1,
+      newStart: newStart,
+      newEnd: newEnd,
       previousStart: previousStart,
       previousEnd: previousEnd,
-    ));
+      currentVersion: currentVersion,
+    );
+    _pushUndo(undo);
   }
 
-  /// Create multiple additional day bookings for a multi-day job.
-  ///
-  /// [parentBookingId] is the first day's booking (already created via bookSlot).
-  /// Each [DayBlock] in [additionalDays] creates a child booking with dayIndex
-  /// and parentBookingId linking back to the first booking.
   Future<void> bookMultiDay({
     required String companyId,
     required String jobId,
     required String parentBookingId,
     required List<DayBlock> additionalDays,
   }) async {
-    final bookingDao = getIt<BookingDao>();
-    final childIds = <String>[];
-
-    for (var i = 0; i < additionalDays.length; i++) {
-      final day = additionalDays[i];
-      final childId = const Uuid().v4();
-      childIds.add(childId);
-
-      await bookingDao.createBooking(
-        id: childId,
-        companyId: companyId,
-        contractorId: day.contractorId,
-        jobId: jobId,
-        timeRangeStart: day.startTime,
-        timeRangeEnd: day.endTime,
-        dayIndex: i + 1, // 0 = parent, 1+ = additional days
-        parentBookingId: parentBookingId,
-      );
-    }
-
-    // Update undo stack: replace the CREATE action for parentBookingId with
-    // a multiDayCreate that includes all child IDs for group undo.
-    final stack = ref.read(undoStackProvider);
-    final parentIdx = stack.indexWhere(
-      (a) => a.bookingId == parentBookingId && a.type == UndoActionType.create,
+    final undo = await _service.bookMultiDay(
+      companyId: companyId,
+      jobId: jobId,
+      parentBookingId: parentBookingId,
+      additionalDays: additionalDays,
     );
-    if (parentIdx >= 0) {
-      final updated = List<UndoAction>.from(stack);
-      updated[parentIdx] = UndoAction(
-        type: UndoActionType.multiDayCreate,
-        bookingId: parentBookingId,
-        // Parent booking is version 1 (newly created); children are also version 1.
-        expectedVersion: 1,
-        childBookingIds: childIds,
-        childExpectedVersions: List.filled(childIds.length, 1),
-      );
-      ref.read(undoStackProvider.notifier).state = updated;
-    }
+    _replaceParentCreateWithMultiDay(parentBookingId, undo);
   }
 
-  /// Undo the last booking operation.
-  ///
-  /// Pops from the undo stack and reverses the operation:
-  ///   - create: soft-delete the booking
-  ///   - reassign: restore original contractorId + time
-  ///   - resize: restore original start/end times
-  ///   - multiDayCreate: soft-delete parent + all child bookings
   Future<void> undoLastBooking() async {
     final stack = ref.read(undoStackProvider);
     if (stack.isEmpty) return;
 
     final action = stack.last;
-    final newStack = stack.sublist(0, stack.length - 1);
-    ref.read(undoStackProvider.notifier).state = newStack;
-
-    final bookingDao = getIt<BookingDao>();
-
-    switch (action.type) {
-      case UndoActionType.create:
-        await bookingDao.softDeleteBooking(
-            action.bookingId, action.expectedVersion);
-
-      case UndoActionType.reassign:
-        if (action.previousContractorId != null &&
-            action.previousStart != null &&
-            action.previousEnd != null) {
-          await bookingDao.updateBookingContractorAndTime(
-            action.bookingId,
-            action.previousContractorId!,
-            action.previousStart!,
-            action.previousEnd!,
-            action.expectedVersion,
-          );
-        }
-
-      case UndoActionType.resize:
-        if (action.previousStart != null && action.previousEnd != null) {
-          await bookingDao.updateBookingTime(
-            action.bookingId,
-            action.previousStart!,
-            action.previousEnd!,
-            action.expectedVersion,
-          );
-        }
-
-      case UndoActionType.multiDayCreate:
-        // Undo all child bookings first, then the parent.
-        for (var i = 0; i < action.childBookingIds.length; i++) {
-          final childVersion = i < action.childExpectedVersions.length
-              ? action.childExpectedVersions[i]
-              : action.expectedVersion;
-          await bookingDao.softDeleteBooking(
-              action.childBookingIds[i], childVersion);
-        }
-        await bookingDao.softDeleteBooking(
-            action.bookingId, action.expectedVersion);
-    }
+    ref.read(undoStackProvider.notifier).state =
+        stack.sublist(0, stack.length - 1);
+    await _service.undo(action);
   }
 
-  /// Push an undo action, capping the stack at 10 items.
-  void _pushUndo(UndoAction action) {
+  /// Replaces the parent booking's CREATE undo entry with a grouped
+  /// multiDayCreate entry so a single undo removes all days.
+  void _replaceParentCreateWithMultiDay(
+    String parentBookingId,
+    UndoAction multiDayUndo,
+  ) {
     final stack = ref.read(undoStackProvider);
-    final newStack = [...stack, action];
-    // Cap at 10 items — oldest item dropped if over limit.
-    final capped =
-        newStack.length > 10 ? newStack.sublist(newStack.length - 10) : newStack;
+    final parentIndex = stack.indexWhere(
+      (action) =>
+          action.bookingId == parentBookingId &&
+          action.type == UndoActionType.create,
+    );
+    if (parentIndex < 0) return;
+
+    final updated = List<UndoAction>.from(stack);
+    updated[parentIndex] = multiDayUndo;
+    ref.read(undoStackProvider.notifier).state = updated;
+  }
+
+  /// Pushes an undo action, capping the stack at [ScheduleConstants.maxUndoDepth].
+  void _pushUndo(UndoAction action) {
+    final stack = [...ref.read(undoStackProvider), action];
+    final capped = stack.length > ScheduleConstants.maxUndoDepth
+        ? stack.sublist(stack.length - ScheduleConstants.maxUndoDepth)
+        : stack;
     ref.read(undoStackProvider.notifier).state = capped;
   }
 }
@@ -755,20 +519,3 @@ final bookingOperationsProvider =
     NotifierProvider<BookingOperationsNotifier, void>(
   BookingOperationsNotifier.new,
 );
-
-// ────────────────────────────────────────────────────────────────────────────
-// Multi-day booking data model
-// ────────────────────────────────────────────────────────────────────────────
-
-/// Represents a single day block in a multi-day booking wizard.
-class DayBlock {
-  const DayBlock({
-    required this.contractorId,
-    required this.startTime,
-    required this.endTime,
-  });
-
-  final String contractorId;
-  final DateTime startTime;
-  final DateTime endTime;
-}

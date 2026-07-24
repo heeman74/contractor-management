@@ -145,8 +145,8 @@ export function ScheduleGrid({
                     className={cn(
                       "h-7 w-full border cursor-pointer transition-colors",
                       filled
-                        ? "bg-indigo-500 hover:bg-indigo-600 border-indigo-600"
-                        : "bg-gray-100 hover:bg-indigo-100 border-gray-200",
+                        ? "bg-brand hover:bg-primary border-brand"
+                        : "bg-gray-100 hover:bg-secondary border-gray-200",
                       isDragging && "transition-none"
                     )}
                     onPointerDown={(e) => handleCellPointerDown(day, hour, e)}

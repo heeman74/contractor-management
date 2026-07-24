@@ -11,13 +11,13 @@ function ProjectCard({ assignment }: { assignment: ProjectAssignment }) {
   return (
     <Link
       href={`/foreman/status/${assignment.project_id}`}
-      className="flex flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all group"
+      className="flex flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm hover:border-brand/60 hover:shadow-md transition-all group"
     >
       <div className="flex items-center justify-between mb-3">
         <p className="text-sm font-semibold text-gray-900">
           {assignment.project_name ?? "Unnamed Project"}
         </p>
-        <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-indigo-500 transition-colors" />
+        <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-foreground transition-colors" />
       </div>
 
       <p className="text-xs text-gray-500 mb-2">

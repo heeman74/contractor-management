@@ -143,7 +143,7 @@ export function ZoneManageModal({
               )}
             </div>
             <Button
-              className="bg-indigo-600 hover:bg-indigo-700 text-white flex-shrink-0"
+              className="bg-primary hover:bg-primary/90 text-white flex-shrink-0"
               onClick={handleAddZone}
               disabled={isAdding || !newZoneName.trim()}
             >

@@ -42,7 +42,7 @@ export const TradeStatusBadge = memo(function TradeStatusBadge({ badge }: TradeS
         aria-label={`${badge.trade_name} progress: ${clampedPct}%`}
       >
         <div
-          className="h-full rounded-full bg-indigo-500 transition-all"
+          className="h-full rounded-full bg-brand transition-all"
           style={{ width: `${clampedPct}%` }}
         />
       </div>

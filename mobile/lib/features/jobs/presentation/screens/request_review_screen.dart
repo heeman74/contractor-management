@@ -3,11 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/di/service_locator.dart';
-import '../../../../core/network/dio_client.dart';
 import '../../../../core/routing/route_names.dart';
 import '../../../../features/auth/domain/auth_state.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
+import '../../../../shared/utils/date_format_utils.dart';
+import '../../data/job_request_review_service.dart';
 import '../../domain/job_request_entity.dart';
 import '../providers/crm_providers.dart';
 
@@ -271,74 +271,31 @@ class _RequestCard extends ConsumerWidget {
   }
 
   Future<void> _acceptRequest(BuildContext context, WidgetRef ref) async {
-    final dioClient = getIt<DioClient>();
-
+    final service = ref.read(jobRequestReviewServiceProvider);
     try {
-      // POST to backend — backend atomically creates the Job and updates request status.
-      // Do NOT create the job client-side (CONTEXT.md locked decision).
-      final response = await dioClient.instance.post<dynamic>(
-        '/jobs/requests/${request.id}/review',
-        data: {'action': 'accepted'},
-      );
-
+      final job = await service.accept(request.id);
       if (!context.mounted) return;
-
-      // Extract created job data from response for wizard pre-fill.
-      final responseData = response.data;
-      String? createdJobDescription;
-      String? createdJobTradeType;
-      String? createdJobClientId;
-      String? createdJobId;
-
-      if (responseData is Map<String, dynamic>) {
-        // Backend returns {request: {...}, job: {...}} on accept
-        final jobData = responseData['job'];
-        if (jobData is Map<String, dynamic>) {
-          createdJobId = jobData['id'] as String?;
-          createdJobDescription = jobData['description'] as String?;
-          createdJobTradeType = jobData['trade_type'] as String?;
-          createdJobClientId = jobData['client_id'] as String?;
-        }
-      }
-
-      // Navigate to the pre-filled job wizard (Steps 3-4: contractor + schedule).
-      // Using go() with query params — wizard reads them in initState.
-      final params = {
-        if (createdJobId != null) 'jobId': createdJobId,
-        if (createdJobClientId != null) 'clientId': createdJobClientId,
-        if (createdJobDescription != null) 'description': createdJobDescription,
-        if (createdJobTradeType != null) 'tradeType': createdJobTradeType,
-      };
-
-      final queryString = params.entries
-          .map((e) => '${e.key}=${Uri.encodeComponent(e.value)}')
-          .join('&');
-
-      context.go('${RouteNames.jobNew}${queryString.isNotEmpty ? '?$queryString' : ''}');
+      context.go(_wizardRouteFor(job));
     } on DioException catch (e) {
-      if (!context.mounted) return;
-      final statusCode = e.response?.statusCode;
-      final message = switch (statusCode) {
-        401 => 'Not authorised. Please log in again.',
-        403 => 'You do not have permission to accept requests.',
-        404 => 'Request not found — it may have already been reviewed.',
-        422 => 'Invalid request data. Please contact support.',
-        final code when code != null && code >= 500 =>
-          'Server error. Please try again.',
-        _ => 'Failed to accept request. Please try again.',
-      };
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: Colors.red),
-      );
+      _showError(context, JobRequestReviewService.errorMessage(e));
     } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Unexpected error: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showError(context, 'Unexpected error: $e');
     }
+  }
+
+  /// Builds the pre-filled job wizard route from the created job data.
+  /// The wizard reads these query params in initState.
+  String _wizardRouteFor(AcceptedRequestJob job) {
+    final params = {
+      if (job.jobId != null) 'jobId': job.jobId!,
+      if (job.clientId != null) 'clientId': job.clientId!,
+      if (job.description != null) 'description': job.description!,
+      if (job.tradeType != null) 'tradeType': job.tradeType!,
+    };
+    final queryString = params.entries
+        .map((e) => '${e.key}=${Uri.encodeComponent(e.value)}')
+        .join('&');
+    return '${RouteNames.jobNew}${queryString.isNotEmpty ? '?$queryString' : ''}';
   }
 
   // ── Decline ──────────────────────────────────────────────────────────────
@@ -423,39 +380,17 @@ class _RequestCard extends ConsumerWidget {
     required String reason,
     String? message,
   }) async {
-    final dioClient = getIt<DioClient>();
-
+    final service = ref.read(jobRequestReviewServiceProvider);
     try {
-      await dioClient.instance.post<dynamic>(
-        '/jobs/requests/${request.id}/review',
-        data: {
-          'action': 'declined',
-          'decline_reason': reason,
-          if (message != null) 'decline_message': message,
-        },
-      );
-
+      await service.decline(request.id, reason: reason, message: message);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Request declined')),
       );
     } on DioException catch (e) {
-      if (!context.mounted) return;
-      final statusCode = e.response?.statusCode;
-      final msg = statusCode != null && statusCode >= 500
-          ? 'Server error. Please try again.'
-          : 'Failed to decline request.';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg), backgroundColor: Colors.red),
-      );
+      _showError(context, JobRequestReviewService.errorMessage(e));
     } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Unexpected error: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showError(context, 'Unexpected error: $e');
     }
   }
 
@@ -515,45 +450,30 @@ class _RequestCard extends ConsumerWidget {
     WidgetRef ref, {
     String? message,
   }) async {
-    final dioClient = getIt<DioClient>();
-
+    final service = ref.read(jobRequestReviewServiceProvider);
     try {
-      await dioClient.instance.post<dynamic>(
-        '/jobs/requests/${request.id}/review',
-        data: {
-          'action': 'info_requested',
-          if (message != null) 'message': message,
-        },
-      );
-
+      await service.requestInfo(request.id, message: message);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Information requested from client')),
       );
     } on DioException catch (e) {
-      if (!context.mounted) return;
-      final statusCode = e.response?.statusCode;
-      final msg = statusCode != null && statusCode >= 500
-          ? 'Server error. Please try again.'
-          : 'Failed to send request.';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg), backgroundColor: Colors.red),
-      );
+      _showError(context, JobRequestReviewService.errorMessage(e));
     } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Unexpected error: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showError(context, 'Unexpected error: $e');
     }
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  String _formatDate(DateTime date) =>
-      '${date.day}/${date.month}/${date.year}';
+  void _showError(BuildContext context, String message) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
+  }
+
+  String _formatDate(DateTime date) => DateFormatUtils.formatNumericDate(date);
 
   String _formatBudget(double? min, double? max) {
     if (min != null && max != null) {

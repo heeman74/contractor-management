@@ -21,7 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import joinedload, selectinload
 
 from app.core.base_repository import TenantScopedRepository
-from app.core.base_service import TenantScopedService
+from app.core.base_service import TenantScopedService, entity_or_404
 from app.features.jobs.models import Job, JobRequest
 from app.features.jobs.schemas import (
     JobCreate,
@@ -198,12 +198,10 @@ class RequestService(TenantScopedService[JobRequest]):
         Raises 422 if request is not in 'pending' status.
         Only 'accepted', 'declined', 'info_requested' are valid actions.
         """
-        job_request = await self.request_repo.get_with_relations(request_id)
-        if job_request is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Job request {request_id} not found",
-            )
+        job_request = entity_or_404(
+            await self.request_repo.get_with_relations(request_id),
+            f"Job request {request_id} not found",
+        )
 
         if job_request.status != JobRequestStatus.pending:
             raise HTTPException(
@@ -300,13 +298,10 @@ class RequestService(TenantScopedService[JobRequest]):
 
     async def get_request(self, request_id: uuid.UUID) -> JobRequest:
         """Single request by ID with eager-loaded relationships. Raises 404 if not found."""
-        job_request = await self.request_repo.get_with_relations(request_id)
-        if job_request is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Job request {request_id} not found",
-            )
-        return job_request
+        return entity_or_404(
+            await self.request_repo.get_with_relations(request_id),
+            f"Job request {request_id} not found",
+        )
 
     async def list_requests_for_client(self, client_id: uuid.UUID) -> list[JobRequest]:
         """All requests for a specific client (for client's in-app view)."""

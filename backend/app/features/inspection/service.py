@@ -19,7 +19,7 @@ import uuid
 from fastapi import HTTPException, status
 from sqlalchemy import select
 
-from app.core.base_service import TenantScopedService
+from app.core.base_service import TenantScopedService, active_entity_or_404
 from app.features.inspection.models import PunchListItem, SiteWalkFlag, TaskInspection
 from app.features.inspection.repository import (
     PunchListRepository,
@@ -29,6 +29,13 @@ from app.features.inspection.repository import (
 from app.features.projects.models import Task, TaskDependency
 
 logger = logging.getLogger(__name__)
+
+_TASK_STATUS_COMPLETE = "complete"
+_TASK_STATUS_REJECTED = "rejected"
+_INSPECTION_DECISION_REJECTED = "rejected"
+_FLAG_STATUS_OPEN = "open"
+_FLAG_STATUS_CONVERTED = "converted"
+_BLOCKING_DEPENDENCY_TYPES = ("FS", "SS", "SE")
 
 
 class InspectionService(TenantScopedService[TaskInspection]):
@@ -62,15 +69,10 @@ class InspectionService(TenantScopedService[TaskInspection]):
         company_id = self._require_tenant_id()
 
         # 1. Load task — 404 if not found or soft-deleted
-        task = await self.db.get(Task, task_id)
-        if task is None or task.deleted_at is not None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Task not found",
-            )
+        task = active_entity_or_404(await self.db.get(Task, task_id), "Task not found")
 
         # 2. Guard: task must be complete before it can be inspected
-        if task.status != "complete":
+        if task.status != _TASK_STATUS_COMPLETE:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"Task status must be 'complete' to inspect — current status: {task.status}",
@@ -91,8 +93,8 @@ class InspectionService(TenantScopedService[TaskInspection]):
         await self.db.flush()
 
         # 4. On rejection: update task status + re-block successors + FCM
-        if decision == "rejected":
-            task.status = "rejected"
+        if decision == _INSPECTION_DECISION_REJECTED:
+            task.status = _TASK_STATUS_REJECTED
             await self.db.flush()
 
             # Re-block successors that were unblocked when the task was completed
@@ -147,7 +149,7 @@ class InspectionService(TenantScopedService[TaskInspection]):
         dep_svc = DependencyService(self.db)
         for edge in edges:
             # Only FS/SS/SE dependency types block successors (FF does not)
-            if edge.dependency_type in ("FS", "SS", "SE"):
+            if edge.dependency_type in _BLOCKING_DEPENDENCY_TYPES:
                 await dep_svc._recompute_blocked_status(edge.successor_task_id)
 
     async def get_inspections_for_task(self, task_id: uuid.UUID) -> list[TaskInspection]:
@@ -218,14 +220,9 @@ class SiteWalkFlagService(TenantScopedService[SiteWalkFlag]):
         """
         company_id = self._require_tenant_id()
 
-        flag = await self.db.get(SiteWalkFlag, flag_id)
-        if flag is None or flag.deleted_at is not None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Flag not found",
-            )
+        flag = active_entity_or_404(await self.db.get(SiteWalkFlag, flag_id), "Flag not found")
 
-        if flag.status != "open":
+        if flag.status != _FLAG_STATUS_OPEN:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"Flag must be 'open' to convert — current status: {flag.status}",
@@ -249,7 +246,7 @@ class SiteWalkFlagService(TenantScopedService[SiteWalkFlag]):
         self.db.add(punch_item)
 
         # Mark the source flag as converted
-        flag.status = "converted"
+        flag.status = _FLAG_STATUS_CONVERTED
 
         await self.db.flush()
         await self.db.refresh(punch_item)
@@ -310,12 +307,9 @@ class PunchListService(TenantScopedService[PunchListItem]):
 
     async def update_item(self, item_id: uuid.UUID, **kwargs) -> PunchListItem:
         """Partial update a punch list item (status, description, priority, assigned_to, due_date)."""
-        item = await self.db.get(PunchListItem, item_id)
-        if item is None or item.deleted_at is not None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Punch list item not found",
-            )
+        item = active_entity_or_404(
+            await self.db.get(PunchListItem, item_id), "Punch list item not found"
+        )
 
         # Apply only the provided fields (skip None values)
         for field, value in kwargs.items():

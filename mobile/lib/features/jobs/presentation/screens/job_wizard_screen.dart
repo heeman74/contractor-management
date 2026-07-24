@@ -1,19 +1,17 @@
-import 'dart:convert';
-
-import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:internet_connection_checker_plus/internet_connection_checker_plus.dart';
-import 'package:uuid/uuid.dart';
 
-import '../../../../core/database/app_database.dart';
 import '../../../../features/auth/domain/auth_state.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
-import '../../../../features/users/domain/user_entity.dart';
 import '../../../../features/users/presentation/providers/user_providers.dart';
+import '../../../../shared/utils/date_format_utils.dart';
+import '../../data/job_creation_service.dart';
+import '../../domain/job_priority.dart';
 import '../providers/job_providers.dart';
 import '../widgets/address_autocomplete_field.dart';
+import '../widgets/job_wizard_fields.dart';
 
 /// 4-step job creation wizard.
 ///
@@ -44,7 +42,7 @@ class _JobWizardScreenState extends ConsumerState<JobWizardScreen> {
 
   // Step 2 — Address + Trade Type
   final _addressController = TextEditingController();
-  String _selectedTradeType = 'General';
+  String _selectedTradeType = _tradeTypes.first;
 
   // Step 3 — Contractor + Scheduling (optional at Quote)
   String? _selectedContractorId;
@@ -52,7 +50,7 @@ class _JobWizardScreenState extends ConsumerState<JobWizardScreen> {
   DateTime? _preferredDate;
 
   // Step 4 — Review + Priority + Notes
-  String _priority = 'medium';
+  String _priority = JobPriority.medium;
   final _notesController = TextEditingController();
 
   final _scrollController = ScrollController();
@@ -99,7 +97,10 @@ class _JobWizardScreenState extends ConsumerState<JobWizardScreen> {
     super.dispose();
   }
 
-  bool get _isStep1Valid => _descriptionController.text.trim().length >= 10;
+  static const int _minDescriptionLength = 10;
+
+  bool get _isStep1Valid =>
+      _descriptionController.text.trim().length >= _minDescriptionLength;
 
   bool get _isStep2Valid =>
       _selectedTradeType.isNotEmpty && _addressController.text.trim().isNotEmpty;
@@ -188,27 +189,9 @@ class _JobWizardScreenState extends ConsumerState<JobWizardScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (_isOffline)
-              Container(
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: Colors.amber[50],
-                  border: Border.all(color: Colors.amber),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.wifi_off, color: Colors.amber),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'You are offline. Contractor assignment will be '
-                        'available when connectivity is restored.',
-                        style: TextStyle(fontSize: 13),
-                      ),
-                    ),
-                  ],
-                ),
+              const OfflineInfoBanner(
+                message: 'You are offline. Contractor assignment will be '
+                    'available when connectivity is restored.',
               ),
             const Text(
               'Assign a contractor and set scheduling details. '
@@ -225,7 +208,7 @@ class _JobWizardScreenState extends ConsumerState<JobWizardScreen> {
                 title: Text(
                   _preferredDate == null
                       ? 'Preferred date (optional)'
-                      : '${_preferredDate!.day}/${_preferredDate!.month}/${_preferredDate!.year}',
+                      : DateFormatUtils.formatNumericDate(_preferredDate!),
                 ),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () async {
@@ -266,29 +249,10 @@ class _JobWizardScreenState extends ConsumerState<JobWizardScreen> {
         content: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Offline info banner
             if (_isOffline)
-              Container(
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: Colors.amber[50],
-                  border: Border.all(color: Colors.amber),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.wifi_off, color: Colors.amber),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'You are offline. The job will be created at Quote '
-                        'stage. Assign a contractor when connectivity is restored.',
-                        style: TextStyle(fontSize: 13),
-                      ),
-                    ),
-                  ],
-                ),
+              const OfflineInfoBanner(
+                message: 'You are offline. The job will be created at Quote '
+                    'stage. Assign a contractor when connectivity is restored.',
               ),
 
             // Summary card
@@ -324,7 +288,7 @@ class _JobWizardScreenState extends ConsumerState<JobWizardScreen> {
                         label: 'Preferred date',
                         value: _preferredDate == null
                             ? 'Not set'
-                            : '${_preferredDate!.day}/${_preferredDate!.month}/${_preferredDate!.year}',
+                            : DateFormatUtils.formatNumericDate(_preferredDate!),
                       ),
                     ],
                   ],
@@ -341,9 +305,9 @@ class _JobWizardScreenState extends ConsumerState<JobWizardScreen> {
             const SizedBox(height: 8),
             SegmentedButton<String>(
               segments: const [
-                ButtonSegment(value: 'low', label: Text('Low')),
-                ButtonSegment(value: 'medium', label: Text('Medium')),
-                ButtonSegment(value: 'high', label: Text('High')),
+                ButtonSegment(value: JobPriority.low, label: Text('Low')),
+                ButtonSegment(value: JobPriority.medium, label: Text('Medium')),
+                ButtonSegment(value: JobPriority.high, label: Text('High')),
               ],
               selected: {_priority},
               onSelectionChanged: (s) =>
@@ -371,77 +335,41 @@ class _JobWizardScreenState extends ConsumerState<JobWizardScreen> {
     return steps;
   }
 
-  String _displayName(UserEntity u) {
-    final first = u.firstName ?? '';
-    final last = u.lastName ?? '';
-    final full = '$first $last'.trim();
-    return full.isNotEmpty ? full : u.email;
+  String get _companyId {
+    final authState = ref.watch(authNotifierProvider);
+    return authState is AuthAuthenticated ? authState.companyId : '';
   }
 
   Widget _buildClientSelector() {
-    final authState = ref.watch(authNotifierProvider);
-    final companyId =
-        authState is AuthAuthenticated ? authState.companyId : '';
-    final clientsAsync = ref.watch(companyClientsProvider(companyId));
-    final clients = clientsAsync.value ?? [];
-
-    return DropdownButtonFormField<String>(
-      initialValue: _selectedClientId,
-      decoration: const InputDecoration(
-        labelText: 'Client (optional)',
-        prefixIcon: Icon(Icons.person_outline),
-        border: OutlineInputBorder(),
-      ),
-      items: [
-        const DropdownMenuItem<String>(
-          child: Text('No client selected'),
-        ),
-        ...clients.map(
-          (c) => DropdownMenuItem<String>(
-            value: c.id,
-            child: Text(_displayName(c)),
-          ),
-        ),
-      ],
-      onChanged: (v) => setState(() => _selectedClientId = v),
+    final clients = ref.watch(companyClientsProvider(_companyId)).value ?? [];
+    return UserSelectorDropdown(
+      label: 'Client (optional)',
+      icon: Icons.person_outline,
+      emptyOptionLabel: 'No client selected',
+      users: clients,
+      selectedUserId: _selectedClientId,
+      onChanged: (value) => setState(() => _selectedClientId = value),
     );
   }
 
   Widget _buildContractorSelector() {
-    final authState = ref.watch(authNotifierProvider);
-    final companyId =
-        authState is AuthAuthenticated ? authState.companyId : '';
-    final contractorsAsync =
-        ref.watch(companyContractorsProvider(companyId));
-    final contractors = contractorsAsync.value ?? [];
-
-    return DropdownButtonFormField<String>(
-      initialValue: _selectedContractorId,
-      decoration: const InputDecoration(
-        labelText: 'Assign contractor (optional)',
-        prefixIcon: Icon(Icons.engineering_outlined),
-        border: OutlineInputBorder(),
-      ),
-      items: [
-        const DropdownMenuItem<String>(
-          child: Text('No contractor assigned yet'),
-        ),
-        ...contractors.map(
-          (c) => DropdownMenuItem<String>(
-            value: c.id,
-            child: Text(_displayName(c)),
-          ),
-        ),
-      ],
-      onChanged: (v) => setState(() => _selectedContractorId = v),
+    final contractors =
+        ref.watch(companyContractorsProvider(_companyId)).value ?? [];
+    return UserSelectorDropdown(
+      label: 'Assign contractor (optional)',
+      icon: Icons.engineering_outlined,
+      emptyOptionLabel: 'No contractor assigned yet',
+      users: contractors,
+      selectedUserId: _selectedContractorId,
+      onChanged: (value) => setState(() => _selectedContractorId = value),
     );
   }
 
   bool _validateCurrentStep() {
     if (_currentStep == 0) {
-      if (_descriptionController.text.trim().length < 10) {
+      if (_descriptionController.text.trim().length < _minDescriptionLength) {
         setState(() => _errorMessage =
-            'Description must be at least 10 characters.');
+            'Description must be at least $_minDescriptionLength characters.');
         return false;
       }
     }
@@ -456,9 +384,15 @@ class _JobWizardScreenState extends ConsumerState<JobWizardScreen> {
   }
 
   Future<void> _submit() async {
-    if (_descriptionController.text.trim().length < 10) {
-      setState(() =>
-          _errorMessage = 'Description must be at least 10 characters.');
+    if (_descriptionController.text.trim().length < _minDescriptionLength) {
+      setState(() => _errorMessage =
+          'Description must be at least $_minDescriptionLength characters.');
+      return;
+    }
+
+    final authState = ref.read(authNotifierProvider);
+    if (authState is! AuthAuthenticated) {
+      setState(() => _errorMessage = 'Not authenticated.');
       return;
     }
 
@@ -468,58 +402,36 @@ class _JobWizardScreenState extends ConsumerState<JobWizardScreen> {
     });
 
     try {
-      final authState = ref.read(authNotifierProvider);
-      if (authState is! AuthAuthenticated) {
-        setState(() => _errorMessage = 'Not authenticated.');
-        return;
-      }
-
-      final dao = ref.read(jobDaoProvider);
-      final now = DateTime.now();
-      final jobId = const Uuid().v4();
-
-      final statusHistoryJson = jsonEncode([
-        {
-          'status': 'quote',
-          'timestamp': now.toIso8601String(),
-          'user_id': authState.userId,
-        }
-      ]);
-
-      final companion = JobsCompanion(
-        id: Value(jobId),
-        companyId: Value(authState.companyId),
-        description: Value(_descriptionController.text.trim()),
-        tradeType: Value(_selectedTradeType),
-        status: const Value('quote'),
-        statusHistory: Value(statusHistoryJson),
-        priority: Value(_priority),
-        tags: const Value('[]'),
-        version: const Value(1),
-        createdAt: Value(now),
-        updatedAt: Value(now),
-        clientId: Value(_selectedClientId),
-        contractorId: Value(_selectedContractorId),
-        notes: Value(
-          _notesController.text.isEmpty ? null : _notesController.text,
-        ),
-        estimatedDurationMinutes: Value(_estimatedDurationMinutes),
-        scheduledCompletionDate: Value(_preferredDate),
-      );
-
-      await dao.insertJob(companion);
-
+      await ref.read(jobCreationServiceProvider).createJob(
+            companyId: authState.companyId,
+            userId: authState.userId,
+            draft: _buildDraft(),
+          );
       if (mounted) {
         context.pop();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Job created successfully')),
         );
       }
-    } catch (e) {
-      setState(() => _errorMessage = 'Failed to create job: $e');
+    } catch (error) {
+      setState(() => _errorMessage = 'Failed to create job: $error');
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
+  }
+
+  JobDraft _buildDraft() {
+    final notes = _notesController.text;
+    return JobDraft(
+      description: _descriptionController.text.trim(),
+      tradeType: _selectedTradeType,
+      priority: _priority,
+      clientId: _selectedClientId,
+      contractorId: _selectedContractorId,
+      notes: notes.isEmpty ? null : notes,
+      estimatedDurationMinutes: _estimatedDurationMinutes,
+      preferredDate: _preferredDate,
+    );
   }
 
   @override

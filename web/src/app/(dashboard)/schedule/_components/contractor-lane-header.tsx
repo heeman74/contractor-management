@@ -21,7 +21,7 @@ export function ContractorLaneHeader({ resource }: ContractorLaneHeaderProps) {
       </Avatar>
       <Link
         href={`/contractors/${resource.id}`}
-        className="text-sm font-medium text-indigo-600 hover:text-indigo-800 hover:underline truncate max-w-[140px]"
+        className="text-sm font-medium text-foreground hover:text-foreground hover:underline truncate max-w-[140px]"
         onClick={(e) => e.stopPropagation()}
       >
         {resource.name}

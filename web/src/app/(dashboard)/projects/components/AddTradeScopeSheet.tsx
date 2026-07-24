@@ -203,14 +203,14 @@ export function AddTradeScopeSheet({
                         />
                         <span className="flex-1 text-left">{entry.name}</span>
                         {selectedCatalogId === entry.id && (
-                          <Check className="h-3.5 w-3.5 text-indigo-600" />
+                          <Check className="h-3.5 w-3.5 text-foreground" />
                         )}
                       </button>
                     ))}
                     {showNewTradeOption && (
                       <button
                         type="button"
-                        className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-sm text-indigo-600 hover:bg-indigo-50"
+                        className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-secondary"
                         onClick={handleSelectNewTrade}
                         data-testid="create-new-trade-option"
                       >
@@ -277,7 +277,7 @@ export function AddTradeScopeSheet({
                     {specialtyContractors.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.name}{" "}
-                        <span className="text-xs text-indigo-500">
+                        <span className="text-xs text-muted-foreground">
                           (Specialty match)
                         </span>
                       </SelectItem>

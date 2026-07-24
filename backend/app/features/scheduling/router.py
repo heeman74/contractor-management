@@ -22,7 +22,8 @@ Custom domain (not standard CRUD) so CRUDRouter mixin is NOT used per CLAUDE.md 
 from __future__ import annotations
 
 import uuid
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Iterator
+from contextlib import contextmanager
 from datetime import date
 
 import httpx
@@ -31,7 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import CurrentUser, get_current_user
+from app.core.security import CurrentUser, get_current_user, require_permission
 from app.core.tenant import get_current_tenant_id
 from app.features.scheduling.schemas import (
     AvailabilityRequest,
@@ -105,15 +106,6 @@ async def get_scheduling_service(
 # ---------------------------------------------------------------------------
 
 
-def _require_admin(current_user: CurrentUser) -> None:
-    """Raise 403 if the current user is not an admin."""
-    if "admin" not in current_user.roles:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
-
-
 def _booking_to_response(booking) -> BookingResponse:
     """Convert a Booking ORM model to BookingResponse schema.
 
@@ -122,6 +114,41 @@ def _booking_to_response(booking) -> BookingResponse:
     into time_range_start/time_range_end.
     """
     return BookingResponse.model_validate(booking, from_attributes=True)
+
+
+@contextmanager
+def _translate_booking_errors(conflict_message: str) -> Iterator[None]:
+    """Map scheduling domain errors raised by a booking operation to HTTP responses.
+
+    conflict_message is the human-friendly text used for SchedulingConflictError,
+    which differs per endpoint (single-day / multi-day / reschedule).
+    """
+    try:
+        yield
+    except BookingNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except SchedulingConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": conflict_message,
+                "conflicts": [c.model_dump(mode="json") for c in exc.conflicts],
+            },
+        ) from exc
+    except OutsideWorkingHoursError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"message": str(exc)},
+        ) from exc
+    except BookingTooShortError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "message": str(exc),
+                "requested_minutes": exc.requested_minutes,
+                "minimum_minutes": exc.minimum_minutes,
+            },
+        ) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -198,30 +225,8 @@ async def create_booking(
     Returns 409 if the slot conflicts with an existing booking.
     Returns 422 if the booking is outside working hours or below minimum duration.
     """
-    try:
+    with _translate_booking_errors("Booking conflicts with existing schedule"):
         booking = await svc.book_slot(booking_data)
-    except SchedulingConflictError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "message": "Booking conflicts with existing schedule",
-                "conflicts": [c.model_dump(mode="json") for c in exc.conflicts],
-            },
-        ) from exc
-    except OutsideWorkingHoursError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"message": str(exc)},
-        ) from exc
-    except BookingTooShortError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={
-                "message": str(exc),
-                "requested_minutes": exc.requested_minutes,
-                "minimum_minutes": exc.minimum_minutes,
-            },
-        ) from exc
     return _booking_to_response(booking)
 
 
@@ -241,30 +246,8 @@ async def create_multiday_booking(
     the entire booking is rejected — no partial bookings are created.
     Returns 409 if any day conflicts with an existing booking.
     """
-    try:
+    with _translate_booking_errors("One or more days conflict with existing bookings"):
         bookings = await svc.book_multiday_job(booking_data)
-    except SchedulingConflictError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "message": "One or more days conflict with existing bookings",
-                "conflicts": [c.model_dump(mode="json") for c in exc.conflicts],
-            },
-        ) from exc
-    except OutsideWorkingHoursError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"message": str(exc)},
-        ) from exc
-    except BookingTooShortError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={
-                "message": str(exc),
-                "requested_minutes": exc.requested_minutes,
-                "minimum_minutes": exc.minimum_minutes,
-            },
-        ) from exc
     return [_booking_to_response(b) for b in bookings]
 
 
@@ -315,7 +298,7 @@ async def delete_booking(
     from conflict checks.
     Returns 404 if the booking is not found or already deleted.
     """
-    _require_admin(current_user)
+    await require_permission("schedule.delete")(current_user, svc.db)
     deleted = await svc.repository.soft_delete(booking_id)
     if not deleted:
         raise HTTPException(
@@ -341,36 +324,13 @@ async def reschedule_booking(
     Returns 409 if the new slot conflicts, 422 if outside working hours.
     Optionally reassigns to a different contractor via contractor_id.
     """
-    try:
+    with _translate_booking_errors("New time slot conflicts with existing bookings"):
         new_booking = await svc.reschedule_booking(
             booking_id=booking_id,
             new_start=reschedule_data.start,
             new_end=reschedule_data.end,
             new_contractor_id=reschedule_data.contractor_id,
         )
-    except BookingNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
-    except SchedulingConflictError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "message": "New time slot conflicts with existing bookings",
-                "conflicts": [c.model_dump(mode="json") for c in exc.conflicts],
-            },
-        ) from exc
-    except OutsideWorkingHoursError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"message": str(exc)},
-        ) from exc
-    except BookingTooShortError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"message": str(exc)},
-        ) from exc
     return _booking_to_response(new_booking)
 
 
@@ -454,7 +414,7 @@ async def set_weekly_schedule(
     An empty blocks list clears the contractor's schedule for that day.
     Atomically replaces all existing blocks for (contractor_id, day_of_week).
     """
-    _require_admin(current_user)
+    await require_permission("schedule.edit")(current_user, svc.db)
     created = await svc.set_weekly_schedule(
         contractor_id=contractor_id,
         day_of_week=day_of_week,
@@ -494,7 +454,7 @@ async def set_date_override(
 
     Atomically replaces all existing overrides for (contractor_id, override_date).
     """
-    _require_admin(current_user)
+    await require_permission("schedule.edit")(current_user, svc.db)
     created = await svc.set_date_override(
         contractor_id=contractor_id,
         override_date=override_date,

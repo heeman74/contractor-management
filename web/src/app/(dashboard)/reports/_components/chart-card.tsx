@@ -44,8 +44,8 @@ export function ChartCard({
             <p className="mt-1 text-3xl font-bold text-gray-900">{kpiValue}</p>
           </div>
           <div className="flex items-center gap-2">
-            <div className="rounded-md bg-indigo-50 p-2">
-              <Icon className="h-4 w-4 text-indigo-600" />
+            <div className="rounded-md bg-secondary p-2">
+              <Icon className="h-4 w-4 text-foreground/70" />
             </div>
             <Button
               variant="outline"

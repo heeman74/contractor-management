@@ -5,6 +5,7 @@ import '../../../../features/jobs/domain/job_entity.dart';
 import '../../../../features/users/domain/user_entity.dart';
 import '../../domain/booking_entity.dart';
 import '../../domain/overdue_service.dart';
+import '../../domain/schedule_time_format.dart';
 import '../providers/calendar_providers.dart';
 
 /// Week view: collapsed 7-column grid with contractor rows.
@@ -469,7 +470,7 @@ class _DayCellContent extends StatelessWidget {
                   style: const TextStyle(fontSize: 12),
                 ),
                 subtitle: Text(
-                  _formatTimeRange(
+                  ScheduleTimeFormat.range(
                       booking.timeRangeStart, booking.timeRangeEnd),
                   style: const TextStyle(fontSize: 10),
                 ),
@@ -487,17 +488,6 @@ class _DayCellContent extends StatelessWidget {
     );
   }
 
-  String _formatTimeRange(DateTime start, DateTime end) {
-    return '${_formatTime(start)} - ${_formatTime(end)}';
-  }
-
-  String _formatTime(DateTime time) {
-    final hour = time.hour;
-    final minute = time.minute.toString().padLeft(2, '0');
-    final period = hour < 12 ? 'AM' : 'PM';
-    final h = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
-    return '$h:$minute $period';
-  }
 }
 
 // ─── Pagination controls ──────────────────────────────────────────────────────

@@ -10,17 +10,14 @@ import '../../../../features/users/domain/user_entity.dart';
 import '../../../../features/users/presentation/providers/user_providers.dart';
 import '../../../../shared/models/user_role.dart';
 import '../../domain/booking_entity.dart';
+import '../../domain/schedule_constants.dart';
+import '../../domain/schedule_time_format.dart';
 import '../providers/calendar_providers.dart';
 import 'booking_card.dart';
 import 'calendar_grid_painter.dart';
 import 'multi_day_wizard_dialog.dart';
 import 'travel_time_block.dart';
 import 'unscheduled_jobs_drawer.dart';
-
-/// First visible working hour (slots rendered only for this range).
-const int _workingHoursStart = 6; // 06:00
-const int _workingHoursEnd = 20; // 20:00
-const int _slotMinutes = 15; // 15-minute slots
 
 /// Widget rendering one contractor's day schedule as a vertical time column.
 ///
@@ -215,7 +212,7 @@ class ContractorLane extends ConsumerWidget {
       if (i < sortedBookings.length - 1) {
         final nextBooking = sortedBookings[i + 1];
         final travelInterval = blockedIntervals.where((interval) {
-          return interval.reason == 'travel_buffer' &&
+          return interval.reason == BlockedIntervalReason.travelBuffer &&
               interval.start.isAtSameMomentAs(booking.timeRangeEnd) &&
               interval.end.isAtSameMomentAs(nextBooking.timeRangeStart);
         }).firstOrNull;
@@ -287,15 +284,20 @@ class _DragTargetGrid extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final slotHeight = _slotMinutes * pixelsPerMinute;
-    const totalSlotsStart = _workingHoursStart * 60 ~/ _slotMinutes;
-    const totalSlotsEnd = _workingHoursEnd * 60 ~/ _slotMinutes;
+    final slotHeight = ScheduleConstants.slotMinutes * pixelsPerMinute;
+    const totalSlotsStart = ScheduleConstants.workingHoursStart *
+        ScheduleConstants.minutesPerHour ~/
+        ScheduleConstants.slotMinutes;
+    const totalSlotsEnd = ScheduleConstants.workingHoursEnd *
+        ScheduleConstants.minutesPerHour ~/
+        ScheduleConstants.slotMinutes;
     const slotCount = totalSlotsEnd - totalSlotsStart;
 
     return Stack(
       children: List.generate(slotCount, (index) {
         final slotIndex = totalSlotsStart + index;
-        final slotStartMinutesFromMidnight = slotIndex * _slotMinutes;
+        final slotStartMinutesFromMidnight =
+            slotIndex * ScheduleConstants.slotMinutes;
         final slotStart = dayStart.add(
           Duration(minutes: slotStartMinutesFromMidnight),
         );
@@ -374,7 +376,7 @@ class _SlotDragTarget extends ConsumerWidget {
           // Write conflict info so schedule_screen can display the snackbar.
           final conflictJob = jobs[conflictingBooking.jobId];
           final description = conflictJob?.description ?? 'Unknown job';
-          final timeRange = _formatTimeRange(
+          final timeRange = ScheduleTimeFormat.range(
             conflictingBooking.timeRangeStart,
             conflictingBooking.timeRangeEnd,
           );
@@ -425,11 +427,10 @@ class _SlotDragTarget extends ConsumerWidget {
                     jobStatusHistory: job?.statusHistory,
                   );
 
-          // Check if multi-day wizard should open (> 480 min = 8 hours)
-          if ((job?.estimatedDurationMinutes ?? 0) > 480) {
+          if ((job?.estimatedDurationMinutes ?? 0) >
+              ScheduleConstants.multiDayThresholdMinutes) {
             if (context.mounted) {
-              _showMultiDayWizard(context, ref, bookingId, dragData.jobId,
-                  companyId, contractor.id);
+              _openMultiDayWizard(context, ref, bookingId: bookingId, job: job);
             }
           } else {
             onBookingCreated?.call(bookingId);
@@ -448,7 +449,9 @@ class _SlotDragTarget extends ConsumerWidget {
         // Tap opens the bottom sheet job picker only when slot is empty.
         final isSlotOccupied = bookings.any((b) =>
             slotStart.isBefore(b.timeRangeEnd) &&
-            slotStart.add(const Duration(minutes: 15)).isAfter(b.timeRangeStart));
+            slotStart
+                .add(const Duration(minutes: ScheduleConstants.slotMinutes))
+                .isAfter(b.timeRangeStart));
 
         final child = overlayColor != null
             ? Container(
@@ -496,16 +499,17 @@ class _SlotDragTarget extends ConsumerWidget {
                     contractorId: contractor.id,
                     jobId: job.id,
                     slotStart: slotStart,
-                    durationMinutes: job.estimatedDurationMinutes ?? 60,
+                    durationMinutes: job.estimatedDurationMinutes ??
+                        ScheduleConstants.defaultBookingMinutes,
                     jobCurrentStatus: job.status,
                     jobCurrentVersion: job.version,
                     jobStatusHistory: job.statusHistory,
                   );
 
-          if ((job.estimatedDurationMinutes ?? 0) > 480 &&
+          if ((job.estimatedDurationMinutes ?? 0) >
+                  ScheduleConstants.multiDayThresholdMinutes &&
               context.mounted) {
-            _showMultiDayWizardForTap(
-                context, ref, bookingId, job, companyId, contractor.id);
+            _openMultiDayWizard(context, ref, bookingId: bookingId, job: job);
           } else {
             onBookingCreated?.call(bookingId);
           }
@@ -514,64 +518,18 @@ class _SlotDragTarget extends ConsumerWidget {
     );
   }
 
-  void _showMultiDayWizardForTap(
+  /// Opens the multi-day scheduling wizard for a freshly created [bookingId].
+  ///
+  /// Unifies the drag-drop and tap-to-schedule flows. When [job] is null
+  /// (job details not available locally) sensible fallbacks are used.
+  void _openMultiDayWizard(
     BuildContext context,
-    WidgetRef ref,
-    String bookingId,
-    JobEntity job,
-    String companyId,
-    String contractorId,
-  ) {
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => MultiDayWizardDialog(
-        parentBookingId: bookingId,
-        jobDescription: job.description,
-        firstDayContractorName: contractor.email.split('@').first,
-        firstDayStart: slotStart,
-        firstDayEnd: slotStart.add(Duration(minutes: job.estimatedDurationMinutes ?? 60)),
-        companyId: companyId,
-        defaultContractorId: contractorId,
-        onConfirmed: (additionalDays) async {
-          await ref.read(bookingOperationsProvider.notifier).bookMultiDay(
-                companyId: companyId,
-                jobId: job.id,
-                parentBookingId: bookingId,
-                additionalDays: additionalDays,
-              );
-          onBookingCreated?.call(bookingId);
-        },
-        onCancelled: () async {
-          await ref
-              .read(bookingOperationsProvider.notifier)
-              .undoLastBooking();
-        },
-      ),
-    );
-  }
-
-  String _formatTimeRange(DateTime start, DateTime end) {
-    return '${_formatTime(start)} - ${_formatTime(end)}';
-  }
-
-  String _formatTime(DateTime time) {
-    final hour = time.hour;
-    final minute = time.minute.toString().padLeft(2, '0');
-    final period = hour < 12 ? 'AM' : 'PM';
-    final h = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
-    return '$h:$minute $period';
-  }
-
-  void _showMultiDayWizard(
-    BuildContext context,
-    WidgetRef ref,
-    String bookingId,
-    String jobId,
-    String companyId,
-    String contractorId,
-  ) {
-    final job = jobs[jobId];
+    WidgetRef ref, {
+    required String bookingId,
+    required JobEntity? job,
+  }) {
+    final durationMinutes =
+        job?.estimatedDurationMinutes ?? ScheduleConstants.defaultBookingMinutes;
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -580,24 +538,20 @@ class _SlotDragTarget extends ConsumerWidget {
         jobDescription: job?.description ?? 'Job',
         firstDayContractorName: contractor.email.split('@').first,
         firstDayStart: slotStart,
-        firstDayEnd: slotStart.add(
-          Duration(minutes: job?.estimatedDurationMinutes ?? 60),
-        ),
+        firstDayEnd: slotStart.add(Duration(minutes: durationMinutes)),
         companyId: companyId,
-        defaultContractorId: contractorId,
+        defaultContractorId: contractor.id,
         onConfirmed: (additionalDays) async {
           await ref.read(bookingOperationsProvider.notifier).bookMultiDay(
                 companyId: companyId,
-                jobId: jobId,
+                jobId: job?.id ?? '',
                 parentBookingId: bookingId,
                 additionalDays: additionalDays,
               );
           onBookingCreated?.call(bookingId);
         },
         onCancelled: () async {
-          await ref
-              .read(bookingOperationsProvider.notifier)
-              .undoLastBooking();
+          await ref.read(bookingOperationsProvider.notifier).undoLastBooking();
         },
       ),
     );
@@ -676,7 +630,7 @@ class _TapToScheduleSheetState
                 children: [
                   Expanded(
                     child: Text(
-                      'Schedule at ${_formatTime(widget.slotStart)}',
+                      'Schedule at ${ScheduleTimeFormat.time(widget.slotStart)}',
                       style: theme.textTheme.titleSmall
                           ?.copyWith(fontWeight: FontWeight.w600),
                     ),
@@ -763,7 +717,7 @@ class _TapToScheduleSheetState
                         ),
                         subtitle: Text(
                           '${driftJob.tradeType}'
-                          '${driftJob.estimatedDurationMinutes != null ? '  •  ${_formatDuration(driftJob.estimatedDurationMinutes!)}' : ''}',
+                          '${driftJob.estimatedDurationMinutes != null ? '  •  ${ScheduleTimeFormat.duration(driftJob.estimatedDurationMinutes!)}' : ''}',
                           style: TextStyle(
                             fontSize: 11,
                             color: Colors.grey[600],
@@ -810,20 +764,6 @@ class _TapToScheduleSheetState
     );
   }
 
-  String _formatTime(DateTime time) {
-    final hour = time.hour;
-    final minute = time.minute.toString().padLeft(2, '0');
-    final period = hour < 12 ? 'AM' : 'PM';
-    final h = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
-    return '$h:$minute $period';
-  }
-
-  String _formatDuration(int minutes) {
-    if (minutes < 60) return '${minutes}m';
-    final h = minutes ~/ 60;
-    final m = minutes % 60;
-    return m == 0 ? '${h}h' : '${h}h ${m}m';
-  }
 }
 
 // ─── Internal lane sub-widget ──────────────────────────────────────────────────
@@ -953,8 +893,13 @@ class ContractorLaneHeader extends ConsumerWidget {
 
   Color _roleColor(UserRole role) {
     return switch (role) {
+      UserRole.owner => Colors.deepPurple,
       UserRole.admin => Colors.purple,
+      UserRole.projectManager => Colors.indigo,
+      UserRole.gc => Colors.teal,
+      UserRole.foreman => Colors.brown,
       UserRole.contractor => Colors.blue,
+      UserRole.worker => Colors.cyan,
       UserRole.client => Colors.teal,
     };
   }

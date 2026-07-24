@@ -20,6 +20,7 @@ from app.core.security import (
 from app.core.tenant import set_current_tenant_id
 from app.features.auth.models import RefreshToken
 from app.features.companies.models import Company
+from app.features.rbac.repository import RbacRepository
 from app.features.users.models import User, UserRole
 
 
@@ -87,6 +88,9 @@ class AuthService:
         self.db.add(role)
         await self.db.flush()
 
+        # Seed the editable role -> permission matrix from code-defined defaults.
+        await RbacRepository(self.db).seed_defaults(company_id)
+
         # Generate tokens
         roles = ["admin"]
         access_token = create_access_token(user_id, company_id, roles)
@@ -130,6 +134,15 @@ class AuthService:
             r.role for r in user.roles if r.company_id == user.company_id and r.deleted_at is None
         ]
 
+        # Human-readable identity for the UI (avoids showing raw UUIDs).
+        company = (
+            (await self.db.execute(select(Company).where(Company.id == user.company_id)))
+            .scalars()
+            .first()
+        )
+        company_name = company.name if company else None
+        display_name = f"{user.first_name or ''} {user.last_name or ''}".strip() or user.email
+
         # Generate tokens
         access_token = create_access_token(user.id, user.company_id, roles)
         family_id = str(uuid.uuid4())
@@ -150,6 +163,9 @@ class AuthService:
             "user_id": user.id,
             "company_id": user.company_id,
             "roles": roles,
+            "email": user.email,
+            "display_name": display_name,
+            "company_name": company_name,
         }
 
     async def refresh_tokens(self, refresh_token_str: str) -> dict:

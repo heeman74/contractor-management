@@ -543,12 +543,32 @@ test.describe("Phase 16 -- Quotes", () => {
     });
     await expect(dragHandles).toHaveCount(2);
 
-    // Perform the drag: move second row's handle to first row's handle position
-    // dnd-kit PointerSensor requires distance: 5 activation
+    // Perform the drag: move second row's handle onto the first row's handle.
+    // dnd-kit's PointerSensor needs a real pointer gesture — a single dragTo()
+    // doesn't cross the 5px activation threshold or feed incremental moves to
+    // collision detection, so we drive the mouse manually in steps instead.
     const sourceHandle = dragHandles.nth(1);
     const targetHandle = dragHandles.first();
 
-    await sourceHandle.dragTo(targetHandle);
+    const sourceBox = await sourceHandle.boundingBox();
+    const targetBox = await targetHandle.boundingBox();
+    if (!sourceBox || !targetBox) {
+      throw new Error("Drag handles are not visible");
+    }
+    const startX = sourceBox.x + sourceBox.width / 2;
+    const startY = sourceBox.y + sourceBox.height / 2;
+    const endX = targetBox.x + targetBox.width / 2;
+    const endY = targetBox.y + targetBox.height / 2;
+
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    // Cross the activation distance (>5px) toward the target.
+    await page.mouse.move(startX, startY - 8, { steps: 3 });
+    // Move over the target row in increments so collision detection fires.
+    await page.mouse.move(endX, endY, { steps: 12 });
+    // Settle slightly above the target center, then drop.
+    await page.mouse.move(endX, endY - 4, { steps: 3 });
+    await page.mouse.up();
 
     // After drag, the descriptions should be swapped:
     // line_items.0 should now be "Second Item", line_items.1 should be "First Item"

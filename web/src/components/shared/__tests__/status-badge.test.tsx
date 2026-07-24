@@ -39,6 +39,15 @@ describe("StatusBadge", () => {
     expect(badge.className).toContain("text-red-800");
   });
 
+  test("does not crash when status is undefined (bad API data)", () => {
+    // API data can violate the string type (e.g. non-status status_history
+    // entries). The badge must degrade gracefully, not throw.
+    render(<StatusBadge status={undefined as unknown as string} />);
+    const badge = screen.getByText("unknown");
+    expect(badge.className).toContain("bg-gray-100");
+    expect(badge.className).toContain("text-gray-700");
+  });
+
   test("applies gray fallback for unknown status", () => {
     render(<StatusBadge status="unknown_status" />);
     const badge = screen.getByText("unknown status");
@@ -56,13 +65,13 @@ describe("StatusBadge", () => {
   test("renders with sm size", () => {
     render(<StatusBadge status="draft" size="sm" />);
     const badge = screen.getByText("draft");
-    expect(badge.className).toContain("rounded-full");
+    expect(badge.className).toContain("rounded-sm");
   });
 
   test("renders with default md size", () => {
     render(<StatusBadge status="draft" />);
     const badge = screen.getByText("draft");
-    expect(badge.className).toContain("rounded-full");
+    expect(badge.className).toContain("rounded-sm");
   });
 
   test("maps all green statuses correctly", () => {

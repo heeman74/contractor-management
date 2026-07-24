@@ -22,13 +22,14 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.base_service import entity_or_404
 from app.core.database import get_db
-from app.core.security import CurrentUser, get_current_user
+from app.core.security import CurrentUser, get_current_user, require_permission
 from app.features.companies.models import Company
 from app.features.invoices.schemas import (
     InvoiceCreate,
@@ -61,15 +62,6 @@ router = APIRouter(prefix="/invoices", tags=["invoices"])
 scope_invoice_router = APIRouter(prefix="/trade-scopes/{scope_id}", tags=["trade-scope-invoices"])
 
 
-def _require_admin(current_user: CurrentUser) -> None:
-    """Raise 403 if the current user is not an admin."""
-    if "admin" not in current_user.roles:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
-
-
 # ---------------------------------------------------------------------------
 # Static routes — MUST be declared before /{invoice_id} to prevent shadowing
 # ---------------------------------------------------------------------------
@@ -86,7 +78,7 @@ async def generate_invoice_from_quote(
     Uses SELECT FOR UPDATE on the company row to generate a sequential invoice number.
     Transitions the job to 'invoiced' status.
     """
-    _require_admin(current_user)
+    await require_permission("invoices.create")(current_user, db)
     svc = InvoiceService(db)
     invoice = await svc.generate_from_quote(job_id, current_user.user_id)
     return InvoiceResponse.from_orm_with_totals(invoice)
@@ -105,7 +97,7 @@ async def list_invoices(
     Optional `status` query param filters by payment status (unpaid, partially_paid, paid).
     Soft-deleted invoices are excluded. Paginated via offset/limit.
     """
-    _require_admin(current_user)
+    await require_permission("invoices.view")(current_user, db)
     svc = InvoiceService(db)
     invoices = await svc.repository.list_all()
     invoices = [i for i in invoices if i.deleted_at is None]
@@ -124,11 +116,7 @@ async def get_invoice_for_job(
 ) -> InvoiceResponse:
     """Get the invoice for a job."""
     svc = InvoiceService(db)
-    invoice = await svc.repository.get_for_job(job_id)
-    if invoice is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="No invoice found for job"
-        )
+    invoice = entity_or_404(await svc.repository.get_for_job(job_id), "No invoice found for job")
     return InvoiceResponse.from_orm_with_totals(invoice)
 
 
@@ -147,7 +135,7 @@ async def create_manual_invoice(
 
     For jobs that skip the quote step (e.g., emergency call-outs).
     """
-    _require_admin(current_user)
+    await require_permission("invoices.create")(current_user, db)
     svc = InvoiceService(db)
     invoice = await svc.generate_manual(data, current_user.user_id)
     return InvoiceResponse.from_orm_with_totals(invoice)
@@ -161,9 +149,9 @@ async def get_invoice(
 ) -> InvoiceResponse:
     """Get an invoice with all line items."""
     svc = InvoiceService(db)
-    invoice = await svc.repository.get_with_line_items(invoice_id)
-    if invoice is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+    invoice = entity_or_404(
+        await svc.repository.get_with_line_items(invoice_id), "Invoice not found"
+    )
     return InvoiceResponse.from_orm_with_totals(invoice)
 
 
@@ -175,7 +163,7 @@ async def update_invoice(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> InvoiceResponse:
     """Update an invoice before finalization (admin only)."""
-    _require_admin(current_user)
+    await require_permission("invoices.edit")(current_user, db)
     svc = InvoiceService(db)
     invoice = await svc.update_invoice(invoice_id, data)
     return InvoiceResponse.from_orm_with_totals(invoice)
@@ -188,7 +176,7 @@ async def finalize_invoice(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> InvoiceResponse:
     """Finalize an invoice — prevents further edits (admin only)."""
-    _require_admin(current_user)
+    await require_permission("invoices.finalize")(current_user, db)
     svc = InvoiceService(db)
     invoice = await svc.finalize_invoice(invoice_id)
     return InvoiceResponse.from_orm_with_totals(invoice)
@@ -205,7 +193,7 @@ async def update_payment_status(
 
     Valid: unpaid -> partially_paid -> paid. No paid -> unpaid regression.
     """
-    _require_admin(current_user)
+    await require_permission("invoices.edit")(current_user, db)
     svc = InvoiceService(db)
     invoice = await svc.update_payment_status(invoice_id, data)
     return InvoiceResponse.from_orm_with_totals(invoice)
@@ -219,13 +207,11 @@ async def download_invoice_pdf(
 ) -> Response:
     """Download an invoice as a PDF file."""
     svc = InvoiceService(db)
-    invoice = await svc.repository.get_with_line_items(invoice_id)
-    if invoice is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+    invoice = entity_or_404(
+        await svc.repository.get_with_line_items(invoice_id), "Invoice not found"
+    )
 
-    company = await db.get(Company, invoice.company_id)
-    if company is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found")
+    company = entity_or_404(await db.get(Company, invoice.company_id), "Company not found")
 
     pdf_bytes = await pdf_service.generate_invoice_pdf(invoice, company)
     return Response(
@@ -254,7 +240,7 @@ async def generate_scope_invoice(
     Each completed task becomes a line item with unit_price=0.00 for GC to fill in.
     Inherits tax_rate from the approved quote if one exists.
     """
-    _require_admin(current_user)
+    await require_permission("invoices.create")(current_user, db)
     svc = InvoiceService(db)
     invoice = await svc.generate_from_scope(scope_id, current_user.user_id)
     return InvoiceResponse.from_orm_with_totals(invoice)
@@ -272,7 +258,7 @@ async def generate_progress_invoice(
     Returns 409 if the milestone was already invoiced (double-billing prevention).
     Returns 400 if no approved quote exists for the scope.
     """
-    _require_admin(current_user)
+    await require_permission("invoices.create")(current_user, db)
     svc = InvoiceService(db)
     invoice = await svc.generate_progress_invoice(scope_id, data.milestone_id, current_user.user_id)
     return InvoiceResponse.from_orm_with_totals(invoice)
@@ -290,7 +276,7 @@ async def list_scope_invoices(
 
     from app.features.invoices.models import Invoice
 
-    _require_admin(current_user)
+    await require_permission("invoices.view")(current_user, db)
     result = await db.execute(
         select(Invoice)
         .where(

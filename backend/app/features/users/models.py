@@ -45,7 +45,8 @@ class UserRole(TenantScopedModel):
 
     __table_args__ = (
         CheckConstraint(
-            "role IN ('admin', 'contractor', 'client')",
+            "role IN ('owner', 'admin', 'project_manager', 'gc', "
+            "'foreman', 'contractor', 'worker', 'client')",
             name="valid_role",
         ),
     )

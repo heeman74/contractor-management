@@ -148,6 +148,10 @@ class ChatService(TenantScopedService[ChatThread]):
     # Membership management
     # ------------------------------------------------------------------
 
+    async def is_member(self, thread_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+        """Return True if the user has a membership row in the thread."""
+        return await self.thread_repo.find_membership(thread_id, user_id) is not None
+
     async def ensure_membership(
         self,
         thread_id: uuid.UUID,

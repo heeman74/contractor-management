@@ -25,8 +25,8 @@ export const ProjectStatusCard = memo(function ProjectStatusCard({
       className={cn(
         "w-full text-left rounded-xl bg-white border p-4 shadow-sm hover:shadow-md transition-all focus:outline-none",
         isSelected
-          ? "ring-2 ring-indigo-500 border-indigo-500"
-          : "border-gray-200 hover:border-indigo-300"
+          ? "ring-2 ring-ring border-brand"
+          : "border-gray-200 hover:border-brand/60"
       )}
       aria-pressed={isSelected}
     >
@@ -54,7 +54,7 @@ export const ProjectStatusCard = memo(function ProjectStatusCard({
         aria-label={`Overall progress: ${clampedPct}%`}
       >
         <div
-          className="h-full rounded-full bg-indigo-500 transition-all"
+          className="h-full rounded-full bg-brand transition-all"
           style={{ width: `${clampedPct}%` }}
         />
       </div>

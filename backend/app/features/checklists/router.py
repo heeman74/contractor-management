@@ -12,9 +12,10 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, date, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.base_service import entity_or_404
 from app.core.database import get_db
 from app.core.security import CurrentUser, get_current_user
 from app.features.checklists.schemas import ChecklistResponse
@@ -58,10 +59,5 @@ async def get_checklist(
     (RLS enforces tenant isolation automatically).
     """
     svc = ChecklistService(db)
-    checklist = await svc.get_checklist_by_id(checklist_id)
-    if checklist is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Checklist not found",
-        )
+    checklist = entity_or_404(await svc.get_checklist_by_id(checklist_id), "Checklist not found")
     return ChecklistResponse.model_validate(checklist)

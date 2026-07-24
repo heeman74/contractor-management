@@ -11,6 +11,7 @@ import '../../../../core/di/service_locator.dart';
 import '../../../../features/auth/domain/auth_state.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
 import '../../../../shared/models/user_role.dart';
+import '../../data/task_detail_service.dart';
 
 /// Provider exposing the [ProjectDao] singleton from GetIt.
 ///
@@ -49,6 +50,18 @@ final taskNoteDaoProvider = Provider<TaskNoteDao>((ref) {
 /// NOTE: Same GetIt<->Riverpod tradeoff as taskNoteDaoProvider.
 final taskAttachmentDaoProvider = Provider<TaskAttachmentDao>((ref) {
   return getIt<TaskAttachmentDao>();
+});
+
+/// Streams a single task by ID. Emits null when the task is not found.
+final taskByIdProvider =
+    StreamProvider.autoDispose.family<ProjectTask?, String>((ref, taskId) {
+  return ref.watch(taskDaoProvider).watchTaskById(taskId);
+});
+
+/// Streams a single trade scope by ID. Emits null when not found.
+final tradeScopeByIdProvider =
+    StreamProvider.autoDispose.family<TradeScope?, String>((ref, scopeId) {
+  return ref.watch(tradeScopeDaoProvider).watchScopeById(scopeId);
 });
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -266,6 +279,18 @@ final scopeNameMapProvider = StreamProvider.autoDispose
 /// (CLAUDE.md: document GetIt<->Riverpod tradeoffs)
 final taskInspectionDaoProvider = Provider<TaskInspectionDao>((ref) {
   return getIt<TaskInspectionDao>();
+});
+
+/// Provides the [TaskDetailService], wiring together the DAOs used by the
+/// task detail screen. Reads DAO providers so widget tests can override the
+/// underlying DAOs via ProviderScope.
+final taskDetailServiceProvider = Provider<TaskDetailService>((ref) {
+  return TaskDetailService(
+    taskDao: ref.watch(taskDaoProvider),
+    noteDao: ref.watch(taskNoteDaoProvider),
+    attachmentDao: ref.watch(taskAttachmentDaoProvider),
+    inspectionDao: ref.watch(taskInspectionDaoProvider),
+  );
 });
 
 /// Provider exposing the [SiteWalkFlagDao] singleton from GetIt.
