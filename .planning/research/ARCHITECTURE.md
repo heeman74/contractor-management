@@ -1,876 +1,402 @@
-# Architecture: v3.0 AI-Driven Construction Management
+# Architecture Research
 
-**Domain:** AI-driven multi-trade construction project management — adding to existing FastAPI + Flutter + Next.js platform
-**Researched:** 2026-03-19
-**Confidence:** HIGH (existing codebase inspected directly; Claude API and FastAPI SSE patterns verified via official sources)
+**Domain:** Financial intelligence integration into an existing multi-trade construction management platform (FastAPI + PostgreSQL RLS backend, Next.js web, Flutter mobile)
+**Researched:** 2026-07-24
+**Confidence:** HIGH — grounded in direct reading of the existing codebase (models, services, routers, migrations, scheduler, RBAC catalog), not external ecosystem research.
 
----
+*(Supersedes the previous ARCHITECTURE.md, which covered v3.0 AI/chat/dependency-engine research — that milestone has since shipped through Phase 26.)*
 
-## System Overview
+## Standard Architecture
 
-v3.0 adds five new capability clusters onto the existing infrastructure:
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                     NEW: v3.0 CAPABILITY CLUSTERS                           │
-│                                                                             │
-│  1. AI Agent Service        2. Real-Time Chat      3. Project Hierarchy     │
-│   (Claude API + tools)       (WebSocket/SSE)        (Project→Scope→Task)    │
-│                                                                             │
-│  4. Photo Annotation        5. Cross-Trade Deps    6. Per-Trade Quotes/Inv  │
-│   (Canvas overlay)           (DAG engine)           (extends existing)      │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                    ┌───────────────┴────────────────┐
-                    ▼                                ▼
-┌───────────────────────────┐        ┌───────────────────────────────────────┐
-│   FLUTTER MOBILE (v1 base)│        │        NEXT.JS WEB (v2 base)          │
-│                           │        │                                       │
-│  Online-first + offline   │        │  RSC + TanStack Query + Redux         │
-│  cache for field tasks    │        │  GC dashboard + AI intake chat        │
-│  Drift cache for tasks    │        │  WebSocket chat client                │
-│  WebSocket chat client    │        │  Annotation canvas (Konva.js)         │
-│  CustomPainter annotation │        │  AI response streaming (SSE)          │
-└─────────────┬─────────────┘        └──────────────────┬────────────────────┘
-              │  Bearer token (existing)                 │  httpOnly cookie (existing)
-              └──────────────┬───────────────────────────┘
-                             │ HTTPS REST + SSE + WebSocket
-┌────────────────────────────▼────────────────────────────────────────────────┐
-│                    FASTAPI BACKEND (shared, extended)                        │
-│                                                                             │
-│  EXISTING:                              NEW:                                │
-│  ┌────────────────────────┐            ┌──────────────────────────────────┐ │
-│  │  Auth / JWT / RLS      │            │  AI Agent Service                │ │
-│  │  Jobs / Quotes / Inv   │            │  (Claude API wrapper + tools)    │ │
-│  │  Scheduling / GIST     │            ├──────────────────────────────────┤ │
-│  │  Sync (delta cursor)   │            │  Project / TradeScope / Task     │ │
-│  │  Files / Notifications │            │  (new data model + RLS)         │ │
-│  │  OOP: Base* patterns   │            ├──────────────────────────────────┤ │
-│  └────────────────────────┘            │  Chat Service + WS Manager       │ │
-│                                        │  (ConnectionManager per company) │ │
-│                                        ├──────────────────────────────────┤ │
-│                                        │  Dependency Engine               │ │
-│                                        │  (DAG + topological sort)       │ │
-│                                        ├──────────────────────────────────┤ │
-│                                        │  Annotation Storage              │ │
-│                                        │  (JSON overlay + file ref)      │ │
-│                                        └──────────────────────────────────┘ │
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │           PostgreSQL + RLS (company_id isolation — unchanged)        │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────┘
-                    │
-         ┌──────────┴──────────┐
-         ▼                     ▼
-┌─────────────────┐   ┌────────────────────────┐
-│  Anthropic      │   │  Redis (new)            │
-│  Claude API     │   │  - WS pub/sub           │
-│  (tool use +    │   │  - AI session state     │
-│   streaming)    │   │  - SSE fanout           │
-└─────────────────┘   └────────────────────────┘
-```
-
----
-
-## New Data Model: Project Hierarchy
-
-### Why New Models (Not Extending Job)
-
-The existing `Job` model is a single-trade, single-contractor work unit with a booking calendar slot. A project contains multiple trades with inter-dependencies — a fundamentally different structure. `Job` remains unchanged; projects wrap jobs through a foreign key, preserving backward compatibility.
-
-### Entity Relationship
+### System Overview
 
 ```
-Project (TenantScopedModel — NEW)
-  id, company_id, name, description, address, status
-  ai_session_id (FK → AISession — tracks intake conversation)
-  created_by (FK → User — the GC who initiated)
-  ├── TradeScope (TenantScopedModel — NEW) [one-to-many]
-  │   id, project_id, trade_type, status, ai_interview_session_id
-  │   assigned_contractor_id (FK → User), job_id (FK → Job — nullable)
-  │   quote_id (FK → Quote — per-trade, nullable)
-  │   invoice_id (FK → Invoice — per-trade, nullable)
-  │   ├── Task (TenantScopedModel — NEW) [one-to-many]
-  │   │   id, trade_scope_id, title, description, status
-  │   │   scheduled_date, estimated_hours, materials_needed (JSONB array)
-  │   │   sort_order (for checklist ordering)
-  │   │   dependencies (JSONB adjacency list: [task_id, ...])
-  │   │   ├── TaskNote (TenantScopedModel — NEW) [one-to-many]
-  │   │   │   id, task_id, author_id, body, created_at
-  │   │   └── TaskAttachment (TenantScopedModel — NEW) [one-to-many]
-  │   │       id, task_id, attachment_type (photo/pdf/drawing/annotation)
-  │   │       remote_url, annotation_data (JSONB — overlay vectors), caption
-  │   └── TradeDependency (NEW — junction table) [many-to-many via edges]
-  │       from_scope_id, to_scope_id, dependency_type (finish_to_start, etc.)
-  └── ChatRoom (TenantScopedModel — NEW) [one-to-one with Project]
-      id, project_id, created_at
-      └── ChatMessage (TenantScopedModel — NEW) [one-to-many]
-          id, room_id, sender_id, body, attachment_url, attachment_type
-          message_type (text/photo/file/system), created_at, read_at
-
-AISession (BaseEntityModel — NEW, NOT tenant-scoped per user)
-  id, session_type (project_intake/contractor_interview/schedule_adapt)
-  entity_id (FK to Project or TradeScope — polymorphic via type field)
-  entity_type (project/trade_scope)
-  company_id (for RLS manually), messages (JSONB — conversation history)
-  status (active/complete/error), created_at, updated_at
+┌───────────────────────────────────────────────────────────────────────────┐
+│                        Existing Revenue Side (unchanged)                    │
+│  Quote (job_id | trade_scope_id) ──► Invoice (job_id|trade_scope_id|        │
+│  QuoteLineItem (labor/material)       milestone_id|quote_id, amount_paid)   │
+│  BillingMilestone (trade_scope_id)                                         │
+├───────────────────────────────────────────────────────────────────────────┤
+│                    NEW Cost Side (v4.0 — this milestone)                    │
+│  ┌────────────┐   ┌──────────────┐   ┌────────────┐   ┌────────────────┐   │
+│  │ CostEntry  │   │ LaborRate    │   │ Budget     │   │ TimeEntry (ext) │   │
+│  │ material/  │   │ user_id +    │   │ job_id |   │   │ + trade_scope_  │   │
+│  │ subcontr.  │   │ effective_   │   │ trade_     │   │   id / task_id  │   │
+│  │ job_id |   │   │ hourly_rate  │   │ scope_id + │   │ (nullable, XOR  │   │
+│  │ trade_     │   │              │   │ amount     │   │  with job_id)   │   │
+│  │ scope_id   │   │              │   │            │   │                 │   │
+│  └─────┬──────┘   └──────┬───────┘   └─────┬──────┘   └────────┬────────┘   │
+│        └─────────────────┴─────────────────┴───────────────────┘           │
+│                                  │                                          │
+│                     FinanceService (aggregation, on-the-fly)               │
+│                  revenue (quotes/invoices) − costs (CostEntry +            │
+│                  TimeEntry×LaborRate) = margin, vs Budget = overrun risk   │
+├───────────────────────────────────────────────────────────────────────────┤
+│  finance.* permission gate (require_permission, owner+PM default)          │
+├───────────────────────────────────────────────────────────────────────────┤
+│  AI Profitability Analyzer          │  AI Quote Estimator                  │
+│  (APScheduler cron, reuses          │  (on-demand Claude tool-use call,    │
+│   DashboardAlert + AIService        │   reuses AIService pattern, prices   │
+│   Claude tool-use pattern)          │   from historical QuoteLineItem +    │
+│                                      │   LaborRate)                         │
+├───────────────────────────────────────────────────────────────────────────┤
+│  Web: features/finance/ + (dashboard)/projects/[id] "Financials" tab,     │
+│  cost-entry forms, budget setup, margin charts — TanStack Query via       │
+│  /api/proxy, gated by finance.* on both nav and data                      │
+└───────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Dependency Graph Storage
+### Component Responsibilities
 
-Cross-trade dependencies are stored as an edge table (`TradeDependency`) using an adjacency list pattern. Within a trade scope, task-level dependencies are stored as a JSONB array of prerequisite task IDs on the `Task` model. This avoids a separate task-dependency junction table while keeping queries simple for the task counts typical in construction (5-30 tasks per trade scope).
+| Component | Responsibility | Typical Implementation |
+|-----------|----------------|-------------------------|
+| `CostEntry` (new model) | Record a single actual-cost transaction (material purchase or subcontractor invoice) against a job or trade scope | `TenantScopedModel`, polymorphic `job_id`/`trade_scope_id` (nullable pair, XOR via Pydantic `model_validator`, mirroring `Quote`/`Invoice`) |
+| `LaborRate` (new model) | Effective-dated hourly cost rate per user, used to derive labor cost from time worked | `TenantScopedModel`, `user_id` FK + `hourly_rate` Numeric + `effective_from` date |
+| `Budget` (new model) | Target spend ceiling for a project or trade scope | `TenantScopedModel`, polymorphic `project_id`/`trade_scope_id`, `amount`, `category` (optional: labor/material/subcontractor/total) |
+| `TimeEntry` (extend existing) | Source of actual labor hours | Add nullable `trade_scope_id`, `task_id`; relax `job_id` to nullable; XOR validator (job vs trade scope) so project-hierarchy work can be clocked |
+| `FinanceService` (new, non-CRUD analytical service) | Compute revenue, actual cost, margin, budget-vs-actual for a job/project/trade scope | Plain class like `ReportingService` — not entity CRUD, so it does **not** need `BaseService`/`repository_class`; takes `AsyncSession`, runs aggregate SQL across `Quote`/`Invoice`/`CostEntry`/`TimeEntry`/`LaborRate` |
+| `DashboardAlert` (extend existing, don't duplicate) | Surface AI-generated profitability/margin-erosion/budget-overrun alerts | Add new `alert_type` values (`margin_erosion`, `budget_overrun_risk`) to the existing table already keyed by `project_id`/`trade_scope_id` with `severity`/`impact_text`/`remediation_text` |
+| Financial analysis cron job (new) | Nightly per-company profitability scan → Claude call → persist `DashboardAlert` rows | New function in `app/core/scheduler.py`, reuses `_run_for_all_companies` helper exactly like `run_morning_checklists`/`run_alert_detection` |
+| AI quote estimator (new method on AI-adjacent service) | Single-shot structured generation of labor+material line items priced from company history | Reuses Claude tool-use plumbing from `app/features/ai/service.py` (`AIService`) but as a synchronous, non-conversational call — closer to checklist generation than to the intake interview |
+| `finance.*` permission keys (extend `app/core/permissions.py`) | Gate all financial reads/writes | New catalog entries in a "Finance" group; excluded from `admin`'s auto-derived set; explicitly granted to `owner` (already wildcard) and `project_manager` |
+| Web `features/finance/` (new) | Cost entry forms, budget setup, margin dashboard, AI insight panel | Matches existing `web/src/features/{tasks,chat,ai,media}` convention; new routes under `(dashboard)/projects/[id]` (Financials tab) and a top-level `(dashboard)/finance` or `(dashboard)/reports` extension |
 
-PostgreSQL recursive CTEs traverse the dependency graph for topological sort at schedule-generation time. Cycle detection runs before any edge insert.
-
----
-
-## Component Boundaries
-
-### Backend: New Services (all follow OOP base pattern)
-
-| Component | Inherits From | Responsibility |
-|-----------|--------------|----------------|
-| `ProjectService` | `TenantScopedService[Project]` | CRUD for projects; triggers AI intake; aggregates trade status |
-| `TradeScopeService` | `TenantScopedService[TradeScope]` | Trade scope CRUD; links jobs/quotes/invoices to trade |
-| `TaskService` | `TenantScopedService[Task]` | Task CRUD; daily checklist queries; progress tracking |
-| `AIAgentService` | `BaseService[AISession]` | Wraps Anthropic SDK; manages conversation history; executes tool calls |
-| `DependencyEngineService` | `TenantScopedService[TradeDependency]` | DAG operations: add edge, cycle detection, topological sort, conflict detection |
-| `ChatService` | `TenantScopedService[ChatMessage]` | Persist messages; resolve media URLs; query history |
-| `WebSocketManager` | Not a service (singleton) | In-process connection registry; broadcast to room; integrates with Redis pub/sub for multi-worker |
-| `AnnotationService` | `TenantScopedService[TaskAttachment]` | Store annotation JSON overlay; serve base image + overlay separately |
-
-### Backend: Modified Components
-
-| Component | Change | Risk |
-|-----------|--------|------|
-| `SyncService` | Add delta-sync methods for `Task`, `TaskNote`, `TaskAttachment`, `ChatMessage` — same cursor pattern | LOW — additive |
-| `NotificationService` | Add notification types: `task_assigned`, `checklist_ready`, `chat_message`, `task_approved`, `task_rejected` | LOW — additive |
-| `QuoteService` / `InvoiceService` | Add `trade_scope_id` FK column (nullable, backward-compatible) | LOW — additive field |
-| `config.py` (Settings) | Add `anthropic_api_key: str` field (no default — crash on missing) | LOW |
-
-### Mobile: New Drift Tables
+## Recommended Project Structure
 
 ```
-projects_table         — Project records (cached for offline read)
-trade_scopes_table     — TradeScope per project
-tasks_table            — Task/checklist items (primary offline entity)
-task_notes_table       — Notes added by contractor in field
-task_attachments_table — Photo/drawing refs (URL + local cache path)
-chat_messages_table    — Chat history (cached, scrollback)
+backend/app/features/finance/          # NEW feature module — mirrors billing_milestones/ shape
+├── __init__.py
+├── models.py            # CostEntry, LaborRate, Budget
+├── schemas.py           # Create/Update/Response schemas + XOR model_validators
+├── repository.py        # CostEntryRepository, LaborRateRepository, BudgetRepository
+│                         #   (each: TenantScopedRepository subclass, plain CRUD)
+├── service.py            # CostEntryService, LaborRateService, BudgetService (CRUD)
+│                         # + FinanceService (aggregation/read-only — NOT entity CRUD)
+├── router.py             # /finance/costs, /finance/labor-rates, /finance/budgets,
+│                         # /finance/projects/{id}/margin, /finance/jobs/{id}/margin
+└── ai_quotes.py           # QuoteEstimatorService — on-demand Claude tool-use call
+                          # (kept out of router.py per "small functions" — separate concern)
+
+backend/app/features/jobs/
+└── models.py             # TimeEntry EXTENDED (not new file) — nullable trade_scope_id,
+                          # task_id columns added; job_id relaxed to nullable
+
+backend/app/features/dashboard/
+└── models.py / service.py  # DashboardAlert EXTENDED — new alert_type values, no new table
+
+backend/migrations/versions/
+└── 0030_financial_intelligence.py   # cost_entries, labor_rates, budgets tables,
+                                      # time_entries ALTER, finance.* permission seed
+
+web/src/features/finance/            # NEW — mirrors features/{tasks,ai,media}
+├── components/          # MarginSummaryCard, CostEntryForm, BudgetForm, FinanceAlertPanel
+└── hooks/                # useProjectMargin, useCostEntries, useBudgets (TanStack Query)
+
+web/src/app/(dashboard)/projects/[id]/financials/   # NEW route — permission-gated tab
+web/src/app/(dashboard)/reports/                    # EXTENDED — company-wide margin report
 ```
 
-Mobile maintains the existing outbox queue for task mutations (status updates, notes, photos). New tasks are read-only from sync; contractors cannot create tasks offline — AI generates them server-side.
+### Structure Rationale
 
-### Mobile: Architecture Shift (Online-First)
+- **One `finance/` backend module, not scattered additions** — CostEntry/LaborRate/Budget are new concerns with their own lifecycle and permission surface; bundling them mirrors how `billing_milestones/` was split out from `quotes/`/`invoices/` in v3.0 rather than bolted onto those modules.
+- **`FinanceService` lives in the same file as the CRUD services but is architecturally distinct** — it has no `repository_class`/entity to own; it's a read/aggregation service like `ReportingService` (`app/features/reports/service.py`), which is the existing precedent for "plain class, not `BaseService[T]`" when the job is cross-table analytics rather than owning one entity.
+- **`TimeEntry` is extended in place, not duplicated** — creating a parallel `ProjectTimeEntry` table would fork the labor-tracking source of truth and double the mobile clock-in UI surface. Extending the existing table (nullable `job_id`, new nullable `trade_scope_id`/`task_id`, XOR validator) is consistent with how `Quote`/`Invoice` already solved the identical "job vs trade scope" duality.
+- **`DashboardAlert` is reused, not forked** — it is already a generic (`project_id`, `trade_scope_id`, `severity`, `alert_type`, `impact_text`, `remediation_text`) alert envelope built for exactly this "AI flags a problem, GC/PM sees it in a feed" shape. A new `FinancialAlert` table would duplicate that envelope for no benefit and would require a second alerts-feed UI component.
 
-The v1 outbox-queue pattern remains for task progress mutations (status, notes, photos) because contractors work in basements and job sites with poor connectivity. However:
+## Architectural Patterns
 
-- Project/AI intake is **online-only** (no queue, fail with UI error)
-- Chat is **online-only with local cache** (messages cached in Drift, new sends require connectivity)
-- Daily checklist sync is **pull-on-connect** with aggressive Drift caching for offline read
+### Pattern 1: Polymorphic job-or-trade-scope attachment (XOR via Pydantic validator, not DB constraint)
 
-This is a hybrid: online-first for AI/chat, offline-capable for field execution.
+**What:** Every v4.0 financial table that needs to attach to "the billable unit" uses the exact pattern already established by `Quote`/`Invoice`: two nullable FK columns (`job_id`, `trade_scope_id`), enforced mutually-exclusive-and-at-least-one by a `@model_validator(mode="after")` in the Pydantic create schema — not a DB `CHECK` constraint (the codebase does not use DB-level XOR checks for this; it validates at the schema layer, confirmed in `app/features/quotes/schemas.py`).
 
----
+**When to use:** `CostEntry` and `Budget` both need this. `LaborRate` does not (it's purely `user_id`-scoped, no billable-unit attachment).
 
-## Data Flow: AI Project Intake
+**Why this matters here:** Jobs (v1.0, single-trade, standalone) and Projects→TradeScopes (v3.0, multi-trade hierarchy) are **parallel, non-overlapping systems** — a `Job` has no `project_id` and a `TradeScope` has no direct job link (confirmed by grepping both models). Revenue already flows through both paths independently (`Quote.job_id` XOR `Quote.trade_scope_id`, `Invoice.job_id` XOR `Invoice.trade_scope_id`). Costs and budgets must follow the identical fork or margin computation will have two incompatible cost-attachment models to reconcile.
 
-```
-GC opens "New Project" on web or mobile
-    │
-    v
-POST /api/v1/projects/intake/start
-  ProjectService.create_intake_session()
-    → creates Project(status='intake') + AISession(type='project_intake')
-    → returns {project_id, session_id}
-    │
-    v
-GC types project description in chat UI
-    │
-    v
-POST /api/v1/projects/{id}/intake/message
-  body: {session_id, message}
-    │
-    v
-AIAgentService.process_intake_message()
-  1. Load AISession.messages (conversation history from JSONB)
-  2. Call Anthropic API with tool definitions:
-       - create_trade_scope(trade_type, description, estimated_duration)
-       - set_trade_dependency(from_trade, to_trade, dependency_type)
-       - finalize_project_plan(summary)
-  3. Receive streaming response (SSE back to client — text_delta events)
-  4. If tool_use block in response:
-       - Execute tool (create DB records, set dependencies)
-       - Append tool_result to conversation history
-       - Loop back to Anthropic API (agentic loop, max 10 turns)
-  5. Persist updated messages JSONB to AISession
-    │
-    v
-SSE stream returns text chunks to client as they arrive
-(EventSourceResponse from sse-starlette library)
-    │
-    v
-Project status transitions: 'intake' → 'planning' → 'active' (after contractor interviews)
-```
+**Trade-offs:** Two nullable columns instead of a single polymorphic `(entity_type, entity_id)` pair is slightly more verbose per table, but it's what three existing tables (`Quote`, `Invoice`, and now these) already do — consistency with the established convention outweighs the marginal DRY loss.
 
-## Data Flow: AI Contractor Interview (Trade Scope Planning)
-
-```
-GC assigns contractor to TradeScope → triggers interview
-    │
-    v
-POST /api/v1/trade-scopes/{id}/interview/start
-  AIAgentService.start_contractor_interview()
-    → creates AISession(type='contractor_interview', entity_id=trade_scope_id)
-    → sends FCM push to contractor: "AI needs your input"
-    │
-    v
-Contractor opens interview on mobile (online required)
-    │
-    v
-POST /api/v1/trade-scopes/{id}/interview/message
-  AIAgentService.process_interview_message()
-    Tools available:
-       - create_task(title, description, estimated_hours, materials, sort_order)
-       - add_task_dependency(task_id, depends_on_task_id)
-       - set_photo_requirement(task_id, photo_type, required)
-       - finalize_trade_plan()
-    → Agentic loop creates Task records directly
-    → Returns streaming SSE to mobile
-    │
-    v
-Interview complete → TradeScope.status = 'planned'
-  → FCM to GC: "{contractor} has finalized {trade} plan — {N} tasks created"
-  → GC reviews task list before activating
-```
-
-## Data Flow: Real-Time Chat
-
-```
-GC or Contractor opens chat for a project
-    │
-    v
-WebSocket connect: WS /api/v1/chat/rooms/{room_id}/ws
-  Auth: JWT from query param (WS cannot send headers)
-  WebSocketManager.connect(websocket, room_id, user_id)
-    │
-    v
-Message sent (text or photo-url reference):
-  Client sends JSON: {type: "message", body: "...", attachment_url: "..."}
-    │
-    v
-WebSocketManager receives → ChatService.create_message()
-  → INSERT ChatMessage → flush → get ID
-  → WebSocketManager.broadcast_to_room(room_id, message_payload)
-    → For each connected WS in room: ws.send_json(payload)
-    → Redis PUBLISH to room channel (for other workers)
-    │
-    v
-All connected clients receive message in <100ms
-    │
-    v
-Offline clients: on reconnect, GET /api/v1/chat/rooms/{id}/messages?since={cursor}
-  → Drift cache updated → UI shows full history
-```
-
-### WebSocket Authentication
-
-Standard HTTP headers are unavailable during the WebSocket handshake from mobile clients. The JWT is passed as a query parameter (`?token=...`) and validated immediately after `websocket.accept()`. If validation fails, the connection is closed with code 4001 (unauthorized). This is a standard WebSocket auth pattern — the token is in the TLS-encrypted URL, not a security risk.
-
+**Example (schema layer, mirroring `quotes/schemas.py`):**
 ```python
-# Pattern for WS auth
-@router.websocket("/chat/rooms/{room_id}/ws")
-async def websocket_chat(
-    websocket: WebSocket,
-    room_id: uuid.UUID,
-    token: str,  # from query param
-    db: AsyncSession = Depends(get_db),
-):
-    payload = decode_token(token)
-    if payload is None:
-        await websocket.close(code=4001)
-        return
-    await websocket.accept()
+class CostEntryCreate(BaseModel):
+    job_id: uuid.UUID | None = None
+    trade_scope_id: uuid.UUID | None = None
+    cost_type: str  # 'material' | 'subcontractor' | 'other'
+    amount: Decimal
     ...
+
+    @model_validator(mode="after")
+    def validate_attachment(self) -> "CostEntryCreate":
+        if self.job_id is None and self.trade_scope_id is None:
+            raise ValueError("Either job_id or trade_scope_id must be provided")
+        if self.job_id is not None and self.trade_scope_id is not None:
+            raise ValueError("Provide only one of job_id or trade_scope_id")
+        return self
 ```
 
-## Data Flow: Task Progress (Field Execution)
+### Pattern 2: Effective-dated labor rate, not a single mutable column
 
-```
-Contractor opens daily checklist (offline-capable via Drift cache)
-    │
-    v
-Contractor checks off task / adds note / takes photo
-  → Drift local write (immediate)
-  → Outbox queue entry: {operation: task_status_update, payload: {...}}
-    │
-    v
-On connectivity: SyncEngine drains outbox
-  → PATCH /api/v1/tasks/{id}/progress
-    {status, note, attachment_ids}
-  → TaskService.update_progress()
-    → Updates Task.status, creates TaskNote, links TaskAttachment
-    → Evaluates dependency graph: are any tasks now unblocked?
-    → Sends FCM to GC if task requires inspection
-    │
-    v
-GC receives inspection request on mobile or web
-  → GET /api/v1/tasks/{id} → full task with attachments + annotations
-  → GC: approve / reject / flag as punch list item
-  → PATCH /api/v1/tasks/{id}/inspection
-    → FCM to contractor with decision
-```
+**What:** `LaborRate` is a small append-mostly table (`user_id`, `hourly_rate`, `effective_from`) rather than a `hourly_rate` column on `User`. Labor cost for a given `TimeEntry` is computed by looking up the rate whose `effective_from` is the latest one `<=` the entry's `clocked_in_at` date.
 
-## Data Flow: Photo Annotation
+**When to use:** Any time labor cost needs to be derived after the fact for historical time entries.
 
-```
-GC or contractor views photo on mobile or web
-    │
-    v
-Image loaded from remote_url (existing /files/ static mount)
-    │
-    v
-User draws annotation (arrows, circles, text, measurements):
-  Mobile: Flutter CustomPainter with GestureDetector
-    → Strokes accumulated as List<DrawingStroke> in-memory
-  Web: Konva.js canvas overlay on <img>
-    → Stage JSON serialized in-memory
-    │
-    v
-User taps "Save annotation":
-  POST /api/v1/files/annotations/{attachment_id}
-  body: {annotation_data: <JSON vector format>}
-    → AnnotationService.save()
-      → UPDATE TaskAttachment SET annotation_data = :json_data
-      → Existing remote_url unchanged (base image never modified)
-    │
-    v
-On next load: GET /api/v1/tasks/{id}/attachments
-  Returns attachment with annotation_data field populated
-  Client renders base image → overlays annotation vectors on top
-  (Non-destructive: base photo preserved, annotations re-rendered client-side)
-```
+**Trade-offs:** A single `User.hourly_rate` column is simpler to build and query, but it silently corrupts historical margin data the first time a company gives a worker a raise — every past job's computed labor cost would retroactively change on next read (see Anti-Pattern 2). An effective-dated table costs one extra join and a `get_rate_as_of(user_id, date)` helper, but keeps historical margin figures stable. Given this is explicitly a "profit visibility" feature, correctness of historical numbers matters more than the marginal complexity — recommended as the default. If the team wants to ship the simplest possible v1 cut and accept that historical margins can drift on rate changes, a plain `User.default_hourly_rate` column is the fallback, but should be treated as a known, explicit simplification rather than silently assumed equivalent.
 
-**Annotation JSON format** (stored in `TaskAttachment.annotation_data`):
-
-```json
-{
-  "version": 1,
-  "canvas_width": 1920,
-  "canvas_height": 1080,
-  "strokes": [
-    {"type": "arrow", "x1": 100, "y1": 200, "x2": 300, "y2": 400, "color": "#FF0000", "width": 3},
-    {"type": "circle", "cx": 500, "cy": 300, "r": 50, "color": "#FF0000", "width": 2},
-    {"type": "text", "x": 150, "y": 180, "content": "Fix this joint", "color": "#FF0000", "fontSize": 16},
-    {"type": "measurement", "x1": 100, "y1": 100, "x2": 400, "y2": 100, "label": "2.4m"}
-  ]
-}
-```
-
-Both Flutter and web render the same JSON — Flutter uses `CustomPainter`, web uses Konva.js.
-
----
-
-## AI Agent Service: Integration with Existing OOP Pattern
-
+**Example:**
 ```python
-# backend/app/features/ai/service.py
-
-class AIAgentService(BaseService[AISession]):
-    """Claude API wrapper following OOP base pattern.
-
-    Does NOT inherit TenantScopedService — AISession has company_id
-    stored as a plain column, not via RLS policy, because the session
-    spans multiple DB operations and needs to be queryable by session_id
-    without RLS context set in some background task contexts.
-    """
-    repository_class = AISessionRepository
-
-    # Tool definitions (sent to Claude API on every call)
-    PROJECT_INTAKE_TOOLS: ClassVar[list[dict]] = [
-        {
-            "name": "create_trade_scope",
-            "description": "Create a trade scope within the project being planned",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "trade_type": {"type": "string", "enum": ["plumbing", "electrical", "carpentry", ...]},
-                    "description": {"type": "string"},
-                    "estimated_days": {"type": "integer"},
-                },
-                "required": ["trade_type", "description", "estimated_days"]
-            }
-        },
-        {
-            "name": "set_trade_dependency",
-            "description": "Declare that one trade must complete before another starts",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "predecessor_trade": {"type": "string"},
-                    "successor_trade": {"type": "string"},
-                    "dependency_type": {"type": "string", "enum": ["finish_to_start"]}
-                },
-                "required": ["predecessor_trade", "successor_trade", "dependency_type"]
-            }
-        },
-        {
-            "name": "finalize_project_plan",
-            "description": "Mark the project planning intake as complete",
-            "input_schema": {"type": "object", "properties": {"summary": {"type": "string"}}}
-        }
-    ]
-
-    async def process_message_streaming(
-        self,
-        session_id: uuid.UUID,
-        user_message: str,
-        tools: list[dict],
-    ) -> AsyncGenerator[str, None]:
-        """Process one turn of conversation, yielding SSE-compatible chunks.
-
-        Implements the Claude tool-use agentic loop:
-        1. Append user message to history
-        2. Call Anthropic API with streaming
-        3. Yield text_delta chunks as SSE events
-        4. If tool_use block: execute tool, append tool_result, loop (max 10)
-        5. Persist updated history to AISession.messages JSONB
-        """
-        session = await self.repository.get_by_id(session_id)
-        messages = session.messages  # list from JSONB
-        messages.append({"role": "user", "content": user_message})
-
-        turn = 0
-        while turn < 10:
-            turn += 1
-            async with anthropic_client.messages.stream(
-                model="claude-opus-4-5",
-                max_tokens=4096,
-                tools=tools,
-                messages=messages,
-            ) as stream:
-                tool_calls = []
-                async for event in stream:
-                    if event.type == "content_block_delta" and event.delta.type == "text_delta":
-                        yield f"data: {json.dumps({'type': 'text', 'chunk': event.delta.text})}\n\n"
-                    elif event.type == "content_block_stop" and hasattr(event, "content_block"):
-                        if event.content_block.type == "tool_use":
-                            tool_calls.append(event.content_block)
-
-                final_message = await stream.get_final_message()
-                messages.append({"role": "assistant", "content": final_message.content})
-
-                if not tool_calls or final_message.stop_reason == "end_turn":
-                    break
-
-                # Execute tools and append results
-                tool_results = []
-                for tool_call in tool_calls:
-                    result = await self._execute_tool(tool_call.name, tool_call.input)
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": tool_call.id,
-                        "content": json.dumps(result),
-                    })
-                messages.append({"role": "user", "content": tool_results})
-
-        # Persist conversation history
-        await self.repository.update(session_id, {"messages": messages, "status": "complete"})
-        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+class LaborRate(TenantScopedModel):
+    __tablename__ = "labor_rates"
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    hourly_rate: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False)
+    effective_from: Mapped[date] = mapped_column(Date, nullable=False, server_default="CURRENT_DATE")
 ```
 
----
+### Pattern 3: On-the-fly margin aggregation (no materialized/snapshot table)
 
-## Dependency Engine
+**What:** `FinanceService.get_project_margin(project_id)` / `get_job_margin(job_id)` run live SQL: `SUM(Invoice line-item or Quote total)` for revenue, `SUM(CostEntry.amount)` + `SUM(TimeEntry.duration_seconds/3600 × LaborRate.hourly_rate)` for cost, computed on every request — no `project_financial_snapshots` table, no triggers, no dual-write.
 
-### Storage
+**When to use:** All margin/budget-vs-actual reads, both the web dashboard and the AI analyzer's nightly scan.
 
-Cross-trade dependencies: `trade_dependencies` table (adjacency list):
-```sql
-CREATE TABLE trade_dependencies (
-    from_scope_id UUID NOT NULL REFERENCES trade_scopes(id),
-    to_scope_id   UUID NOT NULL REFERENCES trade_scopes(id),
-    dependency_type TEXT NOT NULL DEFAULT 'finish_to_start',
-    PRIMARY KEY (from_scope_id, to_scope_id)
-);
-```
+**Trade-offs:** This matches the existing precedent set by `ReportingService` (`_get_revenue_by_month`, `_get_contractor_utilization`, `get_utilization_heatmap`, etc.), which already computes cross-table aggregates live rather than maintaining rollup tables. At this project's scale (SMB contractors, tens of active projects and hundreds of time entries/cost entries per company) live aggregation is fast and — critically — always correct, avoiding the invalidation-on-every-cost-entry-write problem a materialized/snapshot approach would introduce. If a specific company later has thousands of cost entries per project and dashboard queries become slow, add a targeted composite index first (`(company_id, trade_scope_id)` on `cost_entries`, matching the style of the existing `0021_performance_indexes.py` migration) before reaching for materialization.
 
-Task-level dependencies: `tasks.dependencies` JSONB array of prerequisite task IDs.
+### Pattern 4: Reuse the AIService/scheduler tool-use pattern for both AI features, but at different call shapes
 
-### Cycle Detection
+**What:** Both new AI features build on the Claude tool-use plumbing already in `app/features/ai/service.py` (`AIService`), but they are **not** the same shape as the existing conversational intake/interview flow:
+- **AI profitability analyzer** = scheduled, batch, one Claude call per project-with-a-signal (mirrors `DashboardService.detect_schedule_slips` → `_find_slip_candidates` → `gather_with_concurrency` → `_call_claude_for_slip`-style helper → `_persist_alerts`, wired into `scheduler.py` via `_run_for_all_companies`).
+- **AI quote estimator** = on-demand, single-turn, structured-output call triggered from the "New Quote" UI action (closer to `ChecklistService.generate_daily_checklists`'s single-shot structured generation than to the multi-turn `AIConversation` used for intake).
 
+**When to use:** Analyzer → cron. Estimator → synchronous request/response endpoint (`POST /finance/quotes/estimate`), not a background job.
+
+**Trade-offs:** Forcing the quote estimator into the conversational `AIConversation` model (used for intake/interview) would add unnecessary state-machine complexity for what is fundamentally "given this job/trade-scope description, propose priced line items" — a single request/response. Keep it stateless.
+
+**Example (scheduler addition, mirrors `run_alert_detection`):**
 ```python
-async def add_trade_dependency(self, from_id: UUID, to_id: UUID) -> None:
-    """Add edge with cycle detection using DFS reachability check.
-    Raises 409 if adding this edge would create a cycle.
-    """
-    # Check if to_id can reach from_id (would create cycle)
-    if await self._can_reach(to_id, from_id):
-        raise HTTPException(409, "Dependency would create a circular dependency")
-    await self.repository.create_edge(from_id, to_id)
+async def run_financial_analysis() -> None:
+    from app.features.finance.service import FinanceService
 
-async def _can_reach(self, source: UUID, target: UUID) -> bool:
-    """BFS reachability using recursive CTE in PostgreSQL."""
-    result = await self.db.execute(
-        text("""
-        WITH RECURSIVE reachable AS (
-            SELECT to_scope_id AS id FROM trade_dependencies WHERE from_scope_id = :source
-            UNION
-            SELECT td.to_scope_id FROM trade_dependencies td
-            JOIN reachable r ON td.from_scope_id = r.id
-        )
-        SELECT EXISTS(SELECT 1 FROM reachable WHERE id = :target)
-        """),
-        {"source": source, "target": target}
+    today = datetime.now(UTC).date()
+    await _run_for_all_companies(
+        job_name="run_financial_analysis",
+        service_class=FinanceService,
+        method_name="analyze_profitability",
+        target_date=today,
     )
-    return result.scalar()
+
+# in lifespan():
+scheduler.add_job(
+    run_financial_analysis,
+    trigger=CronTrigger(hour=20, minute=0),  # end of day, after time entries close out
+    id="financial_analysis",
+    replace_existing=True,
+    misfire_grace_time=ALERT_MISFIRE_GRACE_SECONDS,
+)
 ```
 
-### Schedule Conflict Detection
+## Data Flow
 
-When a task's status changes to `complete`, the dependency engine checks which successor tasks are now unblocked and notifies the relevant contractors. When a task is delayed, the engine recalculates projected completion dates for all successor tasks using topological sort + estimated hours.
-
----
-
-## WebSocket Manager: Multi-Worker Architecture
-
-The `WebSocketManager` is an in-process singleton per worker. For single-worker development, direct broadcast suffices. For production (multiple Uvicorn workers), Redis pub/sub fans out messages across workers.
-
-```python
-# backend/app/features/chat/websocket_manager.py
-
-class WebSocketManager:
-    """In-process WebSocket connection registry with Redis fanout.
-
-    Connections are keyed by room_id. Each room maps to a set of
-    active WebSocket connections in the current process. Redis pub/sub
-    broadcasts to all processes.
-    """
-    def __init__(self, redis_url: str):
-        self._rooms: dict[str, set[WebSocket]] = defaultdict(set)
-        self._redis_url = redis_url
-
-    async def connect(self, ws: WebSocket, room_id: str, user_id: str):
-        await ws.accept()
-        self._rooms[room_id].add(ws)
-
-    async def disconnect(self, ws: WebSocket, room_id: str):
-        self._rooms[room_id].discard(ws)
-
-    async def broadcast(self, room_id: str, payload: dict):
-        """Broadcast to local connections AND publish to Redis for other workers."""
-        message_json = json.dumps(payload)
-        # Local fanout
-        dead = set()
-        for ws in self._rooms.get(room_id, set()):
-            try:
-                await ws.send_text(message_json)
-            except Exception:
-                dead.add(ws)
-        self._rooms[room_id] -= dead
-        # Redis fanout for other workers
-        await self._redis.publish(f"chat:{room_id}", message_json)
-```
-
-Redis is already referenced in `config.py` (`redis_url` field) — it was added for slowapi rate limiting. The same Redis instance handles pub/sub, requiring no new infrastructure dependency.
-
----
-
-## Mobile Architecture Changes
-
-### Online-First Shift
+### Request Flow — Margin dashboard read
 
 ```
-v1 Architecture:        v3 Architecture:
-─────────────────       ─────────────────────────────────────────
-All actions → Outbox
-Outbox → API            AI/Chat → Direct API (fail if offline)
-                        Task progress → Outbox (unchanged)
-                        Daily checklist → Drift cache (read offline)
-                        Projects/Scopes → Drift cache (read offline)
+GC/PM opens Project → Financials tab (web)
+    ↓
+GET /api/proxy → /finance/projects/{id}/margin  [require_permission("finance.margin.view")]
+    ↓
+FinanceRouter → FinanceService.get_project_margin(project_id)
+    ↓ (parallel aggregate queries, no N+1 loops)
+  revenue: SUM(Invoice.amount_paid / line items) across trade_scopes under project
+  cost:    SUM(CostEntry.amount) + SUM(TimeEntry.duration_seconds × LaborRate.hourly_rate)
+  budget:  Budget.amount per trade_scope, compared to cost
+    ↓
+FinanceService returns {revenue, actual_cost, margin, margin_pct, budget_status per trade_scope}
+    ↓
+TanStack Query caches response → MarginSummaryCard, BudgetProgressBar render
 ```
 
-### New Drift Tables
-
-The 19 existing Drift tables gain 6 more: `projects`, `trade_scopes`, `tasks`, `task_notes`, `task_attachments`, `chat_messages`. The `sync` module gains corresponding `SyncHandler` subclasses for each entity, following the existing `SyncRegistry` pattern.
-
-### Chat Client (Flutter)
-
-Uses `web_socket_channel` package (already common in Flutter ecosystem). The chat screen maintains a `WebSocketChannel` connection while visible. On background: channel closed, messages cached in Drift. On foreground return: reconnect + fetch missed messages via REST cursor.
-
-```dart
-// Pattern for Flutter WebSocket chat
-class ChatNotifier extends AsyncNotifier<List<ChatMessage>> {
-  WebSocketChannel? _channel;
-
-  Future<void> connect(String roomId, String token) async {
-    _channel = WebSocketChannel.connect(
-      Uri.parse('wss://api/api/v1/chat/rooms/$roomId/ws?token=$token'),
-    );
-    _channel!.stream.listen(
-      (data) => _handleMessage(jsonDecode(data)),
-      onDone: () => _scheduleReconnect(),
-      onError: (e) => _scheduleReconnect(),
-    );
-  }
-}
-```
-
-### Photo Annotation (Flutter)
-
-Uses `CustomPainter` with `GestureDetector` over the image widget. Strokes are accumulated in provider state and serialized to the JSON format defined above on save. No third-party annotation library needed — the stroke model is simple (arrow, circle, text, measurement).
-
-```dart
-class AnnotationPainter extends CustomPainter {
-  final List<DrawingStroke> strokes;
-  // Renders each stroke type with Canvas API methods
-  // drawLine, drawCircle, drawPath (for arrows), drawParagraph (for text)
-}
-```
-
----
-
-## Web Architecture Changes (Next.js)
-
-### New Pages Required
-
-| Route | Type | Purpose |
-|-------|------|---------|
-| `/projects` | SSR → Client | Project list (GC view) |
-| `/projects/[id]` | SSR → Client | Project detail: trade status, timeline, alerts |
-| `/projects/[id]/intake` | CSR (Client only) | AI intake chat — streaming SSE, no SSR value |
-| `/projects/[id]/trades/[tradeId]` | SSR → Client | Trade scope detail + task list |
-| `/projects/[id]/chat` | CSR | Real-time chat room |
-| `/projects/[id]/inspection` | CSR | GC task inspection flow |
-
-### AI Streaming in Next.js
-
-The intake chat page streams SSE from FastAPI via the existing `/api/proxy/*` Route Handler pattern. `EventSource` in the browser connects to the Next.js proxy, which forwards the stream from FastAPI. This keeps the auth cookie pattern intact — the browser never calls FastAPI directly.
-
-```typescript
-// In intake chat Client Component
-const eventSource = new EventSource('/api/proxy/projects/{id}/intake/message', {
-  // EventSource with POST requires fetch-based SSE (eventsource-parser)
-  // or the Next.js Route Handler does the POST and returns a ReadableStream
-});
-```
-
-**Note:** `EventSource` is GET-only. For POST-initiated SSE (needed for intake chat), the Next.js Route Handler accepts the POST and returns a `ReadableStream` piped from FastAPI's SSE response. The browser uses `fetch()` with `ReadableStream` processing, not `EventSource`. This is a known pattern for SSE with POST bodies.
-
-### Photo Annotation (Web)
-
-Uses **Konva.js** (React-Konva package) — a canvas-based 2D library. The annotation canvas renders as a Konva stage layered over the base image. Strokes are added to a Konva layer, serialized to the same JSON format as Flutter, and saved via the annotation API. Dynamic import with `ssr: false` (Konva requires browser canvas API).
-
----
-
-## New vs Extended: Component Summary
-
-### New Backend Components
-
-| Component | Path | Status |
-|-----------|------|--------|
-| `ProjectService` | `app/features/projects/service.py` | New |
-| `TradeScopeService` | `app/features/projects/trade_service.py` | New |
-| `TaskService` | `app/features/projects/task_service.py` | New |
-| `AIAgentService` | `app/features/ai/service.py` | New |
-| `AISessionRepository` | `app/features/ai/repository.py` | New |
-| `DependencyEngineService` | `app/features/projects/dependency_service.py` | New |
-| `ChatService` | `app/features/chat/service.py` | New |
-| `WebSocketManager` | `app/features/chat/websocket_manager.py` | New (singleton) |
-| `AnnotationService` | `app/features/files/annotation_service.py` | New (extends files feature) |
-| Project/TradeScope/Task models | `app/features/projects/models.py` | New |
-| AISession model | `app/features/ai/models.py` | New |
-| ChatRoom / ChatMessage models | `app/features/chat/models.py` | New |
-
-### Modified Backend Components
-
-| Component | What Changes | Risk |
-|-----------|-------------|------|
-| `SyncService` | Add 6 new `get_{entity}_since()` methods | LOW |
-| `Quote` / `Invoice` models | Add nullable `trade_scope_id` FK | LOW |
-| `NotificationService` | Add 5 new notification types | LOW |
-| `config.py` (Settings) | Add `anthropic_api_key` field | LOW |
-| `main.py` | Mount new routers (projects, ai, chat) | LOW |
-
-### New Mobile Components
-
-| Component | Type | Status |
-|-----------|------|--------|
-| 6 new Drift tables | Database schema | New (Drift migration v7) |
-| `ChatNotifier` + `ChatRepository` | Riverpod + Drift | New |
-| `AnnotationPainter` + `AnnotationNotifier` | Flutter + Riverpod | New |
-| `TaskChecklistScreen` | Flutter screen | New |
-| `ProjectDetailScreen` | Flutter screen | New |
-| `InspectionScreen` (GC) | Flutter screen | New |
-| Sync handlers for 6 entities | `SyncRegistry` additions | New |
-
-### New Web Components
-
-| Component | Path | Status |
-|-----------|------|--------|
-| Projects feature | `web/src/features/projects/` | New |
-| AI intake chat | `web/src/features/projects/intake-chat.tsx` | New |
-| Chat room | `web/src/features/chat/` | New |
-| Annotation canvas | `web/src/features/annotation/` (Konva.js) | New |
-| GC monitoring dashboard | `web/src/features/projects/monitoring-dashboard.tsx` | New |
-
----
-
-## Build Order (Dependency-Constrained)
-
-The key constraint is that AI services, chat, and the dependency engine all depend on the `Project → TradeScope → Task` data model. That model must ship first.
+### Request Flow — Actual-cost capture (materials/subcontractor)
 
 ```
-Phase 1: Project Data Model (no dependencies — pure DB + API)
-  - DB migrations: projects, trade_scopes, tasks, task_notes, task_attachments
-  - Models + Repositories + Services (ProjectService, TradeScopeService, TaskService)
-  - REST CRUD endpoints (no AI yet)
-  - Mobile: 6 new Drift tables + sync handlers
-  - Web: projects list + detail pages (static data, no AI)
-  Deliverable: GCs can manually create projects and trade scopes
-
-Phase 2: Dependency Engine (depends on Phase 1 — needs task/scope IDs)
-  - TradeDependency edge table + DependencyEngineService
-  - Cycle detection + topological sort
-  - Cross-trade conflict detection
-  - API: add/remove dependencies, get ordered schedule
-  Deliverable: GCs can define trade sequencing rules
-
-Phase 3: AI Agent Service (depends on Phase 1 — needs entity IDs to write to)
-  - AISession model + AIAgentService
-  - Claude API integration with streaming SSE
-  - Project intake tools (create_trade_scope, set_dependency, finalize)
-  - Web: AI intake chat UI (streaming SSE rendering)
-  - Mobile: AI contractor interview chat UI (streaming SSE)
-  Deliverable: AI-driven project planning end-to-end
-
-Phase 4: Real-Time Chat (depends on Phase 1 — needs project/room IDs)
-  - ChatRoom + ChatMessage models
-  - ChatService + WebSocketManager
-  - Redis pub/sub for multi-worker fanout
-  - Mobile: WebSocket chat client + Drift cache
-  - Web: Chat room UI
-  Deliverable: Bidirectional GC ↔ contractor chat
-
-Phase 5: Photo Annotation (depends on Phase 1 — TaskAttachment.annotation_data)
-  - AnnotationService (save/load JSON overlay)
-  - Mobile: CustomPainter annotation canvas
-  - Web: Konva.js annotation canvas
-  Deliverable: Annotated photos on tasks
-
-Phase 6: GC Inspection Flow (depends on Phases 3, 5 — needs tasks + annotations)
-  - Task inspection endpoints (approve/reject/flag)
-  - Punch list model
-  - Mobile: InspectionScreen (GC)
-  - Web: Inspection review UI
-  - FCM: inspection request + decision notifications
-  Deliverable: GC can inspect and approve contractor work
-
-Phase 7: Per-Trade Quotes and Invoices (depends on Phase 1 — needs trade_scope_id)
-  - Add trade_scope_id FK to Quote and Invoice (additive migration)
-  - QuoteService + InvoiceService extensions
-  - Web: per-trade quoting UI + project-level aggregation view
-  Deliverable: Full financial lifecycle per trade
-
-Phase 8: AI Schedule Adaptation (depends on Phases 2, 3 — needs DAG + AI)
-  - AIAgentService: schedule_adapt session type
-  - Delay detection + dependency recalculation
-  - AI-generated rescheduling recommendations
-  - Web: AI alerts panel on GC dashboard
-  Deliverable: Proactive schedule management
+Foreman/PM logs a material receipt (web or mobile form)
+    ↓
+POST /finance/costs { trade_scope_id | job_id, cost_type, amount, vendor, incurred_date, attachment_id? }
+    ↓ [require_permission("finance.costs.create")]
+CostEntryService.create() → CostEntryRepository (TenantScopedRepository — RLS applies via company_id)
+    ↓
+Next FinanceService read for that project/job reflects the new spend immediately (on-the-fly, no cache invalidation step needed)
 ```
 
----
+### Request Flow — AI profitability analyzer (nightly)
 
-## Scalability Considerations
+```
+APScheduler cron (20:00 UTC) → run_financial_analysis()
+    ↓
+_run_for_all_companies iterates active companies (bounded concurrency, per-company DB session + tenant context)
+    ↓
+FinanceService.analyze_profitability(company_id, target_date):
+  1. Compute margin/budget-status for every active project/trade_scope (Pattern 3)
+  2. Filter to ones crossing a threshold (margin_pct dropped, budget_status = at_risk/over)
+  3. gather_with_concurrency → Claude tool-use call per flagged item → structured
+     {severity, impact_text, remediation_text}
+  4. Persist as DashboardAlert rows with alert_type='margin_erosion' | 'budget_overrun_risk'
+    ↓
+Existing monitoring dashboard alert feed (web + mobile) shows the new alert types —
+but the alerts list endpoint MUST filter financial alert_types out for callers
+lacking finance.* (see Anti-Pattern 1 below)
+```
 
-| Concern | At 10 companies | At 100 companies | At 1000+ companies |
-|---------|-----------------|------------------|--------------------|
-| AI API costs | Negligible | ~$500/mo estimate | Need caching of identical project types |
-| AI response latency | SSE streaming hides latency (first token < 1s) | Same | Same |
-| WebSocket connections | In-process dict sufficient | Redis pub/sub required (already in build order) | Redis Cluster or dedicated WS service |
-| Conversation history JSONB | 50KB per session, fine | Fine | Archive old sessions to cold storage |
-| Dependency graph queries | Recursive CTE fast for <50 nodes | Fast | Fast — construction projects have bounded graph size |
-| Chat message history | Drift cache on mobile, paginated on web | Index on room_id + created_at | Partition chat_messages table by created_at |
-| Photo storage | Local filesystem (current pattern) | S3/GCS with CDN required | S3/GCS (plan migration in Phase 5) |
+### Key Data Flows
 
----
+1. **Labor cost derivation:** `TimeEntry` (extended with `trade_scope_id`/`task_id`) × `LaborRate` (effective-dated by `user_id`) → computed labor cost, never stored — always derived at read time by `FinanceService`.
+2. **Revenue side is untouched:** `Quote`/`Invoice`/`BillingMilestone` already exist and already carry the job-vs-trade-scope duality; v4.0 only *reads* them, adding zero new revenue-side tables or columns.
+3. **Permission boundary is centralized, not per-field:** financial numbers are only ever returned by `/finance/*` endpoints and the alert feed filter — never added as extra fields on the existing `Project`/`Job`/`TradeScope` response schemas (see Anti-Pattern 1).
 
-## Critical Architecture Decisions
+## Scaling Considerations
 
-| Decision | Recommendation | Rationale |
-|----------|---------------|-----------|
-| AI conversation history storage | JSONB on AISession model | Simple, no extra table, query by session_id; messages array is append-only; 50-200 turns max for construction intake |
-| Task dependency storage | JSONB array on Task for task-level; edge table for trade-level | Task dependencies are bounded (3-10 per task); trade dependencies benefit from join queries |
-| WebSocket auth | JWT in query param, validated on accept() | Standard WS pattern; TLS encrypts the URL; no alternative for mobile WS clients |
-| AI model choice | claude-opus-4-5 for intake/interview; claude-haiku-3-5 for daily checklist generation | Intake/interview require reasoning; checklist is structured template work |
-| Annotation storage | JSON vectors in DB, base image unchanged | Non-destructive; annotations re-renderable client-side; base photo never reprocessed |
-| Online vs offline | Online-first for AI/chat; offline-capable for task execution | AI requires API connectivity; field contractors need offline checklists |
-| Chat message delivery | WebSocket primary, REST fallback for history | WS for real-time; REST for scrollback and offline sync |
-| SSE for AI streaming | `sse-starlette` + `EventSourceResponse` | Standard FastAPI SSE pattern; works with existing auth proxy |
+| Scale | Architecture Adjustments |
+|-------|---------------------------|
+| Current (SMB contractors, tens of projects/company) | On-the-fly `FinanceService` aggregation is fine; no snapshot tables needed |
+| Growth (hundreds of cost entries + time entries per project) | Add composite indexes: `(company_id, trade_scope_id)` and `(company_id, job_id)` on `cost_entries`, `(trade_scope_id)`/`(task_id)` on `time_entries` — same style as the existing `0021_performance_indexes.py` |
+| Large scale (thousands of projects/company, dashboard latency) | Only then consider a nightly-refreshed `project_financial_snapshot` rollup table populated by the same `run_financial_analysis` cron job that already runs nightly — the AI analyzer job is the natural place to also persist a snapshot, since it already computes the numbers |
 
----
+### Scaling Priorities
 
-## Anti-Patterns to Avoid
+1. **First bottleneck:** `FinanceService` margin query doing a live join across `CostEntry` + `TimeEntry` + `LaborRate` for every project on every dashboard page load — fixed with targeted indexes, not materialization, until proven insufficient.
+2. **Second bottleneck (unlikely at this project's scale):** nightly AI analyzer scanning every active project across every company sequentially — already mitigated by the existing `AI_CONCURRENCY_LIMIT` semaphore and per-company bounded concurrency pattern in `_run_for_all_companies`.
 
-### Anti-Pattern 1: Storing Conversation History in a Separate Messages Table
+## Anti-Patterns
 
-**What people do:** Create a `ai_messages` table with one row per message, join on session_id to reconstruct history.
+### Anti-Pattern 1: Embedding margin/cost fields directly on `Project`/`Job`/`TradeScope` response schemas
 
-**Why wrong:** The Anthropic API requires the full conversation history as a messages array on every call. Reconstructing from a SQL join on every AI turn adds latency. The messages structure also contains mixed content types (text, tool_use, tool_result blocks) that map poorly to flat SQL columns.
+**What people do:** Add `margin_pct`, `actual_cost`, `budget_status` as extra fields on the existing project/job detail response so the frontend gets everything in one call.
 
-**Do instead:** JSONB array on `AISession.messages`. Append-only, loaded in one query. Archive sessions older than 90 days to cold storage if storage becomes a concern.
+**Why it's wrong:** `finance.*` permission enforcement then has to happen at the field-serialization level (conditionally omit fields per caller), which is easy to get wrong and easy to regress — a future unrelated change to `ProjectResponse` could accidentally leak margin data to a `foreman` or `client` role. It also couples the always-fast project-detail endpoint to a heavier financial aggregation query for every caller, even those without finance access.
 
-### Anti-Pattern 2: Blocking HTTP Response Until AI Completes
+**Do this instead:** Keep financial data behind dedicated `/finance/*` endpoints, each independently gated by `require_permission("finance.X")`. The web Financials tab makes a second request. This mirrors how `billing_milestones` already lives in its own module rather than being inlined onto `TradeScope`.
 
-**What people do:** `response = await anthropic_client.messages.create(...)` — wait for full response, return JSON.
+### Anti-Pattern 2: Adding a `hourly_rate` column to `User` and treating it as always-current
 
-**Why wrong:** Claude intake sessions take 10-60 seconds for complex projects with multiple tool calls. HTTP request times out. Users see a loading spinner with no feedback.
+**What people do:** Ship the fastest possible version — one column, no history.
 
-**Do instead:** SSE streaming via `EventSourceResponse`. First token arrives in <1 second. Users see Claude typing in real time. The agentic loop (tool calls) is transparent — yield text between tool executions.
+**Why it's wrong:** The first pay-rate change silently rewrites the computed labor cost (and therefore margin) of every historical job/project for that worker, since cost is derived at read time from whatever the "current" rate is. Historical profit reports become non-reproducible.
 
-### Anti-Pattern 3: Single WebSocket Connection Manager for All Tenants
+**Do this instead:** Use the effective-dated `LaborRate` table (Pattern 2). If simplicity is prioritized for a v1 cut, at minimum snapshot the rate used onto a computed field when `FinanceService` runs the nightly AI analysis, so historical alerts remain explainable even if the live dashboard figure can still drift.
 
-**What people do:** `manager._rooms` is a flat dict keyed by `room_id` without tenant isolation.
+### Anti-Pattern 3: Forking `TimeEntry` into a separate project-side time-tracking table
 
-**Why wrong:** In a multi-tenant system, room_id UUIDs are globally unique (PostgreSQL gen_random_uuid()), so collisions are impossible. BUT: the manager should still validate on connect that the user belongs to the company that owns the room. Skipping this check allows any authenticated user to join any room by guessing its UUID.
+**What people do:** Since `TimeEntry.job_id` is `NOT NULL` today and jobs/projects are parallel systems, create a new `TaskTimeEntry` table for trade-scope/task-based clock-in rather than touching the existing table.
 
-**Do instead:** On WebSocket connect, query `ChatRoom.company_id` and verify it matches the JWT's `company_id` claim before calling `websocket.accept()`.
+**Why it's wrong:** Splits the single source of truth for "hours worked" into two tables that both need their own mobile clock-in UI, their own sync/offline handling (mobile Drift cache), and their own aggregation logic in `FinanceService` — doubling the surface area for a distinction (job vs. trade scope) that `Quote`/`Invoice` already solved once with nullable-pair columns.
 
-### Anti-Pattern 4: Making Annotation Storage Destructive
+**Do this instead:** Extend `TimeEntry` (Pattern 1) — relax `job_id` to nullable, add nullable `trade_scope_id`/`task_id`, one XOR validator. One clock-in flow, one table, one aggregation path.
 
-**What people do:** Apply annotation vectors to the image file (Pillow, ImageMagick), overwrite the stored image with the annotated version.
+## Integration Points
 
-**Why wrong:** Annotations need to be editable and clearable. Once baked into the pixel data, the original is lost. Different viewers may want to show or hide annotations.
+### External Services
 
-**Do instead:** Store annotation JSON separately in `TaskAttachment.annotation_data`. Base image at `remote_url` is immutable. Client renders the overlay. Clearing annotations is a simple null-write to the JSONB column.
+| Service | Integration Pattern | Notes |
+|---------|----------------------|-------|
+| Claude API (Anthropic) | Already integrated via `app/features/ai/service.py` (`AIService`) and `app/core/ai_utils.py` (`AI_CONCURRENCY_LIMIT`, retry helper `_call_with_retry`) | Reuse directly — no new API client, no new credential. Both new AI features are additional tool-use call sites, not a new integration. |
 
-### Anti-Pattern 5: Running the Agentic Loop Without Turn Limits
+### Internal Boundaries
 
-**What people do:** `while True:` loop calling Anthropic API until `stop_reason == "end_turn"`.
+| Boundary | Communication | Notes |
+|----------|----------------|-------|
+| `finance/` ↔ `jobs/` (Job) | Direct FK reference (`CostEntry.job_id`, extended `TimeEntry.job_id`) | Read-only from `finance/`'s perspective; no changes to `Job`/`JobService` needed beyond the `TimeEntry` extension living in `jobs/models.py` |
+| `finance/` ↔ `projects/` (TradeScope, Task) | Direct FK reference (`CostEntry.trade_scope_id`, `Budget.trade_scope_id`, extended `TimeEntry.trade_scope_id`/`task_id`) | Same read-only relationship; `Task.estimated_cost`/`estimated_hours` (existing) can seed AI quote-estimator context but are not written to by `finance/` |
+| `finance/` ↔ `quotes/` + `invoices/` | Read-only query for revenue aggregation (`FinanceService`) and for historical pricing (`QuoteEstimatorService` reading past `QuoteLineItem.unit_price` grouped by `description`) | No FK changes to `Quote`/`Invoice`; purely SELECT queries |
+| `finance/` ↔ `dashboard/` (DashboardAlert) | `finance/`'s scheduled analyzer writes rows into the existing `dashboard_alerts` table with new `alert_type` values | `dashboard/service.py`'s alert-list endpoint needs a small permission-aware filter added so `margin_erosion`/`budget_overrun_risk` alert types are excluded from the response for callers without `finance.*` — this is a **required modification**, not purely additive |
+| `finance/` ↔ `rbac/` (`app/core/permissions.py`) | New catalog entries + default-matrix changes | Must add finance keys to the "keys excluded from admin's auto-derived set" (currently `_OWNER_ONLY_KEYS`) so `admin` does not silently inherit financial access, and explicitly add them to `project_manager`'s hand-maintained list — **owner needs no change** (already wildcard, and unaffected by `_OWNER_ONLY_KEYS`) |
+| `finance/` ↔ web `features/finance/` | REST via `/api/proxy`, TanStack Query | Follows existing proxy pattern used by every other web feature module |
+| `finance/` ↔ mobile (Flutter/Drift) | Not required for v4.0 core scope per milestone framing (owner/PM-only, web-dashboard-oriented) — but the `TimeEntry` extension (Pattern 1/Anti-Pattern 3) **does** touch mobile clock-in flow if project/trade-scope time tracking is to work at all, since that's where clock-in currently happens | Flag for roadmap: decide whether trade-scope/task clock-in ships in mobile UI this milestone, or whether v4.0 labor-cost-from-time-entries is initially job-only (simpler) with project/trade-scope time tracking following the extended schema in a later milestone |
 
-**Why wrong:** A runaway tool-calling loop can exhaust API credits and hang the request indefinitely. Claude may enter loops when tools return unexpected output.
+## Suggested Build Order
 
-**Do instead:** Hard limit of 10 turns per request (`turn < 10`). If reached, yield an error event and persist session state so the user can continue in a new request.
+Dependency-constrained: cost capture and labor rates must exist before margin can be computed; margin must exist before budgeting-vs-actual and the AI analyzer can be meaningful; the web dashboard consumes backend endpoints as they land.
 
----
+```
+1. Foundation: schema + permissions (no feature dependencies — pure DB + RBAC)
+   - Migration 0030: cost_entries, labor_rates, budgets tables
+   - Alter time_entries: job_id → nullable, add trade_scope_id/task_id, XOR validator
+   - Add finance.* keys to PERMISSION_CATALOG; exclude from admin's auto-derived set;
+     add explicitly to project_manager's default list (owner unaffected — wildcard)
+   Deliverable: schema exists, RBAC gate exists, nothing reads/writes through it yet
+
+2. Actual-cost capture (materials + subcontractor)
+   - CostEntry model/schema/repository/service/router (standard CRUD, follows
+     BaseService/TenantScopedRepository/CRUDRouter conventions)
+   - Web: CostEntryForm under project/trade-scope detail
+   Deliverable: PM/owner can log material and subcontractor spend against a job or trade scope
+
+3. Labor rate management
+   - LaborRate model/schema/repository/service/router (CRUD)
+   - Web: rate management under Team/Settings
+   Deliverable: owner/PM can set effective-dated hourly cost rates per user
+
+4. TimeEntry extension for project-based work
+   - Backend: accept trade_scope_id/task_id on clock-in for project hierarchy work
+   - Mobile: clock-in flow gains a trade-scope/task target when working project-side
+     (decide scope here — see "mobile" integration point flag above; can be deferred
+     to job-only labor cost for a leaner v1 if mobile clock-in UI work is out of budget)
+   Deliverable: hours worked are attributable to a trade scope/task, not just a job
+
+5. Margin computation (FinanceService)
+   - Read-only aggregation: revenue (Quote/Invoice) − cost (CostEntry + TimeEntry×LaborRate)
+   - Endpoints: GET /finance/projects/{id}/margin, GET /finance/jobs/{id}/margin
+   Deliverable: profit margin tracking — the core v4.0 requirement — is live via API
+   Depends on: 2, 3, 4
+
+6. Budgeting + overrun-risk
+   - Budget model/schema/repository/service/router (CRUD)
+   - FinanceService: budget-vs-actual comparison, overrun-risk threshold flag
+   Deliverable: PM/owner can set budgets and see spend-vs-budget status
+   Depends on: 5
+
+7. Web financial dashboard
+   - features/finance/ (components + hooks), Financials tab on project detail,
+     company-wide margin view under Reports
+   - Permission-gated nav item (only rendered when finance.* granted)
+   Deliverable: owner/PM see margin, budget status, cost entries in the UI
+   Depends on: 2, 3, 5, 6 (consumes their endpoints)
+
+8. AI profitability analyzer
+   - FinanceService.analyze_profitability(), scheduler.py: run_financial_analysis
+     (mirrors run_alert_detection), DashboardAlert extended with new alert_type values
+   - dashboard alert-list endpoint: filter financial alert_types by finance.* permission
+   Deliverable: AI flags margin erosion / budget overrun risk automatically, nightly
+   Depends on: 5, 6
+
+9. AI quote planning (can run in parallel with 6-8 once 3 is done)
+   - QuoteEstimatorService: on-demand Claude tool-use call, single-shot structured
+     line-item generation, priced from historical QuoteLineItem.unit_price + LaborRate
+   - Web: "AI-assist" action on New Quote flow
+   Deliverable: AI proposes priced labor+material line items for a new quote
+   Depends on: 3 (labor rates); loosely depends on 2/5 (richer historical cost data
+   improves suggestions but isn't strictly required to ship a first version)
+```
+
+**Rationale for this order:** cost capture (2) and labor rates (3) are independent, low-risk CRUD slices that can be built and tested in isolation and in parallel — they're the foundation every other feature reads from. Margin computation (5) is the single highest-value deliverable (it directly satisfies "profit margin tracking") and should land as soon as its two inputs exist, even before budgeting or AI. Budgeting (6) and the AI analyzer (8) both consume margin output, so they naturally follow. The AI quote estimator (9) is the most independent of the AI features — it only needs historical pricing data, not the margin/budget machinery — so it can be pulled forward or parallelized with the team's AI-focused workstream without blocking on 5-8 if sequencing constraints require it.
 
 ## Sources
 
-- Existing codebase: `backend/app/core/base_service.py`, `base_repository.py`, `base_models.py` — HIGH confidence (direct inspection)
-- Existing codebase: `backend/app/features/sync/service.py` — HIGH confidence (direct inspection; delta sync pattern reused for new entities)
-- Existing codebase: `backend/app/features/files/router.py` — HIGH confidence (direct inspection; annotation storage extends existing attachment pattern)
-- Existing codebase: `backend/app/core/config.py` — HIGH confidence (ANTHROPIC_API_KEY slot identified)
-- [Anthropic Claude API: Tool Use Implementation](https://platform.claude.com/docs/en/agents-and-tools/tool-use/implement-tool-use) — HIGH confidence (official Anthropic docs)
-- [Anthropic: Fine-Grained Tool Streaming](https://docs.claude.com/en/docs/agents-and-tools/tool-use/fine-grained-tool-streaming) — HIGH confidence (official Anthropic docs)
-- [FastAPI: Server-Sent Events](https://fastapi.tiangolo.com/tutorial/server-sent-events/) — HIGH confidence (official FastAPI docs)
-- [FastAPI: WebSockets](https://fastapi.tiangolo.com/advanced/websockets/) — HIGH confidence (official FastAPI docs)
-- [sse-starlette PyPI](https://pypi.org/project/sse-starlette/) — MEDIUM confidence (library widely used in FastAPI SSE ecosystem)
-- [PostgreSQL Recursive CTEs for Graph Algorithms](https://www.fusionbox.com/blog/detail/graph-algorithms-in-a-database-recursive-ctes-and-topological-sort-with-postgres/620/) — MEDIUM confidence (established PostgreSQL pattern)
-- [WebSocket/SSE Multi-Worker Architecture](https://blog.greeden.me/en/2025/10/28/weaponizing-real-time-websocket-sse-notifications-with-fastapi-connection-management-rooms-reconnection-scale-out-and-observability/) — MEDIUM confidence (2025 production guide, patterns match FastAPI docs)
+All findings are grounded in direct inspection of the existing codebase at `/Users/heechung/AndroidStudioProjects/contractormanagement`:
+
+- `backend/app/features/jobs/models.py` — `Job`, `TimeEntry` (confirms `job_id` NOT NULL, no `trade_scope_id`/`task_id` link today)
+- `backend/app/features/projects/models.py` — `Project`, `TradeScope`, `Task` (confirms no `project_id` on `Job`, `estimated_hours`/`estimated_cost` on `Task` but no actual/spent tracking anywhere)
+- `backend/app/features/quotes/models.py`, `backend/app/features/quotes/schemas.py` — polymorphic `job_id`/`trade_scope_id` pattern and its `model_validator` XOR enforcement (source of Pattern 1)
+- `backend/app/features/invoices/models.py` — `job_id`/`trade_scope_id`/`milestone_id`/`quote_id`, `amount_paid` (revenue-side read target for `FinanceService`)
+- `backend/app/features/billing_milestones/models.py` — precedent for a small, focused finance-adjacent module
+- `backend/app/features/dashboard/models.py`, `backend/app/features/dashboard/service.py` (`DashboardAlert`, `detect_schedule_slips`) — source of Pattern 4 / alert reuse strategy
+- `backend/app/core/scheduler.py` — `_run_for_all_companies`, `run_morning_checklists`, `run_alert_detection`, `lifespan` cron wiring (source of the `run_financial_analysis` proposal)
+- `backend/app/features/ai/service.py` — `AIService` Claude tool-use plumbing (`_call_with_retry`, `stream_turn`, `validate_tool_input`) reused by both new AI features
+- `backend/app/core/permissions.py` — `PERMISSION_CATALOG`, `DEFAULT_ROLE_PERMISSIONS`, `_OWNER_ONLY_KEYS`, `expand()` (source of the RBAC integration finding, including the admin-auto-inherit gotcha)
+- `backend/app/core/security.py` — `require_permission()` dependency pattern
+- `backend/app/core/base_service.py`, `backend/app/core/base_repository.py` — `BaseService`/`TenantScopedService`, `BaseRepository`/`TenantScopedRepository` conventions
+- `backend/app/features/reports/service.py` — `ReportingService`, precedent for a plain aggregation class outside the CRUD `BaseService` hierarchy (source of Pattern 3 / `FinanceService` shape)
+- `backend/app/features/users/models.py` — confirms no existing rate field on `User` (source of Pattern 2)
+- `backend/app/features/companies/models.py` — company-level settings surface (no existing overhead/rate config)
+- `backend/app/features/foreman/models.py`, `backend/app/features/checklists/models.py` — confirms no actual/spent-hours tracking exists anywhere in the project hierarchy today
+- `backend/migrations/versions/` — latest migration `0029_contracts_and_license.py`, confirms next migration number `0030`
+- `web/src/features/`, `web/src/app/(dashboard)/` — existing feature-module and route conventions for the web dashboard section
+- `.planning/PROJECT.md` — v4.0 milestone scope, requirements, and constraints
 
 ---
-
-*Architecture research for: ContractorHub v3.0 — AI-Driven Construction Management*
-*Researched: 2026-03-19*
+*Architecture research for: financial-intelligence integration into existing FastAPI/Next.js/Flutter multi-trade construction platform*
+*Researched: 2026-07-24*

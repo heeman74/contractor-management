@@ -1,253 +1,200 @@
 # Project Research Summary
 
-**Project:** ContractorHub v3.0 — AI-Driven Multi-Trade Construction Management
-**Domain:** SaaS construction management platform with AI planning, real-time coordination, and multi-trade project hierarchy
-**Researched:** 2026-03-19
+**Project:** ContractorHub v4.0 — Financial Intelligence
+**Domain:** Construction job costing, profit margin tracking, budgeting, and AI-assisted estimating layered onto an existing multi-trade construction management SaaS platform
+**Researched:** 2026-07-24
 **Confidence:** HIGH
 
 ## Executive Summary
 
-ContractorHub v3.0 transforms an established single-trade contractor management platform (jobs, quoting, invoicing, scheduling, mobile field execution) into an AI-driven multi-trade coordination system. The addition is not a rewrite — the existing FastAPI + Flutter + Next.js infrastructure is sound and carries forward unchanged. The v3.0 work adds five new capability clusters on top: an AI agent service (Claude API tool use + streaming), a real-time chat layer (FastAPI WebSocket + Redis pub/sub), a new three-level project hierarchy (Project → Trade Scope → Task), photo annotation, and a cross-trade dependency graph engine. All new backend components follow the existing OOP base pattern (TenantScopedService, TenantScopedRepository) and PostgreSQL RLS multi-tenancy model. Stack additions are minimal: `anthropic`, `sse-starlette`, `redis`, `networkx` on the backend; `web_socket_channel` and `pro_image_editor` on Flutter; `fabric` (canvas annotation) on the web.
+ContractorHub v4.0 adds a financial intelligence layer — actual-cost capture, profit margin tracking, budgeting with overrun alerts, AI profitability analysis, and AI-assisted quote building — on top of an already-shipped multi-trade platform (jobs, per-trade quotes/invoices, time tracking, AI chat/checklists, RBAC). This is not a rewrite and requires **zero new runtime dependencies**: `Decimal`/`Numeric`, PostgreSQL aggregate SQL (`FILTER`, `GROUPING SETS`, window functions), Recharts, APScheduler, and the existing Claude tool-use integration cover every capability needed. The only stack action is confirming the `anthropic` SDK is pinned >=0.77.0 to use GA Structured Outputs for grounded, schema-guaranteed AI financial output. Architecturally, the work is a new `finance/` backend module (`CostEntry`, `LaborRate`, `Budget`) that follows the same polymorphic job-vs-trade-scope XOR pattern already established by `Quote`/`Invoice`, plus an extension of the existing `TimeEntry` and `DashboardAlert` models rather than new parallel tables.
 
-The entire v3.0 feature set is gated on a single foundational dependency: the Project → Trade Scope → Task data model must ship first. Every other v3.0 feature — AI intake, contractor interviews, daily checklists, chat, inspection workflow, per-trade billing — either stores data in or reads data from this hierarchy. There is no shortcut around this ordering. Research from both FEATURES.md and ARCHITECTURE.md consistently identified the same 8-phase build order, converging from feature dependency analysis and architectural constraint analysis independently.
+The recommended feature scope is deliberately narrower than enterprise construction ERP (Procore-tier): simple 4-category costs (labor/materials/subcontractor/other), actual-cost-only tracking (no committed-cost/PO layer), wage-rate-based labor cost (not full burden-rate accounting), and assistive (never autonomous) AI quote generation — this matches how Buildertrend, Knowify, ServiceTitan, and Jobber serve the small-to-mid contractor audience, while the two AI features (proactive margin-erosion flagging and AI-grounded quote building from company history) are genuine differentiators no mainstream competitor in this tier offers.
 
-The primary risks are not technical — they are design decisions that must be made before first implementation: AI conversation token budget strategy (unbounded history costs can exceed $1,500/week per company at production scale), tenant isolation of AI conversation state (in-memory Python caches are invisible to RLS and create GDPR exposure), WebSocket session validity (JWT expiry mid-session leaves revoked contractors with persistent chat access), and the domain boundary between AI-owned and client-owned entities in the offline outbox (mixing them causes data corruption on sync). Each of these risks is avoidable with explicit design-before-code discipline. The research does not reveal any unsolvable problems — only patterns that require upfront decisions.
+The primary risks are not technical novelty but **discipline gaps that are easy to miss because they interact with code that already exists**: (1) a "Job vs. Project/TradeScope split-brain" where cost and revenue records can anchor to different hierarchies and silently under- or double-count in margin rollups; (2) the existing `require_admin`/role-based `reports/dashboard` endpoint and the wildcard-minus-exclusion admin permission derivation (`_ADMIN_KEYS = PERMISSION_KEYS - _OWNER_ONLY_KEYS`) will **silently leak financial data to the admin role** unless `finance.*` keys are explicitly added to a new exclusion set in the same commit; (3) existing AI surfaces (chat, checklists, schedule alerts) will start returning cost/margin fields to non-finance roles once those columns exist on `Project`/`TradeScope`, unless tool-result construction is retrofitted as its own authorization boundary; (4) naive live-rate joins for labor cost will retroactively rewrite historical margin figures when a contractor's pay rate changes; and (5) legacy pre-v4.0 jobs with no cost data must show "no data" rather than a fabricated 100% margin, or AI quote planning will anchor its pricing on a phantom baseline. Every one of these is avoidable with explicit schema/permission decisions made in the first phase, not retrofitted later.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The existing stack (FastAPI 0.115, Flutter 3.32, Next.js 16, PostgreSQL 13, SQLAlchemy 2.0 async) is carried forward without modification. New additions are targeted and minimal.
+No new packages for backend, web, or mobile. The stack additions are usage-pattern upgrades on existing dependencies: verify the `anthropic` Python SDK is >=0.77.0 for GA **Structured Outputs**/`strict: true` tool schemas (removes JSON-parse-retry logic for money fields), and extend the existing Recharts/APScheduler/RBAC infrastructure with new call sites rather than new libraries.
 
-**Core technology additions:**
+**Core technologies:**
+- `Decimal` (stdlib) + SQLAlchemy `Numeric` — exact money math for costs, revenue, margins, budgets; already the project's convention for quotes/invoices, must be extended end-to-end (never `float`, never `numpy`/`pandas`)
+- PostgreSQL 13 aggregate SQL (`FILTER`, `GROUPING SETS`/`ROLLUP`, window functions) via SQLAlchemy 2.0 `func.sum().filter()`/`.over()` — per-project/per-trade/per-category cost rollups and margin trend queries computed in the DB, not re-summed in Python
+- Recharts (existing) — margin trend lines, budget-vs-actual bars, cost-breakdown charts via `ComposedChart`/stacked `BarChart`/`ReferenceLine`; no new charting library needed
+- `anthropic` SDK >=0.77.0 (GA Structured Outputs) — AI profitability analysis and AI quote building reuse the existing Claude tool-use plumbing (`AIService`), now with grammar-constrained schema guarantees for money fields
+- APScheduler (existing) — new nightly job for budget-overrun/margin-erosion scanning, alongside existing AI checklist/alert jobs; no second task queue
+- `require_permission()` RBAC (existing) — new `finance.*` permission keys added to the per-company editable matrix, defaulting to owner + project_manager
 
-- `anthropic` 0.86.0 (Python): Official Anthropic SDK — use `AsyncAnthropic` to keep FastAPI's event loop unblocked; native tool-use agentic loop, streaming via `client.messages.stream()`, Pydantic-native structured outputs in public beta
-- `sse-starlette` 3.3.3 (Python): Server-Sent Events for streaming AI responses token-by-token to web clients; correct protocol for unidirectional AI text streaming (WebSocket is overkill here)
-- `redis` 7.1.1 (Python): WebSocket pub/sub for multi-worker fanout via `redis.asyncio`; reuses the existing Redis instance already present for slowapi rate limiting
-- `networkx` 3.x (Python): DAG algorithms — cycle detection, topological sort, critical path calculation for the cross-trade dependency engine; pure Python, no C extensions
-- `web_socket_channel` 3.0.3 (Flutter): Google's official Dart WebSocket client; integrates naturally as a Riverpod `StreamProvider` for the GC ↔ contractor chat channel
-- `pro_image_editor` 12.0.7 (Flutter): Full-featured photo annotation editor; exports composited PNGs; MIT licensed; most actively maintained Flutter annotation package as of March 2026
-- `fabric` 7.2.0 (npm): Canvas-based photo annotation for the web dashboard; JSON vector serialization shared with Flutter renderer; MIT license
-- `@xyflow/react` 12.x (npm): Interactive dependency graph visualization on web (optional — only if graph view is built)
-
-**Critical technology exclusions:**
-- Do NOT use LangChain or LlamaIndex — direct Anthropic SDK is 50 lines vs 500 with worse observability; frameworks fight Claude's native tool use and structured output APIs
-- Do NOT add PowerSync or Supabase Realtime — existing transactional outbox handles offline sync for the cases that require it; a third data layer fights PostgreSQL RLS
-- Do NOT use `aioredis` (deprecated, merged into `redis` package as `redis.asyncio`)
-- AI conversation history belongs in PostgreSQL (JSONB on `AISession.messages`), never in Python module-level dicts or `app.state`
-
-See `.planning/research/STACK.md` for full version compatibility matrix, installation commands, and alternatives considered.
+**Explicitly avoid:** `python-money`/`py-moneyed` (no multi-currency need today), `numpy-financial` (no IRR/NPV/amortization scope), a second task queue, `instructor`/`outlines`/`guidance` (Anthropic's native Structured Outputs replaces these), pgvector/embeddings for quote-pricing lookup (structured SQL filtering beats semantic search for categorical trade/task data), and any embedded BI/dashboard-builder product (Metabase/Superset).
 
 ### Expected Features
 
-FEATURES.md establishes that the entire v3.0 feature set is gated on the Project Model (Project → Trade Scope → Task with dependency graph). This is the critical dependency chain — every feature either depends on it or extends it.
+Scope research (WebSearch-verified against Buildertrend, Knowify, ServiceTitan, Jobber, CoConstruct, Procore) confirms this milestone should ship a lean, small-contractor-appropriate financial layer, not enterprise job-costing.
 
-**Must have (table stakes for v3.0 core value):**
-- Project model with multi-trade hierarchy — nothing else works without it
-- AI project intake via chat — GC describes project in natural language; AI structures it by trade with sequencing
-- AI contractor interview + task plan generation — eliminates guesswork on scope definition per trade
-- AI daily checklist push — morning FCM with personalized tasks, materials, photo requirements; primary retention mechanic
-- Task-level progress tracking — notes + photos per task, offline-capable via existing outbox
-- GC cross-trade monitoring dashboard (web) — GC's primary value; all trades simultaneously
-- GC ↔ contractor bidirectional chat — project-scoped; coordination without leaving the platform
-- GC inspection workflow (approve/reject/flag) — closes the loop from task execution to GC sign-off
-- Photo annotation on mobile — arrows, circles, text, measurements on task photos; required for inspection documentation
-- Per-trade quoting and invoicing — extend existing Quote/Invoice system with `trade_scope_id` FK
+**Must have (table stakes for v4.0):**
+- `finance.*` RBAC permissions (owner + project_manager default, backend-enforced) — gates everything else
+- Simple cost categories (labor/materials/subcontractor/other) scoped to the existing Trade Scope hierarchy — not full CSI MasterFormat
+- Actual-cost capture (materials + subcontractor itemized entries)
+- Labor cost derived from existing time tracking x contractor hourly rate
+- Budgeting per project and per trade scope, with budget-vs-actual view
+- Budget overrun-risk alerts (threshold-based, reusing existing FCM infrastructure)
+- Profit margin tracking per project and per job/trade (revenue minus actual cost)
+- Change-order/quote-revision impact flowing automatically into budget
+- Margin/budget additions to the existing reporting dashboard (not a disconnected screen)
+- AI profitability analysis (margin-erosion flags + corrective-action suggestions)
+- AI-assisted quote building (labor hours + material costs priced from company history, human-reviewed before sending)
 
-**Should have (differentiators — deferrable to v3.1):**
-- Gantt-style unified timeline view with dependency connectors — high rendering complexity; table/list view sufficient for MVP
-- Cross-trade dependency push notifications — show blocked state in MVP without push notification
-- Punch list auto-feed back to AI planning — requires mature inspection data to be meaningful
-- AI schedule adaptation — requires weeks of historical progress data; ship after projects run for several weeks
+**Should have (differentiators):**
+- Per-trade-scope budget granularity — no mainstream single-trade competitor (Jobber, ServiceTitan) offers this; leverages the platform's unique Project→TradeScope→Task hierarchy
+- Proactive AI margin-erosion detection with suggested corrective actions — competitors only show dashboards for humans to interpret
+- AI quote building grounded in the company's own historical actual-cost data (not generic market pricing)
 
-**Specifically do not build in v3.0:**
-- Change order workflow, in-app payment processing, QuickBooks/Xero integration
-- iOS support (Android priority per PROJECT.md), BIM/CAD import, video calling, GPS live tracking
-- Real-time collaborative editing of AI plans (CRDT complexity), on-device/local AI, AI voice assistant
-
-See `.planning/research/FEATURES.md` for full dependency graph, competitor analysis (Procore, Fieldwire, Buildertrend, Siteline, Knowify, Bluebeam), and complexity assessment matrix.
+**Defer (v4.x / v5+):**
+- Committed-cost tracking (POs/subcontract commitments distinct from paid actual costs)
+- True labor burden rate (overhead/benefits allocation beyond wage rate)
+- Estimate-accuracy trend reporting (quoted vs. actual variance feeding back into AI confidence)
+- Formal WIP/percentage-of-completion GAAP accounting — delegate to the eventual QuickBooks/Xero integration
+- Enterprise procurement workflows (RFIs, submittals, PO approval chains) — explicit anti-feature for this audience
+- Multi-entity/multi-currency consolidated reporting
 
 ### Architecture Approach
 
-The architecture follows a strict layered extension model: new capability clusters attach to the existing FastAPI OOP hierarchy without modifying existing services. All new models inherit `TenantScopedModel`, services inherit `TenantScopedService`, repositories inherit `TenantScopedRepository`. The one exception is `AIAgentService`, which inherits `BaseService` (not `TenantScopedService`) because AI sessions span multiple DB operations and need `company_id` as a direct column rather than via RLS context variable. The mobile architecture shifts from fully offline-first to a hybrid: online-only for AI/chat (fail with UI error if offline), offline-capable for field task execution (existing outbox pattern unchanged), and aggressive Drift caching for read-only daily checklists.
+A new `backend/app/features/finance/` module (mirroring the existing `billing_milestones/` shape) owns three new models — `CostEntry`, `LaborRate`, `Budget` — plus a non-CRUD `FinanceService` aggregation class (same pattern as `ReportingService`) that computes margin/budget-vs-actual live, on every request, with no materialized snapshot table until scale demands it. `TimeEntry` is extended in place (nullable `trade_scope_id`/`task_id`, relaxed nullable `job_id`) rather than forked into a parallel table, and `DashboardAlert` is reused (new `alert_type` values) rather than duplicated for financial alerts. Both new AI features reuse the existing `AIService` Claude tool-use plumbing at two different call shapes: the profitability analyzer is a scheduled nightly batch job (mirrors `run_alert_detection`), and the quote estimator is a synchronous, single-shot structured-generation endpoint (mirrors checklist generation, not the multi-turn intake conversation).
 
 **Major components (new):**
+1. `CostEntry` — actual-cost transaction (material/subcontractor) attached to a job or trade scope via the same nullable-pair XOR pattern as `Quote`/`Invoice`
+2. `LaborRate` — effective-dated hourly cost rate per user (not a mutable single column), so historical margins stay reproducible after rate changes
+3. `Budget` — target spend ceiling per project or trade scope
+4. `FinanceService` — read-only aggregation: revenue (Quote/Invoice) minus cost (CostEntry + TimeEntry x LaborRate) = margin, compared against Budget for overrun risk
+5. Financial analysis cron job — nightly per-company scan via APScheduler → Claude tool-use call → persisted `DashboardAlert` rows (new `alert_type`s)
+6. `QuoteEstimatorService` — on-demand Claude tool-use call pricing new quote line items from historical `QuoteLineItem`/`LaborRate` data
+7. `finance.*` permission catalog entries — explicitly excluded from admin's auto-derived wildcard set, explicitly granted to project_manager
 
-1. `AIAgentService` — wraps Anthropic SDK; manages tool-use agentic loop (max 10 turns); streams SSE responses via `sse-starlette`; persists conversation history as JSONB; handles project intake and contractor interview session types
-2. `DependencyEngineService` — DAG operations over the trade dependency graph; PostgreSQL recursive CTE for in-database cycle detection; topological sort and critical path via NetworkX computed in-memory per request
-3. `ChatService` + `WebSocketManager` — DB-first delivery model (persist before broadcast); in-process connection registry with Redis pub/sub for multi-worker fanout; periodic JWT re-validation
-4. `ProjectService` / `TradeScopeService` / `TaskService` — CRUD and state machine for the three-level hierarchy; aggregation queries for GC monitoring dashboard
-5. `AnnotationService` — non-destructive annotation storage (base photo URL unchanged; annotation JSON vectors in `TaskAttachment.annotation_data` JSONB column; client re-renders overlay)
-6. Six new Drift tables (mobile) — `projects`, `trade_scopes`, `tasks`, `task_notes`, `task_attachments`, `chat_messages` — with corresponding `SyncHandler` subclasses in the existing `SyncRegistry`
-
-**Key architectural decisions established by research:**
-- AI conversation history stored in JSONB (one query to load; append-only; 50–200 turns max for construction intake) — not a separate messages table with row-per-message
-- Task-level dependencies stored as JSONB array on `Task`; cross-trade dependencies stored as edge table (`trade_dependencies`) — different storage strategies because query patterns differ
-- WebSocket auth via JWT in query param, validated immediately after `websocket.accept()` — standard pattern, TLS encrypts the URL
-- Annotation storage is non-destructive — base photo immutable, annotation JSON in separate JSONB column, rendered client-side by both Flutter `CustomPainter` and web Fabric.js
-
-See `.planning/research/ARCHITECTURE.md` for full data flow diagrams, code patterns, build order, and anti-patterns.
+Suggested backend build order (dependency-constrained): (1) schema + RBAC foundation → (2) actual-cost capture → (3) labor rate management → (4) TimeEntry extension for trade-scope/task time tracking → (5) margin computation (`FinanceService`) → (6) budgeting + overrun-risk → (7) web financial dashboard → (8) AI profitability analyzer → (9) AI quote planning (can parallelize with 6-8 once labor rates exist).
 
 ### Critical Pitfalls
 
-1. **Outbox conflicts with AI-owned entities** — The existing offline outbox must never queue `entity_type = 'project'`, `'trade_scope'`, or `'task'` for creation or structural updates. These are server-owned. Client outbox handles only progress/completion records. Add `plan_version` to Task from day one; completion records carry the version they were created against; server rejects stale completions with 409.
-
-2. **AI conversation state tenant isolation** — Never store conversation history in Python module-level dicts, `app.state`, or any in-memory cache. Store all AI session state in a `ai_sessions` table with `company_id` + RLS policy. Test: Company B token + Company A session ID must return 403, not Company A's project data.
-
-3. **Unbounded AI token costs** — Project intake and contractor interview are one-time finite conversations; store the structured output only, never replay full message history for adaptation requests. AI schedule adaptation must be a stateless request (current task states + delay snapshot). Log token usage per call type; alert when any call exceeds 20,000 input tokens. Production cost can exceed $1,500/week per company without this discipline.
-
-4. **Missing RLS on new tables** — Every new table (`projects`, `trade_scopes`, `tasks`, `chat_messages`, `task_notes`, `task_attachments`) requires an explicit RLS policy before any data is inserted. Add a CI check that lists tables without RLS enabled. Write a cross-tenant isolation test for every new endpoint (Company B token + Company A resource ID returns 404).
-
-5. **WebSocket JWT expiry mid-session** — JWT validated at WebSocket handshake expires in 15 minutes; connection stays open. Revoked contractors retain chat access until disconnect. Implement periodic server-side re-validation (every 5 minutes); close with code 4401 on expiry; Flutter client handles 4401 by refreshing token and reconnecting. Maintain user-keyed connection registry for forced disconnect on deactivation.
-
-See `.planning/research/PITFALLS.md` for 14 specific pitfalls with detection criteria, phase assignments, recovery strategies, and a "looks done but isn't" checklist.
+1. **Job↔Project split-brain for cost attachment** — `Job` (v1.0) and `Project→TradeScope→Task` (v3.0) are parallel, non-overlapping hierarchies; cost entries and revenue must resolve through the same anchor-entity traversal or margin queries will silently miss or double-count costs. Define one canonical resolution path in schema design, before any margin query is written.
+2. **Admin silently inherits `finance.*` via wildcard-derived permission set** — `_ADMIN_KEYS = PERMISSION_KEYS - _OWNER_ONLY_KEYS` means any new `finance.*` key is automatically granted to admin unless explicitly added to a new exclusion set in the same commit. Ship a regression test asserting no `finance.*` key appears in `DEFAULT_ROLE_PERMISSIONS["admin"]`.
+3. **Existing `reports/dashboard` endpoint (gated by `require_admin`, not `finance.*`) is a live regression risk** if extended with margin fields — audit every pre-existing money-adjacent endpoint (reports, dashboard, PDF export, AI chat, client portal), not just newly built ones.
+4. **AI hallucination and leakage via existing chat/checklist/alert surfaces** — Claude tool handlers that fetch "project context" will start returning cost/margin fields once those columns exist, unless tool-result construction filters by the calling user's `finance.*` permission as its own authorization boundary, and every AI-stated dollar figure must trace to a tool-sourced value, never an estimate.
+5. **Retroactive rate changes silently rewrite historical margin/cost history** — labor cost must snapshot the effective rate at calculation time (via the effective-dated `LaborRate` table), never a live join to a mutable "current rate."
+6. **Legacy pre-v4.0 jobs showing fabricated $0/100% margins** — `SUM()` over empty cost records must not silently coerce to `$0` cost; track a "cost data completeness" flag and explicitly branch "no data" vs. a real result, especially before AI quote planning uses historical data as pricing grounding.
+7. **Float/mixed-precision drift** — the mobile client already computes quote/invoice totals with Dart `double`; new margin/budget entities must use a decimal-safe pattern instead, and backend aggregation must ban implicit `float()` casts on money paths.
 
 ## Implications for Roadmap
 
-Based on combined research, the following 8-phase structure is recommended. The ordering is determined by hard dependency constraints: the data model must precede AI; AI must precede inspection; the dependency engine enables daily checklists. This structure is consistent across both ARCHITECTURE.md's build order and FEATURES.md's feature dependency chain — both arrived at the same ordering independently.
+Based on combined research, the following phase structure is recommended. Ordering is constrained by hard data dependencies (cost data before margin, margin before budgeting/AI) and by the RBAC/split-brain pitfalls that must be resolved at the schema level before any financial data exists.
 
-### Phase 1: Project Data Model Foundation
+### Phase 1: Financial Schema Foundation + RBAC
+**Rationale:** Every other v4.0 feature reads/writes `finance.*`-gated data. The Job↔Project cost-anchor resolution and the admin-exclusion-set fix are schema/permission decisions that are expensive to retrofit once cost records exist without them. This has no feature dependencies and is the only valid starting point.
+**Delivers:** `cost_entries`, `labor_rates`, `budgets` tables; `time_entries` extended (nullable `job_id`, new nullable `trade_scope_id`/`task_id`, XOR validator); `finance.*` permission keys seeded (owner + project_manager default, explicitly excluded from admin's auto-derived set)
+**Addresses:** finance.* RBAC (table stakes), cost categories (table stakes)
+**Avoids:** Pitfall 1 (Job/Project split-brain), Pitfall 5 (admin wildcard inheritance), Pitfall 4 (pre-existing endpoints bypassing finance.*) — audit `reports/router.py` and `dashboard/service.py` in this phase
 
-**Rationale:** Every single v3.0 feature stores data in or reads from the Project → Trade Scope → Task hierarchy. This has zero dependencies on other v3.0 work and is the only valid starting point. Building anything else first is wasted effort — AI, chat, inspection, and billing all require these entity IDs to exist.
-**Delivers:** GCs can manually create projects, assign trade scopes, and create tasks. No AI yet — proves the data layer and RLS discipline before AI complexity is added.
-**Addresses:** Project hierarchy (table stakes), task-level data model, per-trade FK structure
-**Avoids:** Pitfall 2 (RLS on new tables) — establish RLS discipline and CI check here before any other tables ship
-**Must include:** RLS policies on all new tables, cross-tenant isolation tests per endpoint, Drift schema migration from v6 with full migration chain test, `plan_version` field on Task from day one, 6 new Drift tables + `SyncRegistry` handlers
+### Phase 2: Actual-Cost Capture and Labor Rates
+**Rationale:** Cost capture and labor-rate management are independent, low-risk CRUD slices with no dependency on each other, and both are hard prerequisites for margin computation. Effective-dated `LaborRate` (not a mutable `User.hourly_rate` column) must be the initial design, since retrofitting after cost records exist without rate snapshots requires a lossy backfill.
+**Delivers:** Itemized material/subcontractor cost entries (amount, category, trade scope/job, date); effective-dated hourly cost rate per contractor
+**Uses:** `Decimal`/`Numeric` end-to-end, `TenantScopedRepository`/`BaseService` conventions
+**Avoids:** Pitfall 2 (burden-rate omission — flag unburdened labor cost explicitly in UI/AI output), Pitfall 7 (retroactive rate rewrites), Pitfall 3 (double-counting — new cost table must never reuse `QuoteLineItem`/`InvoiceLineItem` for cost math)
 
-### Phase 2: Cross-Trade Dependency Engine
+### Phase 3: Profit Margin Tracking
+**Rationale:** The single highest-value deliverable — directly satisfies the milestone's headline requirement — and should land as soon as its two inputs (cost capture, labor rates) exist, before budgeting or AI. `FinanceService` follows the existing `ReportingService` precedent (plain aggregation class, on-the-fly SQL, no snapshot table).
+**Delivers:** `GET /finance/projects/{id}/margin`, `GET /finance/jobs/{id}/margin` — revenue (Quote/Invoice) minus cost (CostEntry + TimeEntry x LaborRate) = margin, per project and per trade scope
+**Implements:** `FinanceService` (Pattern 3: on-the-fly aggregation, no materialized view until scale demands it)
+**Avoids:** Pitfall 9 (legacy jobs with no cost data showing fabricated 100% margin — requires an explicit completeness flag), Pitfall 10 (float/decimal drift — shared `to_money()` utility, no client-side `double` for new margin entities)
 
-**Rationale:** The dependency graph is pure backend logic — no AI, no UI complexity beyond CRUD edges. Building it immediately after the data model means it is validated and available when AI intake ships in Phase 3. AI can create dependencies against a tested engine rather than against code written concurrently.
-**Delivers:** GCs can define finish-to-start dependencies between trade scopes; cycle detection prevents invalid graphs (409 on circular); topological sort determines valid execution order for daily checklists
-**Uses:** NetworkX, PostgreSQL recursive CTEs, `DependencyEngineService`
-**Implements:** Edge table (`trade_dependencies`), cycle detection via DFS reachability, task-level dependency storage as JSONB array on `Task`
-**Avoids:** Pitfall 12 (circular dependency not detected) — cycle detection is in the engine from first implementation, before AI or human overrides can create cycles
+### Phase 4: Budgeting and Overrun Alerts
+**Rationale:** Budgeting and overrun-risk both consume margin/cost output from Phase 3. Naive static-threshold alerting cries wolf against front-loaded material costs and back-loaded labor spend; alert delivery must not reuse the existing GC↔contractor chat/notification pipeline without a `finance.*` permission check on the recipient.
+**Delivers:** Budget CRUD per project/trade scope; budget-vs-actual view; trend/velocity-based overrun-risk alerts routed through a dedicated finance-gated channel
+**Uses:** APScheduler (new job alongside existing checklist/alert jobs), existing FCM infrastructure with permission-scoped recipient filtering
+**Avoids:** Pitfall 8 (alert noise / leaking financial status to non-finance roles via existing notification pipeline)
 
-### Phase 3: AI Project Intake and Contractor Interview
+### Phase 5: Web Financial Dashboard
+**Rationale:** Consumes the cost/labor/margin/budget endpoints from Phases 2-4. Extends the existing v2.0 reporting dashboard rather than building an isolated screen, matching user expectation that margin data lives alongside existing revenue/utilization reporting.
+**Delivers:** `features/finance/` web module (CostEntryForm, BudgetForm, MarginSummaryCard), Financials tab on project detail, company-wide margin view under Reports, permission-gated nav
+**Uses:** Recharts (`ComposedChart`, stacked `BarChart`, `ReferenceLine`), TanStack Query via existing `/api/proxy` pattern
+**Avoids:** Pitfall 4 continuation — new dashboard components must call dedicated `/finance/*` endpoints, never embed margin fields on existing `Project`/`Job` response schemas
 
-**Rationale:** AI intake creates the trade scope structure and contractor interview generates the task plans that feed every downstream v3.0 feature (daily checklists, inspection, monitoring dashboard). This is the central v3.0 differentiator. Its token budget strategy, Pydantic validation discipline, and tenant isolation must be correct from first implementation — retrofitting is a rewrite.
-**Delivers:** Full AI-driven project planning loop: GC describes project in chat → AI structures by trade with dependencies → contractors answer interview questions → AI generates per-trade task plans with daily breakdowns
-**Uses:** `anthropic` 0.86.0 (`AsyncAnthropic`), `sse-starlette` (SSE streaming to web), `AIAgentService`, tool-use agentic loop
-**Implements:** Agentic loop with max 10 turns, SSE streaming to web via Next.js proxy, REST completion response to mobile, DB-backed conversation state with RLS
-**Avoids:** Pitfall 3 (token cost explosion), Pitfall 4 (AI parsing failures silently corrupt task plans), Pitfall 6 (AI tenant isolation), Pitfall 11 (rate limit cascades)
-**Must include:** Token budget strategy in design doc before first line of AI code; Pydantic validation + referential integrity check on every AI response before DB write; exponential backoff on all Anthropic calls; model version pinned (not `claude-*-latest`)
+### Phase 6: AI Profitability Analysis
+**Rationale:** Requires clean, structured margin and budget-vs-actual data (Phases 3-4) to reason over — sequencing AI before the underlying data is stable risks low-trust, noisy AI output on a feature users will rely on for financial decisions.
+**Delivers:** Nightly per-company scan flagging margin erosion / budget overrun risk, with Claude-generated severity/impact/remediation text persisted as `DashboardAlert` rows
+**Uses:** Existing `AIService` Claude tool-use plumbing, Structured Outputs/`strict: true`, APScheduler cron (mirrors `run_alert_detection`)
+**Avoids:** Pitfall 6 (AI hallucination/leakage) — every numeric claim must trace to a tool call; the existing non-finance AI surfaces (chat, checklists, schedule alerts) must be retrofitted in this phase to strip financial fields from their prompt context, since this is a cross-cutting concern surfaced by adding finance columns to entities those tools already read
 
-### Phase 4: Real-Time Chat
-
-**Rationale:** Chat is a standalone capability with no AI dependency, but depends on the project hierarchy (chat rooms are project-scoped). Shipping it after Phase 3 means the project model is validated with realistic data from AI intake, giving meaningful test scenarios for chat. Chat does not block any subsequent phase.
-**Delivers:** Bidirectional GC ↔ contractor chat scoped to projects; DB-first delivery (persisted before broadcast); FCM push for offline delivery; message history via REST on reconnect; Drift cache for chat scrollback on mobile
-**Uses:** FastAPI native WebSocket, `WebSocketManager`, `redis.asyncio` pub/sub, `web_socket_channel` (Flutter), `ChatService`
-**Implements:** DB-first delivery model, ACK protocol (server assigns `message_id` + sends ACK event; client retries via REST after 10s without ACK), periodic JWT re-validation, forced disconnect on user deactivation
-**Avoids:** Pitfall 5 (WS auth expiry), Pitfall 9 (WebSocket-only delivery with no persistence), Pitfall 14 (chat attachments mixed with job photos — `chat_attachments` is a separate entity and upload endpoint)
-
-### Phase 5: Photo Annotation
-
-**Rationale:** Annotation depends on existing task attachments (added in Phase 1). It is a self-contained capability with no AI or chat dependency. Building it in Phase 5 means annotated photos are available for Phase 6 (GC inspection), which requires them as evidence. The layered canvas architecture decision (separate static/dynamic `RepaintBoundary` layers) must be made before first implementation.
-**Delivers:** Non-destructive annotation layer on task photos (arrows, circles, text, measurements); same JSON vector format rendered on Flutter (`CustomPainter`) and web (Fabric.js); base photo immutable in storage
-**Uses:** `pro_image_editor` 12.0.7 (Flutter), Fabric.js 7.2.0 (web), `AnnotationService` (JSONB storage on `TaskAttachment.annotation_data`)
-**Implements:** Non-destructive storage pattern, shared annotation JSON schema (version-tagged for future compatibility)
-**Avoids:** Pitfall 8 (UI thread blocking on large photos) — separate `RepaintBoundary` layers, cached `ui.Image`, test with real 4000x3000px device photos from day one; never test only on simulator
-
-### Phase 6: GC Inspection Workflow
-
-**Rationale:** Inspection depends on task progress data (Phase 1 task model), annotated photos (Phase 5), and produces punch list items. This closes the field execution loop: contractor completes task → GC inspects → approve/reject/flag → contractor notified via FCM.
-**Delivers:** GC can approve, reject, or flag tasks with annotated photo evidence; rejected/flagged tasks generate punch list items; FCM notifications to contractors on GC decision; `InspectionScreen` on mobile for GC role
-**Implements:** Task inspection state machine, punch list model, 5 new FCM notification types (additive to existing `NotificationService`)
-**Avoids:** Breaking changes to `NotificationService` that could affect existing push flows — all new notification types are additive
-
-### Phase 7: Per-Trade Quoting and Invoicing
-
-**Rationale:** Financial lifecycle extension is the lowest technical risk item — purely additive FK changes to existing, proven Quote and Invoice models. Deferred until Phase 7 because it benefits from the project hierarchy being stable (Phase 1) and the team having established schema migration discipline across prior phases.
-**Delivers:** Trade-scoped quotes and invoices linked to trade scopes; project-level financial aggregation view on web; existing single-trade job workflow unchanged
-**Implements:** Additive nullable `trade_scope_id` FK on existing Quote and Invoice models; new `TradeQuote` model alongside existing `Quote` (not instead of it); project-level invoice summary
-**Avoids:** Pitfall 7 (breaking existing Quote approval flow) — all new fields are `Optional` with defaults; existing single-trade jobs use Quote unchanged; mobile deserialization test against updated schema must pass before shipping
-
-### Phase 8: AI Daily Checklist and Cross-Trade Monitoring
-
-**Rationale:** The daily checklist push requires task plans (Phase 3) and dependency graph data (Phase 2) to determine which tasks are unblocked today. The GC monitoring dashboard requires all prior phases' data to be meaningful. Shipping these last ensures all inputs are stable and the system has real project data to demonstrate value.
-**Delivers:** Morning FCM with AI-personalized daily task list per contractor (which tasks are unblocked, materials needed, photo requirements); GC cross-trade status dashboard showing all trades simultaneously; AI conflict alerts when dependencies are at risk
-**Uses:** Claude API as stateless request per contractor per day (no conversation history — input is task plan + dependency state + today's date), FCM infrastructure, TanStack Query for dashboard refresh
-**Implements:** Daily checklist generation (stateless AI call per contractor), cross-trade dependency completion notifications, AI conflict alert detection logic, GC timeline/status view on web
+### Phase 7: AI-Assisted Quote Building
+**Rationale:** Most independent of the two AI features — only needs historical pricing data (Phase 2), not the margin/budget machinery — so it can run in parallel with Phases 4-6 if sequencing constraints require it. Has a cold-start dependency (thin suggestions for companies with little history) that shapes UX but doesn't block launch.
+**Delivers:** On-demand, single-shot structured generation of priced labor+material line items for a new quote, human-reviewed and approved before sending — never autonomous
+**Uses:** `QuoteEstimatorService` (stateless Claude tool-use call), historical `QuoteLineItem.unit_price` + `LaborRate` aggregation via SQL, not embeddings/vector search
+**Avoids:** Pitfall 9 continuation (historical dataset must filter to jobs with `has_actual_cost_data = true`, excluding pre-v4.0 jobs with fabricated margins from the pricing baseline)
 
 ### Phase Ordering Rationale
 
-- Phases 1 and 2 are pure infrastructure — no external dependencies, no user-facing AI. They establish the data layer and graph engine that all subsequent phases write to. Getting RLS and `plan_version` right here prevents cascading security and data integrity issues in all later phases.
-- Phase 3 (AI) precedes Phase 4 (chat) because AI generates the task plans that give chat meaningful project context. Chat without project tasks is a generic messaging app.
-- Phase 5 (annotation) precedes Phase 6 (inspection) because GC inspection without annotated photo evidence is just a binary approve/reject button — the annotation is what makes inspection actionable.
-- Phase 7 (billing) is relatively isolated — it could be slid to Phase 5 or 6 if business priorities require billing earlier, with minimal coordination cost.
-- Phase 8 is additive capability on top of a complete system. An alternative ordering: daily checklist as Phase 4.5 (unlocks field contractor value earlier), monitoring dashboard remains Phase 8 — valid if field adoption metrics matter more than GC overview completeness.
+- Phase 1 must come first in its entirety — both the split-brain cost-anchor resolution and the admin-permission-exclusion fix are schema/catalog decisions that are cheap now and expensive (data migration, security incident response) after cost data exists.
+- Phases 2 and 3 are the "boring, foundational" data-capture layer that PITFALLS.md and ARCHITECTURE.md both independently flag as needing to be solid before AI features consume it — sequencing AI earlier risks reasoning over incomplete/noisy data and damaging user trust in financial AI output specifically (a higher-stakes trust failure than in the existing checklist/chat AI features).
+- Phase 4 (budgeting) depends on Phase 3 (margin) because "overrun risk" requires actual-vs-budget comparison, which requires actual costs to already be computed correctly.
+- Phase 5 (web dashboard) is placed after the backend financial core (2-4) is complete so it consumes stable endpoints rather than co-evolving with backend schema changes.
+- Phase 6 (AI profitability) depends on 3-4 for clean structured input; Phase 7 (AI quoting) only depends on Phase 2 and can be pulled forward or parallelized with the team's AI workstream without blocking on 3-6, per ARCHITECTURE.md's build-order analysis.
+- The RBAC audit of pre-existing endpoints (Pitfall 4) is explicitly called out to happen in Phase 1, not deferred — it's a retrofit of code that already exists (`reports/router.py`), not new code, and the longer it's deferred the more new financial fields there are to audit.
 
 ### Research Flags
 
-Phases requiring deeper research during planning:
+Phases likely needing deeper research during planning:
+- **Phase 1 (Schema Foundation + RBAC):** The exact cost-anchor resolution algorithm for orphan jobs (no trade_scope/project link) needs a concrete design spike against real data — ARCHITECTURE.md and PITFALLS.md both flag this as the single highest-risk design decision, worth a short research-phase pass to enumerate all current job/project linkage states in the data before writing the resolution logic.
+- **Phase 6 (AI Profitability Analysis):** Retrofitting role-scoped tool context into the existing chat/checklist/schedule-alert AI surfaces (built pre-v4.0, per Phase 21/26) is a cross-cutting change to code outside this milestone's new module — needs a research/audit pass to enumerate every existing Claude tool handler and its data-fetch pattern before deciding the filtering mechanism.
+- **Phase 4 (Budgeting/Overrun Alerts):** Trend/velocity-based overrun projection (accounting for front-loaded materials vs. back-loaded labor) needs a short domain-research or prototyping pass — static-threshold alerting is well-understood, but the "avoid crying wolf" requirement calls for a specific algorithm decision not fully specified by any research file.
 
-- **Phase 3 (AI Agent Service):** Claude tool-use agentic loop prompt engineering for construction domain is novel. The system prompts for project intake (what questions to ask, how to structure trade scopes) and contractor interview (trade-specific questions per trade type) require iteration with real construction professionals before finalizing. Research the exact tool schema structure and turn limit behavior for complex projects before implementation.
-- **Phase 4 (Real-Time Chat):** WebSocket JWT re-validation patterns with Riverpod `AsyncNotifier` reconnect flows need detailed design. Redis pub/sub integration with the existing slowapi Redis instance requires configuration audit — confirm Redis is present and `REDIS_URL` is already in the backend config.
-- **Phase 5 (Photo Annotation):** Flutter `CustomPainter` layer separation architecture (RepaintBoundary + cached `ui.Image`) has multiple valid approaches. Spike the exact implementation pattern before committing — retrofitting the layered architecture after the performance cliff is hit is expensive.
-
-Phases with well-documented patterns (research-phase can be skipped):
-
-- **Phase 1 (Data Model):** Standard SQLAlchemy + PostgreSQL RLS pattern; identical to existing 15-entity model. Follow existing `TenantScopedModel` conventions exactly.
-- **Phase 2 (Dependency Engine):** PostgreSQL recursive CTEs and NetworkX DAG algorithms are fully documented. ARCHITECTURE.md provides working pseudocode for both cycle detection and topological sort.
-- **Phase 6 (Inspection):** State machine + FCM notification pattern follows existing job status transition model. Additive only.
-- **Phase 7 (Per-Trade Billing):** Additive FK extension to proven models. Standard SQLAlchemy migration pattern.
+Phases with well-documented patterns (research-phase can likely be skipped):
+- **Phase 2 (Cost Capture + Labor Rates):** Standard CRUD following existing `TenantScopedModel`/`BaseService`/`TenantScopedRepository` conventions; effective-dated rate table is a well-established pattern (ARCHITECTURE.md provides a concrete `LaborRate` model).
+- **Phase 3 (Margin Tracking):** `FinanceService` has a direct precedent in the existing `ReportingService` — aggregation SQL patterns (`FILTER`, window functions) are standard PostgreSQL 13/SQLAlchemy 2.0.
+- **Phase 5 (Web Dashboard):** Directly extends the existing v2.0 Recharts/TanStack Query reporting dashboard pattern; no new UI paradigm.
+- **Phase 7 (AI Quote Building):** Reuses the existing `AIService` tool-use plumbing at a simpler (stateless, single-shot) call shape than the existing multi-turn intake conversation.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All new libraries verified against npm/PyPI/pub.dev at specific versions as of March 2026; `anthropic` 0.86.0 released 5 days before research date; official Anthropic SDK and FastAPI SSE docs consulted directly |
-| Features | HIGH | Cross-referenced against 10+ competitor platforms (Procore, Fieldwire, Buildertrend, Siteline, Knowify, Bluebeam, SafetyCulture, ConstructionOnline) plus PROJECT.md as source of truth; feature dependency graph is internally consistent |
-| Architecture | HIGH | Existing codebase inspected directly (base_service.py, base_repository.py, sync/service.py, files/router.py); Claude API tool-use and FastAPI SSE patterns from official docs; PostgreSQL RLS side-channel risk from PostgreSQL wiki |
-| Pitfalls | HIGH | 14 specific pitfalls with detection criteria, recovery strategies, and phase assignments; sources include official PostgreSQL RLS docs, Anthropic streaming docs, Ably WebSocket best practices, AWS multi-tenant AI guidance, and production cost data from Mem0 |
+| Stack | HIGH | Verified against official Anthropic SDK changelog/docs (Structured Outputs GA date confirmed), official PostgreSQL feature-version history, and direct inspection of `.planning/PROJECT.md` for current stack state; zero new dependencies reduces uncertainty surface substantially |
+| Features | MEDIUM-HIGH | Cross-referenced against 6+ named competitor platforms (Buildertrend, Knowify, ServiceTitan, Jobber, CoConstruct, Procore) via WebSearch; domain/business-logic research rather than library-API research, so slightly lower confidence than a Context7-verified technical claim, but consistent findings across independent sources |
+| Architecture | HIGH | Grounded in direct reading of the existing codebase (models, services, routers, migrations, scheduler, RBAC catalog) — not external ecosystem research; every recommended pattern has a cited precedent already shipping in this repo |
+| Pitfalls | HIGH | Grounded directly in this codebase's models, routers, and permission catalog (e.g., the exact `_ADMIN_KEYS` derivation and the exact `require_admin` gating on `reports/router.py` were read directly, not inferred); construction-domain pitfalls (burden rate, front-loaded costs) are industry-standard practice, medium confidence but not load-bearing for the codebase-specific findings |
 
 **Overall confidence: HIGH**
 
 ### Gaps to Address
 
-- **AI prompt quality for construction domain:** Research identifies the tool schema structure and parameter constraints, but actual system prompts for project intake and contractor interview will require iteration with real tradespeople. Flag Phase 3 for user research before finalizing prompts — prompt engineering is not a coding task.
-- **Redis availability in existing backend:** ARCHITECTURE.md assumes Redis is already present for slowapi rate limiting. Confirm `REDIS_URL` exists in the backend config before Phase 4 begins. If Redis is not present, it is a new infrastructure dependency that requires deployment planning.
-- **Current Drift schema version:** PITFALLS.md references "Drift v6" as the current production schema version. Confirm the exact current Drift schema version from the existing codebase before Phase 1 mobile work begins to number migration steps correctly.
-- **Claude model availability:** ARCHITECTURE.md recommends `claude-opus-4-5` for intake/interview and `claude-haiku-3-5` for daily checklist generation. Validate these specific model IDs are available in the Anthropic API before Phase 3 begins. Pin to specific versions, not `claude-*-latest`.
-- **AI cost budget per company:** PITFALLS.md provides order-of-magnitude estimates ($500–$1,500/week with naive history replay). Actual token budget limits per company are a product decision that should be defined before the token budget strategy is implemented in Phase 3.
+- **Orphan job / cost-anchor resolution algorithm:** No research file specifies the exact traversal logic for jobs with no trade_scope/project link. Must be resolved as a concrete design decision in Phase 1 before any `CostEntry`/`Budget` migration ships — flag for a short research-phase or design-spike pass.
+- **Burden rate default value:** PITFALLS.md recommends a configurable `burden_multiplier` per company but does not specify a construction-industry-realistic default (commonly cited range is 20-50% on top of base wage). Needs a product decision, ideally validated against real contractor data, before Phase 2 ships.
+- **Mobile scope for trade-scope/task time tracking:** ARCHITECTURE.md explicitly flags this as an open roadmap decision — whether trade-scope/task clock-in ships in the mobile UI this milestone, or whether v4.0 labor-cost-from-time-entries is initially job-only (simpler) with project/trade-scope time tracking following in a later milestone. This affects Phase 2's scope and should be settled during roadmap creation, not left implicit.
+- **Overrun-alert projection algorithm:** "Trend/velocity-based" alerting is recommended over static thresholds, but no research file specifies the exact projection formula (e.g., linear burn-rate extrapolation vs. phase-weighted expectation). Needs a short design pass in Phase 4.
+- **AI cost-data completeness threshold:** PITFALLS.md recommends a minimum-data threshold before alerting/AI analysis kicks in (to avoid false alarms on sparse data) but doesn't specify the exact threshold (e.g., minimum cost entry count, minimum days elapsed). Product decision needed before Phase 4/6.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-
-- `backend/app/core/base_service.py`, `base_repository.py`, `base_models.py` — existing OOP pattern (direct codebase inspection)
-- `backend/app/features/sync/service.py` — delta sync pattern reused for new entities (direct codebase inspection)
-- `backend/app/features/files/router.py` — attachment pattern extended by annotation service (direct codebase inspection)
-- `backend/app/core/config.py` — `ANTHROPIC_API_KEY` slot identified (direct codebase inspection)
-- [anthropic PyPI](https://pypi.org/project/anthropic/) — version 0.86.0, March 18, 2026
-- [Anthropic Tool Use docs](https://platform.claude.com/docs/en/agents-and-tools/tool-use/implement-tool-use) — agentic loop and tool schema pattern
-- [Anthropic Structured Outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs) — Pydantic-native structured outputs, public beta November 2025
-- [FastAPI SSE docs](https://fastapi.tiangolo.com/tutorial/server-sent-events/) — official SSE implementation
-- [FastAPI WebSockets docs](https://fastapi.tiangolo.com/advanced/websockets/) — WS auth pattern
-- [sse-starlette PyPI](https://pypi.org/project/sse-starlette/) — version 3.3.3
-- [redis PyPI](https://pypi.org/project/redis/) — version 7.1.1 with `redis.asyncio`
-- [NetworkX documentation](https://networkx.org/documentation/stable/) — DAG algorithms (cycle detection, topological sort, critical path)
-- [pro_image_editor pub.dev](https://pub.dev/packages/pro_image_editor) — version 12.0.7
-- [web_socket_channel pub.dev](https://pub.dev/packages/web_socket_channel) — version 3.0.3
-- [fabric npm](https://www.npmjs.com/package/fabric) — version 7.2.0
-- [PostgreSQL Wiki: Row-Level Security](https://wiki.postgresql.org/wiki/Row-security) — FK side channel risk
-- [Tailwind CSS v4 announcement](https://tailwindcss.com/blog/tailwindcss-v4)
-- [Redux Toolkit npm](https://www.npmjs.com/package/@reduxjs/toolkit) — version 2.11.2
-- [TanStack Query npm](https://www.npmjs.com/package/@tanstack/react-query) — version 5.90.21
+- Direct codebase inspection: `backend/app/features/jobs/models.py`, `projects/models.py`, `quotes/models.py`, `invoices/models.py`, `billing_milestones/models.py`, `dashboard/models.py`/`service.py`, `reports/router.py`/`service.py`, `ai/service.py`, `core/permissions.py`, `core/security.py`, `core/scheduler.py`, `core/base_service.py`/`base_repository.py`, `users/models.py`, `companies/models.py`
+- `mobile/lib/features/quotes/domain/quote_entity.dart`, `invoices/domain/invoice_entity.dart` — confirmed existing `double`-based money math (precision gap source)
+- `.planning/PROJECT.md` — v4.0 milestone scope, RBAC defaults, current stack state
+- [Structured outputs — Claude Platform Docs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)
+- [anthropic-sdk-python CHANGELOG.md](https://raw.githubusercontent.com/anthropics/anthropic-sdk-python/main/CHANGELOG.md) — Structured Outputs GA v0.77.0 (2026-01-29)
 
 ### Secondary (MEDIUM confidence)
-
-- Fieldwire, Procore, Buildertrend, Siteline, Knowify, Bluebeam, SafetyCulture — feature benchmark for table stakes determination
-- [AWS Prescriptive Guidance: Tenant isolation for AI agents](https://docs.aws.amazon.com/prescriptive-guidance/latest/agentic-ai-multitenant/enforcing-tenant-isolation.html)
-- [Ably: WebSocket Architecture Best Practices](https://ably.com/topic/websocket-architecture-best-practices)
-- [Mem0: LLM Chat History Summarization Guide 2025](https://mem0.ai/blog/llm-chat-history-summarization-guide-2025) — token cost explosion production data
-- [WebSocket/SSE multi-worker architecture guide 2025](https://blog.greeden.me/en/2025/10/28/weaponizing-real-time-websocket-sse-notifications-with-fastapi-connection-management-rooms-reconnection-scale-out-and-observability/)
-- [React Flow (@xyflow/react)](https://reactflow.dev/) — dependency graph visualization
-- [Next.js 15/16 features 2026](https://jishulabs.com/blog/nextjs-15-16-features-migration-guide-2026) — Next.js 16 stable confirmed
+- [Job Costing & Budget Overview — Buildertrend](https://buildertrend.com/help-article/job-costing-budget-overview/), [Cost Codes — Buildertrend](https://buildertrend.com/help-article/cost-codes-overview/)
+- [Job costing software for trade contractors — Knowify](https://knowify.com/job-costing-software/)
+- [Job Costing Software — ServiceTitan](https://www.servicetitan.com/features/job-costing-software), [Calculate technician burden rates — ServiceTitan Help](https://help.servicetitan.com/docs/calculate-technician-burden-rates)
+- [Insights Dashboard — Jobber Help Center](https://help.getjobber.com/hc/en-us/articles/30100867609367-Insights-Dashboard), [Job Costing — Jobber](https://help.getjobber.com/hc/en-us/articles/14343244961175-Job-Costing)
+- [Construction change order software — CoConstruct](https://www.coconstruct.com/features/change-order-software)
+- [Procore Software Review 2025 — ConstructionBase.ai](https://www.constructionbase.ai/blog/procore-features-pricing-and-limitations-explained)
+- [WIP schedules — AICPA & CIMA](https://www.aicpa-cima.com/professional-insights/article/wip-schedules-blueprints-for-solid-construction-accounting)
+- [12 Best AI Estimating Software for Construction in 2026 — ConstructionPlacements](https://www.constructionplacements.com/best-ai-estimating-software-construction/)
+- WebSearch: PostgreSQL GROUPING SETS/ROLLUP/CUBE/materialized views (EDB, Citus Data, Cybrosys)
+- WebSearch: Python Decimal money-handling best practices (LearnPython.com, Shakuro)
 
 ### Tertiary (LOW confidence)
-
-- AI cost estimates ($500–$1,500/week) are order-of-magnitude extrapolations from published token pricing; actual costs depend on prompt design, project sizes, and usage patterns — validate with real production monitoring data
+- General construction burden/overhead rate ranges (20-50% on top of base wage) — industry-standard practice cited without a specific default figure validated for this product's target audience; needs product-level validation before Phase 2
 
 ---
-*Research completed: 2026-03-19*
+*Research completed: 2026-07-24*
 *Ready for roadmap: yes*
