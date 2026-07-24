@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
-status: Defining requirements
-stopped_at: Milestone v4.0 started — requirements not yet defined
+status: Roadmap created — ready to plan Phase 30
+stopped_at: v4.0 ROADMAP.md created (8 phases, 30-37) — awaiting /gsd:plan-phase 30
 last_updated: "2026-07-24T00:00:00.000Z"
 progress:
-  total_phases: 0
+  total_phases: 8
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -19,64 +19,29 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-24)
 
 **Core value:** AI eliminates the chaos of multi-trade coordination — GCs always know where every trade stands, contractors always know what to do today, projects stay on track.
-**Current focus:** Milestone v4.0 Financial Intelligence — defining requirements
+**Current focus:** Milestone v4.0 Financial Intelligence — roadmap created, ready to plan Phase 30 (Financial Schema Foundation and RBAC Audit)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: Phase 30 — Financial Schema Foundation and RBAC Audit (not started)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-07-24 — Milestone v4.0 Financial Intelligence started
+Status: Roadmap created — ready for `/gsd:plan-phase 30`
+Last activity: 2026-07-24 — ROADMAP.md written for v4.0 (Phases 30-37, 23/23 requirements mapped)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 54 (v1.0) + 25 (v2.0) = 79 total
-- v3.0 plans completed: 0
-- v3.0 trend: Not started
+- Total plans completed: 54 (v1.0) + 25 (v2.0) = 79 total (v3.0/v4.0 plan counts tracked separately below)
+- v3.0 plans completed: phases 19-26 complete; phases 27, 29 also completed outside documented v3.0 roadmap scope
+- v4.0 plans completed: 0 (roadmap just created)
+- v4.0 trend: Not started
 
-**By Phase (v3.0):**
+**By Phase (v4.0):**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 19-26 | TBD | - | - |
-| Phase 19 P02 | 20 | 2 tasks | 16 files |
-| Phase 19 P05 | 25 | 3 tasks | 12 files |
-| Phase 20-dependency-engine P01 | 16m | 2 tasks | 8 files |
-| Phase 20-dependency-engine P04 | 15 | 2 tasks | 9 files |
-| Phase 20-dependency-engine P03 | 45 | 2 tasks | 13 files |
-| Phase 20-dependency-engine P05 | 2m | 2 tasks | 3 files |
-| Phase 20-dependency-engine P06 | 8 | 2 tasks | 2 files |
-| Phase 21-ai-project-intake-and-contractor-interview P01 | 5m | 2 tasks | 11 files |
-| Phase 21 P02 | 11m | 2 tasks | 5 files |
-| Phase 21 P06 | 7 | 2 tasks | 8 files |
-| Phase 21 P03 | 35m | 2 tasks | 16 files |
-| Phase 21 P04 | 1195s | 2 tasks | 22 files |
-| Phase 21 P04 | 20 | 3 tasks | 22 files |
-| Phase 21-ai-project-intake-and-contractor-interview P05 | 35m | 2 tasks | 4 files |
-| Phase 21 P07 | 15 | 2 tasks | 8 files |
-| Phase 22-task-execution-and-photo-annotation P01 | 447 | 2 tasks | 9 files |
-| Phase 22 P02 | 12m | 2 tasks | 11 files |
-| Phase 22-task-execution-and-photo-annotation P03 | 534 | 2 tasks | 13 files |
-| Phase 22-task-execution-and-photo-annotation P04 | 10m | 2 tasks | 7 files |
-| Phase 22-task-execution-and-photo-annotation P05 | 2388 | 2 tasks | 7 files |
-| Phase 23 P02 | 1600 | 2 tasks | 12 files |
-| Phase 23 P03 | 400s | 2 tasks | 7 files |
-| Phase 23 P04 | 1153 | 2 tasks | 9 files |
-| Phase 23-real-time-chat P05 | 35min | 2 tasks | 11 files |
-| Phase 23-real-time-chat P06 | 123min | 2 tasks | 9 files |
-| Phase 24-gc-inspection-workflow P01 | 423 | 2 tasks | 10 files |
-| Phase 24 P02 | 15min | 2 tasks | 9 files |
-| Phase 24-gc-inspection-workflow P03 | 20min | 3 tasks | 9 files |
-| Phase 24 P04 | ~2 sessions | 2 tasks | 8 files |
-| Phase 25-per-trade-billing P01 | 306 | 2 tasks | 12 files |
-| Phase 25-per-trade-billing P02 | 397 | 2 tasks | 14 files |
-| Phase 25-per-trade-billing P05 | 120 | 2 tasks | 5 files |
-| Phase 26 P02 | 532 | 2 tasks | 12 files |
-| Phase 26 P01 | 550 | 2 tasks | 21 files |
-| Phase 26 P03 | 263 | 2 tasks | 9 files |
-| Phase 26 P04 | 600 | 2 tasks | 3 files |
+| 30-37 | TBD | - | - |
 
 ## Accumulated Context
 
@@ -90,6 +55,10 @@ Last activity: 2026-07-24 — Milestone v4.0 Financial Intelligence started
 - v3.0: Annotation storage is non-destructive (base photo immutable; annotation JSON in separate JSONB column)
 - v3.0: WebSocket JWT re-validated server-side every 5 minutes; close with 4401 on expiry
 - v3.0: Task-level dependencies as JSONB array on Task; cross-trade dependencies as edge table
+- v4.0: finance.* permissions for money data — visibility restricted to owner + project_manager by default, backend-enforced via existing RBAC matrix
+- v4.0: Roadmap phase ordering is data-dependency constrained — schema+RBAC foundation (30) must land before any cost/margin/budget/AI feature; AI features (36, 37) sequenced after their data inputs are stable (33/34 for profitability analysis, 32 for quote planning)
+- v4.0: Effective-dated LaborRate table (not a mutable single column) chosen so historical margins stay reproducible after a worker's rate changes — decided at roadmap stage per research PITFALLS.md
+- v4.0: MARG-04 (financial dashboard charts) deliberately sequenced after both margin (33) and budgeting (34) since it visualizes both; kept as its own phase (35) rather than folded into budgeting to keep the dashboard/reporting UI change independently reviewable
 - [Phase 19]: ProjectTasks named to avoid class conflict; UserTradeSpecialties uses plain text FKs to avoid cross-feature coupling
 - [Phase 19 P04]: watchProjectsForContractor uses two-stream approach (watch scopes → filter projects) — Drift selectOnly+JOIN fails with readTable for joined queries
 - [Phase 19 P04]: Riverpod 3 forbids changing override count between pumpWidget calls; split drill-down navigation test into 3 separate testWidgets
@@ -124,13 +93,10 @@ Last activity: 2026-07-24 — Milestone v4.0 Financial Intelligence started
 - [Phase 21]: parseSSELine exported as pure function for independent unit testing (9 tests covering token/tool_call/done/error/edge cases)
 - [Phase 21]: [Phase 21 P04]: dart:io HttpClient used for SSE streaming — flutter_client_sse does not support POST body; Dio cannot handle text/event-stream
 - [Phase 21]: [Phase 21 P04]: parseSseEvent extracted as top-level function (not class method) to enable independent unit testing without AiSseClient instance
-- [Phase 21]: [Phase 21 P04]: dart:io HttpClient used for SSE streaming — flutter_client_sse does not support POST body; Dio cannot handle text/event-stream
-- [Phase 21]: [Phase 21 P04]: parseSseEvent extracted as top-level function (not class method) to enable independent unit testing without AiSseClient instance
 - [Phase 21]: Fake notifiers extend real Notifier class (not base Notifier<State>) — screen casts ref to concrete type, so fake must be subtype
 - [Phase 21]: TaskPreviewList renders task titles as controlled <input> elements — Playwright assertions use locator('input[placeholder=Task title]') not getByText
 - [Phase 21]: ChatBubble isStreaming:true appends cursor via AnimatedBuilder — Flutter tests use find.textContaining() not find.text() for streaming assertions
 - [Phase 21]: Migration 0018 uses CREATE TABLE IF NOT EXISTS for idempotency — table existed from worktree without Alembic stamp
-- [Phase 21]: AIImageUpload uses ON DELETE CASCADE from ai_conversations; JPEG normalization on upload; image_ref_id lookup returns None on missing image (chat degrades to text-only)
 - [Phase 22-task-execution-and-photo-annotation]: CurrentUser has no email attribute — completed_by_name falls back to str(user_id); full name lookup deferred to a later plan
 - [Phase 22-task-execution-and-photo-annotation]: [Phase 22 P01]: annotation_data accepted as Form JSON string in multipart upload (multipart cannot mix JSON body + UploadFile); parsed with json.loads in endpoint
 - [Phase 22-task-execution-and-photo-annotation]: [Phase 22 P01]: TaskNote author_id is soft FK (no hard FK) consistent with project pattern; completed_by_name uses user_id string fallback
@@ -188,17 +154,21 @@ Last activity: 2026-07-24 — Milestone v4.0 Financial Intelligence started
 
 ### Pending Todos
 
-None yet.
+None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ### Blockers/Concerns
 
 - Phase 21: Confirm ANTHROPIC_API_KEY is provisioned and model IDs (claude-opus-4-5, claude-haiku-3-5) are available before starting AI work
 - Phase 23: Confirm REDIS_URL is present in backend config (assumed for slowapi rate limiting) before WebSocket pub/sub design
 - Phase 19: Confirm current Drift schema version number to number new migrations correctly
+- Phase 30 (v4.0): Orphan job / cost-anchor resolution algorithm (jobs with no trade_scope/project link) has no existing research spec — needs a concrete design decision before the cost_entries/budgets migration ships (per research SUMMARY.md gap)
+- Phase 32 (v4.0): Burden rate default value not specified by research — labor cost ships unburdened (wage rate only) per v4.0 scope; flag explicitly in UI/AI output per PITFALLS.md
+- Phase 32 (v4.0): Mobile scope for trade-scope/task time tracking is an open decision flagged by research — confirm during Phase 32 planning whether v4.0 labor-cost-from-time-entries is job-only or also covers trade-scope/task-level time entries on mobile
+- Phase 34 (v4.0): Overrun-alert projection algorithm (trend/velocity-based vs. static threshold) needs a short design pass during Phase 34 planning — research flags this as unspecified
+- Phase 36 (v4.0): AI cost-data completeness threshold (minimum cost entries / days elapsed before AI analysis runs) needs a product decision during Phase 34/36 planning
 
 ## Session Continuity
 
-Last session: 2026-03-26T18:10:10.473Z
-Stopped at: Completed 26-ai-daily-checklists-and-monitoring-dashboard-04-PLAN.md
-Stopped at: Completed 23-real-time-chat-05-PLAN.md
+Last session: 2026-07-24T00:00:00.000Z
+Stopped at: v4.0 ROADMAP.md created (Phases 30-37, 23/23 requirements mapped) — awaiting /gsd:plan-phase 30
 Resume file: None

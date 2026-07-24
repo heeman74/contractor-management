@@ -4,7 +4,8 @@
 
 - ✅ **v1.0 MVP** — Phases 1-12 (shipped 2026-03-15) — [archive](milestones/v1.0-ROADMAP.md)
 - ✅ **v2.0 Web Admin Dashboard** — Phases 13-18 (shipped 2026-03-19)
-- 🚧 **v3.0 AI-Driven Construction Management** — Phases 19-26 (in progress)
+- ✅ **v3.0 AI-Driven Construction Management** — Phases 19-26 (completed 2026-03-26)
+- 🚧 **v4.0 Financial Intelligence** — Phases 30-37 (in progress)
 
 ## Phases
 
@@ -40,7 +41,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 </details>
 
-### v3.0 AI-Driven Construction Management (In Progress)
+### v3.0 AI-Driven Construction Management (Complete)
 
 **Milestone Goal:** Transform ContractorHub from single-contractor job tracking into an AI-driven multi-trade project management platform where AI plans projects by trade, generates daily checklists, GCs coordinate all trades through chat and inspection tools, and the full quoting/invoicing lifecycle works per trade.
 
@@ -52,6 +53,19 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 - [x] **Phase 24: GC Inspection Workflow** — Approve/reject/flag tasks, punch list, annotated photo evidence, FCM notifications to contractors (completed 2026-03-25)
 - [x] **Phase 25: Per-Trade Billing** — Trade-scoped quotes and invoices, project-level aggregation, progress billing at milestones (completed 2026-03-26)
 - [x] **Phase 26: AI Daily Checklists and Monitoring Dashboard** — Morning checklist push, AI schedule adaptation, cross-trade monitoring dashboard with AI alerts (completed 2026-03-26)
+
+### v4.0 Financial Intelligence (In Progress)
+
+**Milestone Goal:** Give owners and project managers real profit visibility and AI-assisted financial management — every project's margin, budget, and quote grounded in actual cost data, invisible to everyone else.
+
+- [ ] **Phase 30: Financial Schema Foundation and RBAC Audit** — Cost/labor-rate/budget schema, finance.* permission catalog (owner + project_manager default, admin explicitly excluded), audit of pre-existing money-adjacent surfaces
+- [ ] **Phase 31: Actual Cost Capture** — Materials and subcontractor/other cost entries with receipt photos, scoped to job or trade scope
+- [ ] **Phase 32: Labor Rates and Cost Rollup** — Effective-dated hourly cost rates, automatic labor cost derivation from time tracking, itemized cost view with category totals
+- [ ] **Phase 33: Profit Margin Tracking** — Revenue-minus-cost margin per job/trade scope and project-level rollup, with incomplete-data flagging
+- [ ] **Phase 34: Budgeting and Overrun Alerts** — Project/trade budgets, budget-vs-actual view, threshold alerts (80%/100%), quote-revision-driven budget adjustment
+- [ ] **Phase 35: Web Financial Dashboard** — Margin and budget-vs-actual charts on the web financial dashboard, permission-gated navigation
+- [ ] **Phase 36: AI Profitability Analysis** — Nightly AI scan flagging margin erosion with corrective-action suggestions, finance-gated alerts
+- [ ] **Phase 37: AI Quote Planning** — AI-assisted quote line items grounded in company cost history, confidence indicators, quoted-vs-actual variance feedback loop
 
 ## Phase Details
 
@@ -309,12 +323,102 @@ Plans:
 - [x] 26-03-PLAN.md — Web: monitoring dashboard with project cards, trade timeline, alert panel, drill-down
 - [x] 26-04-PLAN.md — E2E tests: 19 backend integration + 11 Flutter widget tests
 
+### Phase 30: Financial Schema Foundation and RBAC Audit
+**Goal**: The financial data foundation exists and is protected from day one — finance.* permissions gate all money data, the admin role does not inherit financial access, and every pre-existing money-adjacent surface has been audited so nothing leaks before new financial features are built on top
+**Depends on**: Phase 26 (v3.0 complete)
+**Requirements**: FINSEC-01, FINSEC-02, FINSEC-03, FINSEC-04
+**Success Criteria** (what must be TRUE):
+  1. Owner/PM sees finance.* permission toggles in the Roles & Permissions matrix UI, granted by default only to owner and project_manager
+  2. The admin role's default derived permission set contains zero finance.* keys — verified by an automated regression test, not manual inspection
+  3. Company owner can grant finance.* to a custom role (e.g., bookkeeper) via the existing Roles & Permissions matrix and that role immediately gains access per the grant
+  4. Every pre-existing money-adjacent surface (reports endpoint, monitoring dashboard, AI chat/checklist tool results) is audited and returns no cost/margin/budget fields to a user without finance.* permission
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 31: Actual Cost Capture
+**Goal**: Owner/PM can record real project costs as they occur, with supporting documentation, scoped to the job or trade scope they belong to
+**Depends on**: Phase 30
+**Requirements**: COST-01, COST-02, COST-03
+**Success Criteria** (what must be TRUE):
+  1. Owner/PM can record a materials cost entry (amount, category, date, vendor, note) against a job or trade scope
+  2. Owner/PM can record a subcontractor or other cost entry the same way, against a job or trade scope
+  3. Owner/PM can attach a receipt photo to any cost entry
+  4. A user without finance.* permission cannot view or create cost entries — attempting to do so returns a 403
+**Plans**: TBD
+
+### Phase 32: Labor Rates and Cost Rollup
+**Goal**: Labor cost is derived automatically and accurately from tracked time, and Owner/PM can see a complete, itemized picture of what every job actually cost
+**Depends on**: Phase 30
+**Requirements**: COST-04, COST-05, COST-06
+**Success Criteria** (what must be TRUE):
+  1. Owner/PM can set a worker's hourly cost rate with an effective date, and previously effective rates remain preserved and visible in history
+  2. The system automatically computes labor cost for tracked time by multiplying hours worked by the rate that was effective on the day the work happened — a later rate change does not retroactively rewrite past labor cost
+  3. Owner/PM can view itemized costs per job, per trade scope, and per project, broken out by category (labor/materials/subcontractor/other) with totals
+**Plans**: TBD
+
+### Phase 33: Profit Margin Tracking
+**Goal**: Owner/PM can trust the profit margin shown for any job, trade scope, or project — real numbers where data exists, an honest flag where it doesn't
+**Depends on**: Phase 31, Phase 32
+**Requirements**: MARG-01, MARG-02, MARG-03
+**Success Criteria** (what must be TRUE):
+  1. Owner/PM can view profit margin (revenue minus actual cost) for any job or trade scope
+  2. Owner/PM can view a project-level margin rollup that aggregates margin across all trade scopes on that project
+  3. A job or project with incomplete cost data (legacy pre-v4.0 job, missing labor rate) displays an explicit "incomplete data" flag instead of a fabricated margin number
+**Plans**: TBD
+
+### Phase 34: Budgeting and Overrun Alerts
+**Goal**: Owner/PM can set spending ceilings per project and trade scope and get warned before they're blown, with quote changes automatically kept in sync
+**Depends on**: Phase 33
+**Requirements**: BUDG-01, BUDG-02, BUDG-03, BUDG-04
+**Success Criteria** (what must be TRUE):
+  1. Owner/PM can set a budget for a project and independently for any trade scope within it
+  2. Owner/PM can view budgeted vs. spent vs. remaining at both the project level and the trade scope level
+  3. Owner/PM receives an alert (dashboard + FCM push) when spend crosses the 80% warning threshold and again at 100% overrun, and only finance-permitted users receive it
+  4. Approving a quote revision automatically adjusts the linked budget by the revision's delta amount, with no manual re-entry required
+**Plans**: TBD
+
+### Phase 35: Web Financial Dashboard
+**Goal**: Owner/PM can see the financial health of every project and the company as a whole at a glance, in the same reporting experience they already use
+**Depends on**: Phase 33, Phase 34
+**Requirements**: MARG-04
+**Success Criteria** (what must be TRUE):
+  1. Owner/PM can view a web financial dashboard showing margin trend and budget-vs-actual charts for any project
+  2. Owner/PM can view a company-wide financial rollup alongside the existing v2.0 reporting dashboard, using the same navigation and visual conventions
+  3. A user without finance.* permission does not see the Financials nav item or any financial dashboard route at all
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 36: AI Profitability Analysis
+**Goal**: AI proactively watches every project's financial health so Owner/PM catches margin erosion before it compounds, with every claim grounded in real data
+**Depends on**: Phase 33, Phase 34
+**Requirements**: FINAI-01, FINAI-02
+**Success Criteria** (what must be TRUE):
+  1. Every active project is analyzed by AI on a nightly schedule, and margin erosion is flagged with a specific, suggested corrective action
+  2. Owner/PM receives a finance-gated alert for each AI profitability finding — the alert is invisible to any user without finance.* permission
+  3. Every dollar figure stated in an AI profitability finding traces to a real tool-sourced cost/margin/budget value, never an AI estimate
+**Plans**: TBD
+
+### Phase 37: AI Quote Planning
+**Goal**: Owner/PM gets AI-assisted quote line items grounded in the company's own cost history, always reviewed by a human before anything is sent to a client
+**Depends on**: Phase 32
+**Requirements**: FINAI-03, FINAI-04, FINAI-05
+**Success Criteria** (what must be TRUE):
+  1. Owner/PM can trigger AI to pre-fill a new quote's line items (labor hours, material quantities, unit prices) grounded in the company's historical cost data
+  2. Owner/PM must explicitly review and approve AI-suggested line items before a quote can be sent — no quote is ever sent autonomously
+  3. Each AI quote suggestion displays a confidence indicator reflecting how much historical data backs it
+  4. Owner/PM can view quoted-vs-actual variance for any completed project or trade scope, and that variance history feeds into future AI quote suggestions
+**Plans**: TBD
+
 ## Progress
 
 **Execution Order:**
 v3.0 phases: 19 -> 20 -> 21 -> 22 -> 23 (parallel with 22) -> 24 -> 25 (parallel with 24) -> 26
 Note: Phase 23 (Chat) depends only on Phase 19 and may start in parallel with Phase 22.
 Note: Phase 25 (Billing) depends only on Phase 19 and may start in parallel with Phase 24.
+
+v4.0 phases: 30 -> {31, 32 in parallel} -> 33 -> 34 -> {35, 36 in parallel} ; 37 depends only on 32 and may run in parallel with 33-36.
+Note: Phase 31 (Cost Capture) and Phase 32 (Labor Rates) both depend only on Phase 30 and may run in parallel.
+Note: Phase 37 (AI Quote Planning) depends only on Phase 32 and may run in parallel with Phases 33-36.
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -344,3 +448,11 @@ Note: Phase 25 (Billing) depends only on Phase 19 and may start in parallel with
 | 24. GC Inspection Workflow | v3.0 | 4/4 | Complete    | 2026-03-25 |
 | 25. Per-Trade Billing | v3.0 | 3/5 | Complete    | 2026-03-26 |
 | 26. AI Daily Checklists and Monitoring Dashboard | v3.0 | 4/4 | Complete    | 2026-03-26 |
+| 30. Financial Schema Foundation and RBAC Audit | v4.0 | 0/? | Not started | - |
+| 31. Actual Cost Capture | v4.0 | 0/? | Not started | - |
+| 32. Labor Rates and Cost Rollup | v4.0 | 0/? | Not started | - |
+| 33. Profit Margin Tracking | v4.0 | 0/? | Not started | - |
+| 34. Budgeting and Overrun Alerts | v4.0 | 0/? | Not started | - |
+| 35. Web Financial Dashboard | v4.0 | 0/? | Not started | - |
+| 36. AI Profitability Analysis | v4.0 | 0/? | Not started | - |
+| 37. AI Quote Planning | v4.0 | 0/? | Not started | - |

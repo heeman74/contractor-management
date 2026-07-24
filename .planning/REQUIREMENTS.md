@@ -78,8 +78,33 @@ Which phases cover which requirements. Filled during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (filled by roadmap) | | |
+| COST-01 | Phase 31: Actual Cost Capture | Pending |
+| COST-02 | Phase 31: Actual Cost Capture | Pending |
+| COST-03 | Phase 31: Actual Cost Capture | Pending |
+| COST-04 | Phase 32: Labor Rates and Cost Rollup | Pending |
+| COST-05 | Phase 32: Labor Rates and Cost Rollup | Pending |
+| COST-06 | Phase 32: Labor Rates and Cost Rollup | Pending |
+| BUDG-01 | Phase 34: Budgeting and Overrun Alerts | Pending |
+| BUDG-02 | Phase 34: Budgeting and Overrun Alerts | Pending |
+| BUDG-03 | Phase 34: Budgeting and Overrun Alerts | Pending |
+| BUDG-04 | Phase 34: Budgeting and Overrun Alerts | Pending |
+| MARG-01 | Phase 33: Profit Margin Tracking | Pending |
+| MARG-02 | Phase 33: Profit Margin Tracking | Pending |
+| MARG-03 | Phase 33: Profit Margin Tracking | Pending |
+| MARG-04 | Phase 35: Web Financial Dashboard | Pending |
+| FINAI-01 | Phase 36: AI Profitability Analysis | Pending |
+| FINAI-02 | Phase 36: AI Profitability Analysis | Pending |
+| FINAI-03 | Phase 37: AI Quote Planning | Pending |
+| FINAI-04 | Phase 37: AI Quote Planning | Pending |
+| FINAI-05 | Phase 37: AI Quote Planning | Pending |
+| FINSEC-01 | Phase 30: Financial Schema Foundation and RBAC Audit | Pending |
+| FINSEC-02 | Phase 30: Financial Schema Foundation and RBAC Audit | Pending |
+| FINSEC-03 | Phase 30: Financial Schema Foundation and RBAC Audit | Pending |
+| FINSEC-04 | Phase 30: Financial Schema Foundation and RBAC Audit | Pending |
+
+**Coverage:** 23/23 v4.0 requirements mapped ✓
 
 ---
 *Requirements defined: 2026-07-24*
 *Previous milestone requirements: archived at milestones/v3.0-REQUIREMENTS.md*
+*Roadmap created: 2026-07-24*
