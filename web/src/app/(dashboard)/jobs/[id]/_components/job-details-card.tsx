@@ -67,6 +67,16 @@ export function JobDetailsCard({ job }: { job: Job }) {
           href={job.client_id ? `/clients/${job.client_id}` : null}
           name={job.client_name ?? job.client_id?.slice(0, 8) ?? null}
         />
+        <LinkedEntityField
+          label="Project"
+          href={job.project_id ? "/projects" : null}
+          name={job.project_name ?? job.project_id?.slice(0, 8) ?? null}
+        />
+        <LinkedEntityField
+          label="Manager"
+          href={job.manager_id ? "/team" : null}
+          name={job.manager_name ?? job.manager_id?.slice(0, 8) ?? null}
+        />
 
         <DetailField label="Scheduled Date">
           <p className="text-sm font-normal text-gray-900">

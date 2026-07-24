@@ -46,6 +46,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.base_models import TenantScopedModel
 
 if TYPE_CHECKING:
+    from app.features.projects.models import Project
     from app.features.scheduling.models import Booking, JobSite
     from app.features.users.models import User
 
@@ -90,6 +91,19 @@ class Job(TenantScopedModel):
         ForeignKey("users.id"),
         nullable=True,
     )
+    # Nullable link to the multi-trade project this job belongs to (migration 0030).
+    # ON DELETE SET NULL — deleting a project unlinks its jobs rather than deleting them.
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    # The job's assigned project manager (migration 0031), alongside contractor_id.
+    manager_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     purchase_order_number: Mapped[str | None] = mapped_column(Text, nullable=True)
     external_reference: Mapped[str | None] = mapped_column(Text, nullable=True)
     tags: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="'[]'::jsonb")
@@ -125,6 +139,16 @@ class Job(TenantScopedModel):
     contractor: Mapped[User | None] = relationship(  # type: ignore[name-defined]
         "User",
         foreign_keys=[contractor_id],
+        lazy="raise",
+    )
+    project: Mapped[Project | None] = relationship(  # type: ignore[name-defined]
+        "Project",
+        foreign_keys=[project_id],
+        lazy="raise",
+    )
+    manager: Mapped[User | None] = relationship(  # type: ignore[name-defined]
+        "User",
+        foreign_keys=[manager_id],
         lazy="raise",
     )
     bookings: Mapped[list[Booking]] = relationship(  # type: ignore[name-defined]

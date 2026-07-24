@@ -70,6 +70,10 @@ export interface Job {
   client_name: string | null;
   contractor_id: string | null;
   contractor_name: string | null;
+  project_id: string | null;
+  project_name: string | null;
+  manager_id: string | null;
+  manager_name: string | null;
   purchase_order_number: string | null;
   external_reference: string | null;
   tags: string[];
@@ -91,6 +95,8 @@ export interface JobCreateRequest {
   priority?: string;
   client_id?: string;
   contractor_id?: string;
+  project_id?: string;
+  manager_id?: string;
   estimated_duration_minutes?: number;
   notes?: string;
 }

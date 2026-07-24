@@ -45,6 +45,8 @@ class JobRepository(TenantScopedRepository[Job]):
             .options(
                 selectinload(Job.client),
                 selectinload(Job.contractor),
+                selectinload(Job.project),
+                selectinload(Job.manager),
                 selectinload(Job.bookings),
             )
         )
@@ -58,10 +60,11 @@ class JobRepository(TenantScopedRepository[Job]):
         client_id: uuid.UUID | None = None,
         trade_type: str | None = None,
         priority: str | None = None,
+        project_id: uuid.UUID | None = None,
         offset: int = 0,
         limit: int = 50,
     ) -> list[Job]:
-        """Filtered list of non-deleted jobs with client/contractor eager-loaded.
+        """Filtered list of non-deleted jobs with client/contractor/project eager-loaded.
 
         All filters are optional. Results ordered by created_at DESC (newest first).
         """
@@ -71,6 +74,8 @@ class JobRepository(TenantScopedRepository[Job]):
             .options(
                 selectinload(Job.client),
                 selectinload(Job.contractor),
+                selectinload(Job.project),
+                selectinload(Job.manager),
             )
             .order_by(Job.created_at.desc())
             .offset(offset)
@@ -82,6 +87,8 @@ class JobRepository(TenantScopedRepository[Job]):
             stmt = stmt.where(Job.contractor_id == contractor_id)
         if client_id is not None:
             stmt = stmt.where(Job.client_id == client_id)
+        if project_id is not None:
+            stmt = stmt.where(Job.project_id == project_id)
         if trade_type is not None:
             stmt = stmt.where(Job.trade_type == trade_type)
         if priority is not None:

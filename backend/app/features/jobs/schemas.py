@@ -103,6 +103,8 @@ class JobCreate(BaseModel):
     priority: JobPriority = JobPriority.medium
     client_id: uuid.UUID | None = None
     contractor_id: uuid.UUID | None = None
+    project_id: uuid.UUID | None = None
+    manager_id: uuid.UUID | None = None
     purchase_order_number: str | None = None
     external_reference: str | None = None
     tags: list[str] = Field(default_factory=list)
@@ -119,6 +121,8 @@ class JobUpdate(BaseModel):
     priority: JobPriority | None = None
     client_id: uuid.UUID | None = None
     contractor_id: uuid.UUID | None = None
+    project_id: uuid.UUID | None = None
+    manager_id: uuid.UUID | None = None
     purchase_order_number: str | None = None
     external_reference: str | None = None
     tags: list[str] | None = None
@@ -144,6 +148,10 @@ class JobResponse(BaseResponseSchema):
     client_name: str | None = None
     contractor_id: uuid.UUID | None = None
     contractor_name: str | None = None
+    project_id: uuid.UUID | None = None
+    project_name: str | None = None
+    manager_id: uuid.UUID | None = None
+    manager_name: str | None = None
     purchase_order_number: str | None = None
     external_reference: str | None = None
     tags: list[Any] = Field(default_factory=list)

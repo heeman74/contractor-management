@@ -232,6 +232,13 @@ def _job_with_client_name(job) -> JobResponse:  # type: ignore[type-arg]
     if "contractor" not in insp.unloaded and job.contractor is not None:
         parts = [job.contractor.first_name, job.contractor.last_name]
         resp.contractor_name = " ".join(p for p in parts if p) or None
+    # Populate project_name from the eager-loaded project link (migration 0030)
+    if "project" not in insp.unloaded and job.project is not None:
+        resp.project_name = job.project.name
+    # Populate manager_name from the eager-loaded manager link (migration 0031)
+    if "manager" not in insp.unloaded and job.manager is not None:
+        parts = [job.manager.first_name, job.manager.last_name]
+        resp.manager_name = " ".join(p for p in parts if p) or None
     return resp
 
 
@@ -374,6 +381,7 @@ async def list_jobs(
     client_id: uuid.UUID | None = Query(default=None),
     trade_type: str | None = Query(default=None),
     priority: str | None = Query(default=None),
+    project_id: uuid.UUID | None = Query(default=None),
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
@@ -387,6 +395,7 @@ async def list_jobs(
         client_id=client_id,
         trade_type=trade_type,
         priority=priority,
+        project_id=project_id,
         offset=offset,
         limit=limit,
     )

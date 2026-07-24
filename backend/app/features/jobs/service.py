@@ -171,6 +171,28 @@ class JobService(JobEventsMixin, TenantScopedService[Job]):
         """Fetch a job by id or raise 404."""
         return await self.get_or_404(job_id, detail=f"Job {job_id} not found")
 
+    async def _validate_project_in_company(self, project_id: uuid.UUID) -> None:
+        """Raise 400 if the project doesn't exist in the caller's company (RLS-scoped)."""
+        from app.features.projects.models import Project
+
+        project = await self.db.get(Project, project_id)
+        if project is None or project.deleted_at is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Project not found in this company",
+            )
+
+    async def _validate_manager_in_company(self, manager_id: uuid.UUID) -> None:
+        """Raise 400 if the manager user doesn't exist in the caller's company (RLS-scoped)."""
+        from app.features.users.models import User
+
+        user = await self.db.get(User, manager_id)
+        if user is None or user.deleted_at is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Manager not found in this company",
+            )
+
     @staticmethod
     def _check_version(job: Job, expected_version: int) -> None:
         """Raise 409 if the client's expected version is stale (optimistic locking)."""
@@ -203,6 +225,10 @@ class JobService(JobEventsMixin, TenantScopedService[Job]):
         Appends initial status_history entry recording the creation event.
         Uses db.flush() to obtain generated ID without committing.
         """
+        if data.project_id is not None:
+            await self._validate_project_in_company(data.project_id)
+        if data.manager_id is not None:
+            await self._validate_manager_in_company(data.manager_id)
         initial_status = data.status or JobStatus.quote
         initial_history_entry: dict[str, Any] = {
             "status": str(initial_status),
@@ -219,6 +245,8 @@ class JobService(JobEventsMixin, TenantScopedService[Job]):
             priority=str(data.priority),
             client_id=data.client_id,
             contractor_id=data.contractor_id,
+            project_id=data.project_id,
+            manager_id=data.manager_id,
             purchase_order_number=data.purchase_order_number,
             external_reference=data.external_reference,
             tags=data.tags,
@@ -328,6 +356,11 @@ class JobService(JobEventsMixin, TenantScopedService[Job]):
             # Nothing to update — return as-is
             return job
 
+        if update_data.get("project_id") is not None:
+            await self._validate_project_in_company(update_data["project_id"])
+        if update_data.get("manager_id") is not None:
+            await self._validate_manager_in_company(update_data["manager_id"])
+
         for field, value in update_data.items():
             setattr(job, field, value)
         job.version = job.version + 1  # type: ignore[assignment]
@@ -368,6 +401,7 @@ class JobService(JobEventsMixin, TenantScopedService[Job]):
         client_id: uuid.UUID | None = None,
         trade_type: str | None = None,
         priority: str | None = None,
+        project_id: uuid.UUID | None = None,
         offset: int = 0,
         limit: int = 50,
     ) -> list[Job]:
@@ -378,6 +412,7 @@ class JobService(JobEventsMixin, TenantScopedService[Job]):
             client_id=client_id,
             trade_type=trade_type,
             priority=priority,
+            project_id=project_id,
             offset=offset,
             limit=limit,
         )

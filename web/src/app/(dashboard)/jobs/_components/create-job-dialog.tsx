@@ -29,6 +29,8 @@ import type {
   ClientListItem,
   ContractorListItem,
 } from "@/types/api";
+import type { ProjectResponse } from "@/types/projects";
+import { isManager } from "@/lib/roles";
 
 const TRADE_TYPES = [
   "Plumbing",
@@ -57,6 +59,8 @@ export function CreateJobDialog({ open, onOpenChange }: CreateJobDialogProps) {
   const [priority, setPriority] = useState("medium");
   const [clientId, setClientId] = useState("");
   const [contractorId, setContractorId] = useState("");
+  const [projectId, setProjectId] = useState("");
+  const [managerId, setManagerId] = useState("");
   const [estimatedDuration, setEstimatedDuration] = useState("");
   const [notes, setNotes] = useState("");
   const [formError, setFormError] = useState("");
@@ -77,12 +81,29 @@ export function CreateJobDialog({ open, onOpenChange }: CreateJobDialogProps) {
     select: (users) => users.filter((u) => u.roles.includes("contractor")),
   });
 
+  // Fetch projects for the optional project link
+  const { data: projects } = useQuery({
+    queryKey: ["projects"],
+    queryFn: () => apiGet<ProjectResponse[]>("/api/v1/projects/"),
+    enabled: open,
+  });
+
+  // Manager candidates: users holding a manager-capable role (owner/admin/PM)
+  const { data: managers } = useQuery({
+    queryKey: ["users"],
+    queryFn: () => apiGet<ContractorListItem[]>("/api/v1/users/"),
+    enabled: open,
+    select: (users) => users.filter((u) => isManager(u.roles)),
+  });
+
   const resetForm = () => {
     setDescription("");
     setTradeType("");
     setPriority("medium");
     setClientId("");
     setContractorId("");
+    setProjectId("");
+    setManagerId("");
     setEstimatedDuration("");
     setNotes("");
     setFormError("");
@@ -126,6 +147,8 @@ export function CreateJobDialog({ open, onOpenChange }: CreateJobDialogProps) {
 
     if (clientId) payload.client_id = clientId;
     if (contractorId) payload.contractor_id = contractorId;
+    if (projectId) payload.project_id = projectId;
+    if (managerId) payload.manager_id = managerId;
     if (estimatedDuration) {
       const mins = parseInt(estimatedDuration, 10);
       if (!isNaN(mins) && mins > 0) payload.estimated_duration_minutes = mins;
@@ -140,9 +163,23 @@ export function CreateJobDialog({ open, onOpenChange }: CreateJobDialogProps) {
     onOpenChange(nextOpen);
   };
 
+  // base-ui SelectValue renders the raw value (a UUID) by default — map ids
+  // back to display names so the closed trigger shows the person/project name.
+  const userLabel = (users: ContractorListItem[] | ClientListItem[] | undefined) =>
+    function renderUser(value: string | null) {
+      if (!value) return null;
+      const u = (users as Array<ContractorListItem | ClientListItem> | undefined)?.find(
+        (x) => x.id === value
+      );
+      if (!u) return value.slice(0, 8);
+      return [u.first_name, u.last_name].filter(Boolean).join(" ") || u.email;
+    };
+  const projectLabel = (value: string | null) =>
+    value ? (projects?.find((p) => p.id === value)?.name ?? value.slice(0, 8)) : null;
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create New Job</DialogTitle>
           <DialogDescription>
@@ -221,7 +258,9 @@ export function CreateJobDialog({ open, onOpenChange }: CreateJobDialogProps) {
                 className="w-full"
                 data-testid="client-trigger"
               >
-                <SelectValue placeholder="Select client" />
+                <SelectValue placeholder="Select client">
+                  {userLabel(clients)}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {clients?.map((client) => (
@@ -246,7 +285,9 @@ export function CreateJobDialog({ open, onOpenChange }: CreateJobDialogProps) {
                 className="w-full"
                 data-testid="contractor-trigger"
               >
-                <SelectValue placeholder="Select contractor" />
+                <SelectValue placeholder="Select contractor">
+                  {userLabel(contractors)}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {contractors?.map((contractor) => (
@@ -254,6 +295,58 @@ export function CreateJobDialog({ open, onOpenChange }: CreateJobDialogProps) {
                     {[contractor.first_name, contractor.last_name]
                       .filter(Boolean)
                       .join(" ") || contractor.email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Manager */}
+          <div className="space-y-1.5">
+            <Label>Project Manager (optional)</Label>
+            <Select<string>
+              value={managerId}
+              onValueChange={(v) => setManagerId(v ?? "")}
+            >
+              <SelectTrigger
+                className="w-full"
+                data-testid="manager-trigger"
+              >
+                <SelectValue placeholder="Select manager">
+                  {userLabel(managers)}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {managers?.map((manager) => (
+                  <SelectItem key={manager.id} value={manager.id}>
+                    {[manager.first_name, manager.last_name]
+                      .filter(Boolean)
+                      .join(" ") || manager.email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Project */}
+          <div className="space-y-1.5">
+            <Label>Project (optional)</Label>
+            <Select<string>
+              value={projectId}
+              onValueChange={(v) => setProjectId(v ?? "")}
+            >
+              <SelectTrigger
+                className="w-full"
+                data-testid="project-trigger"
+              >
+                <SelectValue placeholder="Link to a project">
+                  {projectLabel}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {projects?.map((project) => (
+                  <SelectItem key={project.id} value={project.id}>
+                    {project.name}
                   </SelectItem>
                 ))}
               </SelectContent>
