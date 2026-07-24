@@ -173,10 +173,11 @@ class AttachmentUploadService {
       throw Exception('Empty response from upload endpoint');
     }
 
-    final remoteUrl = data['url'] as String?;
+    // The backend returns `remote_url` (not `url`).
+    final remoteUrl = data['remote_url'] as String?;
     if (remoteUrl == null) {
       throw const FormatException(
-        'Missing "url" field in upload response',
+        'Missing "remote_url" field in upload response',
       );
     }
 

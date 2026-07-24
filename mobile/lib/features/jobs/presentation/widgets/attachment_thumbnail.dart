@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/network/media_url.dart';
 import '../../domain/attachment_entity.dart';
 
 /// Compact 60x60 thumbnail widget for a single [AttachmentEntity].
@@ -101,7 +102,7 @@ class AttachmentThumbnail extends StatelessWidget {
                       fit: BoxFit.contain,
                     )
                   : Image.network(
-                      attachment.remoteUrl!,
+                      resolveMediaUrl(attachment.remoteUrl)!,
                       fit: BoxFit.contain,
                       loadingBuilder: (context, child, loadingProgress) {
                         if (loadingProgress == null) return child;
@@ -215,7 +216,7 @@ class _ThumbnailBody extends StatelessWidget {
 
     if (attachment.remoteUrl != null) {
       return Image.network(
-        attachment.remoteUrl!,
+        resolveMediaUrl(attachment.remoteUrl)!,
         fit: BoxFit.cover,
         width: 60,
         height: 60,

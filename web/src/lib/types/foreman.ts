@@ -34,6 +34,7 @@ export interface CreateStatusUpdatePayload {
   workers_on_site?: number | null;
   safety_incidents?: number;
   blockers?: string | null;
+  photos?: string[];
 }
 
 export interface AssignForemanPayload {

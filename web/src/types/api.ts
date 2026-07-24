@@ -102,11 +102,19 @@ export interface JobTransitionRequest {
   version: number;
 }
 
+export type AttachmentType = "photo" | "pdf" | "drawing";
+
+// Matches backend AttachmentResponse (job-note attachments).
 export interface AttachmentResponse {
   id: string;
-  filename: string;
-  content_type: string;
+  company_id: string;
+  note_id: string;
+  attachment_type: AttachmentType;
   remote_url: string | null;
+  caption: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface JobNoteResponse {

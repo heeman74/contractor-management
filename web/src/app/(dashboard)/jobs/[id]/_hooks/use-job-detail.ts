@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { apiGet, apiPost, apiPatch, ApiError } from "@/lib/api-client";
+import { apiGet, apiPost, apiPatch, apiUpload, ApiError } from "@/lib/api-client";
+import type { PendingAttachment } from "@/features/media/types";
 import type {
   Job,
   JobNoteResponse,
@@ -132,9 +133,23 @@ export function useJobDetail(jobId: string) {
     },
   });
 
-  const addNoteMutation = useMutation<JobNoteResponse, Error, string>({
-    mutationFn: (body) =>
-      apiPost<JobNoteResponse>(`/api/v1/jobs/${jobId}/notes`, { body }),
+  const addNoteMutation = useMutation<
+    JobNoteResponse,
+    Error,
+    { body: string; attachments: PendingAttachment[] }
+  >({
+    mutationFn: async ({ body, attachments }) => {
+      // The note must exist before attachments can reference its id.
+      const note = await apiPost<JobNoteResponse>(`/api/v1/jobs/${jobId}/notes`, { body });
+      for (const attachment of attachments) {
+        const form = new FormData();
+        form.append("file", attachment.file);
+        form.append("note_id", note.id);
+        form.append("attachment_type", attachment.attachmentType);
+        await apiUpload(`/api/v1/files/upload`, form);
+      }
+      return note;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["job-notes", jobId] });
       toast.success("Note added");
@@ -190,7 +205,8 @@ export function useJobDetail(jobId: string) {
     isAddingNote: addNoteMutation.isPending,
     transitionTo,
     cancelJob,
-    addNote: (body: string) => addNoteMutation.mutate(body),
+    addNote: (body: string, attachments: PendingAttachment[] = []) =>
+      addNoteMutation.mutate({ body, attachments }),
     generateInvoice: () => generateInvoiceMutation.mutate(),
   };
 }

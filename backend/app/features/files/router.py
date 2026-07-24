@@ -30,13 +30,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_service import entity_or_404
 from app.core.database import get_db
-from app.core.security import CurrentUser, get_current_user
+from app.core.security import CurrentUser, get_current_user, require_permission
+from app.features.files.schemas import ImageUploadResponse
 from app.features.jobs.models import Attachment, JobNote
 from app.features.jobs.schemas import AttachmentResponse
 
 router = APIRouter(tags=["files"])
 
 _ALLOWED_ATTACHMENT_TYPES = frozenset({"photo", "pdf", "drawing"})
+_ALLOWED_IMAGE_TYPES = frozenset(
+    {"image/jpeg", "image/png", "image/heic", "image/heif", "image/webp"}
+)
+_MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
 
 @router.post(
@@ -124,3 +129,52 @@ async def upload_attachment(
     await db.refresh(attachment)
 
     return AttachmentResponse.model_validate(attachment)
+
+
+@router.post(
+    "/files/images",
+    status_code=status.HTTP_201_CREATED,
+    response_model=ImageUploadResponse,
+)
+async def upload_image(
+    file: UploadFile,
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+    _: Annotated[None, Depends(require_permission("photos.upload"))],
+) -> ImageUploadResponse:
+    """Upload a standalone image and return a servable URL.
+
+    Unlike /files/upload this creates no DB record and needs no parent entity —
+    it exists so surfaces that store bare photo URLs (e.g. foreman status updates,
+    whose `photos` is a list of strings) have an upload path. Saved to
+    uploads/images/{company_id}/{uuid}{ext}, served by the /files StaticFiles mount.
+
+    Raises 400 (missing file / non-image type) or 413 (over 25 MB).
+    """
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No file provided.",
+        )
+    if file.content_type not in _ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported image type '{file.content_type}'. Must be JPEG, PNG, HEIC, or WebP.",
+        )
+
+    content = await file.read()
+    if len(content) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="File too large. Maximum size is 25 MB.",
+        )
+
+    suffix = Path(file.filename).suffix.lower() or ".jpg"
+    unique_filename = f"{uuid.uuid4()}{suffix}"
+    upload_dir = Path("uploads") / "images" / str(current_user.company_id)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    async with aiofiles.open(upload_dir / unique_filename, "wb") as f:
+        await f.write(content)
+
+    remote_url = f"/files/images/{current_user.company_id}/{unique_filename}"
+    return ImageUploadResponse(remote_url=remote_url)

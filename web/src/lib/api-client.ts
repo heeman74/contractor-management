@@ -134,6 +134,15 @@ export function apiDelete<T>(path: string): Promise<T> {
 }
 
 /**
+ * Multipart upload through the proxy. Do NOT set Content-Type — the browser adds
+ * the multipart boundary, and the proxy streams the FormData to FastAPI intact.
+ * Handles the 401 refresh-and-retry like the JSON helpers.
+ */
+export function apiUpload<T>(path: string, formData: FormData): Promise<T> {
+  return apiClient<T>(path, { method: "POST", body: formData });
+}
+
+/**
  * Raw fetch through the proxy — returns the Response object directly.
  * Use for binary downloads (PDF) where resp.json() would fail.
  * Handles 401 refresh retry like apiClient.

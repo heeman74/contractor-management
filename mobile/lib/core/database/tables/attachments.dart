@@ -28,7 +28,7 @@ class Attachments extends Table {
   /// FK to JobNotes.id — the note this attachment belongs to.
   TextColumn get noteId => text()();
 
-  /// Media type identifier: 'photo' | 'drawing' | 'document'
+  /// Media type identifier: 'photo' | 'pdf' | 'drawing' (matches the backend).
   TextColumn get attachmentType => text()();
 
   /// Absolute path to the local file on device storage.

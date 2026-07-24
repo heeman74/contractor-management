@@ -2,6 +2,7 @@
 
 import { Calendar, Clock, DollarSign, Camera, User } from "lucide-react";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { TaskPhotos } from "./TaskPhotos";
 import type { TaskResponse, MaterialItem } from "@/types/projects";
 
 interface TaskDetailProps {
@@ -111,6 +112,9 @@ export function TaskDetail({ task }: TaskDetailProps) {
         </h3>
         <MaterialsList materials={task.materials_needed} />
       </div>
+
+      {/* Photos — view gallery; managers can add photos / drawings / annotations */}
+      <TaskPhotos taskId={task.id} />
 
       {/* Dependencies are now managed via the Gantt timeline view */}
     </div>

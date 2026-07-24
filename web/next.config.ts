@@ -7,11 +7,24 @@ import type { NextConfig } from "next";
 // standalone output, and CI resolve from `web/` regardless of the machine.
 const projectRoot = import.meta.dirname;
 
+const FASTAPI_URL = process.env.FASTAPI_URL ?? "http://localhost:8000";
+
 const nextConfig: NextConfig = {
   output: "standalone",
   outputFileTracingRoot: projectRoot,
   turbopack: {
     root: projectRoot,
+  },
+  // Serve uploaded files (job-note attachments, task photos, images) from FastAPI's
+  // /files StaticFiles mount. Attachment remote_url values are "/files/..." — without
+  // this rewrite they would resolve to the web origin and 404.
+  async rewrites() {
+    return [
+      {
+        source: "/files/:path*",
+        destination: `${FASTAPI_URL}/files/:path*`,
+      },
+    ];
   },
 };
 

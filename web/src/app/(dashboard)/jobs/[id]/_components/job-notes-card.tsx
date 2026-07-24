@@ -1,10 +1,13 @@
 import { useState } from "react";
 import Image from "next/image";
+import { PenLine } from "lucide-react";
 import type { AttachmentResponse, JobNoteResponse } from "@/types/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { formatRelativeTime } from "@/lib/format";
+import { MediaComposer } from "@/features/media/components/MediaComposer";
+import type { PendingAttachment } from "@/features/media/types";
 import { PhotoLightbox } from "./photo-lightbox";
 
 const MAX_NOTE_LENGTH = 2000;
@@ -24,12 +27,12 @@ function NoteAttachments({
         <button
           key={attachment.id}
           onClick={() => onOpenPhoto(attachment)}
-          className="rounded overflow-hidden focus:outline-none focus:ring-2 focus:ring-ring"
+          className="relative rounded overflow-hidden focus:outline-none focus:ring-2 focus:ring-ring"
         >
           {attachment.remote_url ? (
             <Image
               src={attachment.remote_url}
-              alt={attachment.filename}
+              alt={attachment.caption ?? attachment.attachment_type}
               width={200}
               height={200}
               unoptimized
@@ -40,6 +43,14 @@ function NoteAttachments({
               <span className="text-xs text-gray-400">Photo unavailable</span>
             </div>
           )}
+          {attachment.attachment_type === "drawing" && (
+            <span
+              className="absolute left-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-brand text-brand-foreground"
+              title="Drawing"
+            >
+              <PenLine className="h-2.5 w-2.5" />
+            </span>
+          )}
         </button>
       ))}
     </div>
@@ -48,7 +59,7 @@ function NoteAttachments({
 
 interface JobNotesCardProps {
   notes: JobNoteResponse[];
-  onAddNote: (body: string) => void;
+  onAddNote: (body: string, attachments: PendingAttachment[]) => void;
   isAddingNote: boolean;
 }
 
@@ -58,13 +69,18 @@ export function JobNotesCard({
   isAddingNote,
 }: JobNotesCardProps) {
   const [noteBody, setNoteBody] = useState("");
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [lightboxPhoto, setLightboxPhoto] = useState<AttachmentResponse | null>(
     null
   );
 
+  const canSubmit = (noteBody.trim().length > 0 || attachments.length > 0) && !isAddingNote;
+
   function submitNote() {
-    onAddNote(noteBody);
+    if (!canSubmit) return;
+    onAddNote(noteBody, attachments);
     setNoteBody("");
+    setAttachments([]);
   }
 
   return (
@@ -107,13 +123,14 @@ export function JobNotesCard({
             value={noteBody}
             onChange={(e) => setNoteBody(e.target.value)}
           />
+          <MediaComposer
+            value={attachments}
+            onChange={setAttachments}
+            disabled={isAddingNote}
+          />
           <div className="flex justify-end">
-            <Button
-              size="sm"
-              onClick={submitNote}
-              disabled={!noteBody.trim() || isAddingNote}
-            >
-              Add Note
+            <Button size="sm" onClick={submitNote} disabled={!canSubmit}>
+              {isAddingNote ? "Adding…" : "Add Note"}
             </Button>
           </div>
         </div>

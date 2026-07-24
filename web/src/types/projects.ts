@@ -123,3 +123,17 @@ export interface TaskCreate {
   zone_id?: string;
   start_date?: string;
 }
+
+export interface TaskAttachmentResponse {
+  id: string;
+  company_id: string;
+  task_id: string;
+  attachment_type: string;
+  remote_url: string | null;
+  local_path: string | null;
+  caption: string | null;
+  sort_order: number;
+  annotation_data: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}

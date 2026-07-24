@@ -64,6 +64,15 @@ Requirements for AI-Driven Construction Management milestone. Each maps to roadm
 - [x] **DASH-03**: AI generates alerts when trades fall behind schedule or dependencies are at risk
 - [x] **DASH-04**: GC can drill down from project overview to individual trade tasks
 
+### Web Media Authoring (Phase 28)
+
+- [x] **WMEDIA-01**: Admin/manager can attach photos to job notes on web
+- [x] **WMEDIA-02**: Admin/manager can draw a sketch from scratch and attach it (job notes, tasks, foreman status)
+- [x] **WMEDIA-03**: Admin/manager can annotate a photo (arrows/circles/text/measurements) on web
+- [x] **WMEDIA-04**: Admin/manager can add photos/drawings/annotations to project task attachments on web
+- [x] **WMEDIA-05**: Foreman/admin can attach photos to daily status updates on web (generic image upload endpoint)
+- [x] **WMEDIA-06**: Uploaded files (attachments, task photos, images) are viewable on web via the /files rewrite
+
 ## Future Requirements
 
 Deferred to v3.1+. Tracked but not in current roadmap.

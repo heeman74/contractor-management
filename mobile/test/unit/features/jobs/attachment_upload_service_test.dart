@@ -135,7 +135,7 @@ void main() {
         )).thenAnswer((_) async => Response<Map<String, dynamic>>(
           requestOptions: RequestOptions(path: '/files/upload'),
           statusCode: 201,
-          data: {'url': '/files/attachments/note-1/abc.jpg'},
+          data: {'remote_url': '/files/attachments/note-1/abc.jpg'},
         ));
 
     await service.uploadPending();
@@ -164,7 +164,7 @@ void main() {
         )).thenAnswer((_) async => Response<Map<String, dynamic>>(
           requestOptions: RequestOptions(path: '/files/upload'),
           statusCode: 201,
-          data: {'url': '/files/attachments/note-1/xyz.jpg'},
+          data: {'remote_url': '/files/attachments/note-1/xyz.jpg'},
         ));
 
     await service.uploadPending();
@@ -253,7 +253,7 @@ void main() {
       return Response<Map<String, dynamic>>(
         requestOptions: RequestOptions(path: '/files/upload'),
         statusCode: 201,
-        data: {'url': '/files/attachments/note-1/abc.jpg'},
+        data: {'remote_url': '/files/attachments/note-1/abc.jpg'},
       );
     });
 

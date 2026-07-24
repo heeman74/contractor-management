@@ -81,6 +81,7 @@ export function PhotoAnnotationCanvas({
     setActiveTool,
     setActiveColor,
     getAnnotationLayer,
+    redraw,
   } = usePhotoAnnotation(initialAnnotations);
 
   // ── Mode state ────────────────────────────────────────────────────────────
@@ -99,10 +100,12 @@ export function PhotoAnnotationCanvas({
     const canvas = canvasRef.current;
     if (!img || !canvas) return;
 
-    // Match canvas pixel dimensions to the image's natural dimensions.
+    // Match canvas pixel dimensions to the image's natural dimensions, then
+    // redraw so any pre-loaded annotations render at the correct scale.
     canvas.width = img.naturalWidth;
     canvas.height = img.naturalHeight;
-  }, [canvasRef]);
+    redraw();
+  }, [canvasRef, redraw]);
 
   // ── Canvas coordinate helpers ─────────────────────────────────────────────
 

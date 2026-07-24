@@ -8,6 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { MediaComposer } from "@/features/media/components/MediaComposer";
+import { uploadPendingAsUrls } from "@/features/media/lib/upload";
+import type { PendingAttachment } from "@/features/media/types";
 
 interface StatusUpdateFormProps {
   projectId: string;
@@ -20,6 +23,8 @@ export function StatusUpdateForm({ projectId, onSuccess }: StatusUpdateFormProps
   const [workersOnSite, setWorkersOnSite] = useState("");
   const [safetyIncidents, setSafetyIncidents] = useState("0");
   const [blockers, setBlockers] = useState("");
+  const [photos, setPhotos] = useState<PendingAttachment[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
 
   const createMutation = useCreateStatusUpdate();
 
@@ -33,6 +38,13 @@ export function StatusUpdateForm({ projectId, onSuccess }: StatusUpdateFormProps
       }
 
       try {
+        // Upload staged photos first, then attach their URLs to the update.
+        let photoUrls: string[] = [];
+        if (photos.length > 0) {
+          setIsUploading(true);
+          photoUrls = await uploadPendingAsUrls(photos);
+        }
+
         await createMutation.mutateAsync({
           project_id: projectId,
           status_text: statusText.trim(),
@@ -40,6 +52,7 @@ export function StatusUpdateForm({ projectId, onSuccess }: StatusUpdateFormProps
           workers_on_site: workersOnSite ? parseInt(workersOnSite, 10) : null,
           safety_incidents: parseInt(safetyIncidents, 10) || 0,
           blockers: blockers.trim() || null,
+          photos: photoUrls,
         });
 
         toast.success("Status update submitted");
@@ -48,10 +61,13 @@ export function StatusUpdateForm({ projectId, onSuccess }: StatusUpdateFormProps
         setWorkersOnSite("");
         setSafetyIncidents("0");
         setBlockers("");
+        setPhotos([]);
         onSuccess?.();
       } catch (err) {
         const message = err instanceof Error ? err.message : "Failed to submit status update";
         toast.error(message);
+      } finally {
+        setIsUploading(false);
       }
     },
     [
@@ -61,10 +77,13 @@ export function StatusUpdateForm({ projectId, onSuccess }: StatusUpdateFormProps
       workersOnSite,
       safetyIncidents,
       blockers,
+      photos,
       createMutation,
       onSuccess,
     ]
   );
+
+  const isBusy = createMutation.isPending || isUploading;
 
   return (
     <form
@@ -140,13 +159,17 @@ export function StatusUpdateForm({ projectId, onSuccess }: StatusUpdateFormProps
         />
       </div>
 
+      {/* Photos */}
+      <div className="space-y-1.5">
+        <Label>Photos</Label>
+        <MediaComposer value={photos} onChange={setPhotos} disabled={isBusy} />
+      </div>
+
       {/* Submit */}
       <div className="flex justify-end">
-        <Button type="submit" disabled={createMutation.isPending}>
-          {createMutation.isPending && (
-            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-          )}
-          Submit Update
+        <Button type="submit" disabled={isBusy}>
+          {isBusy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+          {isUploading ? "Uploading photos…" : "Submit Update"}
         </Button>
       </div>
     </form>

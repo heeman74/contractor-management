@@ -36,21 +36,29 @@ async function handleProxy(request: NextRequest): Promise<NextResponse> {
     Authorization: `Bearer ${accessToken}`,
   };
 
-  // Forward content-type if present (for POST/PATCH with JSON body)
-  const contentType = request.headers.get("content-type");
-  if (contentType) {
+  const contentType = request.headers.get("content-type") ?? "";
+  // Multipart bodies (file uploads) must NOT be read as text — that corrupts the
+  // binary bytes. Re-parse to FormData and let fetch regenerate a fresh boundary,
+  // so we also must not forward the original multipart Content-Type header.
+  const isMultipart = contentType.startsWith("multipart/form-data");
+  if (contentType && !isMultipart) {
     headers["Content-Type"] = contentType;
   }
 
   const method = request.method;
   const hasBody = method === "POST" || method === "PATCH" || method === "PUT";
 
+  let body: BodyInit | undefined;
+  if (hasBody) {
+    body = isMultipart ? await request.formData() : await request.text();
+  }
+
   let upstreamRes: Response;
   try {
     upstreamRes = await fetch(upstreamUrl, {
       method,
       headers,
-      body: hasBody ? await request.text() : undefined,
+      body,
     });
   } catch {
     return NextResponse.json(

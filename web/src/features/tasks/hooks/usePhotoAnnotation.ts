@@ -218,6 +218,8 @@ export interface UsePhotoAnnotationReturn {
   setActiveColor: (color: string) => void;
   /** Get the complete annotation layer for serialization. */
   getAnnotationLayer: (canvasWidth: number, canvasHeight: number) => AnnotationLayer;
+  /** Force a redraw (e.g. after the base image loads and sets canvas dimensions). */
+  redraw: () => void;
 }
 
 /**
@@ -300,6 +302,8 @@ export function usePhotoAnnotation(
     []
   );
 
+  const redraw = useCallback(() => setRedrawTrigger((t: number) => t + 1), []);
+
   return {
     canvasRef,
     annotations: annotationsSnapshot,
@@ -311,5 +315,6 @@ export function usePhotoAnnotation(
     setActiveTool,
     setActiveColor,
     getAnnotationLayer,
+    redraw,
   };
 }
