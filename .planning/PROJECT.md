@@ -40,16 +40,21 @@ AI eliminates the chaos of multi-trade coordination — GCs always know exactly 
 - [x] AI project intake — describe project, AI breaks into trades with sequencing and dependencies — Validated in Phase 21: AI Project Intake and Contractor Interview
 - [x] AI contractor interview — AI asks trade-specific questions to generate detailed task plans — Validated in Phase 21: AI Project Intake and Contractor Interview
 - [x] AI daily checklists — morning push with tasks, materials needed, photo requirements — Validated in Phase 26: AI Daily Checklists and Monitoring Dashboard
-- [ ] Project model — multi-trade hierarchy (Project → Trade Scopes → Tasks) with dependency graph
+- [x] Project model — multi-trade hierarchy (Project → Trade Scopes → Tasks) with dependency graph — Validated in Phase 19: Project Data Model
 - [x] Task-level progress — notes, photos with annotation/drawing, PDF attachments per task — Validated in Phase 22: Task Execution and Photo Annotation
 - [x] Photo annotation — draw on photos (arrows, circles, text, measurements) on mobile and web — Validated in Phase 22: Task Execution and Photo Annotation
 - [x] GC ↔ contractor bidirectional chat with photo/file sharing — Validated in Phase 23: Real-Time Chat
-- [ ] GC mobile inspection — approve/reject tasks, flag issues, create punch list items
+- [x] GC mobile inspection — approve/reject tasks, flag issues, create punch list items — Validated in Phase 24: GC Inspection Workflow
 - [x] Cross-trade task dependencies with cycle prevention and Gantt timeline — Validated in Phase 20: Dependency Engine
 - [x] GC cross-trade monitoring dashboard — trade status, AI alerts (Gantt timeline complete via Phase 20) — Validated in Phase 26: AI Daily Checklists and Monitoring Dashboard
-- [ ] Per-trade quoting and invoicing — trade-specific quotes that aggregate to project level
-- [ ] AI schedule adaptation — adjust plans based on actual progress, flag delays, suggest rescheduling
+- [x] Per-trade quoting and invoicing — trade-specific quotes that aggregate to project level — Validated in Phase 25: Per-Trade Billing
+- [x] AI schedule adaptation — adjust plans based on actual progress, flag delays, suggest rescheduling — Validated in Phase 26: AI Daily Checklists and Monitoring Dashboard
 - [ ] Online-first architecture — AI requires connectivity, offline cache for field execution
+- [ ] Profit margin tracking — actual costs (labor, materials, subcontractor) vs revenue per project and per job
+- [ ] Budgeting — project/trade budgets with spend tracking and overrun-risk alerts
+- [ ] AI profitability management — AI analyzes project financial health, flags margin erosion, suggests corrective actions
+- [ ] AI quote planning — AI builds labor + materials line items priced from company history
+- [ ] Financial access control — finance.* permissions granted to owner and project_manager only by default
 
 #### Carried from v1.0/v2.0
 - [ ] In-app payment processing (Stripe/Square)
@@ -61,26 +66,21 @@ AI eliminates the chaos of multi-trade coordination — GCs always know exactly 
 - GPS live tracking — battery drain, privacy; job status updates accomplish same value
 - Route optimization — not enough ROI for construction projects
 - Recurring job automation — construction projects are one-off by nature
-- Inventory/materials tracking — AI checklists cover materials needed per task; full inventory management adds complexity without proportional value
+- Inventory/stock management — AI checklists cover materials needed per task; warehouse-style stock tracking adds complexity without proportional value (materials *cost capture* for profit tracking is in scope as of v4.0 — recording what was spent, not managing stock levels)
 - Local/on-device AI — Claude API provides superior quality; offline mode caches AI-generated plans
 - Video calling — chat with photo annotation covers communication needs
 
-## Current Milestone: v3.0 AI-Driven Construction Management
+## Current Milestone: v4.0 Financial Intelligence
 
-**Goal:** Transform ContractorHub from single-contractor job tracking into an AI-driven multi-trade project management platform where AI plans projects by trade, generates daily checklists, GCs coordinate all trades through chat and inspection tools, and the full quoting/invoicing lifecycle works per trade.
+**Goal:** Give owners and project managers real profit visibility and AI-assisted financial management — every project's margin, budget, and quote grounded in actual cost data, invisible to everyone else.
 
 **Target features:**
-- Claude API integration with tool use for structured project planning
-- Project → Trade Scope → Task data model with dependency graph
-- AI project intake chat (web + mobile)
-- AI contractor interview for trade-specific task planning
-- AI daily checklists with materials, photos, time estimates
-- Task progress tracking with notes, photos, annotations, PDFs
-- Bidirectional GC ↔ contractor chat with media sharing
-- GC inspection flow (approve/reject/flag) on mobile
-- Cross-trade monitoring dashboard with AI alerts
-- Per-trade quoting and invoicing (extending existing system)
-- Online-first architecture with offline cache for field work
+- Profit margin tracking per project and per job — actual costs (labor from time tracking, materials, subcontractor invoices) vs revenue from quotes/invoices
+- Actual-cost capture — materials and subcontractor cost entry (new data layer; labor derives from existing time tracking)
+- Budgeting — set project/trade budgets, track spend against budget, alert on overrun risk
+- AI profitability management — AI analyzes each project's financial health, flags margin erosion, suggests corrective actions
+- AI quote planning — AI helps build quotes with labor + materials line items (estimate hours, suggest material quantities/costs, price from company history)
+- Financial access control — all financial data gated by new finance.* permissions, granted only to owner and project_manager by default; enforced backend-side, adjustable per-company via the Roles & Permissions matrix
 
 ## Context
 
@@ -121,8 +121,26 @@ v3.0 shifts from offline-first to online-first (AI requires connectivity) with o
 | Transactional outbox for sync | Reliable offline mutations, idempotent | ✓ Good — no data loss in testing |
 | GIST constraint for scheduling | DB-level conflict prevention, no app races | ✓ Good — concurrent booking tests pass |
 | Next.js + TanStack Query for web | SSR performance, server state management | ✓ Good — clean API integration |
-| Claude API for AI features | Best-in-class reasoning, tool use for structured output | — Pending |
+| Claude API for AI features | Best-in-class reasoning, tool use for structured output | ✓ Good — intake, interviews, checklists, alerts shipped in v3.0 |
 | Same app for GC + contractor | Role-based views, single codebase | — Pending |
+| finance.* permissions for money data (v4.0) | Financial visibility restricted to owner + project_manager by default; backend-enforced via existing RBAC matrix | — Pending |
+
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd:transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd:complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
 
 ---
-*Last updated: 2026-03-20 after completing Phase 19: Project Data Model — backend models, mobile Drift schema, REST API, Flutter UI, and web project tree all shipped*
+*Last updated: 2026-07-24 — Milestone v4.0 Financial Intelligence started (profit margin tracking, budgeting, AI profitability, AI quote planning, owner/PM-only financial access)*
