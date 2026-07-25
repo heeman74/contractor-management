@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: verifying
-stopped_at: Completed 30-04-PLAN.md
-last_updated: "2026-07-25T04:18:59.750Z"
+stopped_at: Phase 31 context gathered
+last_updated: "2026-07-25T17:22:56.475Z"
 last_activity: 2026-07-25
 progress:
   total_phases: 22
@@ -182,6 +182,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-25T04:14:09.620Z
-Stopped at: Completed 30-04-PLAN.md
-Resume file: None
+Last session: 2026-07-25T17:22:56.468Z
+Stopped at: Phase 31 context gathered
+Resume file: .planning/phases/31-actual-cost-capture/31-CONTEXT.md
