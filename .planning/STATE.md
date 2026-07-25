@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
-status: "Roadmap created — ready for `/gsd:plan-phase 30`"
-stopped_at: Phase 30 UI-SPEC approved
-last_updated: "2026-07-25T00:26:24.278Z"
-last_activity: 2026-07-24 — ROADMAP.md written for v4.0 (Phases 30-37, 23/23 requirements mapped)
+status: executing
+stopped_at: Completed 30-01-PLAN.md
+last_updated: "2026-07-25T01:20:44.535Z"
+last_activity: 2026-07-25
 progress:
   total_phases: 22
   completed_phases: 12
-  total_plans: 67
-  completed_plans: 64
+  total_plans: 71
+  completed_plans: 65
 ---
 
 # Project State
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-24)
 
 **Core value:** AI eliminates the chaos of multi-trade coordination — GCs always know where every trade stands, contractors always know what to do today, projects stay on track.
-**Current focus:** Milestone v4.0 Financial Intelligence — roadmap created, ready to plan Phase 30 (Financial Schema Foundation and RBAC Audit)
+**Current focus:** Phase 30 — financial-schema-foundation-and-rbac-audit
 
 ## Current Position
 
-Phase: Phase 30 — Financial Schema Foundation and RBAC Audit (not started)
-Plan: —
-Status: Roadmap created — ready for `/gsd:plan-phase 30`
-Last activity: 2026-07-24 — ROADMAP.md written for v4.0 (Phases 30-37, 23/23 requirements mapped)
+Phase: 30 (financial-schema-foundation-and-rbac-audit) — EXECUTING
+Plan: 2 of 4
+Status: Ready to execute
+Last activity: 2026-07-25
 
 ## Performance Metrics
 
@@ -43,6 +43,7 @@ Last activity: 2026-07-24 — ROADMAP.md written for v4.0 (Phases 30-37, 23/23 r
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 30-37 | TBD | - | - |
+| Phase 30 P01 | 15min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -152,6 +153,8 @@ Last activity: 2026-07-24 — ROADMAP.md written for v4.0 (Phases 30-37, 23/23 r
 - [Phase 26]: ILink type cast uses 'e2s' string (not numeric 0) to satisfy SVAR ILink['type'] TLinkType constraint
 - [Phase 26]: Blocked tasks stay in Claude prompt with dep=blocked annotation — service annotates them rather than filtering them out
 - [Phase 26]: Flutter GoRouter navigation tests use structural verification (InkWell presence) rather than triggering actual navigation in widget tests
+- [Phase 30]: Finance keys appended as the last catalog group (after Portal), matching UI-SPEC copywriting contract
+- [Phase 30]: Admin exclusion implemented via derived _FINANCE_ONLY_KEYS set subtraction (mirrors _OWNER_ONLY_KEYS pattern), not a hand-maintained list
 
 ### Pending Todos
 
@@ -170,6 +173,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-25T00:26:24.271Z
-Stopped at: Phase 30 UI-SPEC approved
-Resume file: .planning/phases/30-financial-schema-foundation-and-rbac-audit/30-UI-SPEC.md
+Last session: 2026-07-25T01:20:44.526Z
+Stopped at: Completed 30-01-PLAN.md
+Resume file: None
