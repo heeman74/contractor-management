@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:contractorhub/core/network/media_url.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -116,6 +117,7 @@ class _TaskPhotoViewerScreenState extends State<TaskPhotoViewerScreen> {
     if (photo.remoteUrl != null) {
       return Image.network(
         photo.remoteUrl!,
+        headers: mediaAuthHeaders(),
         fit: BoxFit.contain,
         loadingBuilder: (context, child, progress) {
           if (progress == null) return child;

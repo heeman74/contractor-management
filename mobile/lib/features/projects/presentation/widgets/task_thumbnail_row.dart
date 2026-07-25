@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:contractorhub/core/network/media_url.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -83,6 +84,7 @@ class TaskThumbnailRow extends ConsumerWidget {
     } else if (remoteUrl != null && remoteUrl.isNotEmpty) {
       imageWidget = Image.network(
         remoteUrl,
+        headers: mediaAuthHeaders(),
         width: 32,
         height: 32,
         fit: BoxFit.cover,
@@ -132,6 +134,7 @@ class TaskThumbnailRow extends ConsumerWidget {
     if (remoteUrl != null && remoteUrl.isNotEmpty) {
       return Image.network(
         remoteUrl,
+        headers: mediaAuthHeaders(),
         width: 32,
         height: 32,
         fit: BoxFit.cover,

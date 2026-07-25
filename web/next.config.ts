@@ -7,7 +7,6 @@ import type { NextConfig } from "next";
 // standalone output, and CI resolve from `web/` regardless of the machine.
 const projectRoot = import.meta.dirname;
 
-const FASTAPI_URL = process.env.FASTAPI_URL ?? "http://localhost:8000";
 
 const nextConfig: NextConfig = {
   output: "standalone",
@@ -15,17 +14,11 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: projectRoot,
   },
-  // Serve uploaded files (job-note attachments, task photos, images) from FastAPI's
-  // /files StaticFiles mount. Attachment remote_url values are "/files/..." — without
-  // this rewrite they would resolve to the web origin and 404.
-  async rewrites() {
-    return [
-      {
-        source: "/files/:path*",
-        destination: `${FASTAPI_URL}/files/:path*`,
-      },
-    ];
-  },
+  // NOTE: the previous public /files/* rewrite to FastAPI's StaticFiles mount was
+  // removed — uploaded files are now served through authenticated route handlers
+  // (src/app/files/[...path]/route.ts and src/app/uploads/chat/[...path]/route.ts)
+  // that forward the httpOnly access_token cookie as a Bearer token.
+  //
   // Baseline security response headers. Deliberately conservative CSP directives
   // (frame-ancestors/object-src/base-uri) that harden clickjacking + base-tag and
   // data-exfil vectors without constraining script-src (which would risk breaking

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:contractorhub/core/network/media_url.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -159,6 +160,7 @@ class _PhotoCell extends StatelessWidget {
     if (attachment.remoteUrl != null) {
       return Image.network(
         attachment.remoteUrl!,
+        headers: mediaAuthHeaders(),
         fit: BoxFit.cover,
         loadingBuilder: (context, child, progress) {
           if (progress == null) return child;

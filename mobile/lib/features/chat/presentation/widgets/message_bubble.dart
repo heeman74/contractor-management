@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:contractorhub/core/network/media_url.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -384,19 +385,24 @@ class _PhotoContent extends StatelessWidget {
   }
 
   Widget _buildImage(String imageUrl) {
-    // Try loading as network or local file
-    if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
-      return Image.network(
-        imageUrl,
+    // Local file paths render directly; everything else is a backend media URL
+    // (possibly server-relative) fetched over the authenticated /uploads/chat
+    // endpoint with a Bearer header.
+    final file = File(imageUrl);
+    if (!imageUrl.startsWith('/') && file.existsSync()) {
+      return Image.file(
+        file,
         width: 200,
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => _imagePlaceholder(),
       );
     }
-    final file = File(imageUrl);
-    if (file.existsSync()) {
-      return Image.file(
-        file,
+    final resolved = resolveMediaUrl(imageUrl);
+    if (resolved != null &&
+        (resolved.startsWith('http://') || resolved.startsWith('https://'))) {
+      return Image.network(
+        resolved,
+        headers: mediaAuthHeaders(),
         width: 200,
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => _imagePlaceholder(),

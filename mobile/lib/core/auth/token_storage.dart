@@ -10,6 +10,18 @@ class TokenStorage {
   static const _accessTokenKey = 'access_token';
   static const _refreshTokenKey = 'refresh_token';
 
+  /// In-memory copy of the current access token, kept in sync with secure
+  /// storage. Needed because `Image.network(headers: ...)` requires the header
+  /// synchronously at widget-build time (it can't await secure storage). The
+  /// authoritative store is still the encrypted [FlutterSecureStorage]; this is
+  /// only a read cache for synchronous callers (see media_url.dart).
+  static String? _cachedAccessToken;
+
+  /// The last-known access token, or null if none is cached (logged out, or the
+  /// cache hasn't been warmed yet by a save/read). May lag secure storage until
+  /// the next save/read, which is acceptable for image auth headers.
+  static String? get cachedAccessToken => _cachedAccessToken;
+
   final FlutterSecureStorage _storage;
 
   TokenStorage({FlutterSecureStorage? storage})
@@ -22,6 +34,7 @@ class TokenStorage {
     required String accessToken,
     required String refreshToken,
   }) async {
+    _cachedAccessToken = accessToken;
     await Future.wait([
       _storage.write(key: _accessTokenKey, value: accessToken),
       _storage.write(key: _refreshTokenKey, value: refreshToken),
@@ -29,7 +42,9 @@ class TokenStorage {
   }
 
   Future<String?> readAccessToken() async {
-    return _storage.read(key: _accessTokenKey);
+    final token = await _storage.read(key: _accessTokenKey);
+    _cachedAccessToken = token;
+    return token;
   }
 
   Future<String?> readRefreshToken() async {
@@ -37,6 +52,7 @@ class TokenStorage {
   }
 
   Future<void> clearTokens() async {
+    _cachedAccessToken = null;
     await Future.wait([
       _storage.delete(key: _accessTokenKey),
       _storage.delete(key: _refreshTokenKey),
