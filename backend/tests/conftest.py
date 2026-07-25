@@ -196,6 +196,13 @@ async def clean_tables(test_engine):
                 "user_roles, "
                 # Phase 27 RBAC (references companies)
                 "company_role_permissions, "
+                # Phase 30 finance tables (reference jobs/trade_scopes/projects/
+                # cost_categories/budgets): children before parents.
+                "budget_category_breakdowns, "
+                "cost_entries, "
+                "budgets, "
+                "labor_rates, "
+                "cost_categories, "
                 "users, "
                 "companies"
             )
