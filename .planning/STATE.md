@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
-status: executing
-stopped_at: Completed 30-02-PLAN.md
-last_updated: "2026-07-25T01:31:40.218Z"
+status: verifying
+stopped_at: Completed 30-04-PLAN.md
+last_updated: "2026-07-25T04:14:09.628Z"
 last_activity: 2026-07-25
 progress:
   total_phases: 22
-  completed_phases: 12
+  completed_phases: 13
   total_plans: 71
-  completed_plans: 67
+  completed_plans: 68
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 
 Phase: 30 (financial-schema-foundation-and-rbac-audit) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-25
 
 ## Performance Metrics
@@ -46,6 +46,7 @@ Last activity: 2026-07-25
 | Phase 30 P01 | 15min | 3 tasks | 3 files |
 | Phase 30 P03 | 12min | 2 tasks | 4 files |
 | Phase 30 P02 | 25min | 3 tasks | 6 files |
+| Phase 30 P04 | 40min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -161,6 +162,8 @@ Last activity: 2026-07-25
 - [Phase 30-03]: FINANCIAL_ALERT_TYPES ships empty — dashboard alert filter is provably inert today, ready for Phase 36 to populate
 - [Phase 30]: [Phase 30 P02]: CostEntry anchors job_id/trade_scope_id (D-04) while Budget anchors project_id/trade_scope_id (D-09) — deliberate asymmetry
 - [Phase 30]: [Phase 30 P02]: cost_categories seeded via plain INSERT before ENABLE RLS (new table); company_role_permissions PM finance-key backfill instead loops per-company with SET LOCAL app.current_company_id since that table has carried FORCE RLS since migration 0027
+- [Phase 30]: [Phase 30-04]: Simulated pre-migration company via direct SQL (bypassing RbacRepository) since seed_two_tenants companies already get the post-migration default matrix
+- [Phase 30]: [Phase 30-04]: Used existing allowed 'dependency_risk' alert type as documented stand-in financial type when monkeypatching FINANCIAL_ALERT_TYPES for the leak-filter test
 
 ### Pending Todos
 
@@ -179,6 +182,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-25T01:31:40.213Z
-Stopped at: Completed 30-02-PLAN.md
+Last session: 2026-07-25T04:14:09.620Z
+Stopped at: Completed 30-04-PLAN.md
 Resume file: None

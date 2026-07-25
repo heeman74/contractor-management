@@ -58,7 +58,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 **Milestone Goal:** Give owners and project managers real profit visibility and AI-assisted financial management — every project's margin, budget, and quote grounded in actual cost data, invisible to everyone else.
 
-- [ ] **Phase 30: Financial Schema Foundation and RBAC Audit** — Cost/labor-rate/budget schema, finance.* permission catalog (owner + project_manager default, admin explicitly excluded), audit of pre-existing money-adjacent surfaces
+- [x] **Phase 30: Financial Schema Foundation and RBAC Audit** — Cost/labor-rate/budget schema, finance.* permission catalog (owner + project_manager default, admin explicitly excluded), audit of pre-existing money-adjacent surfaces (completed 2026-07-25)
 - [ ] **Phase 31: Actual Cost Capture** — Materials and subcontractor/other cost entries with receipt photos, scoped to job or trade scope
 - [ ] **Phase 32: Labor Rates and Cost Rollup** — Effective-dated hourly cost rates, automatic labor cost derivation from time tracking, itemized cost view with category totals
 - [ ] **Phase 33: Profit Margin Tracking** — Revenue-minus-cost margin per job/trade scope and project-level rollup, with incomplete-data flagging
@@ -332,14 +332,14 @@ Plans:
   2. The admin role's default derived permission set contains zero finance.* keys — verified by an automated regression test, not manual inspection
   3. Company owner can grant finance.* to a custom role (e.g., bookkeeper) via the existing Roles & Permissions matrix and that role immediately gains access per the grant
   4. Every pre-existing money-adjacent surface (reports endpoint, monitoring dashboard, AI chat/checklist tool results) is audited and returns no cost/margin/budget fields to a user without finance.* permission
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 **UI hint**: yes
 
 Plans:
 - [x] 30-01-PLAN.md — Permission catalog: 3 finance.* keys in a Finance group, admin-exclusion derivation, PM defaults + regression tests (FINSEC-01/02/03)
 - [x] 30-02-PLAN.md — Financial schema: 5 tenant-scoped tables + RLS (migration 0032), 4 system cost categories seed, existing-company PM backfill, XOR create-schemas (FINSEC-01)
 - [x] 30-03-PLAN.md — Audit plumbing: finance-scrub helper + permission-aware dashboard alert filter, with unit tests (FINSEC-04)
-- [ ] 30-04-PLAN.md — Phase E2E suite: backfill/seed/RLS integration + reports/alerts/AI leak tripwires (FINSEC-01..04)
+- [x] 30-04-PLAN.md — Phase E2E suite: backfill/seed/RLS integration + reports/alerts/AI leak tripwires (FINSEC-01..04)
 
 ### Phase 31: Actual Cost Capture
 **Goal**: Owner/PM can record real project costs as they occur, with supporting documentation, scoped to the job or trade scope they belong to
@@ -454,7 +454,7 @@ Note: Phase 37 (AI Quote Planning) depends only on Phase 32 and may run in paral
 | 24. GC Inspection Workflow | v3.0 | 4/4 | Complete    | 2026-03-25 |
 | 25. Per-Trade Billing | v3.0 | 3/5 | Complete    | 2026-03-26 |
 | 26. AI Daily Checklists and Monitoring Dashboard | v3.0 | 4/4 | Complete    | 2026-03-26 |
-| 30. Financial Schema Foundation and RBAC Audit | v4.0 | 3/4 | In Progress|  |
+| 30. Financial Schema Foundation and RBAC Audit | v4.0 | 4/4 | Complete   | 2026-07-25 |
 | 31. Actual Cost Capture | v4.0 | 0/? | Not started | - |
 | 32. Labor Rates and Cost Rollup | v4.0 | 0/? | Not started | - |
 | 33. Profit Margin Tracking | v4.0 | 0/? | Not started | - |
