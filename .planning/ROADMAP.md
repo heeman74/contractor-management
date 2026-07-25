@@ -332,8 +332,14 @@ Plans:
   2. The admin role's default derived permission set contains zero finance.* keys — verified by an automated regression test, not manual inspection
   3. Company owner can grant finance.* to a custom role (e.g., bookkeeper) via the existing Roles & Permissions matrix and that role immediately gains access per the grant
   4. Every pre-existing money-adjacent surface (reports endpoint, monitoring dashboard, AI chat/checklist tool results) is audited and returns no cost/margin/budget fields to a user without finance.* permission
-**Plans**: TBD
+**Plans:** 4 plans
 **UI hint**: yes
+
+Plans:
+- [ ] 30-01-PLAN.md — Permission catalog: 3 finance.* keys in a Finance group, admin-exclusion derivation, PM defaults + regression tests (FINSEC-01/02/03)
+- [ ] 30-02-PLAN.md — Financial schema: 5 tenant-scoped tables + RLS (migration 0032), 4 system cost categories seed, existing-company PM backfill, XOR create-schemas (FINSEC-01)
+- [ ] 30-03-PLAN.md — Audit plumbing: finance-scrub helper + permission-aware dashboard alert filter, with unit tests (FINSEC-04)
+- [ ] 30-04-PLAN.md — Phase E2E suite: backfill/seed/RLS integration + reports/alerts/AI leak tripwires (FINSEC-01..04)
 
 ### Phase 31: Actual Cost Capture
 **Goal**: Owner/PM can record real project costs as they occur, with supporting documentation, scoped to the job or trade scope they belong to
