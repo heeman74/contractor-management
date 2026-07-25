@@ -16,7 +16,11 @@ import pytest
 from sqlalchemy import select, text
 
 from app.core.database import async_session_factory
+from app.core.finance_scrub import FINANCE_FIELD_NAMES
 from app.core.security import create_access_token
+from app.features.checklists.service import ChecklistService
+from app.features.dashboard.models import DashboardAlert
+from app.features.dashboard.service import DashboardService
 from app.features.finance.models import Budget, CostCategory, CostEntry
 
 FINANCE_KEYS = {"finance.view", "finance.manage", "finance.rates.manage"}
@@ -319,3 +323,158 @@ async def test_cost_entry_rls_isolation(seed_two_tenants):
         )
 
     assert len(own_cost_entries) == 1
+
+
+# ---------------------------------------------------------------------------
+# Task 2: legacy-surface leak tripwires — reports, dashboard-alert filter, AI
+# context builders. Each proves FINSEC-04 with an enforced assertion rather
+# than manual inspection.
+# ---------------------------------------------------------------------------
+
+
+def _collect_dict_keys(value: object) -> set[str]:
+    """Recursively collect every dict key in a JSON-decoded response body."""
+    keys: set[str] = set()
+    if isinstance(value, dict):
+        keys.update(value.keys())
+        for nested in value.values():
+            keys.update(_collect_dict_keys(nested))
+    elif isinstance(value, list):
+        for item in value:
+            keys.update(_collect_dict_keys(item))
+    return keys
+
+
+@pytest.mark.asyncio
+async def test_reports_dashboard_leaks_no_finance_fields(async_client, seed_two_tenants):
+    """D-06 tripwire: GET /reports/dashboard (admin-gated, revenue-only) never
+    grows a finance field — fails loudly if a future phase adds cost/margin data
+    to the wrong (non-finance-gated) endpoint.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    admin_headers = {"Authorization": f"Bearer {_token(company_id, ['admin'])}"}
+
+    resp = await async_client.get("/api/v1/reports/dashboard", headers=admin_headers)
+    assert resp.status_code == 200, resp.text
+
+    response_keys = _collect_dict_keys(resp.json())
+    assert response_keys.isdisjoint(FINANCE_FIELD_NAMES)
+
+
+@pytest.mark.asyncio
+async def test_dashboard_alerts_filtered_by_finance_permission(
+    monkeypatch, async_client, tenant_a_client, seed_two_tenants
+):
+    """FINSEC-04: once FINANCIAL_ALERT_TYPES is populated, users without
+    finance.view never see financial alerts; users with finance.view see both.
+
+    dashboard_alerts.alert_type is DB-CHECK-constrained to
+    ('schedule_slip','rescheduling_suggestion','dependency_risk') — there is no
+    real financial alert type yet (Phase 36 introduces one). We monkeypatch
+    FINANCIAL_ALERT_TYPES to treat the existing 'dependency_risk' type as the
+    stand-in "financial" type purely for this test, proving the filter itself
+    works today even though nothing marks an alert financial in production yet.
+    """
+    monkeypatch.setattr(
+        "app.features.dashboard.service.FINANCIAL_ALERT_TYPES", frozenset({"dependency_risk"})
+    )
+
+    company_id = seed_two_tenants["tenant_a_id"]
+
+    project_resp = await tenant_a_client.post(
+        "/api/v1/projects/", json={"name": "Finance Alerts Test"}
+    )
+    assert project_resp.status_code == 201, project_resp.text
+    project_id = project_resp.json()["id"]
+
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        session.add_all(
+            [
+                DashboardAlert(
+                    company_id=company_id,
+                    project_id=project_id,
+                    severity="warning",
+                    alert_type="dependency_risk",
+                    impact_text="Margin erosion risk (stand-in financial alert for this test)",
+                ),
+                DashboardAlert(
+                    company_id=company_id,
+                    project_id=project_id,
+                    severity="warning",
+                    alert_type="schedule_slip",
+                    impact_text="Plumbing is 3 days behind schedule",
+                ),
+            ]
+        )
+        await session.commit()
+
+    gc_headers = {"Authorization": f"Bearer {_token(company_id, ['gc'])}"}
+    gc_resp = await async_client.get(
+        f"/api/v1/dashboard/alerts?project_id={project_id}", headers=gc_headers
+    )
+    assert gc_resp.status_code == 200, gc_resp.text
+    gc_types = {a["alert_type"] for a in gc_resp.json()}
+    assert "dependency_risk" not in gc_types
+    assert "schedule_slip" in gc_types
+
+    pm_headers = {"Authorization": f"Bearer {_token(company_id, ['project_manager'])}"}
+    pm_resp = await async_client.get(
+        f"/api/v1/dashboard/alerts?project_id={project_id}", headers=pm_headers
+    )
+    assert pm_resp.status_code == 200, pm_resp.text
+    pm_types = {a["alert_type"] for a in pm_resp.json()}
+    assert "dependency_risk" in pm_types
+    assert "schedule_slip" in pm_types
+
+
+@pytest.mark.asyncio
+async def test_ai_context_builders_leak_no_finance_fields():
+    """FINSEC-04 tripwire: today's AI context builders carry no finance fields —
+    proven both on the input item dict (no finance keys) and the rendered string
+    output (no finance field name appears as a substring). This will fail
+    loudly if a later phase adds finance data to these builders without
+    routing it through app.core.finance_scrub.scrub_finance_fields first.
+    """
+    checklist_item = {
+        "project_name": "Riverside Remodel",
+        "trade_name": "Plumbing",
+        "target_date": date(2026, 7, 24),
+        "tasks": [
+            {
+                "id": str(uuid4()),
+                "title": "Rough-in supply lines",
+                "status": "not_started",
+                "priority": "high",
+                "due_date": "2026-07-25",
+                "materials_needed": [{"name": "PEX tubing"}],
+            }
+        ],
+        "project_description": "Full bathroom remodel, single trade scope.",
+    }
+    assert set(checklist_item.keys()).isdisjoint(FINANCE_FIELD_NAMES)
+
+    checklist_service = ChecklistService.__new__(ChecklistService)
+    checklist_content = checklist_service._build_user_content_from_dict(checklist_item)
+    assert all(name not in checklist_content for name in FINANCE_FIELD_NAMES)
+
+    slip_item = {
+        "project_name": "Riverside Remodel",
+        "trade_name": "Plumbing",
+        "days_behind": 3,
+        "overdue_tasks": [
+            {
+                "id": str(uuid4()),
+                "title": "Rough-in supply lines",
+                "due_date": "2026-07-20",
+                "status": "in_progress",
+            }
+        ],
+        "affected_scope_ids": [],
+        "project_description": "Full bathroom remodel, single trade scope.",
+    }
+    assert set(slip_item.keys()).isdisjoint(FINANCE_FIELD_NAMES)
+
+    dashboard_service = DashboardService.__new__(DashboardService)
+    slip_content = dashboard_service._build_slip_content_from_dict(slip_item)
+    assert all(name not in slip_content for name in FINANCE_FIELD_NAMES)
