@@ -55,6 +55,10 @@ MIN_SLIP_DAYS_THRESHOLD = 1
 ALERT_DEDUP_HOURS = 24
 SCHEDULE_SLIP_ALERT_TYPE = "schedule_slip"
 
+# Alert types gated behind finance.view — empty today (no financial alerts exist yet);
+# populated by Phase 36 (margin_erosion, etc.). Filter logic below is inert until then.
+FINANCIAL_ALERT_TYPES: frozenset[str] = frozenset()
+
 
 def _compute_trade_status(tasks: list[Task], today: date) -> str:
     """Compute a trade scope's status badge from its tasks.
@@ -730,8 +734,20 @@ class DashboardService(TenantScopedService[DashboardAlert]):
     async def get_alerts(
         self,
         project_id: uuid.UUID | None = None,
+        *,
+        has_finance_view: bool = False,
     ) -> list[DashboardAlert]:
-        """Return alerts for the current tenant, optionally filtered by project."""
-        if project_id is not None:
-            return await self.repository.get_for_project(project_id)
-        return await self.repository.get_unread_for_company()
+        """Return alerts for the current tenant, optionally filtered by project.
+
+        Alerts whose alert_type is in FINANCIAL_ALERT_TYPES are dropped unless the
+        caller has finance.view. FINANCIAL_ALERT_TYPES is empty today, so this is
+        a no-op until Phase 36 introduces financial alert types.
+        """
+        alerts = (
+            await self.repository.get_for_project(project_id)
+            if project_id is not None
+            else await self.repository.get_unread_for_company()
+        )
+        if has_finance_view:
+            return alerts
+        return [a for a in alerts if a.alert_type not in FINANCIAL_ALERT_TYPES]

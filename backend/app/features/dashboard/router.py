@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_service import entity_or_404
 from app.core.database import get_db
-from app.core.security import CurrentUser, get_current_user
+from app.core.security import CurrentUser, effective_permissions, get_current_user
 from app.features.dashboard.schemas import (
     AlertResponse,
     ProjectStatusCard,
@@ -94,7 +94,8 @@ async def get_alerts(
     With ?project_id=...: returns all alerts for that specific project (read + unread).
     """
     svc = DashboardService(db)
-    alerts = await svc.get_alerts(project_id=project_id)
+    granted = await effective_permissions(current_user, db)
+    alerts = await svc.get_alerts(project_id=project_id, has_finance_view="finance.view" in granted)
     return [AlertResponse.model_validate(a) for a in alerts]
 
 
