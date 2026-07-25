@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 30-03-PLAN.md
-last_updated: "2026-07-25T01:26:05.654Z"
+stopped_at: Completed 30-02-PLAN.md
+last_updated: "2026-07-25T01:31:40.218Z"
 last_activity: 2026-07-25
 progress:
   total_phases: 22
   completed_phases: 12
   total_plans: 71
-  completed_plans: 66
+  completed_plans: 67
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 30 (financial-schema-foundation-and-rbac-audit) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-07-25
 
@@ -45,6 +45,7 @@ Last activity: 2026-07-25
 | 30-37 | TBD | - | - |
 | Phase 30 P01 | 15min | 3 tasks | 3 files |
 | Phase 30 P03 | 12min | 2 tasks | 4 files |
+| Phase 30 P02 | 25min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -158,6 +159,8 @@ Last activity: 2026-07-25
 - [Phase 30]: Admin exclusion implemented via derived _FINANCE_ONLY_KEYS set subtraction (mirrors _OWNER_ONLY_KEYS pattern), not a hand-maintained list
 - [Phase 30-03]: finance_scrub helper shipped as tested utility only — not wired into AI dict-builders this phase (nothing to strip yet, avoids dead code per CLAUDE.md)
 - [Phase 30-03]: FINANCIAL_ALERT_TYPES ships empty — dashboard alert filter is provably inert today, ready for Phase 36 to populate
+- [Phase 30]: [Phase 30 P02]: CostEntry anchors job_id/trade_scope_id (D-04) while Budget anchors project_id/trade_scope_id (D-09) — deliberate asymmetry
+- [Phase 30]: [Phase 30 P02]: cost_categories seeded via plain INSERT before ENABLE RLS (new table); company_role_permissions PM finance-key backfill instead loops per-company with SET LOCAL app.current_company_id since that table has carried FORCE RLS since migration 0027
 
 ### Pending Todos
 
@@ -176,6 +179,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-25T01:26:05.646Z
-Stopped at: Completed 30-03-PLAN.md
+Last session: 2026-07-25T01:31:40.213Z
+Stopped at: Completed 30-02-PLAN.md
 Resume file: None
