@@ -22,6 +22,7 @@ import logging
 import uuid
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
+from decimal import Decimal
 from itertools import pairwise
 from typing import Any
 
@@ -31,7 +32,9 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.ai_utils import call_claude_json
 from app.core.base_service import TenantScopedService
+from app.core.config import settings
 from app.features.ai.models import AIConversation, AIImageUpload, AIMessage, AITokenUsage
 from app.features.ai.prompts.intake_system import INTAKE_SYSTEM_PROMPT
 from app.features.ai.prompts.interview_system import INTERVIEW_SYSTEM_PROMPT
@@ -60,8 +63,22 @@ logger = logging.getLogger(__name__)
 _CONVERSATION_STATUS_ACTIVE = "active"
 _DEFAULT_TRADE_COLOR = "#9E9E9E"
 
-# Module-level Anthropic client — reads ANTHROPIC_API_KEY from environment
-_anthropic_client = AsyncAnthropic()
+# Starter-task seeding on intake completion (each new scope gets real,
+# editable tasks instead of an empty placeholder).
+_STARTER_TASKS_PER_SCOPE = 4
+_MAX_TASK_TITLE_LEN = 300
+_VALID_TASK_PRIORITIES = frozenset({"low", "medium", "high"})
+_STARTER_TASKS_SYSTEM_PROMPT = (
+    "You are a construction project planner. Given a project and its trade "
+    "scopes, produce a short list of concrete, sequential starter tasks for "
+    "EACH trade scope. Tasks must be specific and actionable for the described "
+    "project. Respond with ONLY JSON, no prose."
+)
+
+# Module-level Anthropic client. Prefer the key from settings (.env is the
+# single source of truth); when unset, api_key=None lets the SDK fall back to
+# the ANTHROPIC_API_KEY environment variable.
+_anthropic_client = AsyncAnthropic(api_key=settings.anthropic_api_key)
 
 _CLAUDE_MODEL = "claude-sonnet-4-6"
 _MAX_TOKENS = 4096
@@ -559,7 +576,10 @@ class AIService(TenantScopedService[AIConversation]):
 
         project_id = await self._resolve_project_id(request, user_id)
         created_scopes = await self._create_trade_scopes(request.trade_scopes, project_id, user_id)
-        await self._wire_scope_sequencing(created_scopes)
+        anchor_task_ids = await self._seed_scope_tasks(
+            created_scopes, request.project_name, request.project_description
+        )
+        await self._wire_scope_sequencing(anchor_task_ids)
 
         await self.mark_complete(request.conversation_id)
         return {
@@ -604,25 +624,126 @@ class AIService(TenantScopedService[AIConversation]):
             created_scopes.append(scope)
         return created_scopes
 
-    async def _wire_scope_sequencing(self, created_scopes: list[Any]) -> None:
-        """Link consecutive scopes with FS dependency edges via placeholder tasks (D-23)."""
+    async def _seed_scope_tasks(
+        self,
+        created_scopes: list[Any],
+        project_name: str,
+        project_description: str | None,
+    ) -> list[uuid.UUID]:
+        """Seed each new scope with real, editable starter tasks.
+
+        Uses one Claude call to tailor tasks to the project, with a
+        deterministic per-scope fallback so a scope is never left empty.
+        Returns the first task id of each scope (in scope order) as the anchor
+        for cross-scope dependency sequencing.
+        """
+        tasks_by_trade = await self._generate_starter_tasks(
+            created_scopes, project_name, project_description
+        )
         task_svc = TaskService(self.db)
-        dep_svc = DependencyService(self.db)
+        anchor_task_ids: list[uuid.UUID] = []
 
-        placeholder_task_ids: list[uuid.UUID] = []
         for scope in created_scopes:
-            placeholder = await task_svc.create(
-                TaskCreate(
-                    trade_scope_id=scope.id,
-                    title=f"[Scope placeholder] {scope.trade_name}",
-                    description="Auto-created placeholder for cross-scope dependency sequencing.",
-                    priority="low",
-                )
-            )
-            await self.db.flush()
-            placeholder_task_ids.append(placeholder.id)
+            raw_tasks = tasks_by_trade.get(scope.trade_name.strip().lower())
+            if not raw_tasks:
+                raw_tasks = [self._default_starter_task(scope.trade_name)]
 
-        for predecessor_id, successor_id in pairwise(placeholder_task_ids):
+            first_task_id: uuid.UUID | None = None
+            for raw_task in raw_tasks:
+                created = await task_svc.create(self._build_task_create(scope.id, raw_task))
+                await self.db.flush()
+                if first_task_id is None:
+                    first_task_id = created.id
+            if first_task_id is not None:
+                anchor_task_ids.append(first_task_id)
+
+        return anchor_task_ids
+
+    async def _generate_starter_tasks(
+        self,
+        created_scopes: list[Any],
+        project_name: str,
+        project_description: str | None,
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Ask Claude for starter tasks per trade → {trade_name_lower: [task, ...]}.
+
+        Never raises: on any AI/parse failure returns an empty mapping so the
+        caller substitutes a deterministic default task.
+        """
+        trade_names = [scope.trade_name for scope in created_scopes]
+        user_content = (
+            f"Project: {project_name}\n"
+            f"Description: {project_description or '(none provided)'}\n\n"
+            "Trade scopes:\n"
+            + "\n".join(f"- {name}" for name in trade_names)
+            + f"\n\nFor each trade scope, produce {_STARTER_TASKS_PER_SCOPE} "
+            "sequential starter tasks. Return JSON of the form: "
+            '{"scopes": [{"trade_name": "<exact name>", "tasks": '
+            '[{"title": "...", "description": "...", '
+            '"priority": "low|medium|high", "estimated_hours": <number>}]}]}'
+        )
+        try:
+            data = await call_claude_json(
+                _STARTER_TASKS_SYSTEM_PROMPT,
+                user_content,
+                fallback={"scopes": []},
+            )
+        except Exception as exc:
+            # AI must never block project creation — fall back to defaults.
+            logger.warning("Starter-task generation failed; using defaults: %s", exc)
+            return {}
+
+        tasks_by_trade: dict[str, list[dict[str, Any]]] = {}
+        for entry in data.get("scopes", []):
+            if not isinstance(entry, dict):
+                continue
+            name = entry.get("trade_name")
+            tasks = entry.get("tasks")
+            if isinstance(name, str) and isinstance(tasks, list):
+                tasks_by_trade[name.strip().lower()] = tasks
+        return tasks_by_trade
+
+    def _build_task_create(self, scope_id: uuid.UUID, raw_task: dict[str, Any]) -> TaskCreate:
+        """Coerce a raw AI task dict into a validated TaskCreate (clamps bad input).
+
+        Ordering is handled by TaskService.create, which auto-assigns sort_order
+        by creation order — so tasks are created in the order the AI returned them.
+        """
+        title = (str(raw_task.get("title") or "").strip() or "Untitled task")[:_MAX_TASK_TITLE_LEN]
+        description = raw_task.get("description")
+        priority = raw_task.get("priority")
+        return TaskCreate(
+            trade_scope_id=scope_id,
+            title=title,
+            description=description if isinstance(description, str) else None,
+            priority=priority if priority in _VALID_TASK_PRIORITIES else "medium",
+            estimated_hours=self._coerce_hours(raw_task.get("estimated_hours")),
+        )
+
+    @staticmethod
+    def _coerce_hours(value: Any) -> Decimal | None:
+        """Accept only positive numbers as estimated hours; ignore anything else."""
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, (int, float)) and value > 0:
+            return Decimal(str(value))
+        return None
+
+    @staticmethod
+    def _default_starter_task(trade_name: str) -> dict[str, Any]:
+        """Deterministic single task so a scope is never empty when AI yields nothing."""
+        return {
+            "title": f"Plan {trade_name} work",
+            "description": (
+                f"Review the {trade_name} scope, confirm materials, and schedule the work."
+            ),
+            "priority": "medium",
+        }
+
+    async def _wire_scope_sequencing(self, anchor_task_ids: list[uuid.UUID]) -> None:
+        """Link consecutive scopes with FS dependency edges on their first tasks (D-23)."""
+        dep_svc = DependencyService(self.db)
+        for predecessor_id, successor_id in pairwise(anchor_task_ids):
             await dep_svc.create_dependency(
                 successor_id,
                 TaskDependencyCreate(predecessor_task_id=predecessor_id),

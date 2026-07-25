@@ -68,9 +68,10 @@ export function matchesQuoteSearch(
   jobsById: JobsById
 ): boolean {
   const normalized = query.toLowerCase();
-  const job = jobsById.get(quote.job_id);
+  const job = quote.job_id ? jobsById.get(quote.job_id) : undefined;
   return (
     formatQuoteReference(quote.id).toLowerCase().includes(normalized) ||
+    (quote.title?.toLowerCase().includes(normalized) ?? false) ||
     (job?.description?.toLowerCase().includes(normalized) ?? false) ||
     (job?.client_name?.toLowerCase().includes(normalized) ?? false)
   );

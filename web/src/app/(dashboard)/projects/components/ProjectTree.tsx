@@ -10,13 +10,20 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTradeScopes, useTasks } from "@/lib/api/projects";
-import type { ProjectResponse, TradeScopeResponse } from "@/types/projects";
+import type {
+  ProjectResponse,
+  TradeScopeResponse,
+  TaskResponse,
+} from "@/types/projects";
 import { StatusBadge } from "@/components/shared/status-badge";
 
-export type SelectedNode = {
-  type: "project" | "scope" | "task";
-  id: string;
-};
+// The scope/task variants carry the resolved entity so the detail panel can
+// render directly from it. The projects-list query does NOT embed scopes/tasks
+// (they are lazy-loaded per node), so an id alone can't be resolved downstream.
+export type SelectedNode =
+  | { type: "project"; id: string }
+  | { type: "scope"; id: string; scope: TradeScopeResponse }
+  | { type: "task"; id: string; task: TaskResponse };
 
 interface ProjectTreeProps {
   projects: ProjectResponse[];
@@ -54,11 +61,11 @@ function ScopeNode({
             ? "bg-secondary text-foreground font-medium"
             : "text-gray-700 hover:bg-gray-100"
         )}
-        onClick={() => onSelectNode({ type: "scope", id: scope.id })}
+        onClick={() => onSelectNode({ type: "scope", id: scope.id, scope })}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            onSelectNode({ type: "scope", id: scope.id });
+            onSelectNode({ type: "scope", id: scope.id, scope });
           }
           if (e.key === "ArrowRight") {
             e.preventDefault();
@@ -112,11 +119,11 @@ function ScopeNode({
                     ? "bg-secondary text-foreground font-medium"
                     : "text-gray-600 hover:bg-gray-100"
                 )}
-                onClick={() => onSelectNode({ type: "task", id: task.id })}
+                onClick={() => onSelectNode({ type: "task", id: task.id, task })}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    onSelectNode({ type: "task", id: task.id });
+                    onSelectNode({ type: "task", id: task.id, task });
                   }
                 }}
                 tabIndex={0}

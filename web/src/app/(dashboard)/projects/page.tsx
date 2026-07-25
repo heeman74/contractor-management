@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Plus, Bot } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -12,15 +13,26 @@ import { TradeScopeDetail } from "./components/TradeScopeDetail";
 import { TaskDetail } from "./components/TaskDetail";
 import { CreateProjectDialog } from "./components/CreateProjectDialog";
 import type { SelectedNode } from "./components/ProjectTree";
+import type { TradeScopeResponse, TaskResponse } from "@/types/projects";
 
 export default function ProjectsPage() {
-  const { data: projects, isLoading } = useProjects();
-  const [selectedNode, setSelectedNode] = useState<SelectedNode | null>(null);
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  return (
+    <Suspense fallback={<div className="p-6" />}>
+      <ProjectsContent />
+    </Suspense>
+  );
+}
 
-  // Collect all scopes and tasks from projects data for lookup
-  const allScopes = projects?.flatMap((p) => p.trade_scopes ?? []) ?? [];
-  const allTasks = allScopes.flatMap((s) => s.tasks ?? []);
+function ProjectsContent() {
+  const { data: projects, isLoading } = useProjects();
+  const searchParams = useSearchParams();
+  // A ?project=<id> param (e.g. from the AI-intake redirect) opens that project
+  // pre-selected in the detail panel.
+  const preselectedProjectId = searchParams.get("project");
+  const [selectedNode, setSelectedNode] = useState<SelectedNode | null>(
+    preselectedProjectId ? { type: "project", id: preselectedProjectId } : null
+  );
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
   // Auto-select first project on initial load
   const displayProjects = projects ?? [];
@@ -37,12 +49,12 @@ export default function ProjectsPage() {
 
   const handleSelectNode = (node: SelectedNode) => setSelectedNode(node);
 
-  const handleSelectScope = (scopeId: string) => {
-    setSelectedNode({ type: "scope", id: scopeId });
+  const handleSelectScope = (scope: TradeScopeResponse) => {
+    setSelectedNode({ type: "scope", id: scope.id, scope });
   };
 
-  const handleSelectTask = (taskId: string) => {
-    setSelectedNode({ type: "task", id: taskId });
+  const handleSelectTask = (task: TaskResponse) => {
+    setSelectedNode({ type: "task", id: task.id, task });
   };
 
   return (
@@ -117,24 +129,15 @@ export default function ProjectsPage() {
               onSelectScope={handleSelectScope}
             />
           ) : effectiveSelected.type === "scope" ? (
-            (() => {
-              // Need to find scope from the trade-scopes query — look in allScopes
-              const scope = allScopes.find((s) => s.id === effectiveSelected.id);
-              return scope ? (
-                <TradeScopeDetail scope={scope} onSelectTask={handleSelectTask} />
-              ) : (
-                <div className="p-6 text-sm text-gray-500">Loading scope...</div>
-              );
-            })()
+            <TradeScopeDetail
+              scope={effectiveSelected.scope}
+              onSelectTask={handleSelectTask}
+            />
           ) : effectiveSelected.type === "task" ? (
-            (() => {
-              const task = allTasks.find((t) => t.id === effectiveSelected.id);
-              return task ? (
-                <TaskDetail task={task} />
-              ) : (
-                <div className="p-6 text-sm text-gray-500">Loading task...</div>
-              );
-            })()
+            <TaskDetail
+              task={effectiveSelected.task}
+              onTaskDeleted={() => setSelectedNode(null)}
+            />
           ) : null}
         </div>
       </div>

@@ -74,7 +74,9 @@ function AIIntakeContent() {
         undefined,
         tradeScopes
       );
-      router.push(`/projects/${createdProjectId}`);
+      // /projects is a master-detail page (no standalone /projects/[id] route);
+      // pass the new project id so it opens pre-selected in the detail panel.
+      router.push(`/projects?project=${createdProjectId}`);
     } catch (e) {
       console.error("[AIIntakePage] completeIntake error:", e);
     } finally {

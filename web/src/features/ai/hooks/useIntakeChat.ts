@@ -1,6 +1,11 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
+import {
+  aiChatFetch,
+  isSessionExpiredError,
+  SESSION_EXPIRED_MESSAGE,
+} from "@/lib/api-client";
 
 // --- Types ---
 
@@ -152,10 +157,11 @@ export function useIntakeChat(): UseIntakeChatReturn {
   const startConversation = useCallback(async (projectId?: string) => {
     try {
       const qs = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
-      const res = await fetch(
-        `/api/ai-chat?path=${encodeURIComponent(`/api/v1/ai/intake/start${qs}`)}`,
-        { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }
-      );
+      const res = await aiChatFetch(`/api/v1/ai/intake/start${qs}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({ detail: "Failed to start conversation" }));
@@ -169,6 +175,10 @@ export function useIntakeChat(): UseIntakeChatReturn {
       setTradeScopes([]);
       setError(null);
     } catch (e) {
+      if (isSessionExpiredError(e)) {
+        setError(SESSION_EXPIRED_MESSAGE);
+        return;
+      }
       setError("Failed to start conversation. Please check your connection.");
       console.error("[useIntakeChat] startConversation error:", e);
     }
@@ -207,14 +217,11 @@ export function useIntakeChat(): UseIntakeChatReturn {
       const pendingToolCalls: ToolCall[] = [];
 
       try {
-        const res = await fetch(
-          `/api/ai-chat?path=${encodeURIComponent("/api/v1/ai/intake/message")}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ conversation_id: conversationId, message }),
-          }
-        );
+        const res = await aiChatFetch("/api/v1/ai/intake/message", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ conversation_id: conversationId, message }),
+        });
 
         if (!res.ok) {
           const body = await res.json().catch(() => ({ detail: "AI request failed" }));
@@ -324,6 +331,13 @@ export function useIntakeChat(): UseIntakeChatReturn {
         setIsStreaming(false);
         setCurrentStreamText("");
       } catch (e) {
+        if (isSessionExpiredError(e)) {
+          setError(SESSION_EXPIRED_MESSAGE);
+          updateLastAssistantMessage(SESSION_EXPIRED_MESSAGE);
+          setIsStreaming(false);
+          setCurrentStreamText("");
+          return;
+        }
         console.error("[useIntakeChat] sendMessage error:", e);
         setError("Connection lost. Please check your internet connection and try again.");
         updateLastAssistantMessage(
@@ -344,19 +358,16 @@ export function useIntakeChat(): UseIntakeChatReturn {
     ): Promise<string> => {
       if (!conversationId) throw new Error("No active conversation");
 
-      const res = await fetch(
-        `/api/ai-chat?path=${encodeURIComponent("/api/v1/ai/intake/complete")}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            conversation_id: conversationId,
-            trade_scopes: editedTradeScopes,
-            project_name: projectName,
-            project_description: projectDescription,
-          }),
-        }
-      );
+      const res = await aiChatFetch("/api/v1/ai/intake/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversation_id: conversationId,
+          trade_scopes: editedTradeScopes,
+          project_name: projectName,
+          project_description: projectDescription,
+        }),
+      });
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({ detail: "Failed to complete intake" }));

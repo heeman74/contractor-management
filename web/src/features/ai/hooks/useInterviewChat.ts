@@ -1,6 +1,11 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import {
+  aiChatFetch,
+  isSessionExpiredError,
+  SESSION_EXPIRED_MESSAGE,
+} from "@/lib/api-client";
 import { parseSSELine } from "./useIntakeChat";
 import type { ChatMessage, ToolCall } from "./useIntakeChat";
 
@@ -75,8 +80,8 @@ export function useInterviewChat(): UseInterviewChatReturn {
 
   const startConversation = useCallback(async (scopeId: string) => {
     try {
-      const res = await fetch(
-        `/api/ai-chat?path=${encodeURIComponent(`/api/v1/ai/interview/start?scope_id=${encodeURIComponent(scopeId)}`)}`,
+      const res = await aiChatFetch(
+        `/api/v1/ai/interview/start?scope_id=${encodeURIComponent(scopeId)}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -96,6 +101,10 @@ export function useInterviewChat(): UseInterviewChatReturn {
       setTasks([]);
       setError(null);
     } catch (e) {
+      if (isSessionExpiredError(e)) {
+        setError(SESSION_EXPIRED_MESSAGE);
+        return;
+      }
       setError("Failed to start interview. Please check your connection.");
       console.error("[useInterviewChat] startConversation error:", e);
     }
@@ -130,14 +139,11 @@ export function useInterviewChat(): UseInterviewChatReturn {
       const pendingToolCalls: ToolCall[] = [];
 
       try {
-        const res = await fetch(
-          `/api/ai-chat?path=${encodeURIComponent("/api/v1/ai/interview/message")}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ conversation_id: conversationId, message }),
-          }
-        );
+        const res = await aiChatFetch("/api/v1/ai/interview/message", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ conversation_id: conversationId, message }),
+        });
 
         if (!res.ok) {
           const body = await res.json().catch(() => ({ detail: "AI request failed" }));
@@ -246,6 +252,13 @@ export function useInterviewChat(): UseInterviewChatReturn {
         setIsStreaming(false);
         setCurrentStreamText("");
       } catch (e) {
+        if (isSessionExpiredError(e)) {
+          setError(SESSION_EXPIRED_MESSAGE);
+          updateLastAssistantMessage(SESSION_EXPIRED_MESSAGE);
+          setIsStreaming(false);
+          setCurrentStreamText("");
+          return;
+        }
         console.error("[useInterviewChat] sendMessage error:", e);
         setError("Connection lost. Please check your internet connection and try again.");
         updateLastAssistantMessage(
@@ -262,17 +275,14 @@ export function useInterviewChat(): UseInterviewChatReturn {
     async (editedTasks: TaskPreview[]): Promise<string[]> => {
       if (!conversationId) throw new Error("No active conversation");
 
-      const res = await fetch(
-        `/api/ai-chat?path=${encodeURIComponent("/api/v1/ai/interview/complete")}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            conversation_id: conversationId,
-            tasks: editedTasks,
-          }),
-        }
-      );
+      const res = await aiChatFetch("/api/v1/ai/interview/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversation_id: conversationId,
+          tasks: editedTasks,
+        }),
+      });
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({ detail: "Failed to complete interview" }));

@@ -37,6 +37,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
+        // Browser extensions (e.g. Grammarly) inject attributes like
+        // data-gr-ext-installed onto <body> before React hydrates, causing a
+        // benign attribute-only hydration mismatch. Suppress it for this
+        // element — it only affects <body>'s own attributes, not app content.
+        suppressHydrationWarning
         className={`${geistSans.variable} ${geistMono.variable} ${archivo.variable} antialiased`}
       >
         {/* NProgress-style thin progress bar for route transitions */}

@@ -27,7 +27,7 @@ from app.core.base_models import TenantScopedModel
 if TYPE_CHECKING:
     from app.features.invoices.models import Invoice
     from app.features.jobs.models import Job
-    from app.features.projects.models import TradeScope
+    from app.features.projects.models import Project, TradeScope
 
 
 class Quote(TenantScopedModel):
@@ -58,6 +58,14 @@ class Quote(TenantScopedModel):
     trade_scope_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("trade_scopes.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    # Project-level quote: neither job_id nor trade_scope_id is set. `title` names
+    # the project it becomes; `project_id` is set once approval creates that project.
+    title: Mapped[str | None] = mapped_column(Text, nullable=True)
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="SET NULL"),
         nullable=True,
     )
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="draft")
@@ -98,6 +106,11 @@ class Quote(TenantScopedModel):
         foreign_keys=[trade_scope_id],
         lazy="raise",
     )
+    project: Mapped[Project | None] = relationship(  # type: ignore[name-defined]
+        "Project",
+        foreign_keys=[project_id],
+        lazy="raise",
+    )
     line_items: Mapped[list[QuoteLineItem]] = relationship(
         "QuoteLineItem",
         back_populates="quote",
@@ -133,6 +146,9 @@ class QuoteLineItem(TenantScopedModel):
     unit: Mapped[str] = mapped_column(Text, nullable=False)
     unit_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    # The trade/field this item belongs to on a project-level quote. Items are
+    # grouped by field to generate one job per field when the quote is approved.
+    field: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     __table_args__ = (
         CheckConstraint(

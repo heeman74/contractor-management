@@ -6,7 +6,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
 import type { ContractorMatch } from "@/types/projects";
 
@@ -25,12 +24,24 @@ export function ContractorSelect({
   otherContractors,
   hasContractors,
 }: ContractorSelectProps) {
+  // Derive the trigger label from our own data instead of relying on Radix's
+  // captured item text: when the trade changes, the contractors query refetches
+  // and the items unmount, which clears Radix's cached text and makes it fall
+  // back to showing the raw id. Looking the name up by id keeps it stable.
+  const selectedContractor = [...specialtyContractors, ...otherContractors].find(
+    (contractor) => contractor.id === value
+  );
+
   return (
     <div className="flex flex-col gap-1.5">
       <Label>Contractor (optional)</Label>
       <Select value={value} onValueChange={(v) => onValueChange(v ?? "")}>
         <SelectTrigger className="w-full" data-testid="contractor-select">
-          <SelectValue placeholder="Select contractor..." />
+          {selectedContractor ? (
+            <span>{selectedContractor.name}</span>
+          ) : (
+            <span className="text-muted-foreground">Select contractor...</span>
+          )}
         </SelectTrigger>
         <SelectContent>
           {specialtyContractors.length > 0 && (

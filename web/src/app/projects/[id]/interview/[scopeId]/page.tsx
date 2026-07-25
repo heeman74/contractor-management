@@ -60,7 +60,7 @@ export default function AIInterviewPage() {
     setIsSaving(true);
     try {
       await completeInterview(tasks);
-      router.push(`/projects/${projectId}`);
+      router.push(`/projects?project=${projectId}`);
     } catch (e) {
       console.error("[AIInterviewPage] completeInterview error:", e);
     } finally {
@@ -80,7 +80,7 @@ export default function AIInterviewPage() {
       {/* Fixed header */}
       <header className="flex flex-shrink-0 items-center gap-3 border-b bg-background px-4 py-3">
         <Link
-          href={`/projects/${projectId}`}
+          href={`/projects?project=${projectId}`}
           className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />

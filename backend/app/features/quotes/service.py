@@ -37,7 +37,11 @@ from sqlalchemy.orm import selectinload
 from app.core.base_service import TenantScopedService, entity_or_404
 from app.features.jobs.mixins import JobEventsMixin
 from app.features.jobs.models import Job
+from app.features.jobs.schemas import JobCreate, JobStatus
+from app.features.jobs.service import JobService
 from app.features.projects.models import TradeScope
+from app.features.projects.schemas import ProjectCreate
+from app.features.projects.service import ProjectService
 from app.features.quotes.models import Quote, QuoteLineItem, QuoteTemplate
 from app.features.quotes.repository import QuoteRepository, QuoteTemplateRepository
 from app.features.quotes.schemas import (
@@ -46,6 +50,10 @@ from app.features.quotes.schemas import (
     QuoteTemplateCreate,
     QuoteUpdate,
 )
+
+# Fallbacks when an approved project-level quote is converted into a project.
+_DEFAULT_PROJECT_NAME = "New Project"
+_DEFAULT_JOB_FIELD = "General"
 
 
 class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
@@ -81,6 +89,7 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
                     unit=item.unit,
                     unit_price=item.unit_price,
                     sort_order=item.sort_order,
+                    field=getattr(item, "field", None),
                 )
             )
         await self.db.flush()
@@ -135,19 +144,25 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
         Creates QuoteLineItem rows from data.line_items.
         Appends 'quote_created' to job.status_history.
         """
-        # Load the job and verify status
-        job = entity_or_404(await self.db.get(Job, data.job_id), f"Job {data.job_id} not found")
-        if job.status != "quote":
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Job must be in 'quote' status to create a quote (current: {job.status})",
-            )
+        # Job quotes validate the linked job; project-level quotes (no job_id and
+        # no trade_scope_id) have no job to check.
+        if data.job_id is not None:
+            job = entity_or_404(await self.db.get(Job, data.job_id), f"Job {data.job_id} not found")
+            if job.status != "quote":
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        f"Job must be in 'quote' status to create a quote (current: {job.status})"
+                    ),
+                )
 
         company_id = self._require_tenant_id()
 
         quote = Quote(
             company_id=company_id,
             job_id=data.job_id,
+            trade_scope_id=data.trade_scope_id,
+            title=data.title,
             status="draft",
             revision_number=1,
             tax_rate=data.tax_rate,
@@ -171,11 +186,13 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
                     unit=item.unit,
                     unit_price=item.unit_price,
                     sort_order=item.sort_order,
+                    field=item.field,
                 )
             )
 
         await self.db.flush()
-        await self._append_job_status_event(data.job_id, "quote_created", user_id)
+        if data.job_id is not None:
+            await self._append_job_status_event(data.job_id, "quote_created", user_id)
         await self.db.refresh(quote)
         return await self.repository.get_with_line_items(quote.id)  # type: ignore[return-value]
 
@@ -278,12 +295,91 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
         quote.status = "approved"
         quote.approved_at = datetime.now(UTC)
         await self.db.flush()
-        await self._append_job_status_event(quote.job_id, "quote_approved", client_user_id)
+
+        if quote.job_id is not None:
+            await self._append_job_status_event(quote.job_id, "quote_approved", client_user_id)
+        elif quote.trade_scope_id is None and quote.project_id is None:
+            # Project-level quote → create the project and its per-field jobs.
+            await self._convert_project_quote(quote, client_user_id)
 
         # FCM notification to admin (fire-and-forget)
         # NOTE: Admin notification on quote approval is omitted here — admin_user_id is not
         # available in this context. Admin receives updates via dashboard polling or webhook.
         return await self.repository.get_with_line_items(quote_id)  # type: ignore[return-value]
+
+    async def _convert_project_quote(self, quote: Quote, client_user_id: uuid.UUID) -> None:
+        """Create a project from an approved project-level quote — one job per field.
+
+        Line items are grouped by their `field`; within a group, labor items
+        describe the work and material items become the job's notes. Each group
+        becomes a job whose trade_type is the field. The quote is linked to the
+        created project via quote.project_id.
+        """
+        company_id = self._require_tenant_id()
+
+        result = await self.db.execute(
+            select(QuoteLineItem)
+            .where(QuoteLineItem.quote_id == quote.id)
+            .order_by(QuoteLineItem.sort_order)
+        )
+        line_items = list(result.scalars().all())
+
+        project = await ProjectService(self.db).create(
+            ProjectCreate(name=quote.title or _DEFAULT_PROJECT_NAME),
+            user_id=client_user_id,
+        )
+        await self.db.flush()
+
+        job_svc = JobService(self.db)
+        for field_name, items in self._group_items_by_field(line_items).items():
+            await job_svc.create_job(
+                self._build_job_from_field(project.id, field_name, items),
+                user_id=client_user_id,
+                company_id=company_id,
+            )
+
+        quote.project_id = project.id
+        await self.db.flush()
+
+    @staticmethod
+    def _group_items_by_field(
+        line_items: list[QuoteLineItem],
+    ) -> dict[str, list[QuoteLineItem]]:
+        """Group line items by field, preserving first-seen (sort) order."""
+        groups: dict[str, list[QuoteLineItem]] = {}
+        for item in line_items:
+            key = (item.field or _DEFAULT_JOB_FIELD).strip() or _DEFAULT_JOB_FIELD
+            groups.setdefault(key, []).append(item)
+        return groups
+
+    @staticmethod
+    def _build_job_from_field(
+        project_id: uuid.UUID, field_name: str, items: list[QuoteLineItem]
+    ) -> JobCreate:
+        """Assemble a JobCreate for one field group of an approved project quote."""
+        labor = [i for i in items if i.item_type == "labor"]
+        materials = [i for i in items if i.item_type == "material"]
+
+        description = "; ".join(i.description for i in labor).strip()
+        if not description:
+            description = f"{field_name} work"
+
+        note_lines: list[str] = []
+        if materials:
+            note_lines.append(
+                "Materials: "
+                + ", ".join(f"{i.description} ({i.quantity} {i.unit})" for i in materials)
+            )
+        total = sum((i.quantity * i.unit_price for i in items), Decimal("0"))
+        note_lines.append(f"Quoted total: ${total:.2f}")
+
+        return JobCreate(
+            description=description,
+            trade_type=field_name,
+            status=JobStatus.quote,
+            project_id=project_id,
+            notes="\n".join(note_lines),
+        )
 
     async def decline_quote(
         self,
@@ -364,6 +460,7 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
                     unit=getattr(item, "unit", None),
                     unit_price=getattr(item, "unit_price", None),
                     sort_order=getattr(item, "sort_order", 0),
+                    field=getattr(item, "field", None),
                 )
             )
 

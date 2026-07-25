@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     debug: bool = False
     ors_api_key: str | None = None  # OpenRouteService API key; omit to disable travel time
 
+    # Anthropic API key for the AI intake/interview/checklist features.
+    # Loaded from .env so it is the single source of truth; when unset the
+    # Anthropic SDK falls back to the ANTHROPIC_API_KEY shell environment var.
+    anthropic_api_key: str | None = None
+
     # Dropbox Sign (e-signature) — secrets from env only, no defaults.
     dropbox_sign_api_key: str | None = None
     dropbox_sign_client_id: str | None = None

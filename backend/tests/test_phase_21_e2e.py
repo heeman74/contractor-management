@@ -141,6 +141,20 @@ def mock_anthropic_create_tasks():
         yield mock_client
 
 
+@pytest_asyncio.fixture
+def mock_seed_default_tasks():
+    """Patch intake starter-task generation to yield no AI tasks.
+
+    Forces the deterministic per-scope fallback (exactly one default task per
+    scope) so completion tests stay hermetic and never hit the real API.
+    """
+    with patch(
+        "app.features.ai.service.call_claude_json",
+        new=AsyncMock(return_value={"scopes": []}),
+    ) as mock:
+        yield mock
+
+
 # ---------------------------------------------------------------------------
 # Helper: parse SSE events from streaming response
 # ---------------------------------------------------------------------------
@@ -227,6 +241,7 @@ class TestIntakeFlow:
         tenant_a_client: AsyncClient,
         seed_two_tenants: dict,
         mock_anthropic_tool_create_scopes,
+        mock_seed_default_tasks,
     ):
         """Full intake flow: start -> message -> complete creates 3 trade scopes."""
         # Start
@@ -278,6 +293,7 @@ class TestIntakeFlow:
         tenant_a_client: AsyncClient,
         seed_two_tenants: dict,
         mock_anthropic_tool_create_scopes,
+        mock_seed_default_tasks,
     ):
         """intake/complete with 3 sorted scopes creates 2 dependency edges (0->1, 1->2)."""
         # Start
@@ -302,38 +318,105 @@ class TestIntakeFlow:
         scope_ids = result["trade_scope_ids"]
         assert len(scope_ids) == 3
 
-        # Verify placeholder tasks exist for each scope
-        all_placeholder_tasks = []
+        # Each scope is seeded with real starter tasks (no placeholders). The
+        # sequencing anchor is each scope's first task (lowest sort_order).
+        anchor_task_ids: list[str] = []
         for scope_id in scope_ids:
             tasks_resp = await tenant_a_client.get(f"/api/v1/tasks/?trade_scope_id={scope_id}")
             assert tasks_resp.status_code == 200
             scope_tasks = tasks_resp.json()
-            placeholder_tasks = [t for t in scope_tasks if "[Scope placeholder]" in t["title"]]
-            assert len(placeholder_tasks) == 1, (
-                f"Expected 1 placeholder for scope {scope_id}, got {len(placeholder_tasks)}"
+            assert len(scope_tasks) >= 1, f"Scope {scope_id} has no tasks"
+            assert all("[Scope placeholder]" not in t["title"] for t in scope_tasks), (
+                "Placeholder tasks should no longer be created"
             )
-            all_placeholder_tasks.extend(placeholder_tasks)
+            anchor = min(scope_tasks, key=lambda t: t["sort_order"])
+            anchor_task_ids.append(anchor["id"])
 
-        assert len(all_placeholder_tasks) == 3
-
-        # Verify dependency edges exist.
-        # The GET endpoint returns edges where the task is predecessor OR successor.
-        # scope0: 1 outgoing edge (scope0->scope1)
-        # scope1: 2 edges (scope0->scope1 incoming, scope1->scope2 outgoing)
-        # scope2: 1 incoming edge (scope1->scope2)
-        # Total across all 3 tasks = 4 (each of the 2 edges is counted twice).
+        # Verify dependency edges wire consecutive scopes' anchor tasks.
+        # The GET endpoint returns edges where the task is predecessor OR successor,
+        # so the 2 edges (anchor0->anchor1, anchor1->anchor2) are seen 4 times total.
         # Deduplicate by unique edge ID to confirm exactly 2 unique edges exist.
         seen_edge_ids: set[str] = set()
-        for task in all_placeholder_tasks:
-            dep_resp = await tenant_a_client.get(f"/api/v1/tasks/{task['id']}/dependencies")
+        for task_id in anchor_task_ids:
+            dep_resp = await tenant_a_client.get(f"/api/v1/tasks/{task_id}/dependencies")
             assert dep_resp.status_code == 200
-            deps = dep_resp.json()
-            for dep in deps:
+            for dep in dep_resp.json():
                 seen_edge_ids.add(dep["id"])
 
         assert len(seen_edge_ids) == 2, (
             f"Expected 2 unique dependency edges, got {len(seen_edge_ids)}: {seen_edge_ids}"
         )
+
+    @pytest.mark.asyncio
+    async def test_intake_complete_seeds_ai_starter_tasks(
+        self,
+        tenant_a_client: AsyncClient,
+        seed_two_tenants: dict,
+    ):
+        """intake/complete seeds each scope with the AI's real, editable starter tasks.
+
+        A scope the AI returns no tasks for still gets a deterministic default,
+        so scopes are never empty.
+        """
+        ai_tasks = {
+            "scopes": [
+                {
+                    "trade_name": "Electrical",
+                    "tasks": [
+                        {
+                            "title": "Rough-in wiring",
+                            "description": "Run feeders to the panel.",
+                            "priority": "high",
+                            "estimated_hours": 8,
+                        },
+                        {
+                            "title": "Set 150A main panel",
+                            "description": "Mount and terminate the main panel.",
+                            "priority": "medium",
+                            "estimated_hours": 4,
+                        },
+                    ],
+                }
+            ]
+        }
+
+        start_resp = await tenant_a_client.post("/api/v1/ai/intake/start")
+        conv_id = start_resp.json()["id"]
+
+        with patch(
+            "app.features.ai.service.call_claude_json",
+            new=AsyncMock(return_value=ai_tasks),
+        ):
+            complete_resp = await tenant_a_client.post(
+                "/api/v1/ai/intake/complete",
+                json={
+                    "conversation_id": conv_id,
+                    "project_name": "Panel Upgrade",
+                    "trade_scopes": [
+                        {"trade_name": "Electrical", "sort_order": 0},
+                        {"trade_name": "Utility Coordination", "sort_order": 1},
+                    ],
+                },
+            )
+
+        assert complete_resp.status_code == 200, complete_resp.text
+        scope_ids = complete_resp.json()["trade_scope_ids"]
+        assert len(scope_ids) == 2
+
+        # Electrical → the two AI tasks, in order, with their details preserved.
+        elec_resp = await tenant_a_client.get(f"/api/v1/tasks/?trade_scope_id={scope_ids[0]}")
+        elec_tasks = sorted(elec_resp.json(), key=lambda t: t["sort_order"])
+        assert [t["title"] for t in elec_tasks] == ["Rough-in wiring", "Set 150A main panel"]
+        assert elec_tasks[0]["description"] == "Run feeders to the panel."
+        assert elec_tasks[0]["priority"] == "high"
+        assert str(elec_tasks[0]["estimated_hours"]) in {"8", "8.0", "8.00"}
+
+        # Utility Coordination had no AI tasks → one deterministic default (never empty).
+        util_resp = await tenant_a_client.get(f"/api/v1/tasks/?trade_scope_id={scope_ids[1]}")
+        util_tasks = util_resp.json()
+        assert len(util_tasks) == 1
+        assert "[Scope placeholder]" not in util_tasks[0]["title"]
+        assert util_tasks[0]["title"] == "Plan Utility Coordination work"
 
     @pytest.mark.asyncio
     async def test_intake_complete_rolls_back_on_partial_failure(

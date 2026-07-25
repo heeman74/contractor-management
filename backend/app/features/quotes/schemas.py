@@ -33,6 +33,8 @@ class QuoteLineItemCreate(BaseModel):
     unit: str = Field(..., min_length=1, max_length=50)
     unit_price: Decimal = Field(..., ge=0, decimal_places=2)
     sort_order: int = Field(default=0, ge=0)
+    # Trade/field grouping for project-level quotes (one job per field on approval).
+    field: str | None = Field(default=None, max_length=100)
 
 
 class QuoteLineItemResponse(BaseResponseSchema):
@@ -45,6 +47,7 @@ class QuoteLineItemResponse(BaseResponseSchema):
     unit: str
     unit_price: Decimal
     sort_order: int
+    field: str | None = None
 
     @property
     def line_total(self) -> Decimal:
@@ -58,14 +61,18 @@ class QuoteLineItemResponse(BaseResponseSchema):
 
 
 class QuoteCreate(BaseModel):
-    """Schema for creating a new quote on a job or trade scope.
+    """Schema for creating a new quote.
 
-    Either job_id or trade_scope_id must be provided (not both None).
+    A quote attaches to exactly one of: a job (job_id), a trade scope
+    (trade_scope_id), or — when both are omitted — the project level. A
+    project-level quote covers a whole project and, on approval, creates that
+    project with one job per line-item `field`. `title` names that project.
     Phase 25: trade_scope_id enables per-trade quoting.
     """
 
     job_id: uuid.UUID | None = None
     trade_scope_id: uuid.UUID | None = None
+    title: str | None = Field(default=None, max_length=200)
     tax_rate: Decimal = Field(default=Decimal("0"), ge=0, le=100, decimal_places=2)
     discount_type: Literal["percent", "fixed"] | None = None
     discount_value: Decimal = Field(default=Decimal("0"), ge=0, decimal_places=2)
@@ -75,9 +82,13 @@ class QuoteCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_fields(self) -> "QuoteCreate":
-        """Validate job/scope linkage and discount consistency."""
-        if self.job_id is None and self.trade_scope_id is None:
-            raise ValueError("Either job_id or trade_scope_id must be provided")
+        """Validate job/scope linkage and discount consistency.
+
+        job_id and trade_scope_id are mutually exclusive; omitting both makes a
+        project-level quote.
+        """
+        if self.job_id is not None and self.trade_scope_id is not None:
+            raise ValueError("A quote cannot attach to both a job and a trade scope")
         if self.discount_value > 0 and self.discount_type is None:
             raise ValueError("discount_type is required when discount_value is set")
         if self.discount_type == "percent" and self.discount_value > 100:
@@ -129,6 +140,8 @@ class QuoteResponse(BaseResponseSchema):
     company_id: uuid.UUID
     job_id: uuid.UUID | None
     trade_scope_id: uuid.UUID | None = None
+    title: str | None = None
+    project_id: uuid.UUID | None = None
     status: str
     revision_number: int
     tax_rate: Decimal

@@ -124,6 +124,15 @@ export interface TaskCreate {
   start_date?: string;
 }
 
+export interface TaskUpdate {
+  title?: string;
+  description?: string | null;
+  status?: string;
+  priority?: string;
+  estimated_hours?: number | null;
+  due_date?: string | null;
+}
+
 export interface TaskAttachmentResponse {
   id: string;
   company_id: string;

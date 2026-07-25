@@ -12,6 +12,7 @@ import type {
   ProjectCreate,
   TradeScopeCreate,
   TaskCreate,
+  TaskUpdate,
 } from "@/types/projects";
 import type {
   TaskDependencyResponse,
@@ -115,6 +116,17 @@ export function fetchTasks(tradeScopeId: string): Promise<TaskResponse[]> {
   return apiGet<TaskResponse[]>(
     `/api/v1/tasks/?trade_scope_id=${tradeScopeId}`
   );
+}
+
+export function updateTask(
+  id: string,
+  data: TaskUpdate
+): Promise<TaskResponse> {
+  return apiPatch<TaskResponse>(`/api/v1/tasks/${id}`, data);
+}
+
+export function deleteTask(id: string): Promise<void> {
+  return apiDelete<void>(`/api/v1/tasks/${id}`);
 }
 
 export function createTask(data: TaskCreate): Promise<TaskResponse> {

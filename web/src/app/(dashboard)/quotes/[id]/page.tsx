@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -131,6 +132,25 @@ export default function QuoteDetailPage({
             onDownloadPdf={detail.downloadPdf}
             onGenerateInvoice={detail.generateInvoice}
           />
+
+          {quote.project_id && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Project</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <p className="text-sm text-gray-600">
+                  This quote was approved and turned into a project.
+                </p>
+                <Link
+                  href={`/projects?project=${quote.project_id}`}
+                  className="inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline"
+                >
+                  View project →
+                </Link>
+              </CardContent>
+            </Card>
+          )}
 
           {quote.status === "approved" && (
             <QuoteContractCard quoteId={quote.id} clientName={job?.client_name} />

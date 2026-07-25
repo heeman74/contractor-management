@@ -1,18 +1,72 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { Calendar, MapPin, Plus, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { AddTradeScopeSheet } from "./AddTradeScopeSheet";
 import { ProjectAssignmentsCard } from "./ProjectAssignmentsCard";
 import { useTradeScopes, useTasks } from "@/lib/api/projects";
+import { apiGet } from "@/lib/api-client";
 import { TradeProgressCard } from "@/features/tasks/components/TradeProgressCard";
 import type { ProjectResponse, TradeScopeResponse } from "@/types/projects";
+import type { Job } from "@/types/api";
+
+/**
+ * Jobs belonging to this project (e.g. the per-field jobs created when a
+ * project-level quote is approved). Each row links to the job for editing.
+ */
+function ProjectJobsCard({ projectId }: { projectId: string }) {
+  const router = useRouter();
+  const { data: jobs } = useQuery({
+    queryKey: ["project-jobs", projectId],
+    queryFn: () =>
+      apiGet<Job[]>(`/api/v1/jobs/?project_id=${encodeURIComponent(projectId)}`),
+  });
+
+  return (
+    <div>
+      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-700">
+        Jobs ({jobs?.length ?? 0})
+      </h3>
+      {jobs && jobs.length > 0 ? (
+        <div className="space-y-2">
+          {jobs.map((job) => (
+            <div
+              key={job.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => router.push(`/jobs/${job.id}`)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  router.push(`/jobs/${job.id}`);
+                }
+              }}
+              className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-3 transition-colors hover:bg-gray-50"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-gray-800">
+                  {job.description}
+                </p>
+                <p className="text-xs text-gray-500">{job.trade_type}</p>
+              </div>
+              <StatusBadge status={job.status} size="sm" />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-gray-500">No jobs yet.</p>
+      )}
+    </div>
+  );
+}
 
 interface ProjectDetailProps {
   project: ProjectResponse;
-  onSelectScope: (scopeId: string) => void;
+  onSelectScope: (scope: TradeScopeResponse) => void;
 }
 
 /**
@@ -125,6 +179,9 @@ export function ProjectDetail({ project, onSelectScope }: ProjectDetailProps) {
       {/* Team assignments (PM, contractor) */}
       <ProjectAssignmentsCard projectId={project.id} />
 
+      {/* Jobs (e.g. per-field jobs created from an approved project quote) */}
+      <ProjectJobsCard projectId={project.id} />
+
       {/* Trade scopes with progress */}
       <div>
         <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-700">
@@ -136,7 +193,7 @@ export function ProjectDetail({ project, onSelectScope }: ProjectDetailProps) {
               <ScopeProgressCard
                 key={scope.id}
                 scope={scope}
-                onSelect={() => onSelectScope(scope.id)}
+                onSelect={() => onSelectScope(scope)}
               />
             ))}
           </div>

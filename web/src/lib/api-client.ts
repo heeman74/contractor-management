@@ -57,6 +57,21 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * True when an error is the terminal "session expired" signal thrown after a
+ * 401 whose token refresh also failed. When this is true, api-client is already
+ * clearing the auth cookies and redirecting to /login?reason=session_expired,
+ * so callers should show a session-expired message rather than a generic error.
+ */
+export function isSessionExpiredError(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 401;
+}
+
+const SESSION_EXPIRED_MESSAGE =
+  "Your session has expired. Redirecting you to the login page…";
+
+export { SESSION_EXPIRED_MESSAGE };
+
 export async function apiClient<T>(
   path: string,
   init?: RequestInit,
@@ -178,6 +193,43 @@ export async function apiFetchRaw(
       // Non-JSON error body
     }
     throw new ApiError(resp.status, detail);
+  }
+
+  return resp;
+}
+
+/**
+ * Raw fetch through the AI-chat SSE proxy (/api/ai-chat) with the same 401
+ * refresh-and-retry as apiClient. Returns the raw Response (streamable body)
+ * WITHOUT throwing on non-2xx — the AI chat hooks inspect the response and its
+ * error body / SSE stream themselves.
+ *
+ * Reuses the coalesced ensureRefreshed() so that concurrent 401s trigger only
+ * one refresh-token rotation (a second rotation would trip the backend's
+ * refresh-token family-reuse revocation and log the user out).
+ *
+ * `path` is the FastAPI path (e.g. "/api/v1/ai/intake/message"); the proxy
+ * query string is built here. Bodies must be strings so a retry can re-send.
+ */
+export async function aiChatFetch(
+  path: string,
+  init: RequestInit,
+  retry = true
+): Promise<Response> {
+  const proxyUrl = `/api/ai-chat?path=${encodeURIComponent(path)}`;
+  const resp = await fetch(proxyUrl, init);
+
+  if (resp.status === 401 && retry) {
+    logger.info(TAG, "401 on AI chat, attempting token refresh", { path });
+    const refreshed = await ensureRefreshed();
+    if (refreshed) {
+      return aiChatFetch(path, init, false);
+    }
+    logger.warn(TAG, "Token refresh failed on AI chat, redirecting to login", {
+      path,
+    });
+    window.location.href = "/login?reason=session_expired";
+    throw new ApiError(401, "Session expired");
   }
 
   return resp;

@@ -68,7 +68,7 @@ export function QuotesTable({
       </TableHeader>
       <TableBody>
         {quotes.map((quote) => {
-          const job = jobsById.get(quote.job_id);
+          const job = quote.job_id ? jobsById.get(quote.job_id) : undefined;
           return (
             <TableRow
               key={quote.id}
@@ -79,7 +79,7 @@ export function QuotesTable({
                 {formatQuoteReference(quote.id)}
               </TableCell>
               <TableCell className="py-3 px-4 text-sm text-gray-700 truncate max-w-[160px]">
-                {job?.description ?? EMPTY_VALUE}
+                {job?.description ?? quote.title ?? EMPTY_VALUE}
               </TableCell>
               <TableCell className="py-3 px-4 text-sm text-gray-700">
                 {job?.client_name ?? EMPTY_VALUE}

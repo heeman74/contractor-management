@@ -29,13 +29,19 @@ export function QuoteDetailsCard({ quote, job }: QuoteDetailsCardProps) {
           )}
         </DetailField>
 
-        <DetailField label="Job">
-          <Link
-            href={`/jobs/${quote.job_id}`}
-            className="text-sm text-foreground hover:underline truncate block max-w-full"
-          >
-            {job?.description ?? quote.job_id.slice(0, 8)}
-          </Link>
+        <DetailField label={quote.job_id ? "Job" : "Project"}>
+          {quote.job_id ? (
+            <Link
+              href={`/jobs/${quote.job_id}`}
+              className="text-sm text-foreground hover:underline truncate block max-w-full"
+            >
+              {job?.description ?? quote.job_id.slice(0, 8)}
+            </Link>
+          ) : (
+            <p className="text-sm text-gray-900 truncate">
+              {quote.title ?? "Project quote"}
+            </p>
+          )}
         </DetailField>
 
         <DetailField label="Expiry Date">

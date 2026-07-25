@@ -190,12 +190,16 @@ export interface QuoteLineItem {
   unit: string;
   unit_price: string;
   sort_order: number;
+  field?: string | null;
 }
 
 export interface Quote {
   id: string;
   company_id: string;
-  job_id: string;
+  job_id: string | null;
+  trade_scope_id?: string | null;
+  title?: string | null;
+  project_id?: string | null;
   status: QuoteStatus;
   revision_number: number;
   tax_rate: string;

@@ -19,6 +19,7 @@ from typing import Any
 
 from anthropic import AsyncAnthropic
 
+from app.core.config import settings
 from app.core.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -48,13 +49,16 @@ _anthropic_client: AsyncAnthropic | None = None
 def get_anthropic_client() -> AsyncAnthropic:
     """Return a lazily-initialized AsyncAnthropic client (singleton).
 
-    The client reads ANTHROPIC_API_KEY from the environment on first call.
-    Deferred creation avoids import-time side effects and test failures
-    when the API key is not set.
+    The key is read from settings (.env is the single source of truth); when
+    unset, api_key=None lets the SDK fall back to the ANTHROPIC_API_KEY
+    environment variable. Deferred creation avoids import-time side effects and
+    test failures when the API key is not set.
     """
     global _anthropic_client
     if _anthropic_client is None:
-        _anthropic_client = AsyncAnthropic(timeout=CLAUDE_TIMEOUT)
+        _anthropic_client = AsyncAnthropic(
+            api_key=settings.anthropic_api_key, timeout=CLAUDE_TIMEOUT
+        )
     return _anthropic_client
 
 

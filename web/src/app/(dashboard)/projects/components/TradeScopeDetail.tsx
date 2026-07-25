@@ -4,15 +4,29 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Bot } from "lucide-react";
+import { Bot, Plus, Trash2 } from "lucide-react";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
-import { useTasks, updateTradeScope } from "@/lib/api/projects";
-import type { TradeScopeResponse } from "@/types/projects";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  useTasks,
+  updateTradeScope,
+  createTask,
+  deleteTask,
+} from "@/lib/api/projects";
+import type { TradeScopeResponse, TaskResponse } from "@/types/projects";
 
 interface TradeScopeDetailProps {
   scope: TradeScopeResponse;
-  onSelectTask: (taskId: string) => void;
+  onSelectTask: (task: TaskResponse) => void;
 }
 
 const PRIORITY_BORDER: Record<string, string> = {
@@ -46,6 +60,45 @@ export function TradeScopeDetail({ scope, onSelectTask }: TradeScopeDetailProps)
   });
 
   const statusOptions = ["not_started", "in_progress", "complete", "on_hold"];
+
+  const [addingTask, setAddingTask] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [pendingDeleteTask, setPendingDeleteTask] = useState<TaskResponse | null>(
+    null
+  );
+
+  const invalidateTasks = () =>
+    queryClient.invalidateQueries({ queryKey: ["tasks", scope.id] });
+
+  const createTaskMutation = useMutation({
+    mutationFn: (title: string) => createTask({ trade_scope_id: scope.id, title }),
+    onSuccess: () => {
+      invalidateTasks();
+      toast.success("Task added.");
+      setNewTaskTitle("");
+      setAddingTask(false);
+    },
+    onError: () => toast.error("Failed to add task. Please try again."),
+  });
+
+  const deleteTaskMutation = useMutation({
+    mutationFn: (taskId: string) => deleteTask(taskId),
+    onSuccess: () => {
+      invalidateTasks();
+      toast.success("Task deleted.");
+      setPendingDeleteTask(null);
+    },
+    onError: () => {
+      toast.error("Failed to delete task. Please try again.");
+      setPendingDeleteTask(null);
+    },
+  });
+
+  const handleAddTask = () => {
+    const title = newTaskTitle.trim();
+    if (!title) return;
+    createTaskMutation.mutate(title);
+  };
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -125,16 +178,65 @@ export function TradeScopeDetail({ scope, onSelectTask }: TradeScopeDetailProps)
           <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700">
             Tasks ({totalCount})
           </h3>
-          {totalCount === 0 && (
-            <Link
-              href={`/projects/${scope.project_id}/interview/${scope.id}`}
-              className="inline-flex h-7 items-center gap-1 rounded-[min(var(--radius-md),12px)] border border-border bg-background px-2.5 text-[0.8rem] font-medium text-foreground transition-colors hover:bg-muted"
+          <div className="flex items-center gap-2">
+            {totalCount === 0 && (
+              <Link
+                href={`/projects/${scope.project_id}/interview/${scope.id}`}
+                className="inline-flex h-7 items-center gap-1 rounded-[min(var(--radius-md),12px)] border border-border bg-background px-2.5 text-[0.8rem] font-medium text-foreground transition-colors hover:bg-muted"
+              >
+                <Bot className="h-3.5 w-3.5" />
+                Start AI Interview
+              </Link>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setAddingTask(true)}
+              data-testid="add-task-button"
             >
-              <Bot className="h-3.5 w-3.5" />
-              Start AI Interview
-            </Link>
-          )}
+              <Plus className="h-3.5 w-3.5" />
+              Add task
+            </Button>
+          </div>
         </div>
+
+        {addingTask && (
+          <div className="mb-3 flex items-center gap-2">
+            <Input
+              autoFocus
+              value={newTaskTitle}
+              onChange={(e) => setNewTaskTitle(e.target.value)}
+              placeholder="Task title"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleAddTask();
+                }
+                if (e.key === "Escape") {
+                  setAddingTask(false);
+                  setNewTaskTitle("");
+                }
+              }}
+            />
+            <Button
+              size="sm"
+              onClick={handleAddTask}
+              disabled={createTaskMutation.isPending || !newTaskTitle.trim()}
+            >
+              {createTaskMutation.isPending ? "Adding…" : "Add"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setAddingTask(false);
+                setNewTaskTitle("");
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        )}
         {tasks && tasks.length > 0 ? (
           <div className="space-y-2">
             {tasks.map((task) => {
@@ -143,20 +245,32 @@ export function TradeScopeDetail({ scope, onSelectTask }: TradeScopeDetailProps)
                 <div
                   key={task.id}
                   className={`flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-gray-200 border-l-4 bg-white p-3 transition-colors hover:bg-gray-50 ${borderColor}`}
-                  onClick={() => onSelectTask(task.id)}
+                  onClick={() => onSelectTask(task)}
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      onSelectTask(task.id);
+                      onSelectTask(task);
                     }
                   }}
                 >
                   <span className="text-sm font-medium text-gray-800">
                     {task.title}
                   </span>
-                  <StatusBadge status={task.status} size="sm" />
+                  <div className="flex flex-shrink-0 items-center gap-2">
+                    <StatusBadge status={task.status} size="sm" />
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPendingDeleteTask(task);
+                      }}
+                      aria-label={`Delete ${task.title}`}
+                      className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-destructive"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -165,6 +279,41 @@ export function TradeScopeDetail({ scope, onSelectTask }: TradeScopeDetailProps)
           <p className="text-sm text-gray-500">No tasks yet.</p>
         )}
       </div>
+
+      <Dialog
+        open={pendingDeleteTask !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDeleteTask(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete this task?</DialogTitle>
+            <DialogDescription>
+              &ldquo;{pendingDeleteTask?.title}&rdquo; will be permanently removed. This
+              cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPendingDeleteTask(null)}
+              disabled={deleteTaskMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() =>
+                pendingDeleteTask && deleteTaskMutation.mutate(pendingDeleteTask.id)
+              }
+              disabled={deleteTaskMutation.isPending}
+            >
+              {deleteTaskMutation.isPending ? "Deleting…" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

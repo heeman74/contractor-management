@@ -1,7 +1,8 @@
 "use client";
 
 import { Suspense } from "react";
-import { Search } from "lucide-react";
+import Link from "next/link";
+import { Search, Bot } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ListPagination } from "@/components/shared/list-pagination";
 import { ListStatusTabs } from "@/components/shared/list-tabs";
@@ -41,16 +42,25 @@ function QuotesPageContent() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-gray-900">Quotes</h1>
-        <div className="relative w-72">
-          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none" />
-          <Input
-            className="pl-8"
-            placeholder="Search quotes..."
-            value={filters.searchInput}
-            onChange={filters.onSearchChange}
-          />
+        <div className="flex items-center gap-3">
+          <div className="relative w-72">
+            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <Input
+              className="pl-8"
+              placeholder="Search quotes..."
+              value={filters.searchInput}
+              onChange={filters.onSearchChange}
+            />
+          </div>
+          <Link
+            href="/quotes/new-project"
+            className="inline-flex h-9 flex-shrink-0 items-center gap-1.5 rounded-lg bg-brand px-3 text-sm font-medium text-brand-foreground transition-colors hover:bg-brand/90"
+          >
+            <Bot className="h-4 w-4" />
+            New Project Quote
+          </Link>
         </div>
       </div>
 
