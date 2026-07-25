@@ -18,6 +18,10 @@ PERMISSIONS_MANAGE = "roles.permissions.manage"
 # Company-level keys reserved for the owner; admins deliberately do NOT get these.
 _OWNER_ONLY_KEYS = ("company.settings.manage", "company.billing.manage")
 
+# Financial keys reserved for owner + project_manager; admins deliberately do NOT
+# get these by default (finance visibility is separate from operational access).
+_FINANCE_ONLY_KEYS = ("finance.view", "finance.manage", "finance.rates.manage")
+
 # Fixed catalog. Each entry is (key, label, group). Order drives UI grouping.
 PERMISSION_CATALOG: list[dict[str, str]] = [
     {"key": "company.settings.manage", "label": "Manage company settings", "group": "Company"},
@@ -68,13 +72,16 @@ PERMISSION_CATALOG: list[dict[str, str]] = [
     {"key": "time.log", "label": "Log time entries", "group": "Field"},
     {"key": "photos.upload", "label": "Upload job photos", "group": "Field"},
     {"key": "portal.access", "label": "Access client portal", "group": "Portal"},
+    {"key": "finance.view", "label": "View costs, margins & budgets", "group": "Finance"},
+    {"key": "finance.manage", "label": "Manage costs & budgets", "group": "Finance"},
+    {"key": "finance.rates.manage", "label": "Manage labor pay rates", "group": "Finance"},
 ]
 
 PERMISSION_KEYS: frozenset[str] = frozenset(entry["key"] for entry in PERMISSION_CATALOG)
 
-# Admin gets everything except the owner-only company keys — derived so it can
-# never drift from the catalog as keys are added.
-_ADMIN_KEYS: list[str] = sorted(PERMISSION_KEYS - set(_OWNER_ONLY_KEYS))
+# Admin gets everything except the owner-only company keys and the finance-only
+# keys — derived so it can never drift from the catalog as keys are added.
+_ADMIN_KEYS: list[str] = sorted(PERMISSION_KEYS - set(_OWNER_ONLY_KEYS) - set(_FINANCE_ONLY_KEYS))
 
 DEFAULT_ROLE_PERMISSIONS: dict[str, list[str]] = {
     "owner": [WILDCARD],
@@ -109,6 +116,9 @@ DEFAULT_ROLE_PERMISSIONS: dict[str, list[str]] = {
         "tasks.create",
         "tasks.edit",
         "tasks.delete",
+        "finance.view",
+        "finance.manage",
+        "finance.rates.manage",
     ],
     "gc": [
         "projects.view",
