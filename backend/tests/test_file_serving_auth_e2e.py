@@ -24,6 +24,34 @@ async def _upload_image(client: AsyncClient) -> str:
     return resp.json()["remote_url"]
 
 
+async def _upload_task_photo(client: AsyncClient) -> str:
+    """Build a project -> trade_scope -> task and upload a photo, returning its
+    /files/task-attachments/... remote_url."""
+    project = await client.post("/api/v1/projects/", json={"name": "Media Test Project"})
+    assert project.status_code == 201, project.text
+    scope = await client.post(
+        "/api/v1/trade-scopes/",
+        json={
+            "project_id": project.json()["id"],
+            "trade_name": "Electrical",
+            "trade_color": "#FF5733",
+        },
+    )
+    assert scope.status_code == 201, scope.text
+    task = await client.post(
+        "/api/v1/tasks/",
+        json={"trade_scope_id": scope.json()["id"], "title": "Install breaker panel"},
+    )
+    assert task.status_code == 201, task.text
+    resp = await client.post(
+        f"/api/v1/tasks/{task.json()['id']}/attachments",
+        files={"file": ("progress.png", _PNG_BYTES, "image/png")},
+        data={"attachment_type": "photo"},
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()["remote_url"]
+
+
 class TestFileServingAuth:
     async def test_owner_can_fetch_own_image(
         self, tenant_a_client: AsyncClient, seed_two_tenants: dict
@@ -82,6 +110,41 @@ class TestFileServingAuth:
     ):
         # No Attachment row with this remote_url exists → 404 (never reaches disk).
         resp = await tenant_a_client.get(f"/files/attachments/{uuid4()}/ghost.png")
+        assert resp.status_code == 404
+
+    async def test_owner_can_fetch_own_task_photo(
+        self, tenant_a_client: AsyncClient, seed_two_tenants: dict
+    ):
+        # Regression guard: task-attachment files (a distinct /files category) must
+        # still be served to their owner after the StaticFiles auth fix.
+        remote_url = await _upload_task_photo(tenant_a_client)
+        assert remote_url.startswith("/files/task-attachments/")
+        resp = await tenant_a_client.get(remote_url)
+        assert resp.status_code == 200
+        assert resp.content == _PNG_BYTES
+
+    async def test_other_tenant_cannot_fetch_task_photo(
+        self,
+        tenant_a_client: AsyncClient,
+        tenant_b_client: AsyncClient,
+        seed_two_tenants: dict,
+    ):
+        remote_url = await _upload_task_photo(tenant_a_client)
+        resp = await tenant_b_client.get(remote_url)
+        assert resp.status_code == 404
+
+    async def test_unauthenticated_task_photo_rejected(
+        self, tenant_a_client: AsyncClient, async_client: AsyncClient, seed_two_tenants: dict
+    ):
+        remote_url = await _upload_task_photo(tenant_a_client)
+        resp = await async_client.get(remote_url)
+        assert resp.status_code == 401
+
+    async def test_nonexistent_task_attachment_is_404(
+        self, tenant_a_client: AsyncClient, seed_two_tenants: dict
+    ):
+        # No TaskAttachment row with this remote_url exists → 404 (never reaches disk).
+        resp = await tenant_a_client.get(f"/files/task-attachments/{uuid4()}/ghost.png")
         assert resp.status_code == 404
 
     async def test_client_role_without_photos_still_authenticates_but_scoped(

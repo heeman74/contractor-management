@@ -159,7 +159,7 @@ class _PhotoCell extends StatelessWidget {
     }
     if (attachment.remoteUrl != null) {
       return Image.network(
-        attachment.remoteUrl!,
+        resolveMediaUrl(attachment.remoteUrl)!,
         headers: mediaAuthHeaders(),
         fit: BoxFit.cover,
         loadingBuilder: (context, child, progress) {

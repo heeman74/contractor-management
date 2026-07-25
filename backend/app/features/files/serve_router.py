@@ -10,6 +10,8 @@ passes a tenant/membership check keyed on the URL's path shape:
 
 - /files/attachments/{note_id}/{name}   -> an Attachment row with this exact
       remote_url must exist in the caller's company (RLS-scoped query).
+- /files/task-attachments/{task_id}/{n} -> a TaskAttachment row with this exact
+      remote_url must exist in the caller's company (RLS-scoped query).
 - /files/images/{company_id}/{name}     -> the {company_id} path segment must
       equal the caller's company.
 - /files/job_requests/{request_id}/{n}  -> the JobRequest must exist in the
@@ -38,6 +40,7 @@ from app.core.security import CurrentUser, get_current_user
 from app.features.chat.models import ChatMessage
 from app.features.chat.service import ChatService
 from app.features.jobs.models import Attachment, JobRequest
+from app.features.projects.models import TaskAttachment
 
 serve_router = APIRouter(tags=["files"], include_in_schema=False)
 
@@ -83,6 +86,16 @@ async def serve_upload(
         # remote_url must exist in the caller's company (RLS scopes the query).
         result = await db.execute(
             select(Attachment.id).where(Attachment.remote_url == f"/files/{file_path}").limit(1)
+        )
+        if result.scalars().first() is None:
+            raise _not_found()
+    elif category == "task-attachments":
+        # task-attachments/{task_id}/{filename} — a TaskAttachment row with this
+        # exact remote_url must exist in the caller's company (RLS scopes the query).
+        result = await db.execute(
+            select(TaskAttachment.id)
+            .where(TaskAttachment.remote_url == f"/files/{file_path}")
+            .limit(1)
         )
         if result.scalars().first() is None:
             raise _not_found()

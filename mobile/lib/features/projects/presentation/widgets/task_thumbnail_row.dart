@@ -83,7 +83,7 @@ class TaskThumbnailRow extends ConsumerWidget {
       );
     } else if (remoteUrl != null && remoteUrl.isNotEmpty) {
       imageWidget = Image.network(
-        remoteUrl,
+        resolveMediaUrl(remoteUrl)!,
         headers: mediaAuthHeaders(),
         width: 32,
         height: 32,
@@ -133,7 +133,7 @@ class TaskThumbnailRow extends ConsumerWidget {
   Widget _fallbackThumbnail(String? remoteUrl) {
     if (remoteUrl != null && remoteUrl.isNotEmpty) {
       return Image.network(
-        remoteUrl,
+        resolveMediaUrl(remoteUrl)!,
         headers: mediaAuthHeaders(),
         width: 32,
         height: 32,

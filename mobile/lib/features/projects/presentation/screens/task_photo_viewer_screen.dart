@@ -116,7 +116,7 @@ class _TaskPhotoViewerScreenState extends State<TaskPhotoViewerScreen> {
     }
     if (photo.remoteUrl != null) {
       return Image.network(
-        photo.remoteUrl!,
+        resolveMediaUrl(photo.remoteUrl)!,
         headers: mediaAuthHeaders(),
         fit: BoxFit.contain,
         loadingBuilder: (context, child, progress) {
