@@ -43,7 +43,7 @@ Requirements for the Financial Intelligence milestone. Each maps to roadmap phas
 - [x] **FINSEC-01**: All financial endpoints are backend-gated by finance.* permissions, granted only to owner and project_manager by default
 - [x] **FINSEC-02**: Companies can adjust finance.* grants via the existing Roles & Permissions matrix
 - [x] **FINSEC-03**: The admin role does not inherit finance.* (explicit exclusion from the derived permission set)
-- [ ] **FINSEC-04**: Pre-existing surfaces (reports, dashboards, alerts, AI chat/checklists) are audited so no financial data leaks to non-finance roles
+- [x] **FINSEC-04**: Pre-existing surfaces (reports, dashboards, alerts, AI chat/checklists) are audited so no financial data leaks to non-finance roles
 
 ## Future Requirements
 
@@ -100,7 +100,7 @@ Which phases cover which requirements. Filled during roadmap creation.
 | FINSEC-01 | Phase 30: Financial Schema Foundation and RBAC Audit | Complete |
 | FINSEC-02 | Phase 30: Financial Schema Foundation and RBAC Audit | Complete |
 | FINSEC-03 | Phase 30: Financial Schema Foundation and RBAC Audit | Complete |
-| FINSEC-04 | Phase 30: Financial Schema Foundation and RBAC Audit | Pending |
+| FINSEC-04 | Phase 30: Financial Schema Foundation and RBAC Audit | Complete |
 
 **Coverage:** 23/23 v4.0 requirements mapped ✓
 

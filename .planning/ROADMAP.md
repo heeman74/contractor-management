@@ -332,13 +332,13 @@ Plans:
   2. The admin role's default derived permission set contains zero finance.* keys — verified by an automated regression test, not manual inspection
   3. Company owner can grant finance.* to a custom role (e.g., bookkeeper) via the existing Roles & Permissions matrix and that role immediately gains access per the grant
   4. Every pre-existing money-adjacent surface (reports endpoint, monitoring dashboard, AI chat/checklist tool results) is audited and returns no cost/margin/budget fields to a user without finance.* permission
-**Plans:** 1/4 plans executed
+**Plans:** 2/4 plans executed
 **UI hint**: yes
 
 Plans:
 - [x] 30-01-PLAN.md — Permission catalog: 3 finance.* keys in a Finance group, admin-exclusion derivation, PM defaults + regression tests (FINSEC-01/02/03)
 - [ ] 30-02-PLAN.md — Financial schema: 5 tenant-scoped tables + RLS (migration 0032), 4 system cost categories seed, existing-company PM backfill, XOR create-schemas (FINSEC-01)
-- [ ] 30-03-PLAN.md — Audit plumbing: finance-scrub helper + permission-aware dashboard alert filter, with unit tests (FINSEC-04)
+- [x] 30-03-PLAN.md — Audit plumbing: finance-scrub helper + permission-aware dashboard alert filter, with unit tests (FINSEC-04)
 - [ ] 30-04-PLAN.md — Phase E2E suite: backfill/seed/RLS integration + reports/alerts/AI leak tripwires (FINSEC-01..04)
 
 ### Phase 31: Actual Cost Capture
@@ -454,7 +454,7 @@ Note: Phase 37 (AI Quote Planning) depends only on Phase 32 and may run in paral
 | 24. GC Inspection Workflow | v3.0 | 4/4 | Complete    | 2026-03-25 |
 | 25. Per-Trade Billing | v3.0 | 3/5 | Complete    | 2026-03-26 |
 | 26. AI Daily Checklists and Monitoring Dashboard | v3.0 | 4/4 | Complete    | 2026-03-26 |
-| 30. Financial Schema Foundation and RBAC Audit | v4.0 | 1/4 | In Progress|  |
+| 30. Financial Schema Foundation and RBAC Audit | v4.0 | 2/4 | In Progress|  |
 | 31. Actual Cost Capture | v4.0 | 0/? | Not started | - |
 | 32. Labor Rates and Cost Rollup | v4.0 | 0/? | Not started | - |
 | 33. Profit Margin Tracking | v4.0 | 0/? | Not started | - |
