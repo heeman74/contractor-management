@@ -454,7 +454,7 @@ Note: Phase 37 (AI Quote Planning) depends only on Phase 32 and may run in paral
 | 24. GC Inspection Workflow | v3.0 | 4/4 | Complete    | 2026-03-25 |
 | 25. Per-Trade Billing | v3.0 | 3/5 | Complete    | 2026-03-26 |
 | 26. AI Daily Checklists and Monitoring Dashboard | v3.0 | 4/4 | Complete    | 2026-03-26 |
-| 30. Financial Schema Foundation and RBAC Audit | v4.0 | 4/4 | Complete   | 2026-07-25 |
+| 30. Financial Schema Foundation and RBAC Audit | v4.0 | 4/4 | Complete    | 2026-07-25 |
 | 31. Actual Cost Capture | v4.0 | 0/? | Not started | - |
 | 32. Labor Rates and Cost Rollup | v4.0 | 0/? | Not started | - |
 | 33. Profit Margin Tracking | v4.0 | 0/? | Not started | - |
