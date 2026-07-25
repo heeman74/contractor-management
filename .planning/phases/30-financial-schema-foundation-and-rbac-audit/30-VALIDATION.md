@@ -1,8 +1,8 @@
 ---
 phase: 30
 slug: financial-schema-foundation-and-rbac-audit
-status: draft
-nyquist_compliant: false
+status: approved
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-07-24
 ---
@@ -20,14 +20,14 @@ created: 2026-07-24
 | **Framework** | pytest 8.x (backend, real `contractorhub_test` DB via conftest) + jest 29 / Playwright 1.58 (web) |
 | **Config file** | `backend/pyproject.toml` ([tool.pytest.ini_options]) / `web/jest.config.ts` |
 | **Quick run command** | `cd backend && source .venv/bin/activate && python -m pytest tests/test_phase_30_e2e.py -q -p no:cacheprovider` |
-| **Full suite command** | `cd backend && python -m pytest tests/test_phase_30_e2e.py tests/integration -q` + `cd web && npx jest --ci` |
+| **Full suite command** | `cd backend && python -m pytest tests/test_phase_30_e2e.py tests/unit tests/integration -q` + `cd web && npx jest --ci` |
 | **Estimated runtime** | quick ~15s · full ~5 min |
 
 ---
 
 ## Sampling Rate
 
-- **After every task commit:** Run the quick command (phase E2E file)
+- **After every task commit:** Run the quick command (phase E2E file) or the task's own automated verify
 - **After every plan wave:** Run the full suite command
 - **Before `/gsd:verify-work`:** Full suite must be green
 - **Max feedback latency:** 60 seconds
@@ -36,14 +36,20 @@ created: 2026-07-24
 
 ## Per-Task Verification Map
 
-*(Task IDs filled by planner — map derived from success criteria)*
+*(Task IDs finalized from plans 30-01..30-04 — every task has an `<automated>` verify.)*
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| TBD | TBD | TBD | FINSEC-01 | integration | pytest: matrix returns finance.* for owner/PM; grant flow works | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | FINSEC-02 | integration | pytest: PUT /roles/{role}/permissions grants finance.view to a role → access follows | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | FINSEC-03 | unit | pytest: `_ADMIN_KEYS ∩ {finance.*} == ∅` regression test | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | FINSEC-04 | integration | pytest: reports/dashboard/AI responses contain no cost/margin/budget/rate fields for non-finance user; alert filter + scrub helper unit tests | ❌ W0 | ⬜ pending |
+| 01-T1 | 30-01 | 1 | FINSEC-01/03 | unit | `pytest tests/unit/test_permissions_finance_keys.py -q` | 30-01 T1 (permissions.py) | ⬜ pending |
+| 01-T2 | 30-01 | 1 | FINSEC-03 | unit | `pytest tests/unit/test_permissions_finance_keys.py -q` | 30-01 T2 | ⬜ pending |
+| 01-T3 | 30-01 | 1 | FINSEC-01/02/03 | integration | `pytest tests/test_phase_30_e2e.py -q` | 30-01 T3 (test_phase_30_e2e.py) | ⬜ pending |
+| 02-T1 | 30-02 | 2 | FINSEC-01 | unit | `pytest tests/unit/test_finance_schemas.py -q` && `python -c "import app.features.finance.models"` | 30-02 T1 (finance/models.py, schemas.py) | ⬜ pending |
+| 02-T2 | 30-02 | 2 | FINSEC-01 | migration | `python -m alembic upgrade head && python -m alembic current` (+ `docker compose up migrate` when Docker present) | 30-02 T2 (0032 migration) | ⬜ pending |
+| 02-T3 | 30-02 | 2 | FINSEC-01 | unit | `pytest tests/unit/test_finance_schemas.py -q` | 30-02 T3 | ⬜ pending |
+| 03-T1 | 30-03 | 2 | FINSEC-04 | unit | `pytest tests/unit/test_finance_scrub.py -q` && `python -c "import app.features.dashboard.service, app.features.dashboard.router"` | 30-03 T1 (finance_scrub.py, dashboard svc/router) | ⬜ pending |
+| 03-T2 | 30-03 | 2 | FINSEC-04 | unit | `pytest tests/unit/test_finance_scrub.py -q` | 30-03 T2 | ⬜ pending |
+| 04-T1 | 30-04 | 3 | FINSEC-01/02 | integration | `pytest tests/test_phase_30_e2e.py -q -k "backfilled or seeded or rls"` | 30-01 T3 (extends test_phase_30_e2e.py) | ⬜ pending |
+| 04-T2 | 30-04 | 3 | FINSEC-04 | integration | `pytest tests/test_phase_30_e2e.py -q` | 30-01 T3 (extends test_phase_30_e2e.py) | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -51,8 +57,8 @@ created: 2026-07-24
 
 ## Wave 0 Requirements
 
-- [ ] `backend/tests/test_phase_30_e2e.py` — stubs for FINSEC-01..04 (uses existing `seed_two_tenants` fixtures; follows `.claude/skills/e2e-feature-tests/SKILL.md`)
-- [ ] Existing `backend/tests/conftest.py` — no changes expected (migrations auto-apply to test DB)
+- No separate Wave 0 scaffold: plan 30-01 Task 3 creates `backend/tests/test_phase_30_e2e.py` (the phase E2E anchor + shared `_token` helper) in Wave 1; plans 30-02/03/04 extend it. Every referenced test file is created by the plan/task that owns it — no `MISSING` verify commands remain.
+- Existing `backend/tests/conftest.py` — no changes expected (migrations auto-apply to the `contractorhub_test` DB).
 
 *Existing infrastructure covers framework needs — no installs.*
 
@@ -70,11 +76,11 @@ created: 2026-07-24
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 60s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 60s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved — 2026-07-24
