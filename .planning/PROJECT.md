@@ -54,7 +54,7 @@ AI eliminates the chaos of multi-trade coordination — GCs always know exactly 
 - [ ] Budgeting — project/trade budgets with spend tracking and overrun-risk alerts
 - [ ] AI profitability management — AI analyzes project financial health, flags margin erosion, suggests corrective actions
 - [ ] AI quote planning — AI builds labor + materials line items priced from company history
-- [ ] Financial access control — finance.* permissions granted to owner and project_manager only by default
+- [x] Financial access control — finance.* permissions granted to owner and project_manager only by default — Validated in Phase 30: Financial Schema Foundation and RBAC Audit
 
 #### Carried from v1.0/v2.0
 - [ ] In-app payment processing (Stripe/Square)
@@ -143,4 +143,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-24 — Milestone v4.0 Financial Intelligence started (profit margin tracking, budgeting, AI profitability, AI quote planning, owner/PM-only financial access)*
+*Last updated: 2026-07-25 — Phase 30 complete: finance.* RBAC catalog (admin excluded), financial schema (5 RLS tables, migration 0032), audit plumbing (alert filter + finance scrub). 611-test suite green.*
