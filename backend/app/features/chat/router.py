@@ -524,6 +524,23 @@ async def create_thread(
     )
 
 
+async def _require_thread_membership(
+    chat_service: ChatService, thread_id: uuid.UUID, user_id: uuid.UUID
+) -> None:
+    """Authorize a REST caller against a chat thread.
+
+    RLS scopes to the caller's company, but company membership != thread
+    membership — a private owner↔GC thread is visible to every worker/contractor
+    in the company under RLS alone. Enforce the same membership boundary the
+    WebSocket handler already applies (403 on failure).
+    """
+    if not await chat_service.is_member(thread_id, user_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not a member of this thread",
+        )
+
+
 @router.get(
     "/chat/threads/{thread_id}/messages",
     response_model=list[ChatMessageResponse],
@@ -545,10 +562,11 @@ async def get_messages(
     - since_seq: returns newer messages (reconnect catch-up)
     Both are mutually exclusive; before_seq takes precedence.
 
-    RLS ensures the current user can only access threads in their company.
-    Membership check is implicit via RLS (chat_messages.company_id).
+    RLS ensures the current user can only access threads in their company;
+    membership is enforced explicitly below (company membership != thread membership).
     """
     chat_service = ChatService(db)
+    await _require_thread_membership(chat_service, thread_id, current_user.user_id)
 
     if since_seq is not None and before_seq is None:
         # Reconnect catch-up: get messages since_seq
@@ -584,6 +602,7 @@ async def send_message_rest(
     Returns the message (or existing message if UUID already in DB).
     """
     chat_service = ChatService(db)
+    await _require_thread_membership(chat_service, thread_id, current_user.user_id)
     message = await chat_service.send_message(
         thread_id=thread_id,
         sender_id=current_user.user_id,
@@ -639,6 +658,7 @@ async def mark_read(
 ) -> None:
     """Mark all messages up to seq as read for the current user."""
     chat_service = ChatService(db)
+    await _require_thread_membership(chat_service, thread_id, current_user.user_id)
     await chat_service.mark_read(
         thread_id=thread_id,
         user_id=current_user.user_id,
@@ -658,6 +678,7 @@ async def get_read_receipts(
 ) -> list[ChatReadReceiptResponse]:
     """Return all read receipt positions for a thread (for "seen by" display)."""
     chat_service = ChatService(db)
+    await _require_thread_membership(chat_service, thread_id, current_user.user_id)
     receipts = await chat_service.get_read_receipts(thread_id=thread_id)
     return [
         ChatReadReceiptResponse(

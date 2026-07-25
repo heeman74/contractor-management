@@ -26,6 +26,32 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // Baseline security response headers. Deliberately conservative CSP directives
+  // (frame-ancestors/object-src/base-uri) that harden clickjacking + base-tag and
+  // data-exfil vectors without constraining script-src (which would risk breaking
+  // Next's inline bootstrap/hydration). XSS itself is fixed at the source via
+  // DOMPurify on the one dangerouslySetInnerHTML sink.
+  async headers() {
+    const isProd = process.env.NODE_ENV === "production";
+    const securityHeaders = [
+      { key: "X-Frame-Options", value: "DENY" },
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      {
+        key: "Content-Security-Policy",
+        value: "frame-ancestors 'none'; object-src 'none'; base-uri 'self'",
+      },
+      ...(isProd
+        ? [
+            {
+              key: "Strict-Transport-Security",
+              value: "max-age=31536000; includeSubDomains",
+            },
+          ]
+        : []),
+    ];
+    return [{ source: "/:path*", headers: securityHeaders }];
+  },
 };
 
 export default nextConfig;

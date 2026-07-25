@@ -18,19 +18,27 @@ async function handleProxy(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ detail: "Missing path parameter" }, { status: 400 });
   }
 
-  // Validate path to prevent SSRF — must start with /api/v1/ and not contain traversal patterns
+  // Validate against the PARSED/normalized URL, not the raw string. A raw-string
+  // check for ".." / "://" is bypassable with URL-encoded dot segments (e.g.
+  // "/api/v1/%2e%2e/%2e%2e/openapi.json"), which undici normalizes AFTER the check,
+  // escaping the /api/v1/ allowlist to unauthenticated backend mounts (docs, openapi).
+  // Resolving `path` against the upstream base and checking the normalized origin +
+  // pathname closes encoded-traversal, protocol-relative (//host), and absolute-URL vectors.
+  const upstreamBase = new URL(FASTAPI_URL);
+  let target: URL;
+  try {
+    target = new URL(path, upstreamBase);
+  } catch {
+    return NextResponse.json({ detail: "Invalid path" }, { status: 400 });
+  }
   if (
-    !path.startsWith("/api/v1/") ||
-    path.includes("://") ||
-    path.includes("..")
+    target.origin !== upstreamBase.origin ||
+    !target.pathname.startsWith("/api/v1/")
   ) {
-    return NextResponse.json(
-      { detail: "Invalid path" },
-      { status: 400 }
-    );
+    return NextResponse.json({ detail: "Invalid path" }, { status: 400 });
   }
 
-  const upstreamUrl = `${FASTAPI_URL}${path}`;
+  const upstreamUrl = target.href;
 
   const headers: HeadersInit = {
     Authorization: `Bearer ${accessToken}`,

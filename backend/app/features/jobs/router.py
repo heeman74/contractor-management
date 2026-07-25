@@ -459,6 +459,10 @@ async def render_job_request_form(
     return _render_job_request_form(request, company_id, success=False)
 
 
+# NOTE (security follow-up): this public endpoint should be rate-limited, but the
+# slowapi @limiter.limit decorator is incompatible with this module's
+# `from __future__ import annotations` + a uuid.UUID Path param (breaks FastAPI's
+# forward-ref resolution → 500). Rate-limit via middleware/reverse-proxy instead.
 @router.post("/jobs/request/{company_id}", response_class=HTMLResponse, include_in_schema=False)
 async def submit_job_request_form(
     request: Request,

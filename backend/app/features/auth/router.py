@@ -72,7 +72,9 @@ async def login_endpoint(
 
 
 @router.post("/refresh", response_model=TokenResponse)
+@limiter.limit("10/minute")
 async def refresh_endpoint(
+    request: Request,
     data: RefreshRequest,
     db: AsyncSession = Depends(get_db),
 ) -> TokenResponse:
@@ -90,7 +92,9 @@ async def refresh_endpoint(
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit("10/minute")
 async def logout_endpoint(
+    request: Request,
     data: RefreshRequest,
     db: AsyncSession = Depends(get_db),
     _current_user: CurrentUser = Depends(get_current_user),

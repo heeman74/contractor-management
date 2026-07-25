@@ -359,6 +359,14 @@ async def get_conversation(
     conv = entity_or_404(
         await conv_repo.get_by_id(conversation_id), f"Conversation {conversation_id} not found"
     )
+    # RLS scopes to the company, but a transcript (client budget/scope talk) is
+    # private to its author — reject other users in the same company (404, not
+    # 403, to avoid confirming the conversation exists).
+    if conv.user_id != current_user.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Conversation {conversation_id} not found",
+        )
 
     messages = await msg_repo.list_by_conversation(conversation_id)
 

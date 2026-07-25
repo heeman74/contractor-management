@@ -2,6 +2,7 @@
 
 import { use } from "react";
 import { useQuery } from "@tanstack/react-query";
+import DOMPurify from "isomorphic-dompurify";
 import { CheckCircle2, Download, FileWarning } from "lucide-react";
 import { EmbeddedSigner } from "./_components/embedded-signer";
 import type { PublicContractView } from "@/types/api";
@@ -100,13 +101,19 @@ export default function SignContractPage({
           </p>
         )}
 
-        {/* Terms — company-authored HTML. Rendered as HTML because the contract
-            body is authored by the contractor's own account (the tenant), not by
-            arbitrary third parties; it is not free-form end-user input. */}
+        {/* Terms — company-authored HTML, but a tenant admin (or a compromised
+            tenant account) is still an untrusted source in a multi-tenant SaaS, and
+            this HTML renders at the app's own origin. Sanitize with a strict allowlist
+            (DOMPurify strips <script>, event handlers, <svg>/<iframe>, etc.) before
+            rendering to prevent stored XSS against staff/signer viewers. */}
         <section className="rounded-xl bg-card px-6 py-6 ring-1 ring-foreground/10">
           <div
             className="prose prose-sm max-w-none text-sm leading-relaxed text-foreground [&_h1]:font-display [&_h2]:font-display [&_h3]:font-display"
-            dangerouslySetInnerHTML={{ __html: data.terms_snapshot }}
+            dangerouslySetInnerHTML={{
+              __html: DOMPurify.sanitize(data.terms_snapshot, {
+                USE_PROFILES: { html: true },
+              }),
+            }}
           />
         </section>
 
