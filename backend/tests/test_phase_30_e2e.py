@@ -7,11 +7,17 @@ needed for this plan). Later plans (02/03/04) add their own test functions
 to this same file as the cost/budget schema and endpoints land.
 """
 
+import json
+from datetime import date
+from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
+from sqlalchemy import select, text
 
+from app.core.database import async_session_factory
 from app.core.security import create_access_token
+from app.features.finance.models import Budget, CostCategory, CostEntry
 
 FINANCE_KEYS = {"finance.view", "finance.manage", "finance.rates.manage"}
 
@@ -85,3 +91,231 @@ async def test_owner_can_grant_finance_to_custom_role(
 
     assert "finance.view" in gc_effective
     assert "finance.manage" not in gc_effective
+
+
+# ---------------------------------------------------------------------------
+# Task 1: migration-effect tests — PM backfill, category seed, RLS isolation.
+# These exercise the exact SQL migration 0032 runs (raw text(), not the ORM
+# layer) against tenant context set via SET LOCAL, mirroring scripts/seed_data.py.
+# ---------------------------------------------------------------------------
+
+_FINANCE_BACKFILL_SQL = (
+    "UPDATE company_role_permissions "
+    'SET permissions = permissions || \'["finance.view","finance.manage",'
+    '"finance.rates.manage"]\'::jsonb, '
+    "updated_at = now() "
+    "WHERE role = 'project_manager' "
+    "AND NOT (permissions @> '[\"finance.view\"]'::jsonb)"
+)
+
+_COST_CATEGORY_SEED_SQL = (
+    "INSERT INTO cost_categories (company_id, name, is_system) "
+    "SELECT CAST(:company_id AS uuid), v.name, true "
+    "FROM (VALUES ('labor'),('materials'),('subcontractor'),('other')) AS v(name) "
+    "ON CONFLICT (company_id, name) DO NOTHING"
+)
+
+
+async def _create_company(session, name: str) -> str:
+    """Insert a bare company row (companies carries no RLS) — simulates a
+    company that already existed before migration 0032 ran.
+    """
+    result = await session.execute(
+        text("INSERT INTO companies (id, name) VALUES (gen_random_uuid(), :name) RETURNING id"),
+        {"name": name},
+    )
+    return str(result.scalar_one())
+
+
+async def _seed_role_permissions(
+    session, company_id: str, role: str, permissions: list[str]
+) -> None:
+    """Insert a company_role_permissions row directly, bypassing RbacRepository,
+    to simulate a pre-migration company's stored permission list.
+    """
+    await session.execute(
+        text(
+            "INSERT INTO company_role_permissions (company_id, role, permissions) "
+            "VALUES (CAST(:company_id AS uuid), :role, CAST(:permissions AS jsonb))"
+        ),
+        {"company_id": company_id, "role": role, "permissions": json.dumps(permissions)},
+    )
+
+
+async def _get_role_permissions(session, company_id: str, role: str) -> list[str]:
+    result = await session.execute(
+        text(
+            "SELECT permissions FROM company_role_permissions "
+            "WHERE company_id = CAST(:company_id AS uuid) AND role = :role"
+        ),
+        {"company_id": company_id, "role": role},
+    )
+    row = result.first()
+    assert row is not None, f"no company_role_permissions row for role={role}"
+    return list(row[0])
+
+
+async def _run_pm_finance_backfill(session, company_id: str) -> None:
+    """Execute the exact guarded UPDATE migration 0032 uses to backfill PM rows."""
+    await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+    await session.execute(text(_FINANCE_BACKFILL_SQL))
+
+
+async def _seed_cost_categories(session, company_id: str) -> None:
+    """Execute the same per-company seed INSERT migration 0032 uses for
+    cost_categories, scoped to one company via SET LOCAL + bind param (RLS is
+    already enabled on this table post-migration, unlike the pre-RLS migration run).
+    """
+    await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+    await session.execute(text(_COST_CATEGORY_SEED_SQL), {"company_id": company_id})
+
+
+@pytest.mark.asyncio
+async def test_existing_company_backfilled_with_finance_defaults():
+    """FINSEC-01: migration 0032's guarded PM backfill UPDATE reaches an
+    existing (pre-migration) company's project_manager row and leaves admin
+    untouched; re-running the same guarded UPDATE a second time is a no-op.
+    """
+    pre_finance_pm = ["projects.view", "projects.create", "jobs.view", "tasks.view"]
+    admin_permissions = ["users.view", "users.create", "jobs.view"]
+
+    async with async_session_factory() as session:
+        company_id = await _create_company(session, "Pre-Migration Co")
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        await _seed_role_permissions(session, company_id, "project_manager", pre_finance_pm)
+        await _seed_role_permissions(session, company_id, "admin", admin_permissions)
+        await session.commit()
+
+    async with async_session_factory() as session:
+        await _run_pm_finance_backfill(session, company_id)
+        await session.commit()
+
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        pm_after_first = await _get_role_permissions(session, company_id, "project_manager")
+        admin_after_first = await _get_role_permissions(session, company_id, "admin")
+
+    assert set(pm_after_first) == set(pre_finance_pm) | FINANCE_KEYS
+    assert admin_after_first == admin_permissions, "backfill must not touch admin rows"
+
+    # Idempotency: re-running the same guarded UPDATE changes nothing further.
+    async with async_session_factory() as session:
+        await _run_pm_finance_backfill(session, company_id)
+        await session.commit()
+
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        pm_after_second = await _get_role_permissions(session, company_id, "project_manager")
+        admin_after_second = await _get_role_permissions(session, company_id, "admin")
+
+    assert set(pm_after_second) == set(pm_after_first)
+    assert admin_after_second == admin_permissions
+
+
+@pytest.mark.asyncio
+async def test_cost_categories_seeded_per_company(seed_two_tenants):
+    """FINSEC-01: every company ends up with exactly 4 protected system cost
+    categories, and re-running the seed INSERT is idempotent.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+
+    async with async_session_factory() as session:
+        await _seed_cost_categories(session, company_id)
+        await session.commit()
+
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        rows = (
+            (
+                await session.execute(
+                    select(CostCategory).where(CostCategory.company_id == company_id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    assert len(rows) == 4
+    assert all(row.is_system for row in rows)
+    assert {row.name for row in rows} == {"labor", "materials", "subcontractor", "other"}
+
+    async with async_session_factory() as session:
+        await _seed_cost_categories(session, company_id)
+        await session.commit()
+
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        rows_again = (
+            (
+                await session.execute(
+                    select(CostCategory).where(CostCategory.company_id == company_id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    assert len(rows_again) == 4, "re-seeding must be idempotent (ON CONFLICT DO NOTHING)"
+
+
+@pytest.mark.asyncio
+async def test_cost_entry_rls_isolation(seed_two_tenants):
+    """FINSEC-01: tenant B cannot read tenant A's cost_entries or budgets rows —
+    RLS isolation on the new financial tables, mirroring SKILL.md's convention.
+    """
+    tenant_a_id = seed_two_tenants["tenant_a_id"]
+    tenant_b_id = seed_two_tenants["tenant_b_id"]
+
+    async with async_session_factory() as session:
+        await _seed_cost_categories(session, tenant_a_id)
+        await session.commit()
+
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{tenant_a_id}'"))
+        materials_category = (
+            await session.execute(
+                select(CostCategory).where(
+                    CostCategory.company_id == tenant_a_id,
+                    CostCategory.name == "materials",
+                )
+            )
+        ).scalar_one()
+
+        cost_entry = CostEntry(
+            company_id=tenant_a_id,
+            category_id=materials_category.id,
+            amount=Decimal("125.50"),
+            incurred_date=date.today(),
+        )
+        budget = Budget(company_id=tenant_a_id, total=Decimal("5000.00"))
+        session.add_all([cost_entry, budget])
+        await session.flush()
+        cost_entry_id = cost_entry.id
+        budget_id = budget.id
+        await session.commit()
+
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{tenant_b_id}'"))
+        visible_cost_entries = (
+            (await session.execute(select(CostEntry).where(CostEntry.id == cost_entry_id)))
+            .scalars()
+            .all()
+        )
+        visible_budgets = (
+            (await session.execute(select(Budget).where(Budget.id == budget_id))).scalars().all()
+        )
+
+    assert visible_cost_entries == [], (
+        "ISOLATION FAILURE: tenant B can read tenant A's cost_entries row"
+    )
+    assert visible_budgets == [], "ISOLATION FAILURE: tenant B can read tenant A's budgets row"
+
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{tenant_a_id}'"))
+        own_cost_entries = (
+            (await session.execute(select(CostEntry).where(CostEntry.id == cost_entry_id)))
+            .scalars()
+            .all()
+        )
+
+    assert len(own_cost_entries) == 1
