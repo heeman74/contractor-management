@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/database/app_database.dart'
-    show TradeScope, ProjectTask, PunchListItem;
+    show TradeScope, ProjectTask, PunchListItem, CostEntry;
 import '../../../../core/routing/route_names.dart';
 import '../../../../features/auth/domain/auth_state.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
+import '../../../../features/finance/presentation/providers/cost_providers.dart';
+import '../../../../features/finance/presentation/widgets/cost_list_section.dart';
 import '../../../../shared/models/user_role.dart';
 import '../providers/project_providers.dart';
 import '../widgets/empty_tasks_state.dart';
@@ -38,6 +40,8 @@ class TradeScopeDetailScreen extends ConsumerWidget {
     final tasksAsync = ref.watch(tasksProvider(scopeId));
     final punchItemsAsync = ref.watch(punchItemsByScopeProvider(scopeId));
     final authState = ref.watch(authNotifierProvider);
+    final financePermission = ref.watch(financePermissionProvider);
+    final costEntriesAsync = ref.watch(costEntriesForTradeScopeProvider(scopeId));
 
     final scopeName = _resolveScopeName(scopesAsync);
     final isGcOrAdmin = authState is AuthAuthenticated &&
@@ -77,6 +81,11 @@ class TradeScopeDetailScreen extends ConsumerWidget {
             punchItems: punchItems,
             scopeName: scopeName,
             isGcOrAdmin: isGcOrAdmin,
+            canViewFinance: financePermission.canView,
+            costEntries: costEntriesAsync.maybeWhen(
+              data: (entries) => entries,
+              orElse: () => const [],
+            ),
             onTaskTap: (taskId) =>
                 context.push(RouteNames.taskDetailPath(taskId)),
             onPunchItemTap: (item) =>
@@ -128,6 +137,8 @@ class _TaskList extends StatelessWidget {
     required this.punchItems,
     required this.scopeName,
     required this.isGcOrAdmin,
+    required this.canViewFinance,
+    required this.costEntries,
     required this.onTaskTap,
     required this.onPunchItemTap,
   });
@@ -137,6 +148,8 @@ class _TaskList extends StatelessWidget {
   final List<PunchListItem> punchItems;
   final String scopeName;
   final bool isGcOrAdmin;
+  final bool canViewFinance;
+  final List<CostEntry> costEntries;
   final void Function(String taskId) onTaskTap;
   final void Function(PunchListItem item) onPunchItemTap;
 
@@ -188,6 +201,10 @@ class _TaskList extends StatelessWidget {
             tradeName: scopeName,
             tasks: tasks,
           ),
+
+        // Costs section — finance.view only (D-06)
+        if (canViewFinance)
+          CostListSection(entries: costEntries, tradeScopeId: scopeId),
       ],
     );
   }

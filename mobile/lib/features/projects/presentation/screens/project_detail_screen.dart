@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/database/app_database.dart' show Project;
+import '../../../../core/database/app_database.dart'
+    show Project, CostEntry;
 import '../../../../core/routing/route_names.dart';
 import '../../../../features/auth/domain/auth_state.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
+import '../../../../features/finance/presentation/providers/cost_providers.dart';
+import '../../../../features/finance/presentation/widgets/cost_entry_card.dart';
 import '../../../../shared/models/user_role.dart';
 import '../providers/project_providers.dart';
 import '../widgets/billing_summary_card.dart';
@@ -47,6 +50,9 @@ class ProjectDetailScreen extends ConsumerWidget {
     // GC/admin check: admin is the GC role in this app
     final isGcOrAdmin = authState is AuthAuthenticated &&
         authState.roles.contains(UserRole.admin);
+
+    // Costs rollup — finance.view only (D-06).
+    final canViewFinance = ref.watch(financePermissionProvider).canView;
 
     return Scaffold(
       appBar: AppBar(
@@ -137,6 +143,10 @@ class ProjectDetailScreen extends ConsumerWidget {
                         type: BillingSummaryType.invoice,
                       ),
                     ],
+
+                    // ── Costs rollup (finance.view only — D-06) ─────────
+                    if (canViewFinance)
+                      _ProjectCostRollupSection(projectId: projectId),
                   ],
                 ),
               ),
@@ -180,6 +190,83 @@ class ProjectDetailScreen extends ConsumerWidget {
         content: Text('Add trade scope — coming soon'),
         duration: Duration(seconds: 2),
       ),
+    );
+  }
+}
+
+/// Read-only aggregated Costs rollup for a project — finance.view only.
+///
+/// Shows the authoritative backend-computed total ([costRollupTotalProvider]
+/// — never a locally-summed estimate, per 31-RESEARCH.md Pitfall 5) plus the
+/// itemized cost entries ([costRollupForProjectProvider]). Create actions
+/// stay on the job/trade-scope detail screens (Claude's-Discretion scope
+/// trim documented in 31-CONTEXT.md — a read-only rollup is the minimum
+/// here).
+class _ProjectCostRollupSection extends ConsumerWidget {
+  const _ProjectCostRollupSection({required this.projectId});
+
+  final String projectId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final totalAsync = ref.watch(costRollupTotalProvider(projectId));
+    final entriesAsync = ref.watch(costRollupForProjectProvider(projectId));
+    final entries = entriesAsync.maybeWhen(
+      data: (value) => value,
+      orElse: () => const <CostEntry>[],
+    );
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Costs',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+              ),
+              totalAsync.when(
+                loading: () => const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                error: (_, __) => const SizedBox.shrink(),
+                data: (total) => Text(
+                  total == null ? '—' : r'$' '$total',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Divider(indent: 16, endIndent: 16),
+        if (entries.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            child: Text(
+              'No costs recorded yet.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          )
+        else
+          ...entries.map((entry) => CostEntryCard(entry: entry)),
+        const SizedBox(height: 16),
+      ],
     );
   }
 }

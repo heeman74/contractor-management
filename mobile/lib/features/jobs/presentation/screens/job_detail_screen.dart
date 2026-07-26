@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/database/app_database.dart' show CostEntry;
 import '../../../../core/di/service_locator.dart';
 import '../../../../core/routing/route_names.dart';
 import '../../../../features/auth/domain/auth_state.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
+import '../../../../features/finance/presentation/providers/cost_providers.dart';
+import '../../../../features/finance/presentation/widgets/cost_list_section.dart';
 import '../../../../features/invoices/presentation/providers/invoice_providers.dart';
 import '../../../../features/quotes/domain/quote_entity.dart';
 import '../../../../features/quotes/presentation/providers/quote_providers.dart';
@@ -269,6 +272,14 @@ class _DetailsTabState extends ConsumerState<_DetailsTab> {
     final invoices = invoicesAsync.maybeWhen(data: (i) => i, orElse: () => []);
     final hasInvoice = invoices.isNotEmpty;
 
+    // Costs section — finance.view only (D-06).
+    final financePermission = ref.watch(financePermissionProvider);
+    final costEntriesAsync = ref.watch(costEntriesForJobProvider(job.id));
+    final costEntries = costEntriesAsync.maybeWhen(
+      data: (entries) => entries,
+      orElse: () => const <CostEntry>[],
+    );
+
     // "Generate Invoice" is shown when: admin, job is complete/invoiced, and no invoice yet
     final canGenerateInvoice = isAdmin &&
         !hasInvoice &&
@@ -479,6 +490,14 @@ class _DetailsTabState extends ConsumerState<_DetailsTab> {
             ),
           ),
         ),
+
+        // ── Costs Section (finance.view only — D-06) ────────────────────
+        if (financePermission.canView) ...[
+          const SizedBox(height: 12),
+          Card(
+            child: CostListSection(entries: costEntries, jobId: job.id),
+          ),
+        ],
       ],
     );
   }
