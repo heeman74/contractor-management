@@ -10,8 +10,11 @@ Five models correspond to the tables created in migration 0032:
   - Budget                    — a budget anchored to a project XOR a trade scope
   - BudgetCategoryBreakdown   — per-category allocation of a budget's total
 
-No CRUD layer (repository/service/router) ships in this phase — see 30-02-PLAN.md.
-Phase 31 builds the thin CostCategory CRUD layer + the cost-entry form that consumes it.
+CostReceipt corresponds to the table created in migration 0034 (Phase 31) — a
+zero-to-many receipt attachment on a CostEntry (D-04).
+
+No CRUD layer (repository/service/router) ships for CostEntry/CostCategory/Budget
+in Phase 30 — see 31-01-PLAN.md/31-02-PLAN.md for the finance CRUD layer.
 
 All CLAUDE.md rules apply:
 - Models with FK relationships MUST define relationship() with lazy="raise"
@@ -90,6 +93,32 @@ class CostEntry(TenantScopedModel):
     category: Mapped[CostCategory] = relationship(
         "CostCategory",
         foreign_keys=[category_id],
+        lazy="raise",
+    )
+
+
+class CostReceipt(TenantScopedModel):
+    """A receipt image/document attached to a cost entry (zero-to-many, D-04).
+
+    Served through the authenticated /files/cost-receipts/{cost_entry_id}/{filename}
+    route (serve_router.py, added in Plan 31-02). Upload/serve endpoints land in
+    Plan 31-02 — this plan only defines the table + RLS + model.
+    """
+
+    __tablename__ = "cost_receipts"
+
+    cost_entry_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("cost_entries.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    remote_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    caption: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Relationships — lazy="raise" to surface accidental lazy loads loudly
+    cost_entry: Mapped[CostEntry] = relationship(
+        "CostEntry",
+        foreign_keys=[cost_entry_id],
         lazy="raise",
     )
 
