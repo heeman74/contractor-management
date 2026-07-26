@@ -350,13 +350,13 @@ Plans:
   2. Owner/PM can record a subcontractor or other cost entry the same way, against a job or trade scope
   3. Owner/PM can attach a receipt photo to any cost entry
   4. A user without finance.* permission cannot view or create cost entries — attempting to do so returns a 403
-**Plans:** 3/5 plans executed
+**Plans:** 4/5 plans executed
 
 Plans:
 - [x] 31-01-PLAN.md — Backend: cost-entry CRUD + category list + project rollup, migration 0034 (cost_receipts table + RLS), inline finance.* gating, backend E2E (Wave 1)
 - [x] 31-02-PLAN.md — Backend: receipt upload/list/delete + cost-receipts serve_router branch (RLS-scoped), receipt E2E (Wave 2)
 - [x] 31-03-PLAN.md — Web: finance feature module (API/hooks/components) + Costs sections on job/trade-scope/project detail, permission-gated, Playwright + Jest (Wave 3)
-- [ ] 31-04-PLAN.md — Mobile: Drift v16 cost_entries/cost_receipts tables + DAOs, CostEntrySyncHandler (push), CostReceiptUploadService (retry/backoff), on-demand repository, unit tests (Wave 3)
+- [x] 31-04-PLAN.md — Mobile: Drift v16 cost_entries/cost_receipts tables + DAOs, CostEntrySyncHandler (push), CostReceiptUploadService (retry/backoff), on-demand repository, unit tests (Wave 3)
 - [ ] 31-05-PLAN.md — Mobile: cost providers + AddCostSheet (camera/gallery receipt) + Costs sections on job/scope/project screens, phase E2E (Wave 4)
 
 ### Phase 32: Labor Rates and Cost Rollup
@@ -462,7 +462,7 @@ Note: Phase 37 (AI Quote Planning) depends only on Phase 32 and may run in paral
 | 25. Per-Trade Billing | v3.0 | 3/5 | Complete    | 2026-03-26 |
 | 26. AI Daily Checklists and Monitoring Dashboard | v3.0 | 4/4 | Complete    | 2026-03-26 |
 | 30. Financial Schema Foundation and RBAC Audit | v4.0 | 4/4 | Complete    | 2026-07-25 |
-| 31. Actual Cost Capture | v4.0 | 3/5 | In Progress|  |
+| 31. Actual Cost Capture | v4.0 | 4/5 | In Progress|  |
 | 32. Labor Rates and Cost Rollup | v4.0 | 0/? | Not started | - |
 | 33. Profit Margin Tracking | v4.0 | 0/? | Not started | - |
 | 34. Budgeting and Overrun Alerts | v4.0 | 0/? | Not started | - |
