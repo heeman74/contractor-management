@@ -11,7 +11,7 @@ Requirements for the Financial Intelligence milestone. Each maps to roadmap phas
 
 - [x] **COST-01**: Owner/PM can record a materials cost entry (amount, category, date, vendor, note) against a job or trade scope
 - [x] **COST-02**: Owner/PM can record subcontractor and other cost entries the same way
-- [ ] **COST-03**: Owner/PM can attach a receipt photo to a cost entry
+- [x] **COST-03**: Owner/PM can attach a receipt photo to a cost entry
 - [ ] **COST-04**: Owner/PM can set a worker's hourly cost rate with an effective date; historical rates are preserved
 - [ ] **COST-05**: System derives labor cost automatically from tracked time × the rate effective on the day worked
 - [ ] **COST-06**: Owner/PM can view itemized costs per job/trade scope/project with category totals (labor/materials/subcontractor/other)
@@ -80,7 +80,7 @@ Which phases cover which requirements. Filled during roadmap creation.
 |-------------|-------|--------|
 | COST-01 | Phase 31: Actual Cost Capture | Complete |
 | COST-02 | Phase 31: Actual Cost Capture | Complete |
-| COST-03 | Phase 31: Actual Cost Capture | Pending |
+| COST-03 | Phase 31: Actual Cost Capture | Complete |
 | COST-04 | Phase 32: Labor Rates and Cost Rollup | Pending |
 | COST-05 | Phase 32: Labor Rates and Cost Rollup | Pending |
 | COST-06 | Phase 32: Labor Rates and Cost Rollup | Pending |
