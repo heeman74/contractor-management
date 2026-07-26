@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 31-02-PLAN.md
-last_updated: "2026-07-26T04:54:55.402Z"
+stopped_at: Completed 31-03-PLAN.md
+last_updated: "2026-07-26T05:14:44.428Z"
 last_activity: 2026-07-26
 progress:
   total_phases: 22
   completed_phases: 13
   total_plans: 76
-  completed_plans: 70
+  completed_plans: 71
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 31 (actual-cost-capture) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
 Last activity: 2026-07-26
 
@@ -49,6 +49,7 @@ Last activity: 2026-07-26
 | Phase 30 P04 | 40min | 2 tasks | 1 files |
 | Phase 31 P01 | 30min | 3 tasks | 9 files |
 | Phase 31 P02 | 15min | 3 tasks | 5 files |
+| Phase 31 P03 | 50min | 3 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -170,6 +171,8 @@ Last activity: 2026-07-26
 - [Phase 31]: 31-01: cost_receipts is a dedicated table (not a shared polymorphic attachments table), consistent with existing per-domain attachment convention
 - [Phase 31]: 31-02: delete_receipt validates receipt.cost_entry_id matches the URL's cost_entry_id (404 on mismatch) — confused-deputy guard on the nested delete route
 - [Phase 31]: 31-02: cost-receipts serve_router branch copies task-attachments' RLS-scoped existence-query pattern verbatim (not a UUID-shape check) to enforce cross-tenant 404
+- [Phase 31]: 31-03: web CostEntryList ships delete-only (edit deferred, useUpdateCostEntry hook ready) — not required by this plan's must_haves/acceptance criteria
+- [Phase 31]: 31-03: cost-capture Playwright E2E drives trade-scope detail via Projects sidebar (not the jobs list) — simpler SPA-nav auth/permissions path, same AddCostDialog/CostEntryList components as job detail
 
 ### Pending Todos
 
@@ -188,6 +191,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-26T04:54:55.395Z
-Stopped at: Completed 31-02-PLAN.md
+Last session: 2026-07-26T05:14:44.418Z
+Stopped at: Completed 31-03-PLAN.md
 Resume file: None
