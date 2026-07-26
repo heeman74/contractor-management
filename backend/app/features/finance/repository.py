@@ -22,7 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
 from app.core.base_repository import TenantScopedRepository
-from app.features.finance.models import CostCategory, CostEntry
+from app.features.finance.models import CostCategory, CostEntry, CostReceipt
 from app.features.jobs.models import Job
 from app.features.projects.models import TradeScope
 
@@ -97,3 +97,30 @@ class FinanceRepository(TenantScopedRepository[CostEntry]):
         """Return the current tenant's cost categories, alphabetically."""
         result = await self.db.execute(select(CostCategory).order_by(CostCategory.name))
         return list(result.scalars().all())
+
+    async def list_receipts_for_entry(self, cost_entry_id: uuid.UUID) -> list[CostReceipt]:
+        """Return non-soft-deleted receipts for a cost entry, newest first."""
+        result = await self.db.execute(
+            select(CostReceipt)
+            .where(CostReceipt.cost_entry_id == cost_entry_id, CostReceipt.deleted_at.is_(None))
+            .order_by(CostReceipt.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    async def get_receipt_or_404(self, receipt_id: uuid.UUID) -> CostReceipt:
+        """Fetch a non-soft-deleted receipt by id, or raise 404."""
+        result = await self.db.execute(
+            select(CostReceipt).where(
+                CostReceipt.id == receipt_id, CostReceipt.deleted_at.is_(None)
+            )
+        )
+        receipt = result.scalars().first()
+        if receipt is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Receipt not found")
+        return receipt
+
+    async def soft_delete_receipt(self, receipt_id: uuid.UUID) -> None:
+        """Set deleted_at on a receipt so it drops out of the receipt list."""
+        receipt = await self.get_receipt_or_404(receipt_id)
+        receipt.deleted_at = datetime.now(UTC)
+        await self.db.flush()

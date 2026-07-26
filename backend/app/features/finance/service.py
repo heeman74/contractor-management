@@ -14,8 +14,10 @@ from __future__ import annotations
 import uuid
 from decimal import Decimal
 
+from fastapi import HTTPException, status
+
 from app.core.base_service import TenantScopedService
-from app.features.finance.models import CostCategory, CostEntry
+from app.features.finance.models import CostCategory, CostEntry, CostReceipt
 from app.features.finance.repository import FinanceRepository
 from app.features.finance.schemas import CostEntryCreate, CostEntryUpdate
 
@@ -79,3 +81,30 @@ class FinanceService(TenantScopedService[CostEntry]):
     async def list_categories(self) -> list[CostCategory]:
         """List the current tenant's cost categories."""
         return await self.repository.list_categories()
+
+    async def add_receipt(
+        self,
+        cost_entry_id: uuid.UUID,
+        company_id: uuid.UUID,
+        remote_url: str,
+        caption: str | None,
+    ) -> CostReceipt:
+        """Create a receipt row attached to a cost entry."""
+        receipt = CostReceipt(
+            company_id=company_id,
+            cost_entry_id=cost_entry_id,
+            remote_url=remote_url,
+            caption=caption,
+        )
+        return await self.repository.create(receipt)
+
+    async def list_receipts(self, cost_entry_id: uuid.UUID) -> list[CostReceipt]:
+        """List non-soft-deleted receipts for a cost entry."""
+        return await self.repository.list_receipts_for_entry(cost_entry_id)
+
+    async def delete_receipt(self, cost_entry_id: uuid.UUID, receipt_id: uuid.UUID) -> None:
+        """Soft-delete a receipt, 404ing if it does not belong to the given cost entry."""
+        receipt = await self.repository.get_receipt_or_404(receipt_id)
+        if receipt.cost_entry_id != cost_entry_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Receipt not found")
+        await self.repository.soft_delete_receipt(receipt_id)

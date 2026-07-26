@@ -19,8 +19,11 @@ Receipt upload/serve endpoints land in Plan 31-02.
 from __future__ import annotations
 
 import uuid
+from pathlib import Path
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Response, status
+import aiofiles
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -31,11 +34,14 @@ from app.features.finance.schemas import (
     CostEntryCreate,
     CostEntryResponse,
     CostEntryUpdate,
+    CostReceiptResponse,
     ProjectCostRollupResponse,
 )
 from app.features.finance.service import FinanceService
 
 router = APIRouter(tags=["finance"])
+
+_MAX_COST_RECEIPT_BYTES = 25 * 1024 * 1024
 
 
 def _to_response(entry: CostEntry) -> CostEntryResponse:
@@ -148,3 +154,82 @@ async def list_cost_categories(
     svc = FinanceService(db)
     categories = await svc.list_categories()
     return [CostCategoryResponse.model_validate(category) for category in categories]
+
+
+# ---------------------------------------------------------------------------
+# Cost receipt endpoints (COST-03)
+# ---------------------------------------------------------------------------
+
+
+async def _save_cost_receipt_file(cost_entry_id: uuid.UUID, file: UploadFile) -> str:
+    """Persist an uploaded receipt under uploads/cost-receipts/{cost_entry_id}/ and return its URL.
+
+    Enforces the size limit and returns the /files/-served remote URL.
+    """
+    suffix = Path(file.filename or "").suffix.lower() or ".bin"
+    unique_filename = f"{uuid.uuid4()}{suffix}"
+    upload_dir = Path("uploads") / "cost-receipts" / str(cost_entry_id)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    content = await file.read()
+    if len(content) > _MAX_COST_RECEIPT_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="File too large. Maximum size is 25 MB.",
+        )
+    async with aiofiles.open(upload_dir / unique_filename, "wb") as destination:
+        await destination.write(content)
+
+    return f"/files/cost-receipts/{cost_entry_id}/{unique_filename}"
+
+
+@router.post(
+    "/cost-entries/{cost_entry_id}/receipts",
+    response_model=CostReceiptResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_cost_receipt(
+    cost_entry_id: uuid.UUID,
+    file: UploadFile,
+    caption: Annotated[str | None, Form()] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> CostReceiptResponse:
+    """Upload a receipt file and attach it to a cost entry (D-04, COST-03)."""
+    await require_permission("finance.manage")(current_user, db)
+    svc = FinanceService(db)
+    await svc.get_entry_or_404(cost_entry_id)  # 404s a forged/foreign id under RLS
+    remote_url = await _save_cost_receipt_file(cost_entry_id, file)
+    receipt = await svc.add_receipt(cost_entry_id, current_user.company_id, remote_url, caption)
+    return CostReceiptResponse.model_validate(receipt)
+
+
+@router.get("/cost-entries/{cost_entry_id}/receipts", response_model=list[CostReceiptResponse])
+async def list_cost_receipts(
+    cost_entry_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> list[CostReceiptResponse]:
+    """List non-soft-deleted receipts for a cost entry."""
+    await require_permission("finance.view")(current_user, db)
+    svc = FinanceService(db)
+    receipts = await svc.list_receipts(cost_entry_id)
+    return [CostReceiptResponse.model_validate(receipt) for receipt in receipts]
+
+
+@router.delete(
+    "/cost-entries/{cost_entry_id}/receipts/{receipt_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
+async def delete_cost_receipt(
+    cost_entry_id: uuid.UUID,
+    receipt_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> Response:
+    """Soft-delete a receipt from a cost entry."""
+    await require_permission("finance.manage")(current_user, db)
+    svc = FinanceService(db)
+    await svc.delete_receipt(cost_entry_id, receipt_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
