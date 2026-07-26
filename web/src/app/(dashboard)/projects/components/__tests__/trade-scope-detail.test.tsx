@@ -11,6 +11,18 @@ jest.mock("@/lib/api/projects", () => ({
   deleteTask: jest.fn(),
 }));
 
+jest.mock("@/lib/hooks/usePermissions", () => ({
+  usePermissions: () => ({ can: () => true, permissions: new Set(), isLoading: false }),
+}));
+
+jest.mock("@/features/finance/hooks", () => ({
+  useCostEntriesForTradeScope: () => ({ data: [] }),
+  useCostCategories: () => ({ data: [] }),
+  useAddCostEntry: () => ({ mutateAsync: jest.fn(), isPending: false }),
+  useUploadReceipt: () => ({ mutateAsync: jest.fn(), isPending: false }),
+  useDeleteCostEntry: () => ({ mutate: jest.fn(), isPending: false }),
+}));
+
 import { useTasks, createTask, deleteTask } from "@/lib/api/projects";
 import { TradeScopeDetail } from "../TradeScopeDetail";
 
