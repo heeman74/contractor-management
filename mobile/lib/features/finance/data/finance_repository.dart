@@ -1,0 +1,146 @@
+import '../../../core/network/dio_client.dart';
+import 'cost_entry_dao.dart';
+import 'cost_receipt_dao.dart';
+
+/// On-demand Dio repository for cost entries, categories, and receipts.
+///
+/// Per 31-RESEARCH.md Pitfall 2, cost data is NEVER pulled via the
+/// company-wide /sync delta — every read here is an explicit, on-demand
+/// GET scoped to one job/trade-scope/project/cost-entry, gated server-side
+/// by finance.view. Results are upserted into local Drift tables so the
+/// offline-first UI (job detail, trade scope detail, project Costs tab —
+/// landing in 31-05) can render from local storage post-fetch.
+///
+/// `CostEntryResponse`/`CostReceiptResponse` do not carry company_id (they
+/// extend `BaseResponseSchema`, not `TenantResponseSchema`) — callers pass
+/// [companyId] explicitly, matching the DAO convention used throughout the
+/// codebase (e.g. `NoteDao.insertNote`).
+class FinanceRepository {
+  final DioClient _dioClient;
+  final CostEntryDao _costEntryDao;
+  final CostReceiptDao _costReceiptDao;
+
+  FinanceRepository({
+    required DioClient dioClient,
+    required CostEntryDao costEntryDao,
+    required CostReceiptDao costReceiptDao,
+  })  : _dioClient = dioClient,
+        _costEntryDao = costEntryDao,
+        _costReceiptDao = costReceiptDao;
+
+  /// Fetch and upsert cost entries anchored to [jobId].
+  ///
+  /// GET /cost-entries/?job_id={jobId}
+  Future<void> fetchCostEntriesForJob(String companyId, String jobId) async {
+    final response = await _dioClient.instance.get<dynamic>(
+      '/cost-entries/',
+      queryParameters: {'job_id': jobId},
+    );
+    await _upsertCostEntries(companyId, response.data);
+  }
+
+  /// Fetch and upsert cost entries anchored to [tradeScopeId].
+  ///
+  /// GET /cost-entries/?trade_scope_id={tradeScopeId}
+  Future<void> fetchCostEntriesForTradeScope(
+    String companyId,
+    String tradeScopeId,
+  ) async {
+    final response = await _dioClient.instance.get<dynamic>(
+      '/cost-entries/',
+      queryParameters: {'trade_scope_id': tradeScopeId},
+    );
+    await _upsertCostEntries(companyId, response.data);
+  }
+
+  /// Fetch and upsert the itemized cost entries backing a project's rollup.
+  ///
+  /// GET /projects/{projectId}/cost-entries
+  ///
+  /// Returns the authoritative backend-computed total (a Decimal-as-string,
+  /// e.g. "1250.00") for display — per 31-RESEARCH.md Pitfall 5, any
+  /// locally-summed double total is a display estimate only, never
+  /// authoritative.
+  Future<String> fetchProjectRollup(
+    String companyId,
+    String projectId,
+  ) async {
+    final response = await _dioClient.instance.get<dynamic>(
+      '/projects/$projectId/cost-entries',
+    );
+    final data = response.data;
+    if (data is! Map<String, dynamic>) {
+      throw const FormatException(
+        'Expected a Map response from the project cost rollup endpoint',
+      );
+    }
+
+    final entries = data['entries'];
+    if (entries is! List) {
+      throw const FormatException(
+        'Missing "entries" list in project cost rollup response',
+      );
+    }
+    await _upsertCostEntries(companyId, entries);
+
+    final total = data['total'];
+    if (total is! String) {
+      throw const FormatException(
+        'Missing "total" string in project cost rollup response',
+      );
+    }
+    return total;
+  }
+
+  /// Fetch the tenant's cost categories lookup (materials/subcontractor/
+  /// other/labor).
+  ///
+  /// GET /cost-categories/
+  ///
+  /// Not persisted to Drift — this plan ships no local cost_categories
+  /// table (categories change rarely; the field-capture screens land in
+  /// 31-05 and may add local caching there if offline category selection
+  /// proves necessary).
+  Future<List<Map<String, dynamic>>> fetchCostCategories() async {
+    final response =
+        await _dioClient.instance.get<dynamic>('/cost-categories/');
+    final data = response.data;
+    if (data is! List) {
+      throw const FormatException(
+        'Expected a List response from the cost-categories endpoint',
+      );
+    }
+    return data.whereType<Map<String, dynamic>>().toList();
+  }
+
+  /// Fetch and upsert receipts for a cost entry.
+  ///
+  /// GET /cost-entries/{costEntryId}/receipts
+  Future<void> fetchReceipts(String companyId, String costEntryId) async {
+    final response = await _dioClient.instance.get<dynamic>(
+      '/cost-entries/$costEntryId/receipts',
+    );
+    final data = response.data;
+    if (data is! List) {
+      throw const FormatException(
+        'Expected a List response from the cost-entry receipts endpoint',
+      );
+    }
+    for (final item in data) {
+      if (item is! Map<String, dynamic>) continue;
+      await _costReceiptDao.upsertFromRemote({...item, 'company_id': companyId});
+    }
+  }
+
+  Future<void> _upsertCostEntries(String companyId, dynamic data) async {
+    if (data is! List) {
+      throw const FormatException(
+        'Expected a List response from the cost-entries endpoint',
+      );
+    }
+    for (final item in data) {
+      if (item is! Map<String, dynamic>) continue;
+      await _costEntryDao.upsertFromRemote({...item, 'company_id': companyId});
+    }
+  }
+}

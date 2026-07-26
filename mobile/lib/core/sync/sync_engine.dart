@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 
+import '../../features/finance/services/cost_receipt_upload_service.dart';
 import '../../features/jobs/presentation/services/attachment_upload_service.dart';
 import '../database/app_database.dart';
 import '../network/dio_client.dart';
@@ -138,6 +139,11 @@ class SyncEngine {
   /// circular dependency: SyncEngine is registered before AttachmentUploadService.
   AttachmentUploadService? _attachmentUploadService;
 
+  /// Optional cost-receipt upload service — set after construction via
+  /// [setCostReceiptUploadService]. Mirrors [_attachmentUploadService]'s
+  /// wiring (same circular-dependency-breaking rationale).
+  CostReceiptUploadService? _costReceiptUploadService;
+
   late final SyncQueueDao _syncQueueDao;
   late final SyncCursorDao _syncCursorDao;
 
@@ -166,6 +172,15 @@ class SyncEngine {
   /// Text-first sync strategy: attachments upload AFTER queue drain completes.
   void setAttachmentUploadService(AttachmentUploadService service) {
     _attachmentUploadService = service;
+  }
+
+  /// Wire the [CostReceiptUploadService] after it has been constructed.
+  ///
+  /// Called from [setupServiceLocator] after both services are registered.
+  /// Text-first sync strategy: receipts upload AFTER the cost-entry push
+  /// (queue drain) completes, mirroring [setAttachmentUploadService].
+  void setCostReceiptUploadService(CostReceiptUploadService service) {
+    _costReceiptUploadService = service;
   }
 
   /// Stream of [SyncStatus] updates for the sync status UI indicator.
@@ -397,6 +412,13 @@ class SyncEngine {
       // before its attachments are posted.
       if (_attachmentUploadService != null) {
         await _attachmentUploadService!.uploadPending();
+      }
+
+      // Cost-entry receipts upload AFTER attachments (D-01/D-04). This only
+      // handles the binary upload of already-locally-queued receipts —
+      // cost-entry text data never rides this delta (Pitfall 2).
+      if (_costReceiptUploadService != null) {
+        await _costReceiptUploadService!.uploadPending();
       }
 
       // Update the cursor to the server's timestamp for the next delta pull

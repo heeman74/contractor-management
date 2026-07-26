@@ -1,6 +1,8 @@
 import 'package:get_it/get_it.dart';
 
 import '../../features/ai/data/ai_sse_client.dart';
+import '../../features/finance/data/finance_repository.dart';
+import '../../features/finance/services/cost_receipt_upload_service.dart';
 import '../../features/foreman/data/foreman_repository.dart';
 import '../../features/invoices/data/invoice_line_item_sync_handler.dart';
 import '../../features/invoices/data/invoice_sync_handler.dart';
@@ -21,6 +23,7 @@ import '../sync/handlers/attachment_sync_handler.dart';
 import '../sync/handlers/billing_milestone_sync_handler.dart';
 import '../sync/handlers/checklist_sync_handler.dart';
 import '../sync/handlers/company_sync_handler.dart';
+import '../sync/handlers/cost_entry_sync_handler.dart';
 import '../sync/handlers/note_sync_handler.dart';
 import '../sync/handlers/project_sync_handler.dart';
 import '../sync/handlers/project_zone_sync_handler.dart';
@@ -111,6 +114,11 @@ Future<void> setupServiceLocator() async {
   registry.register(BillingMilestoneSyncHandler(dioClient, db));
   // Phase 26: AI daily checklists sync handler (pull-only, server-generated)
   registry.register(ChecklistSyncHandler(dioClient, db));
+  // Phase 31: Actual cost capture — outbound push handler for cost entries.
+  // NOT added to sync_engine.dart's pullDelta entityTypes list (Pitfall 2 —
+  // cost data must never ride the company-wide /sync delta); inbound reads
+  // are on-demand via FinanceRepository.
+  registry.register(CostEntrySyncHandler(dioClient, db));
 
   getIt.registerSingleton<SyncRegistry>(registry);
 
@@ -168,6 +176,10 @@ Future<void> setupServiceLocator() async {
   getIt.registerSingleton<TaskDependencyDao>(taskDepDao);
   getIt.registerSingleton<ProjectZoneDao>(projectZoneDao);
 
+  // Phase 31 DAOs — registered for actual cost capture features
+  getIt.registerSingleton<CostEntryDao>(db.costEntryDao);
+  getIt.registerSingleton<CostReceiptDao>(db.costReceiptDao);
+
   // AttachmentUploadService — binary file uploader for field workflow attachments.
   // Registered AFTER SyncEngine to allow post-construction wiring via
   // setAttachmentUploadService(). Text-first sync: uploads only after queue drain.
@@ -179,6 +191,27 @@ Future<void> setupServiceLocator() async {
 
   // Wire AttachmentUploadService into SyncEngine for post-drain upload.
   syncEngine.setAttachmentUploadService(attachmentUploadService);
+
+  // CostReceiptUploadService — binary file uploader for cost-entry receipts.
+  // Mirrors AttachmentUploadService wiring exactly (NOT TaskAttachment's
+  // broken flow). Registered AFTER SyncEngine; wired via
+  // setCostReceiptUploadService for post-drain upload.
+  final costReceiptUploadService = CostReceiptUploadService(
+    dioClient: dioClient,
+    costReceiptDao: db.costReceiptDao,
+  );
+  getIt.registerSingleton<CostReceiptUploadService>(costReceiptUploadService);
+  syncEngine.setCostReceiptUploadService(costReceiptUploadService);
+
+  // FinanceRepository — on-demand Dio fetch + Drift upsert for cost entries,
+  // categories, and receipts (never via the company-wide /sync delta).
+  getIt.registerSingleton<FinanceRepository>(
+    FinanceRepository(
+      dioClient: dioClient,
+      costEntryDao: db.costEntryDao,
+      costReceiptDao: db.costReceiptDao,
+    ),
+  );
 
   // Phase 21: AI chat SSE client — bypasses Dio for text/event-stream streaming.
   // Uses dart:io HttpClient directly since Dio cannot handle SSE responses.
