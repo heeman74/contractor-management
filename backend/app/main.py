@@ -25,6 +25,7 @@ from app.features.contracts.router import templates_router as contract_templates
 from app.features.dashboard.router import router as dashboard_router
 from app.features.files.router import router as files_router
 from app.features.files.serve_router import serve_router
+from app.features.finance.router import router as finance_router
 from app.features.foreman.router import router as foreman_router
 from app.features.inspection.router import inspection_router
 from app.features.invoices.router import router as invoices_router
@@ -159,6 +160,8 @@ app.include_router(chat_router, prefix="/api/v1")
 app.include_router(inspection_router, prefix="/api/v1")
 # Phase 25: per-trade billing — billing milestones CRUD under trade scopes
 app.include_router(billing_milestones_router, prefix="/api/v1")
+# Phase 31: actual cost capture — cost-entry CRUD, categories, project rollup
+app.include_router(finance_router, prefix="/api/v1")
 # Phase 26: AI daily checklists and GC monitoring dashboard
 app.include_router(checklists_router, prefix="/api/v1")
 app.include_router(dashboard_router, prefix="/api/v1")
