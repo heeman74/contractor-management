@@ -1,0 +1,168 @@
+"use client";
+
+import { apiGet, apiPost, apiPatch, apiDelete, apiUpload } from "@/lib/api-client";
+import type {
+  CostEntry,
+  CostCategory,
+  CostReceipt,
+  ProjectCostRollup,
+  CostEntryInput,
+  CostEntryPatch,
+} from "./types";
+
+// --- Raw API response shapes (snake_case, mirroring backend schemas) ---
+
+interface CostEntryApiResponse {
+  id: string;
+  job_id: string | null;
+  trade_scope_id: string | null;
+  category_id: string;
+  category_name?: string | null;
+  amount: string;
+  incurred_date: string;
+  vendor?: string | null;
+  note?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface CostCategoryApiResponse {
+  id: string;
+  name: string;
+  is_system: boolean;
+}
+
+interface CostReceiptApiResponse {
+  id: string;
+  cost_entry_id: string;
+  remote_url: string;
+  caption?: string | null;
+  created_at: string;
+}
+
+interface ProjectCostRollupApiResponse {
+  project_id: string;
+  total: string;
+  entries: CostEntryApiResponse[];
+}
+
+// --- snake_case -> camelCase mappers ---
+
+function mapCostEntry(raw: CostEntryApiResponse): CostEntry {
+  return {
+    id: raw.id,
+    jobId: raw.job_id,
+    tradeScopeId: raw.trade_scope_id,
+    categoryId: raw.category_id,
+    categoryName: raw.category_name ?? null,
+    amount: raw.amount,
+    incurredDate: raw.incurred_date,
+    vendor: raw.vendor ?? null,
+    note: raw.note ?? null,
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+  };
+}
+
+function mapCostCategory(raw: CostCategoryApiResponse): CostCategory {
+  return { id: raw.id, name: raw.name, isSystem: raw.is_system };
+}
+
+function mapCostReceipt(raw: CostReceiptApiResponse): CostReceipt {
+  return {
+    id: raw.id,
+    costEntryId: raw.cost_entry_id,
+    remoteUrl: raw.remote_url,
+    caption: raw.caption ?? null,
+    createdAt: raw.created_at,
+  };
+}
+
+// --- Cost entries ---
+
+export async function fetchCostEntriesForJob(jobId: string): Promise<CostEntry[]> {
+  const raw = await apiGet<CostEntryApiResponse[]>(
+    `/api/v1/cost-entries/?job_id=${encodeURIComponent(jobId)}`
+  );
+  return raw.map(mapCostEntry);
+}
+
+export async function fetchCostEntriesForTradeScope(
+  tradeScopeId: string
+): Promise<CostEntry[]> {
+  const raw = await apiGet<CostEntryApiResponse[]>(
+    `/api/v1/cost-entries/?trade_scope_id=${encodeURIComponent(tradeScopeId)}`
+  );
+  return raw.map(mapCostEntry);
+}
+
+export async function fetchProjectCostRollup(
+  projectId: string
+): Promise<ProjectCostRollup> {
+  const raw = await apiGet<ProjectCostRollupApiResponse>(
+    `/api/v1/projects/${projectId}/cost-entries`
+  );
+  return {
+    projectId: raw.project_id,
+    total: raw.total,
+    entries: raw.entries.map(mapCostEntry),
+  };
+}
+
+export async function fetchCostCategories(): Promise<CostCategory[]> {
+  const raw = await apiGet<CostCategoryApiResponse[]>("/api/v1/cost-categories/");
+  return raw.map(mapCostCategory);
+}
+
+export async function createCostEntry(input: CostEntryInput): Promise<CostEntry> {
+  const raw = await apiPost<CostEntryApiResponse>("/api/v1/cost-entries/", {
+    job_id: input.jobId,
+    trade_scope_id: input.tradeScopeId,
+    category_id: input.categoryId,
+    amount: input.amount,
+    incurred_date: input.incurredDate,
+    vendor: input.vendor,
+    note: input.note,
+  });
+  return mapCostEntry(raw);
+}
+
+export async function updateCostEntry(
+  id: string,
+  patch: CostEntryPatch
+): Promise<CostEntry> {
+  const raw = await apiPatch<CostEntryApiResponse>(`/api/v1/cost-entries/${id}`, {
+    category_id: patch.categoryId,
+    amount: patch.amount,
+    incurred_date: patch.incurredDate,
+    vendor: patch.vendor,
+    note: patch.note,
+  });
+  return mapCostEntry(raw);
+}
+
+export function deleteCostEntry(id: string): Promise<void> {
+  return apiDelete<void>(`/api/v1/cost-entries/${id}`);
+}
+
+// --- Receipts ---
+
+export async function uploadCostReceipt(
+  costEntryId: string,
+  file: File
+): Promise<CostReceipt> {
+  const form = new FormData();
+  form.append("file", file);
+  const raw = await apiUpload<CostReceiptApiResponse>(
+    `/api/v1/cost-entries/${costEntryId}/receipts`,
+    form
+  );
+  return mapCostReceipt(raw);
+}
+
+export async function fetchReceipts(costEntryId: string): Promise<CostReceipt[]> {
+  const raw = await apiGet<CostReceiptApiResponse[]>(
+    `/api/v1/cost-entries/${costEntryId}/receipts`
+  );
+  return raw.map(mapCostReceipt);
+}
