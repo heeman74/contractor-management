@@ -16,6 +16,8 @@ passes a tenant/membership check keyed on the URL's path shape:
       equal the caller's company.
 - /files/job_requests/{request_id}/{n}  -> the JobRequest must exist in the
       caller's company (RLS-scoped).
+- /files/cost-receipts/{cost_entry_id}/{n} -> a CostReceipt row with this exact
+      remote_url must exist in the caller's company (RLS-scoped query).
 - /uploads/chat/{message_id}/{name}     -> the ChatMessage must exist (RLS) AND
       the caller must be a member of its thread.
 
@@ -39,6 +41,7 @@ from app.core.database import get_db
 from app.core.security import CurrentUser, get_current_user
 from app.features.chat.models import ChatMessage
 from app.features.chat.service import ChatService
+from app.features.finance.models import CostReceipt
 from app.features.jobs.models import Attachment, JobRequest
 from app.features.projects.models import TaskAttachment
 
@@ -104,6 +107,14 @@ async def serve_upload(
         if len(parts) < 3:
             raise _not_found()
         if await db.get(JobRequest, _parse_uuid(parts[1])) is None:
+            raise _not_found()
+    elif category == "cost-receipts":
+        # cost-receipts/{cost_entry_id}/{filename} — a CostReceipt row with this
+        # exact remote_url must exist in the caller's company (RLS scopes the query).
+        result = await db.execute(
+            select(CostReceipt.id).where(CostReceipt.remote_url == f"/files/{file_path}").limit(1)
+        )
+        if result.scalars().first() is None:
             raise _not_found()
     else:
         raise _not_found()
