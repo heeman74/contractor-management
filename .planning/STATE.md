@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
-status: verifying
-stopped_at: Phase 31 context gathered
-last_updated: "2026-07-25T17:22:56.475Z"
-last_activity: 2026-07-25
+status: executing
+stopped_at: Completed 31-01-PLAN.md
+last_updated: "2026-07-26T04:46:08.724Z"
+last_activity: 2026-07-26
 progress:
   total_phases: 22
   completed_phases: 13
-  total_plans: 71
-  completed_plans: 68
+  total_plans: 76
+  completed_plans: 69
 ---
 
 # Project State
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-24)
 
 **Core value:** AI eliminates the chaos of multi-trade coordination — GCs always know where every trade stands, contractors always know what to do today, projects stay on track.
-**Current focus:** Phase 30 — financial-schema-foundation-and-rbac-audit
+**Current focus:** Phase 31 — actual-cost-capture
 
 ## Current Position
 
-Phase: 31
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-07-25
+Phase: 31 (actual-cost-capture) — EXECUTING
+Plan: 2 of 5
+Status: Ready to execute
+Last activity: 2026-07-26
 
 ## Performance Metrics
 
@@ -47,6 +47,7 @@ Last activity: 2026-07-25
 | Phase 30 P03 | 12min | 2 tasks | 4 files |
 | Phase 30 P02 | 25min | 3 tasks | 6 files |
 | Phase 30 P04 | 40min | 2 tasks | 1 files |
+| Phase 31 P01 | 30min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -164,6 +165,8 @@ Last activity: 2026-07-25
 - [Phase 30]: [Phase 30 P02]: cost_categories seeded via plain INSERT before ENABLE RLS (new table); company_role_permissions PM finance-key backfill instead loops per-company with SET LOCAL app.current_company_id since that table has carried FORCE RLS since migration 0027
 - [Phase 30]: [Phase 30-04]: Simulated pre-migration company via direct SQL (bypassing RbacRepository) since seed_two_tenants companies already get the post-migration default matrix
 - [Phase 30]: [Phase 30-04]: Used existing allowed 'dependency_risk' alert type as documented stand-in financial type when monkeypatching FINANCIAL_ALERT_TYPES for the leak-filter test
+- [Phase 31]: 31-01: CostEntryUpdate keeps job_id/trade_scope_id anchor immutable — avoids re-deriving XOR consistency on edit
+- [Phase 31]: 31-01: cost_receipts is a dedicated table (not a shared polymorphic attachments table), consistent with existing per-domain attachment convention
 
 ### Pending Todos
 
@@ -182,6 +185,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-25T17:22:56.468Z
-Stopped at: Phase 31 context gathered
-Resume file: .planning/phases/31-actual-cost-capture/31-CONTEXT.md
+Last session: 2026-07-26T04:46:08.716Z
+Stopped at: Completed 31-01-PLAN.md
+Resume file: None
