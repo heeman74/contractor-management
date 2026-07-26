@@ -57,11 +57,17 @@ class FinanceRepository {
   ///
   /// GET /projects/{projectId}/cost-entries
   ///
-  /// Returns the authoritative backend-computed total (a Decimal-as-string,
-  /// e.g. "1250.00") for display — per 31-RESEARCH.md Pitfall 5, any
-  /// locally-summed double total is a display estimate only, never
-  /// authoritative.
-  Future<String> fetchProjectRollup(
+  /// Returns the authoritative backend-computed [ProjectCostRollupFetch.total]
+  /// (a Decimal-as-string, e.g. "1250.00") for display — per
+  /// 31-RESEARCH.md Pitfall 5, any locally-summed double total is a display
+  /// estimate only, never authoritative — plus the distinct
+  /// [ProjectCostRollupFetch.jobIds] found in the response, since the mobile
+  /// `Jobs` table carries no `projectId` FK (31-04 decision):
+  /// `CostEntryDao.watchByProject` needs an explicit `jobIds` list from the
+  /// caller to include job-anchored entries in its local reactive query, and
+  /// this on-demand fetch is the only place that job-anchored membership for
+  /// a project is known on mobile.
+  Future<ProjectCostRollupFetch> fetchProjectRollup(
     String companyId,
     String projectId,
   ) async {
@@ -89,7 +95,15 @@ class FinanceRepository {
         'Missing "total" string in project cost rollup response',
       );
     }
-    return total;
+
+    final jobIds = entries
+        .whereType<Map<String, dynamic>>()
+        .map((entry) => entry['job_id'])
+        .whereType<String>()
+        .toSet()
+        .toList();
+
+    return ProjectCostRollupFetch(total: total, jobIds: jobIds);
   }
 
   /// Fetch the tenant's cost categories lookup (materials/subcontractor/
@@ -143,4 +157,18 @@ class FinanceRepository {
       await _costEntryDao.upsertFromRemote({...item, 'company_id': companyId});
     }
   }
+}
+
+/// Result of [FinanceRepository.fetchProjectRollup]: the authoritative
+/// backend total plus the distinct job IDs seen in the response (used by
+/// callers to build the `jobIds` argument for
+/// [CostEntryDao.watchByProject]).
+class ProjectCostRollupFetch {
+  const ProjectCostRollupFetch({required this.total, required this.jobIds});
+
+  /// Decimal-as-string backend-computed total (e.g. "1250.00").
+  final String total;
+
+  /// Distinct job IDs anchoring at least one entry in this project's rollup.
+  final List<String> jobIds;
 }
