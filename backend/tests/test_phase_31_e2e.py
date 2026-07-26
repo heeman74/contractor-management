@@ -1,11 +1,11 @@
-"""Phase 31-01 — Actual Cost Capture: cost-entry CRUD, gating, rollup, RLS.
+"""Phase 31 — Actual Cost Capture: cost-entry CRUD, gating, rollup, RLS, receipts.
 
 Covers COST-01/COST-02 (materials/subcontractor/other cost entries anchored to a
 job XOR a trade scope), success criterion 4 (403 for non-finance callers on every
 cost-entry endpoint), D-05 (soft-delete drops out of lists/rollup), D-02/D-05
 (project rollup combines trade-scope + job costs), and API-level RLS isolation.
 
-Receipts (COST-03) land in Plan 31-02's extension of this same file.
+COST-03 (receipt upload/list/delete/serve, Plan 31-02) extends this same file.
 
 New companies created via /auth/register (seed_two_tenants) are NOT auto-seeded
 with cost_categories — only companies that existed at migration-0032-run-time are
@@ -103,6 +103,18 @@ def _cost_entry_payload(category_id: str, **overrides) -> dict:
     }
     payload.update(overrides)
     return payload
+
+
+async def _create_cost_entry(
+    client: AsyncClient, headers: dict, category_id: str, job_id: str
+) -> str:
+    resp = await client.post(
+        "/api/v1/cost-entries/",
+        headers=headers,
+        json=_cost_entry_payload(category_id, job_id=job_id),
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()["id"]
 
 
 # ---------------------------------------------------------------------------
@@ -435,3 +447,126 @@ async def test_non_finance_role_403_on_every_cost_endpoint(
 
     categories_resp = await async_client.get("/api/v1/cost-categories/", headers=admin_headers)
     assert categories_resp.status_code == 403, categories_resp.text
+
+
+# ---------------------------------------------------------------------------
+# COST-03: receipt upload, fetch, multiple receipts, cross-tenant 404, 403 gating
+# ---------------------------------------------------------------------------
+
+_RECEIPT_PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
+
+
+@pytest.mark.asyncio
+async def test_upload_and_fetch_cost_receipt(async_client, tenant_a_client, seed_two_tenants):
+    """COST-03: Owner/PM can upload a receipt and fetch it back through /files/cost-receipts/..."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    job_id = await _create_job(tenant_a_client)
+    materials_id = await _category_id(company_id, "materials")
+    headers = _pm_headers(company_id)
+    entry_id = await _create_cost_entry(async_client, headers, materials_id, job_id)
+
+    upload_resp = await async_client.post(
+        f"/api/v1/cost-entries/{entry_id}/receipts",
+        headers=headers,
+        files={"file": ("receipt.png", _RECEIPT_PNG_BYTES, "image/png")},
+        data={"caption": "Lumber receipt"},
+    )
+    assert upload_resp.status_code == 201, upload_resp.text
+    body = upload_resp.json()
+    assert body["cost_entry_id"] == entry_id
+    assert body["caption"] == "Lumber receipt"
+    remote_url = body["remote_url"]
+    assert remote_url.startswith("/files/cost-receipts/")
+
+    fetch_resp = await async_client.get(remote_url, headers=headers)
+    assert fetch_resp.status_code == 200, fetch_resp.text
+
+
+@pytest.mark.asyncio
+async def test_multiple_receipts_per_cost_entry(async_client, tenant_a_client, seed_two_tenants):
+    """COST-03: a cost entry can hold multiple receipts (zero-to-many)."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    job_id = await _create_job(tenant_a_client)
+    materials_id = await _category_id(company_id, "materials")
+    headers = _pm_headers(company_id)
+    entry_id = await _create_cost_entry(async_client, headers, materials_id, job_id)
+
+    for filename in ("receipt-1.png", "receipt-2.png"):
+        resp = await async_client.post(
+            f"/api/v1/cost-entries/{entry_id}/receipts",
+            headers=headers,
+            files={"file": (filename, _RECEIPT_PNG_BYTES, "image/png")},
+        )
+        assert resp.status_code == 201, resp.text
+
+    list_resp = await async_client.get(f"/api/v1/cost-entries/{entry_id}/receipts", headers=headers)
+    assert list_resp.status_code == 200, list_resp.text
+    assert len(list_resp.json()) == 2
+
+
+@pytest.mark.asyncio
+async def test_other_tenant_cannot_fetch_cost_receipt(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """COST-03: Tenant B cannot fetch Tenant A's receipt file — 404, not the bytes."""
+    tenant_a_id = seed_two_tenants["tenant_a_id"]
+    tenant_b_id = seed_two_tenants["tenant_b_id"]
+    await _seed_cost_categories(tenant_a_id)
+    job_id = await _create_job(tenant_a_client)
+    materials_id = await _category_id(tenant_a_id, "materials")
+    a_headers = _pm_headers(tenant_a_id)
+    entry_id = await _create_cost_entry(async_client, a_headers, materials_id, job_id)
+
+    upload_resp = await async_client.post(
+        f"/api/v1/cost-entries/{entry_id}/receipts",
+        headers=a_headers,
+        files={"file": ("receipt.png", _RECEIPT_PNG_BYTES, "image/png")},
+    )
+    assert upload_resp.status_code == 201, upload_resp.text
+    remote_url = upload_resp.json()["remote_url"]
+
+    b_headers = _pm_headers(tenant_b_id)
+    b_fetch = await async_client.get(remote_url, headers=b_headers)
+    assert b_fetch.status_code == 404, b_fetch.text
+
+
+@pytest.mark.asyncio
+async def test_non_finance_role_403_on_every_receipt_endpoint(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """COST-03: a user without finance.* gets 403 on upload/list/delete receipt endpoints."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    job_id = await _create_job(tenant_a_client)
+    materials_id = await _category_id(company_id, "materials")
+    pm_headers = _pm_headers(company_id)
+    entry_id = await _create_cost_entry(async_client, pm_headers, materials_id, job_id)
+
+    upload_resp = await async_client.post(
+        f"/api/v1/cost-entries/{entry_id}/receipts",
+        headers=pm_headers,
+        files={"file": ("receipt.png", _RECEIPT_PNG_BYTES, "image/png")},
+    )
+    assert upload_resp.status_code == 201, upload_resp.text
+    receipt_id = upload_resp.json()["id"]
+
+    admin_headers = _admin_headers(company_id)
+
+    forbidden_upload = await async_client.post(
+        f"/api/v1/cost-entries/{entry_id}/receipts",
+        headers=admin_headers,
+        files={"file": ("receipt.png", _RECEIPT_PNG_BYTES, "image/png")},
+    )
+    assert forbidden_upload.status_code == 403, forbidden_upload.text
+
+    forbidden_list = await async_client.get(
+        f"/api/v1/cost-entries/{entry_id}/receipts", headers=admin_headers
+    )
+    assert forbidden_list.status_code == 403, forbidden_list.text
+
+    forbidden_delete = await async_client.delete(
+        f"/api/v1/cost-entries/{entry_id}/receipts/{receipt_id}", headers=admin_headers
+    )
+    assert forbidden_delete.status_code == 403, forbidden_delete.text
