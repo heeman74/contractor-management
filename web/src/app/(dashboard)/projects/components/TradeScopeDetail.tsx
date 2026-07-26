@@ -22,6 +22,10 @@ import {
   createTask,
   deleteTask,
 } from "@/lib/api/projects";
+import { usePermissions } from "@/lib/hooks/usePermissions";
+import { useCostEntriesForTradeScope } from "@/features/finance/hooks";
+import { AddCostDialog } from "@/features/finance/components/AddCostDialog";
+import { CostEntryList } from "@/features/finance/components/CostEntryList";
 import type { TradeScopeResponse, TaskResponse } from "@/types/projects";
 
 interface TradeScopeDetailProps {
@@ -40,6 +44,9 @@ export function TradeScopeDetail({ scope, onSelectTask }: TradeScopeDetailProps)
   const queryClient = useQueryClient();
   const { data: tasks } = useTasks(scope.id);
   const [overrideMode, setOverrideMode] = useState(false);
+  const { can } = usePermissions();
+  const { data: costEntries } = useCostEntriesForTradeScope(scope.id);
+  const [addCostOpen, setAddCostOpen] = useState(false);
 
   const completedCount = tasks?.filter((t) => t.status === "complete" || t.status === "approved").length ?? 0;
   const totalCount = tasks?.length ?? 0;
@@ -279,6 +286,35 @@ export function TradeScopeDetail({ scope, onSelectTask }: TradeScopeDetailProps)
           <p className="text-sm text-gray-500">No tasks yet.</p>
         )}
       </div>
+
+      {/* Costs: hidden entirely without finance.view */}
+      {can("finance.view") && (
+        <div>
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700">
+              Costs
+            </h3>
+            {can("finance.manage") && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setAddCostOpen(true)}
+                data-testid="add-cost-button"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add cost
+              </Button>
+            )}
+          </div>
+          <CostEntryList entries={costEntries} />
+        </div>
+      )}
+
+      <AddCostDialog
+        open={addCostOpen}
+        onOpenChange={setAddCostOpen}
+        tradeScopeId={scope.id}
+      />
 
       <Dialog
         open={pendingDeleteTask !== null}

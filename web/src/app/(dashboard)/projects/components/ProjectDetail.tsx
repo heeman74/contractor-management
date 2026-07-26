@@ -10,7 +10,9 @@ import { AddTradeScopeSheet } from "./AddTradeScopeSheet";
 import { ProjectAssignmentsCard } from "./ProjectAssignmentsCard";
 import { useTradeScopes, useTasks } from "@/lib/api/projects";
 import { apiGet } from "@/lib/api-client";
+import { usePermissions } from "@/lib/hooks/usePermissions";
 import { TradeProgressCard } from "@/features/tasks/components/TradeProgressCard";
+import { ProjectCostsCard } from "@/features/finance/components/ProjectCostsCard";
 import type { ProjectResponse, TradeScopeResponse } from "@/types/projects";
 import type { Job } from "@/types/api";
 
@@ -119,6 +121,7 @@ function ScopeProgressCard({
 export function ProjectDetail({ project, onSelectScope }: ProjectDetailProps) {
   const [addScopeOpen, setAddScopeOpen] = useState(false);
   const { data: scopes, refetch } = useTradeScopes(project.id);
+  const { can } = usePermissions();
 
   const handleScopeAdded = () => {
     refetch();
@@ -181,6 +184,9 @@ export function ProjectDetail({ project, onSelectScope }: ProjectDetailProps) {
 
       {/* Jobs (e.g. per-field jobs created from an approved project quote) */}
       <ProjectJobsCard projectId={project.id} />
+
+      {/* Costs: aggregated rollup, hidden entirely without finance.view */}
+      {can("finance.view") && <ProjectCostsCard projectId={project.id} />}
 
       {/* Trade scopes with progress */}
       <div>

@@ -1,7 +1,13 @@
 "use client";
 
 import { use, useState } from "react";
+import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { usePermissions } from "@/lib/hooks/usePermissions";
+import { useCostEntriesForJob } from "@/features/finance/hooks";
+import { AddCostDialog } from "@/features/finance/components/AddCostDialog";
+import { CostEntryList } from "@/features/finance/components/CostEntryList";
 import { PageSkeleton } from "./_components/page-skeleton";
 import { JobNotesCard } from "./_components/job-notes-card";
 import { JobActivityCard } from "./_components/job-activity-card";
@@ -26,6 +32,9 @@ export default function JobDetailPage({
 
   const [revertOpen, setRevertOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [addCostOpen, setAddCostOpen] = useState(false);
+  const { can } = usePermissions();
+  const { data: costEntries } = useCostEntriesForJob(jobId);
 
   if (job.jobLoading) return <PageSkeleton />;
 
@@ -125,8 +134,32 @@ export default function JobDetailPage({
             totalMinutes={job.totalMinutes}
           />
           <JobFinancialReferencesCard job={current} />
+
+          {can("finance.view") && (
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                <CardTitle>Costs</CardTitle>
+                {can("finance.manage") && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setAddCostOpen(true)}
+                    data-testid="add-cost-button"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add cost
+                  </Button>
+                )}
+              </CardHeader>
+              <CardContent>
+                <CostEntryList entries={costEntries} />
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
+
+      <AddCostDialog open={addCostOpen} onOpenChange={setAddCostOpen} jobId={jobId} />
 
       <RevertJobDialog
         open={revertOpen}
