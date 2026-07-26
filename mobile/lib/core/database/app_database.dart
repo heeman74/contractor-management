@@ -8,6 +8,8 @@ import '../../features/billing_milestones/data/billing_milestone_dao.dart';
 import '../../features/chat/data/chat_dao.dart';
 import '../../features/checklists/data/checklist_dao.dart';
 import '../../features/company/data/company_dao.dart';
+import '../../features/finance/data/cost_entry_dao.dart';
+import '../../features/finance/data/cost_receipt_dao.dart';
 import '../../features/invoices/data/invoice_dao.dart';
 import '../../features/jobs/data/attachment_dao.dart';
 import '../../features/jobs/data/job_dao.dart';
@@ -40,6 +42,8 @@ import 'tables/chat_threads.dart';
 import 'tables/client_profiles.dart';
 import 'tables/client_properties.dart';
 import 'tables/companies.dart';
+import 'tables/cost_entries.dart';
+import 'tables/cost_receipts.dart';
 import 'tables/daily_checklists.dart';
 import 'tables/invoice_line_items.dart';
 import 'tables/invoices.dart';
@@ -75,6 +79,8 @@ export '../../features/billing_milestones/data/billing_milestone_dao.dart';
 export '../../features/chat/data/chat_dao.dart';
 export '../../features/checklists/data/checklist_dao.dart';
 export '../../features/company/data/company_dao.dart';
+export '../../features/finance/data/cost_entry_dao.dart';
+export '../../features/finance/data/cost_receipt_dao.dart';
 export '../../features/invoices/data/invoice_dao.dart';
 export '../../features/jobs/data/attachment_dao.dart';
 export '../../features/jobs/data/job_dao.dart';
@@ -139,6 +145,8 @@ part 'app_database.g.dart';
     DailyChecklists,
     ProjectAssignments,
     ProjectStatusUpdates,
+    CostEntries,
+    CostReceipts,
   ],
   daos: [
     CompanyDao,
@@ -167,6 +175,8 @@ part 'app_database.g.dart';
     PunchListItemDao,
     BillingMilestoneDao,
     DailyChecklistDao,
+    CostEntryDao,
+    CostReceiptDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -174,7 +184,7 @@ class AppDatabase extends _$AppDatabase {
       : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 15;
+  int get schemaVersion => 16;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -301,6 +311,12 @@ class AppDatabase extends _$AppDatabase {
             // Foreman role: project assignments and daily status updates
             await m.createTable(projectAssignments);
             await m.createTable(projectStatusUpdates);
+          }
+          if (from < 16) {
+            // Phase 31: Actual cost capture — cost entries + receipts
+            // offline data layer.
+            await m.createTable(costEntries);
+            await m.createTable(costReceipts);
           }
         },
       );

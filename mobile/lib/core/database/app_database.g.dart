@@ -9035,7 +9035,7 @@ class Attachment extends DataClass implements Insertable<Attachment> {
   /// FK to JobNotes.id — the note this attachment belongs to.
   final String noteId;
 
-  /// Media type identifier: 'photo' | 'drawing' | 'document'
+  /// Media type identifier: 'photo' | 'pdf' | 'drawing' (matches the backend).
   final String attachmentType;
 
   /// Absolute path to the local file on device storage.
@@ -29919,6 +29919,1518 @@ class ProjectStatusUpdatesCompanion
   }
 }
 
+class $CostEntriesTable extends CostEntries
+    with TableInfo<$CostEntriesTable, CostEntry> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CostEntriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    clientDefault: () => const Uuid().v4(),
+  );
+  static const VerificationMeta _companyIdMeta = const VerificationMeta(
+    'companyId',
+  );
+  @override
+  late final GeneratedColumn<String> companyId = GeneratedColumn<String>(
+    'company_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES companies (id)',
+    ),
+  );
+  static const VerificationMeta _jobIdMeta = const VerificationMeta('jobId');
+  @override
+  late final GeneratedColumn<String> jobId = GeneratedColumn<String>(
+    'job_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _tradeScopeIdMeta = const VerificationMeta(
+    'tradeScopeId',
+  );
+  @override
+  late final GeneratedColumn<String> tradeScopeId = GeneratedColumn<String>(
+    'trade_scope_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _categoryIdMeta = const VerificationMeta(
+    'categoryId',
+  );
+  @override
+  late final GeneratedColumn<String> categoryId = GeneratedColumn<String>(
+    'category_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _amountMeta = const VerificationMeta('amount');
+  @override
+  late final GeneratedColumn<double> amount = GeneratedColumn<double>(
+    'amount',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _incurredDateMeta = const VerificationMeta(
+    'incurredDate',
+  );
+  @override
+  late final GeneratedColumn<String> incurredDate = GeneratedColumn<String>(
+    'incurred_date',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _vendorMeta = const VerificationMeta('vendor');
+  @override
+  late final GeneratedColumn<String> vendor = GeneratedColumn<String>(
+    'vendor',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _versionMeta = const VerificationMeta(
+    'version',
+  );
+  @override
+  late final GeneratedColumn<int> version = GeneratedColumn<int>(
+    'version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    companyId,
+    jobId,
+    tradeScopeId,
+    categoryId,
+    amount,
+    incurredDate,
+    vendor,
+    note,
+    version,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'cost_entries';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CostEntry> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('company_id')) {
+      context.handle(
+        _companyIdMeta,
+        companyId.isAcceptableOrUnknown(data['company_id']!, _companyIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_companyIdMeta);
+    }
+    if (data.containsKey('job_id')) {
+      context.handle(
+        _jobIdMeta,
+        jobId.isAcceptableOrUnknown(data['job_id']!, _jobIdMeta),
+      );
+    }
+    if (data.containsKey('trade_scope_id')) {
+      context.handle(
+        _tradeScopeIdMeta,
+        tradeScopeId.isAcceptableOrUnknown(
+          data['trade_scope_id']!,
+          _tradeScopeIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('category_id')) {
+      context.handle(
+        _categoryIdMeta,
+        categoryId.isAcceptableOrUnknown(data['category_id']!, _categoryIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_categoryIdMeta);
+    }
+    if (data.containsKey('amount')) {
+      context.handle(
+        _amountMeta,
+        amount.isAcceptableOrUnknown(data['amount']!, _amountMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_amountMeta);
+    }
+    if (data.containsKey('incurred_date')) {
+      context.handle(
+        _incurredDateMeta,
+        incurredDate.isAcceptableOrUnknown(
+          data['incurred_date']!,
+          _incurredDateMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_incurredDateMeta);
+    }
+    if (data.containsKey('vendor')) {
+      context.handle(
+        _vendorMeta,
+        vendor.isAcceptableOrUnknown(data['vendor']!, _vendorMeta),
+      );
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
+    }
+    if (data.containsKey('version')) {
+      context.handle(
+        _versionMeta,
+        version.isAcceptableOrUnknown(data['version']!, _versionMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CostEntry map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CostEntry(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      companyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}company_id'],
+      )!,
+      jobId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}job_id'],
+      ),
+      tradeScopeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}trade_scope_id'],
+      ),
+      categoryId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}category_id'],
+      )!,
+      amount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}amount'],
+      )!,
+      incurredDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}incurred_date'],
+      )!,
+      vendor: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}vendor'],
+      ),
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      ),
+      version: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}version'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+    );
+  }
+
+  @override
+  $CostEntriesTable createAlias(String alias) {
+    return $CostEntriesTable(attachedDatabase, alias);
+  }
+}
+
+class CostEntry extends DataClass implements Insertable<CostEntry> {
+  final String id;
+  final String companyId;
+
+  /// Soft FK to Jobs.id — set when the entry is anchored to a job. Exactly
+  /// one of [jobId]/[tradeScopeId] is set (XOR anchor), enforced by
+  /// [CostEntryDao.insertCostEntry].
+  final String? jobId;
+
+  /// Soft FK to TradeScopes.id — set when the entry is anchored to a trade
+  /// scope.
+  final String? tradeScopeId;
+
+  /// Soft FK to CostCategories.id — materials/subcontractor/other/labor.
+  final String categoryId;
+
+  /// Cost amount. Stored as double — see class-level Pitfall 5 note.
+  final double amount;
+
+  /// ISO date string (YYYY-MM-DD) — the date the cost was incurred.
+  final String incurredDate;
+  final String? vendor;
+  final String? note;
+  final int version;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  /// Soft-delete for sync tombstone propagation across devices.
+  final DateTime? deletedAt;
+  const CostEntry({
+    required this.id,
+    required this.companyId,
+    this.jobId,
+    this.tradeScopeId,
+    required this.categoryId,
+    required this.amount,
+    required this.incurredDate,
+    this.vendor,
+    this.note,
+    required this.version,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['company_id'] = Variable<String>(companyId);
+    if (!nullToAbsent || jobId != null) {
+      map['job_id'] = Variable<String>(jobId);
+    }
+    if (!nullToAbsent || tradeScopeId != null) {
+      map['trade_scope_id'] = Variable<String>(tradeScopeId);
+    }
+    map['category_id'] = Variable<String>(categoryId);
+    map['amount'] = Variable<double>(amount);
+    map['incurred_date'] = Variable<String>(incurredDate);
+    if (!nullToAbsent || vendor != null) {
+      map['vendor'] = Variable<String>(vendor);
+    }
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    map['version'] = Variable<int>(version);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    return map;
+  }
+
+  CostEntriesCompanion toCompanion(bool nullToAbsent) {
+    return CostEntriesCompanion(
+      id: Value(id),
+      companyId: Value(companyId),
+      jobId: jobId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(jobId),
+      tradeScopeId: tradeScopeId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(tradeScopeId),
+      categoryId: Value(categoryId),
+      amount: Value(amount),
+      incurredDate: Value(incurredDate),
+      vendor: vendor == null && nullToAbsent
+          ? const Value.absent()
+          : Value(vendor),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      version: Value(version),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory CostEntry.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CostEntry(
+      id: serializer.fromJson<String>(json['id']),
+      companyId: serializer.fromJson<String>(json['companyId']),
+      jobId: serializer.fromJson<String?>(json['jobId']),
+      tradeScopeId: serializer.fromJson<String?>(json['tradeScopeId']),
+      categoryId: serializer.fromJson<String>(json['categoryId']),
+      amount: serializer.fromJson<double>(json['amount']),
+      incurredDate: serializer.fromJson<String>(json['incurredDate']),
+      vendor: serializer.fromJson<String?>(json['vendor']),
+      note: serializer.fromJson<String?>(json['note']),
+      version: serializer.fromJson<int>(json['version']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'companyId': serializer.toJson<String>(companyId),
+      'jobId': serializer.toJson<String?>(jobId),
+      'tradeScopeId': serializer.toJson<String?>(tradeScopeId),
+      'categoryId': serializer.toJson<String>(categoryId),
+      'amount': serializer.toJson<double>(amount),
+      'incurredDate': serializer.toJson<String>(incurredDate),
+      'vendor': serializer.toJson<String?>(vendor),
+      'note': serializer.toJson<String?>(note),
+      'version': serializer.toJson<int>(version),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+    };
+  }
+
+  CostEntry copyWith({
+    String? id,
+    String? companyId,
+    Value<String?> jobId = const Value.absent(),
+    Value<String?> tradeScopeId = const Value.absent(),
+    String? categoryId,
+    double? amount,
+    String? incurredDate,
+    Value<String?> vendor = const Value.absent(),
+    Value<String?> note = const Value.absent(),
+    int? version,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+  }) => CostEntry(
+    id: id ?? this.id,
+    companyId: companyId ?? this.companyId,
+    jobId: jobId.present ? jobId.value : this.jobId,
+    tradeScopeId: tradeScopeId.present ? tradeScopeId.value : this.tradeScopeId,
+    categoryId: categoryId ?? this.categoryId,
+    amount: amount ?? this.amount,
+    incurredDate: incurredDate ?? this.incurredDate,
+    vendor: vendor.present ? vendor.value : this.vendor,
+    note: note.present ? note.value : this.note,
+    version: version ?? this.version,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+  );
+  CostEntry copyWithCompanion(CostEntriesCompanion data) {
+    return CostEntry(
+      id: data.id.present ? data.id.value : this.id,
+      companyId: data.companyId.present ? data.companyId.value : this.companyId,
+      jobId: data.jobId.present ? data.jobId.value : this.jobId,
+      tradeScopeId: data.tradeScopeId.present
+          ? data.tradeScopeId.value
+          : this.tradeScopeId,
+      categoryId: data.categoryId.present
+          ? data.categoryId.value
+          : this.categoryId,
+      amount: data.amount.present ? data.amount.value : this.amount,
+      incurredDate: data.incurredDate.present
+          ? data.incurredDate.value
+          : this.incurredDate,
+      vendor: data.vendor.present ? data.vendor.value : this.vendor,
+      note: data.note.present ? data.note.value : this.note,
+      version: data.version.present ? data.version.value : this.version,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CostEntry(')
+          ..write('id: $id, ')
+          ..write('companyId: $companyId, ')
+          ..write('jobId: $jobId, ')
+          ..write('tradeScopeId: $tradeScopeId, ')
+          ..write('categoryId: $categoryId, ')
+          ..write('amount: $amount, ')
+          ..write('incurredDate: $incurredDate, ')
+          ..write('vendor: $vendor, ')
+          ..write('note: $note, ')
+          ..write('version: $version, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    companyId,
+    jobId,
+    tradeScopeId,
+    categoryId,
+    amount,
+    incurredDate,
+    vendor,
+    note,
+    version,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CostEntry &&
+          other.id == this.id &&
+          other.companyId == this.companyId &&
+          other.jobId == this.jobId &&
+          other.tradeScopeId == this.tradeScopeId &&
+          other.categoryId == this.categoryId &&
+          other.amount == this.amount &&
+          other.incurredDate == this.incurredDate &&
+          other.vendor == this.vendor &&
+          other.note == this.note &&
+          other.version == this.version &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class CostEntriesCompanion extends UpdateCompanion<CostEntry> {
+  final Value<String> id;
+  final Value<String> companyId;
+  final Value<String?> jobId;
+  final Value<String?> tradeScopeId;
+  final Value<String> categoryId;
+  final Value<double> amount;
+  final Value<String> incurredDate;
+  final Value<String?> vendor;
+  final Value<String?> note;
+  final Value<int> version;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<int> rowid;
+  const CostEntriesCompanion({
+    this.id = const Value.absent(),
+    this.companyId = const Value.absent(),
+    this.jobId = const Value.absent(),
+    this.tradeScopeId = const Value.absent(),
+    this.categoryId = const Value.absent(),
+    this.amount = const Value.absent(),
+    this.incurredDate = const Value.absent(),
+    this.vendor = const Value.absent(),
+    this.note = const Value.absent(),
+    this.version = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CostEntriesCompanion.insert({
+    this.id = const Value.absent(),
+    required String companyId,
+    this.jobId = const Value.absent(),
+    this.tradeScopeId = const Value.absent(),
+    required String categoryId,
+    required double amount,
+    required String incurredDate,
+    this.vendor = const Value.absent(),
+    this.note = const Value.absent(),
+    this.version = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : companyId = Value(companyId),
+       categoryId = Value(categoryId),
+       amount = Value(amount),
+       incurredDate = Value(incurredDate),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<CostEntry> custom({
+    Expression<String>? id,
+    Expression<String>? companyId,
+    Expression<String>? jobId,
+    Expression<String>? tradeScopeId,
+    Expression<String>? categoryId,
+    Expression<double>? amount,
+    Expression<String>? incurredDate,
+    Expression<String>? vendor,
+    Expression<String>? note,
+    Expression<int>? version,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (companyId != null) 'company_id': companyId,
+      if (jobId != null) 'job_id': jobId,
+      if (tradeScopeId != null) 'trade_scope_id': tradeScopeId,
+      if (categoryId != null) 'category_id': categoryId,
+      if (amount != null) 'amount': amount,
+      if (incurredDate != null) 'incurred_date': incurredDate,
+      if (vendor != null) 'vendor': vendor,
+      if (note != null) 'note': note,
+      if (version != null) 'version': version,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CostEntriesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? companyId,
+    Value<String?>? jobId,
+    Value<String?>? tradeScopeId,
+    Value<String>? categoryId,
+    Value<double>? amount,
+    Value<String>? incurredDate,
+    Value<String?>? vendor,
+    Value<String?>? note,
+    Value<int>? version,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return CostEntriesCompanion(
+      id: id ?? this.id,
+      companyId: companyId ?? this.companyId,
+      jobId: jobId ?? this.jobId,
+      tradeScopeId: tradeScopeId ?? this.tradeScopeId,
+      categoryId: categoryId ?? this.categoryId,
+      amount: amount ?? this.amount,
+      incurredDate: incurredDate ?? this.incurredDate,
+      vendor: vendor ?? this.vendor,
+      note: note ?? this.note,
+      version: version ?? this.version,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (companyId.present) {
+      map['company_id'] = Variable<String>(companyId.value);
+    }
+    if (jobId.present) {
+      map['job_id'] = Variable<String>(jobId.value);
+    }
+    if (tradeScopeId.present) {
+      map['trade_scope_id'] = Variable<String>(tradeScopeId.value);
+    }
+    if (categoryId.present) {
+      map['category_id'] = Variable<String>(categoryId.value);
+    }
+    if (amount.present) {
+      map['amount'] = Variable<double>(amount.value);
+    }
+    if (incurredDate.present) {
+      map['incurred_date'] = Variable<String>(incurredDate.value);
+    }
+    if (vendor.present) {
+      map['vendor'] = Variable<String>(vendor.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (version.present) {
+      map['version'] = Variable<int>(version.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CostEntriesCompanion(')
+          ..write('id: $id, ')
+          ..write('companyId: $companyId, ')
+          ..write('jobId: $jobId, ')
+          ..write('tradeScopeId: $tradeScopeId, ')
+          ..write('categoryId: $categoryId, ')
+          ..write('amount: $amount, ')
+          ..write('incurredDate: $incurredDate, ')
+          ..write('vendor: $vendor, ')
+          ..write('note: $note, ')
+          ..write('version: $version, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $CostReceiptsTable extends CostReceipts
+    with TableInfo<$CostReceiptsTable, CostReceipt> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CostReceiptsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    clientDefault: () => const Uuid().v4(),
+  );
+  static const VerificationMeta _companyIdMeta = const VerificationMeta(
+    'companyId',
+  );
+  @override
+  late final GeneratedColumn<String> companyId = GeneratedColumn<String>(
+    'company_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _costEntryIdMeta = const VerificationMeta(
+    'costEntryId',
+  );
+  @override
+  late final GeneratedColumn<String> costEntryId = GeneratedColumn<String>(
+    'cost_entry_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _localPathMeta = const VerificationMeta(
+    'localPath',
+  );
+  @override
+  late final GeneratedColumn<String> localPath = GeneratedColumn<String>(
+    'local_path',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _thumbnailPathMeta = const VerificationMeta(
+    'thumbnailPath',
+  );
+  @override
+  late final GeneratedColumn<String> thumbnailPath = GeneratedColumn<String>(
+    'thumbnail_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _captionMeta = const VerificationMeta(
+    'caption',
+  );
+  @override
+  late final GeneratedColumn<String> caption = GeneratedColumn<String>(
+    'caption',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _uploadStatusMeta = const VerificationMeta(
+    'uploadStatus',
+  );
+  @override
+  late final GeneratedColumn<String> uploadStatus = GeneratedColumn<String>(
+    'upload_status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('pending_upload'),
+  );
+  static const VerificationMeta _remoteUrlMeta = const VerificationMeta(
+    'remoteUrl',
+  );
+  @override
+  late final GeneratedColumn<String> remoteUrl = GeneratedColumn<String>(
+    'remote_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _retryCountMeta = const VerificationMeta(
+    'retryCount',
+  );
+  @override
+  late final GeneratedColumn<int> retryCount = GeneratedColumn<int>(
+    'retry_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    companyId,
+    costEntryId,
+    localPath,
+    thumbnailPath,
+    caption,
+    uploadStatus,
+    remoteUrl,
+    retryCount,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'cost_receipts';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CostReceipt> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('company_id')) {
+      context.handle(
+        _companyIdMeta,
+        companyId.isAcceptableOrUnknown(data['company_id']!, _companyIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_companyIdMeta);
+    }
+    if (data.containsKey('cost_entry_id')) {
+      context.handle(
+        _costEntryIdMeta,
+        costEntryId.isAcceptableOrUnknown(
+          data['cost_entry_id']!,
+          _costEntryIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_costEntryIdMeta);
+    }
+    if (data.containsKey('local_path')) {
+      context.handle(
+        _localPathMeta,
+        localPath.isAcceptableOrUnknown(data['local_path']!, _localPathMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_localPathMeta);
+    }
+    if (data.containsKey('thumbnail_path')) {
+      context.handle(
+        _thumbnailPathMeta,
+        thumbnailPath.isAcceptableOrUnknown(
+          data['thumbnail_path']!,
+          _thumbnailPathMeta,
+        ),
+      );
+    }
+    if (data.containsKey('caption')) {
+      context.handle(
+        _captionMeta,
+        caption.isAcceptableOrUnknown(data['caption']!, _captionMeta),
+      );
+    }
+    if (data.containsKey('upload_status')) {
+      context.handle(
+        _uploadStatusMeta,
+        uploadStatus.isAcceptableOrUnknown(
+          data['upload_status']!,
+          _uploadStatusMeta,
+        ),
+      );
+    }
+    if (data.containsKey('remote_url')) {
+      context.handle(
+        _remoteUrlMeta,
+        remoteUrl.isAcceptableOrUnknown(data['remote_url']!, _remoteUrlMeta),
+      );
+    }
+    if (data.containsKey('retry_count')) {
+      context.handle(
+        _retryCountMeta,
+        retryCount.isAcceptableOrUnknown(data['retry_count']!, _retryCountMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CostReceipt map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CostReceipt(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      companyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}company_id'],
+      )!,
+      costEntryId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cost_entry_id'],
+      )!,
+      localPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}local_path'],
+      )!,
+      thumbnailPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}thumbnail_path'],
+      ),
+      caption: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}caption'],
+      ),
+      uploadStatus: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}upload_status'],
+      )!,
+      remoteUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}remote_url'],
+      ),
+      retryCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}retry_count'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+    );
+  }
+
+  @override
+  $CostReceiptsTable createAlias(String alias) {
+    return $CostReceiptsTable(attachedDatabase, alias);
+  }
+}
+
+class CostReceipt extends DataClass implements Insertable<CostReceipt> {
+  final String id;
+
+  /// FK to Companies.id — tenant scope.
+  final String companyId;
+
+  /// Soft FK to CostEntries.id — the cost entry this receipt belongs to.
+  final String costEntryId;
+
+  /// Absolute path to the local file on device storage.
+  final String localPath;
+
+  /// Absolute path to the compressed thumbnail, if generated.
+  final String? thumbnailPath;
+
+  /// Optional caption for display.
+  final String? caption;
+
+  /// Upload lifecycle state. See class-level documentation.
+  final String uploadStatus;
+
+  /// Public URL of the uploaded file (set after successful upload).
+  final String? remoteUrl;
+
+  /// Number of upload retry attempts made so far.
+  final int retryCount;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  /// Soft-delete for sync tombstone propagation across devices.
+  final DateTime? deletedAt;
+  const CostReceipt({
+    required this.id,
+    required this.companyId,
+    required this.costEntryId,
+    required this.localPath,
+    this.thumbnailPath,
+    this.caption,
+    required this.uploadStatus,
+    this.remoteUrl,
+    required this.retryCount,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['company_id'] = Variable<String>(companyId);
+    map['cost_entry_id'] = Variable<String>(costEntryId);
+    map['local_path'] = Variable<String>(localPath);
+    if (!nullToAbsent || thumbnailPath != null) {
+      map['thumbnail_path'] = Variable<String>(thumbnailPath);
+    }
+    if (!nullToAbsent || caption != null) {
+      map['caption'] = Variable<String>(caption);
+    }
+    map['upload_status'] = Variable<String>(uploadStatus);
+    if (!nullToAbsent || remoteUrl != null) {
+      map['remote_url'] = Variable<String>(remoteUrl);
+    }
+    map['retry_count'] = Variable<int>(retryCount);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    return map;
+  }
+
+  CostReceiptsCompanion toCompanion(bool nullToAbsent) {
+    return CostReceiptsCompanion(
+      id: Value(id),
+      companyId: Value(companyId),
+      costEntryId: Value(costEntryId),
+      localPath: Value(localPath),
+      thumbnailPath: thumbnailPath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(thumbnailPath),
+      caption: caption == null && nullToAbsent
+          ? const Value.absent()
+          : Value(caption),
+      uploadStatus: Value(uploadStatus),
+      remoteUrl: remoteUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(remoteUrl),
+      retryCount: Value(retryCount),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory CostReceipt.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CostReceipt(
+      id: serializer.fromJson<String>(json['id']),
+      companyId: serializer.fromJson<String>(json['companyId']),
+      costEntryId: serializer.fromJson<String>(json['costEntryId']),
+      localPath: serializer.fromJson<String>(json['localPath']),
+      thumbnailPath: serializer.fromJson<String?>(json['thumbnailPath']),
+      caption: serializer.fromJson<String?>(json['caption']),
+      uploadStatus: serializer.fromJson<String>(json['uploadStatus']),
+      remoteUrl: serializer.fromJson<String?>(json['remoteUrl']),
+      retryCount: serializer.fromJson<int>(json['retryCount']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'companyId': serializer.toJson<String>(companyId),
+      'costEntryId': serializer.toJson<String>(costEntryId),
+      'localPath': serializer.toJson<String>(localPath),
+      'thumbnailPath': serializer.toJson<String?>(thumbnailPath),
+      'caption': serializer.toJson<String?>(caption),
+      'uploadStatus': serializer.toJson<String>(uploadStatus),
+      'remoteUrl': serializer.toJson<String?>(remoteUrl),
+      'retryCount': serializer.toJson<int>(retryCount),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+    };
+  }
+
+  CostReceipt copyWith({
+    String? id,
+    String? companyId,
+    String? costEntryId,
+    String? localPath,
+    Value<String?> thumbnailPath = const Value.absent(),
+    Value<String?> caption = const Value.absent(),
+    String? uploadStatus,
+    Value<String?> remoteUrl = const Value.absent(),
+    int? retryCount,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+  }) => CostReceipt(
+    id: id ?? this.id,
+    companyId: companyId ?? this.companyId,
+    costEntryId: costEntryId ?? this.costEntryId,
+    localPath: localPath ?? this.localPath,
+    thumbnailPath: thumbnailPath.present
+        ? thumbnailPath.value
+        : this.thumbnailPath,
+    caption: caption.present ? caption.value : this.caption,
+    uploadStatus: uploadStatus ?? this.uploadStatus,
+    remoteUrl: remoteUrl.present ? remoteUrl.value : this.remoteUrl,
+    retryCount: retryCount ?? this.retryCount,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+  );
+  CostReceipt copyWithCompanion(CostReceiptsCompanion data) {
+    return CostReceipt(
+      id: data.id.present ? data.id.value : this.id,
+      companyId: data.companyId.present ? data.companyId.value : this.companyId,
+      costEntryId: data.costEntryId.present
+          ? data.costEntryId.value
+          : this.costEntryId,
+      localPath: data.localPath.present ? data.localPath.value : this.localPath,
+      thumbnailPath: data.thumbnailPath.present
+          ? data.thumbnailPath.value
+          : this.thumbnailPath,
+      caption: data.caption.present ? data.caption.value : this.caption,
+      uploadStatus: data.uploadStatus.present
+          ? data.uploadStatus.value
+          : this.uploadStatus,
+      remoteUrl: data.remoteUrl.present ? data.remoteUrl.value : this.remoteUrl,
+      retryCount: data.retryCount.present
+          ? data.retryCount.value
+          : this.retryCount,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CostReceipt(')
+          ..write('id: $id, ')
+          ..write('companyId: $companyId, ')
+          ..write('costEntryId: $costEntryId, ')
+          ..write('localPath: $localPath, ')
+          ..write('thumbnailPath: $thumbnailPath, ')
+          ..write('caption: $caption, ')
+          ..write('uploadStatus: $uploadStatus, ')
+          ..write('remoteUrl: $remoteUrl, ')
+          ..write('retryCount: $retryCount, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    companyId,
+    costEntryId,
+    localPath,
+    thumbnailPath,
+    caption,
+    uploadStatus,
+    remoteUrl,
+    retryCount,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CostReceipt &&
+          other.id == this.id &&
+          other.companyId == this.companyId &&
+          other.costEntryId == this.costEntryId &&
+          other.localPath == this.localPath &&
+          other.thumbnailPath == this.thumbnailPath &&
+          other.caption == this.caption &&
+          other.uploadStatus == this.uploadStatus &&
+          other.remoteUrl == this.remoteUrl &&
+          other.retryCount == this.retryCount &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class CostReceiptsCompanion extends UpdateCompanion<CostReceipt> {
+  final Value<String> id;
+  final Value<String> companyId;
+  final Value<String> costEntryId;
+  final Value<String> localPath;
+  final Value<String?> thumbnailPath;
+  final Value<String?> caption;
+  final Value<String> uploadStatus;
+  final Value<String?> remoteUrl;
+  final Value<int> retryCount;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<int> rowid;
+  const CostReceiptsCompanion({
+    this.id = const Value.absent(),
+    this.companyId = const Value.absent(),
+    this.costEntryId = const Value.absent(),
+    this.localPath = const Value.absent(),
+    this.thumbnailPath = const Value.absent(),
+    this.caption = const Value.absent(),
+    this.uploadStatus = const Value.absent(),
+    this.remoteUrl = const Value.absent(),
+    this.retryCount = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CostReceiptsCompanion.insert({
+    this.id = const Value.absent(),
+    required String companyId,
+    required String costEntryId,
+    required String localPath,
+    this.thumbnailPath = const Value.absent(),
+    this.caption = const Value.absent(),
+    this.uploadStatus = const Value.absent(),
+    this.remoteUrl = const Value.absent(),
+    this.retryCount = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : companyId = Value(companyId),
+       costEntryId = Value(costEntryId),
+       localPath = Value(localPath),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<CostReceipt> custom({
+    Expression<String>? id,
+    Expression<String>? companyId,
+    Expression<String>? costEntryId,
+    Expression<String>? localPath,
+    Expression<String>? thumbnailPath,
+    Expression<String>? caption,
+    Expression<String>? uploadStatus,
+    Expression<String>? remoteUrl,
+    Expression<int>? retryCount,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (companyId != null) 'company_id': companyId,
+      if (costEntryId != null) 'cost_entry_id': costEntryId,
+      if (localPath != null) 'local_path': localPath,
+      if (thumbnailPath != null) 'thumbnail_path': thumbnailPath,
+      if (caption != null) 'caption': caption,
+      if (uploadStatus != null) 'upload_status': uploadStatus,
+      if (remoteUrl != null) 'remote_url': remoteUrl,
+      if (retryCount != null) 'retry_count': retryCount,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CostReceiptsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? companyId,
+    Value<String>? costEntryId,
+    Value<String>? localPath,
+    Value<String?>? thumbnailPath,
+    Value<String?>? caption,
+    Value<String>? uploadStatus,
+    Value<String?>? remoteUrl,
+    Value<int>? retryCount,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return CostReceiptsCompanion(
+      id: id ?? this.id,
+      companyId: companyId ?? this.companyId,
+      costEntryId: costEntryId ?? this.costEntryId,
+      localPath: localPath ?? this.localPath,
+      thumbnailPath: thumbnailPath ?? this.thumbnailPath,
+      caption: caption ?? this.caption,
+      uploadStatus: uploadStatus ?? this.uploadStatus,
+      remoteUrl: remoteUrl ?? this.remoteUrl,
+      retryCount: retryCount ?? this.retryCount,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (companyId.present) {
+      map['company_id'] = Variable<String>(companyId.value);
+    }
+    if (costEntryId.present) {
+      map['cost_entry_id'] = Variable<String>(costEntryId.value);
+    }
+    if (localPath.present) {
+      map['local_path'] = Variable<String>(localPath.value);
+    }
+    if (thumbnailPath.present) {
+      map['thumbnail_path'] = Variable<String>(thumbnailPath.value);
+    }
+    if (caption.present) {
+      map['caption'] = Variable<String>(caption.value);
+    }
+    if (uploadStatus.present) {
+      map['upload_status'] = Variable<String>(uploadStatus.value);
+    }
+    if (remoteUrl.present) {
+      map['remote_url'] = Variable<String>(remoteUrl.value);
+    }
+    if (retryCount.present) {
+      map['retry_count'] = Variable<int>(retryCount.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CostReceiptsCompanion(')
+          ..write('id: $id, ')
+          ..write('companyId: $companyId, ')
+          ..write('costEntryId: $costEntryId, ')
+          ..write('localPath: $localPath, ')
+          ..write('thumbnailPath: $thumbnailPath, ')
+          ..write('caption: $caption, ')
+          ..write('uploadStatus: $uploadStatus, ')
+          ..write('remoteUrl: $remoteUrl, ')
+          ..write('retryCount: $retryCount, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -29983,6 +31495,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $ProjectAssignmentsTable(this);
   late final $ProjectStatusUpdatesTable projectStatusUpdates =
       $ProjectStatusUpdatesTable(this);
+  late final $CostEntriesTable costEntries = $CostEntriesTable(this);
+  late final $CostReceiptsTable costReceipts = $CostReceiptsTable(this);
   late final Index idxBookingsContractorTime = Index(
     'idx_bookings_contractor_time',
     'CREATE INDEX idx_bookings_contractor_time ON bookings (contractor_id, time_range_start, deleted_at)',
@@ -30045,6 +31559,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final DailyChecklistDao dailyChecklistDao = DailyChecklistDao(
     this as AppDatabase,
   );
+  late final CostEntryDao costEntryDao = CostEntryDao(this as AppDatabase);
+  late final CostReceiptDao costReceiptDao = CostReceiptDao(
+    this as AppDatabase,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -30090,6 +31608,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     dailyChecklists,
     projectAssignments,
     projectStatusUpdates,
+    costEntries,
+    costReceipts,
     idxBookingsContractorTime,
     idxBookingsCompanyTime,
     idxBookingsJobId,
@@ -30701,6 +32221,24 @@ final class $$CompaniesTableReferences
     final cache = $_typedResult.readTableOrNull(
       _projectStatusUpdatesRefsTable($_db),
     );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$CostEntriesTable, List<CostEntry>>
+  _costEntriesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.costEntries,
+    aliasName: $_aliasNameGenerator(db.companies.id, db.costEntries.companyId),
+  );
+
+  $$CostEntriesTableProcessedTableManager get costEntriesRefs {
+    final manager = $$CostEntriesTableTableManager(
+      $_db,
+      $_db.costEntries,
+    ).filter((f) => f.companyId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_costEntriesRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -31437,6 +32975,31 @@ class $$CompaniesTableFilterComposer
           }) => $$ProjectStatusUpdatesTableFilterComposer(
             $db: $db,
             $table: $db.projectStatusUpdates,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> costEntriesRefs(
+    Expression<bool> Function($$CostEntriesTableFilterComposer f) f,
+  ) {
+    final $$CostEntriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.costEntries,
+      getReferencedColumn: (t) => t.companyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CostEntriesTableFilterComposer(
+            $db: $db,
+            $table: $db.costEntries,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -32237,6 +33800,31 @@ class $$CompaniesTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> costEntriesRefs<T extends Object>(
+    Expression<T> Function($$CostEntriesTableAnnotationComposer a) f,
+  ) {
+    final $$CostEntriesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.costEntries,
+      getReferencedColumn: (t) => t.companyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CostEntriesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.costEntries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$CompaniesTableTableManager
@@ -32280,6 +33868,7 @@ class $$CompaniesTableTableManager
             bool billingMilestonesRefs,
             bool projectAssignmentsRefs,
             bool projectStatusUpdatesRefs,
+            bool costEntriesRefs,
           })
         > {
   $$CompaniesTableTableManager(_$AppDatabase db, $CompaniesTable table)
@@ -32386,6 +33975,7 @@ class $$CompaniesTableTableManager
                 billingMilestonesRefs = false,
                 projectAssignmentsRefs = false,
                 projectStatusUpdatesRefs = false,
+                costEntriesRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -32417,6 +34007,7 @@ class $$CompaniesTableTableManager
                     if (billingMilestonesRefs) db.billingMilestones,
                     if (projectAssignmentsRefs) db.projectAssignments,
                     if (projectStatusUpdatesRefs) db.projectStatusUpdates,
+                    if (costEntriesRefs) db.costEntries,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -32988,6 +34579,27 @@ class $$CompaniesTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (costEntriesRefs)
+                        await $_getPrefetchedData<
+                          Company,
+                          $CompaniesTable,
+                          CostEntry
+                        >(
+                          currentTable: table,
+                          referencedTable: $$CompaniesTableReferences
+                              ._costEntriesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$CompaniesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).costEntriesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.companyId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -33036,6 +34648,7 @@ typedef $$CompaniesTableProcessedTableManager =
         bool billingMilestonesRefs,
         bool projectAssignmentsRefs,
         bool projectStatusUpdatesRefs,
+        bool costEntriesRefs,
       })
     >;
 typedef $$UsersTableCreateCompanionBuilder =
@@ -52893,6 +54506,824 @@ typedef $$ProjectStatusUpdatesTableProcessedTableManager =
       ProjectStatusUpdate,
       PrefetchHooks Function({bool companyId, bool projectId, bool authorId})
     >;
+typedef $$CostEntriesTableCreateCompanionBuilder =
+    CostEntriesCompanion Function({
+      Value<String> id,
+      required String companyId,
+      Value<String?> jobId,
+      Value<String?> tradeScopeId,
+      required String categoryId,
+      required double amount,
+      required String incurredDate,
+      Value<String?> vendor,
+      Value<String?> note,
+      Value<int> version,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+typedef $$CostEntriesTableUpdateCompanionBuilder =
+    CostEntriesCompanion Function({
+      Value<String> id,
+      Value<String> companyId,
+      Value<String?> jobId,
+      Value<String?> tradeScopeId,
+      Value<String> categoryId,
+      Value<double> amount,
+      Value<String> incurredDate,
+      Value<String?> vendor,
+      Value<String?> note,
+      Value<int> version,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+
+final class $$CostEntriesTableReferences
+    extends BaseReferences<_$AppDatabase, $CostEntriesTable, CostEntry> {
+  $$CostEntriesTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $CompaniesTable _companyIdTable(_$AppDatabase db) =>
+      db.companies.createAlias(
+        $_aliasNameGenerator(db.costEntries.companyId, db.companies.id),
+      );
+
+  $$CompaniesTableProcessedTableManager get companyId {
+    final $_column = $_itemColumn<String>('company_id')!;
+
+    final manager = $$CompaniesTableTableManager(
+      $_db,
+      $_db.companies,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_companyIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$CostEntriesTableFilterComposer
+    extends Composer<_$AppDatabase, $CostEntriesTable> {
+  $$CostEntriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get jobId => $composableBuilder(
+    column: $table.jobId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tradeScopeId => $composableBuilder(
+    column: $table.tradeScopeId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get categoryId => $composableBuilder(
+    column: $table.categoryId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get incurredDate => $composableBuilder(
+    column: $table.incurredDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get vendor => $composableBuilder(
+    column: $table.vendor,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$CompaniesTableFilterComposer get companyId {
+    final $$CompaniesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.companyId,
+      referencedTable: $db.companies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CompaniesTableFilterComposer(
+            $db: $db,
+            $table: $db.companies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$CostEntriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $CostEntriesTable> {
+  $$CostEntriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get jobId => $composableBuilder(
+    column: $table.jobId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get tradeScopeId => $composableBuilder(
+    column: $table.tradeScopeId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get categoryId => $composableBuilder(
+    column: $table.categoryId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get incurredDate => $composableBuilder(
+    column: $table.incurredDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get vendor => $composableBuilder(
+    column: $table.vendor,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$CompaniesTableOrderingComposer get companyId {
+    final $$CompaniesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.companyId,
+      referencedTable: $db.companies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CompaniesTableOrderingComposer(
+            $db: $db,
+            $table: $db.companies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$CostEntriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CostEntriesTable> {
+  $$CostEntriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get jobId =>
+      $composableBuilder(column: $table.jobId, builder: (column) => column);
+
+  GeneratedColumn<String> get tradeScopeId => $composableBuilder(
+    column: $table.tradeScopeId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get categoryId => $composableBuilder(
+    column: $table.categoryId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get amount =>
+      $composableBuilder(column: $table.amount, builder: (column) => column);
+
+  GeneratedColumn<String> get incurredDate => $composableBuilder(
+    column: $table.incurredDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get vendor =>
+      $composableBuilder(column: $table.vendor, builder: (column) => column);
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<int> get version =>
+      $composableBuilder(column: $table.version, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  $$CompaniesTableAnnotationComposer get companyId {
+    final $$CompaniesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.companyId,
+      referencedTable: $db.companies,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CompaniesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.companies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$CostEntriesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CostEntriesTable,
+          CostEntry,
+          $$CostEntriesTableFilterComposer,
+          $$CostEntriesTableOrderingComposer,
+          $$CostEntriesTableAnnotationComposer,
+          $$CostEntriesTableCreateCompanionBuilder,
+          $$CostEntriesTableUpdateCompanionBuilder,
+          (CostEntry, $$CostEntriesTableReferences),
+          CostEntry,
+          PrefetchHooks Function({bool companyId})
+        > {
+  $$CostEntriesTableTableManager(_$AppDatabase db, $CostEntriesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CostEntriesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CostEntriesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CostEntriesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> companyId = const Value.absent(),
+                Value<String?> jobId = const Value.absent(),
+                Value<String?> tradeScopeId = const Value.absent(),
+                Value<String> categoryId = const Value.absent(),
+                Value<double> amount = const Value.absent(),
+                Value<String> incurredDate = const Value.absent(),
+                Value<String?> vendor = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<int> version = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CostEntriesCompanion(
+                id: id,
+                companyId: companyId,
+                jobId: jobId,
+                tradeScopeId: tradeScopeId,
+                categoryId: categoryId,
+                amount: amount,
+                incurredDate: incurredDate,
+                vendor: vendor,
+                note: note,
+                version: version,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                required String companyId,
+                Value<String?> jobId = const Value.absent(),
+                Value<String?> tradeScopeId = const Value.absent(),
+                required String categoryId,
+                required double amount,
+                required String incurredDate,
+                Value<String?> vendor = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<int> version = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CostEntriesCompanion.insert(
+                id: id,
+                companyId: companyId,
+                jobId: jobId,
+                tradeScopeId: tradeScopeId,
+                categoryId: categoryId,
+                amount: amount,
+                incurredDate: incurredDate,
+                vendor: vendor,
+                note: note,
+                version: version,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$CostEntriesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({companyId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (companyId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.companyId,
+                                referencedTable: $$CostEntriesTableReferences
+                                    ._companyIdTable(db),
+                                referencedColumn: $$CostEntriesTableReferences
+                                    ._companyIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$CostEntriesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CostEntriesTable,
+      CostEntry,
+      $$CostEntriesTableFilterComposer,
+      $$CostEntriesTableOrderingComposer,
+      $$CostEntriesTableAnnotationComposer,
+      $$CostEntriesTableCreateCompanionBuilder,
+      $$CostEntriesTableUpdateCompanionBuilder,
+      (CostEntry, $$CostEntriesTableReferences),
+      CostEntry,
+      PrefetchHooks Function({bool companyId})
+    >;
+typedef $$CostReceiptsTableCreateCompanionBuilder =
+    CostReceiptsCompanion Function({
+      Value<String> id,
+      required String companyId,
+      required String costEntryId,
+      required String localPath,
+      Value<String?> thumbnailPath,
+      Value<String?> caption,
+      Value<String> uploadStatus,
+      Value<String?> remoteUrl,
+      Value<int> retryCount,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+typedef $$CostReceiptsTableUpdateCompanionBuilder =
+    CostReceiptsCompanion Function({
+      Value<String> id,
+      Value<String> companyId,
+      Value<String> costEntryId,
+      Value<String> localPath,
+      Value<String?> thumbnailPath,
+      Value<String?> caption,
+      Value<String> uploadStatus,
+      Value<String?> remoteUrl,
+      Value<int> retryCount,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+
+class $$CostReceiptsTableFilterComposer
+    extends Composer<_$AppDatabase, $CostReceiptsTable> {
+  $$CostReceiptsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get companyId => $composableBuilder(
+    column: $table.companyId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get costEntryId => $composableBuilder(
+    column: $table.costEntryId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get localPath => $composableBuilder(
+    column: $table.localPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get thumbnailPath => $composableBuilder(
+    column: $table.thumbnailPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get caption => $composableBuilder(
+    column: $table.caption,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get uploadStatus => $composableBuilder(
+    column: $table.uploadStatus,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get remoteUrl => $composableBuilder(
+    column: $table.remoteUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get retryCount => $composableBuilder(
+    column: $table.retryCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CostReceiptsTableOrderingComposer
+    extends Composer<_$AppDatabase, $CostReceiptsTable> {
+  $$CostReceiptsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get companyId => $composableBuilder(
+    column: $table.companyId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get costEntryId => $composableBuilder(
+    column: $table.costEntryId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get localPath => $composableBuilder(
+    column: $table.localPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get thumbnailPath => $composableBuilder(
+    column: $table.thumbnailPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get caption => $composableBuilder(
+    column: $table.caption,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get uploadStatus => $composableBuilder(
+    column: $table.uploadStatus,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get remoteUrl => $composableBuilder(
+    column: $table.remoteUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get retryCount => $composableBuilder(
+    column: $table.retryCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CostReceiptsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CostReceiptsTable> {
+  $$CostReceiptsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get companyId =>
+      $composableBuilder(column: $table.companyId, builder: (column) => column);
+
+  GeneratedColumn<String> get costEntryId => $composableBuilder(
+    column: $table.costEntryId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get localPath =>
+      $composableBuilder(column: $table.localPath, builder: (column) => column);
+
+  GeneratedColumn<String> get thumbnailPath => $composableBuilder(
+    column: $table.thumbnailPath,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get caption =>
+      $composableBuilder(column: $table.caption, builder: (column) => column);
+
+  GeneratedColumn<String> get uploadStatus => $composableBuilder(
+    column: $table.uploadStatus,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get remoteUrl =>
+      $composableBuilder(column: $table.remoteUrl, builder: (column) => column);
+
+  GeneratedColumn<int> get retryCount => $composableBuilder(
+    column: $table.retryCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$CostReceiptsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CostReceiptsTable,
+          CostReceipt,
+          $$CostReceiptsTableFilterComposer,
+          $$CostReceiptsTableOrderingComposer,
+          $$CostReceiptsTableAnnotationComposer,
+          $$CostReceiptsTableCreateCompanionBuilder,
+          $$CostReceiptsTableUpdateCompanionBuilder,
+          (
+            CostReceipt,
+            BaseReferences<_$AppDatabase, $CostReceiptsTable, CostReceipt>,
+          ),
+          CostReceipt,
+          PrefetchHooks Function()
+        > {
+  $$CostReceiptsTableTableManager(_$AppDatabase db, $CostReceiptsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CostReceiptsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CostReceiptsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CostReceiptsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> companyId = const Value.absent(),
+                Value<String> costEntryId = const Value.absent(),
+                Value<String> localPath = const Value.absent(),
+                Value<String?> thumbnailPath = const Value.absent(),
+                Value<String?> caption = const Value.absent(),
+                Value<String> uploadStatus = const Value.absent(),
+                Value<String?> remoteUrl = const Value.absent(),
+                Value<int> retryCount = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CostReceiptsCompanion(
+                id: id,
+                companyId: companyId,
+                costEntryId: costEntryId,
+                localPath: localPath,
+                thumbnailPath: thumbnailPath,
+                caption: caption,
+                uploadStatus: uploadStatus,
+                remoteUrl: remoteUrl,
+                retryCount: retryCount,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                required String companyId,
+                required String costEntryId,
+                required String localPath,
+                Value<String?> thumbnailPath = const Value.absent(),
+                Value<String?> caption = const Value.absent(),
+                Value<String> uploadStatus = const Value.absent(),
+                Value<String?> remoteUrl = const Value.absent(),
+                Value<int> retryCount = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CostReceiptsCompanion.insert(
+                id: id,
+                companyId: companyId,
+                costEntryId: costEntryId,
+                localPath: localPath,
+                thumbnailPath: thumbnailPath,
+                caption: caption,
+                uploadStatus: uploadStatus,
+                remoteUrl: remoteUrl,
+                retryCount: retryCount,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CostReceiptsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CostReceiptsTable,
+      CostReceipt,
+      $$CostReceiptsTableFilterComposer,
+      $$CostReceiptsTableOrderingComposer,
+      $$CostReceiptsTableAnnotationComposer,
+      $$CostReceiptsTableCreateCompanionBuilder,
+      $$CostReceiptsTableUpdateCompanionBuilder,
+      (
+        CostReceipt,
+        BaseReferences<_$AppDatabase, $CostReceiptsTable, CostReceipt>,
+      ),
+      CostReceipt,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -52976,4 +55407,8 @@ class $AppDatabaseManager {
       $$ProjectAssignmentsTableTableManager(_db, _db.projectAssignments);
   $$ProjectStatusUpdatesTableTableManager get projectStatusUpdates =>
       $$ProjectStatusUpdatesTableTableManager(_db, _db.projectStatusUpdates);
+  $$CostEntriesTableTableManager get costEntries =>
+      $$CostEntriesTableTableManager(_db, _db.costEntries);
+  $$CostReceiptsTableTableManager get costReceipts =>
+      $$CostReceiptsTableTableManager(_db, _db.costReceipts);
 }
