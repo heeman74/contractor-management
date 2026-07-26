@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
-status: executing
-stopped_at: Completed 31-04-PLAN.md
-last_updated: "2026-07-26T05:17:28.268Z"
+status: verifying
+stopped_at: Completed 31-05-PLAN.md
+last_updated: "2026-07-26T05:37:21.257Z"
 last_activity: 2026-07-26
 progress:
   total_phases: 22
-  completed_phases: 13
+  completed_phases: 14
   total_plans: 76
-  completed_plans: 72
+  completed_plans: 73
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 
 Phase: 31 (actual-cost-capture) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-26
 
 ## Performance Metrics
@@ -51,6 +51,7 @@ Last activity: 2026-07-26
 | Phase 31 P02 | 15min | 3 tasks | 5 files |
 | Phase 31 P03 | 50min | 3 tasks | 13 files |
 | Phase 31 P04 | 35min | 3 tasks | 12 files |
+| Phase 31-actual-cost-capture P05 | 32min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -177,6 +178,9 @@ Last activity: 2026-07-26
 - [Phase 31]: 31-04: Mobile receipts follow Attachment/AttachmentUploadService (not TaskAttachmentDao, which has no registered push handler)
 - [Phase 31]: 31-04: CostEntrySyncHandler registered for outbound push only — not added to sync_engine.dart pullDelta entityTypes (cost data stays out of the company-wide /sync delta, Pitfall 2)
 - [Phase 31]: 31-04: watchByProject takes an explicit jobIds param since mobile Jobs table has no projectId FK to join through
+- [Phase 31-actual-cost-capture]: 31-05: financePermissionProvider is mobile's first fine-grained (finance.*) permission check, backed by GET /me/permissions — not derived from UserRole
+- [Phase 31-actual-cost-capture]: 31-05: FinanceRepository.fetchProjectRollup returns total + distinct jobIds (from its own response) to drive CostEntryDao.watchByProject locally — mobile Jobs has no projectId FK
+- [Phase 31-actual-cost-capture]: 31-05: Costs create action stays on job/trade-scope screens only; project detail shows a read-only rollup (no anchor-picker create path)
 
 ### Pending Todos
 
@@ -195,6 +199,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-26T05:17:28.258Z
-Stopped at: Completed 31-04-PLAN.md
+Last session: 2026-07-26T05:37:21.250Z
+Stopped at: Completed 31-05-PLAN.md
 Resume file: None

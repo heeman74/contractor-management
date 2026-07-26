@@ -59,7 +59,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 **Milestone Goal:** Give owners and project managers real profit visibility and AI-assisted financial management — every project's margin, budget, and quote grounded in actual cost data, invisible to everyone else.
 
 - [x] **Phase 30: Financial Schema Foundation and RBAC Audit** — Cost/labor-rate/budget schema, finance.* permission catalog (owner + project_manager default, admin explicitly excluded), audit of pre-existing money-adjacent surfaces (completed 2026-07-25)
-- [ ] **Phase 31: Actual Cost Capture** — Materials and subcontractor/other cost entries with receipt photos, scoped to job or trade scope
+- [x] **Phase 31: Actual Cost Capture** — Materials and subcontractor/other cost entries with receipt photos, scoped to job or trade scope (completed 2026-07-26)
 - [ ] **Phase 32: Labor Rates and Cost Rollup** — Effective-dated hourly cost rates, automatic labor cost derivation from time tracking, itemized cost view with category totals
 - [ ] **Phase 33: Profit Margin Tracking** — Revenue-minus-cost margin per job/trade scope and project-level rollup, with incomplete-data flagging
 - [ ] **Phase 34: Budgeting and Overrun Alerts** — Project/trade budgets, budget-vs-actual view, threshold alerts (80%/100%), quote-revision-driven budget adjustment
@@ -350,14 +350,14 @@ Plans:
   2. Owner/PM can record a subcontractor or other cost entry the same way, against a job or trade scope
   3. Owner/PM can attach a receipt photo to any cost entry
   4. A user without finance.* permission cannot view or create cost entries — attempting to do so returns a 403
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 - [x] 31-01-PLAN.md — Backend: cost-entry CRUD + category list + project rollup, migration 0034 (cost_receipts table + RLS), inline finance.* gating, backend E2E (Wave 1)
 - [x] 31-02-PLAN.md — Backend: receipt upload/list/delete + cost-receipts serve_router branch (RLS-scoped), receipt E2E (Wave 2)
 - [x] 31-03-PLAN.md — Web: finance feature module (API/hooks/components) + Costs sections on job/trade-scope/project detail, permission-gated, Playwright + Jest (Wave 3)
 - [x] 31-04-PLAN.md — Mobile: Drift v16 cost_entries/cost_receipts tables + DAOs, CostEntrySyncHandler (push), CostReceiptUploadService (retry/backoff), on-demand repository, unit tests (Wave 3)
-- [ ] 31-05-PLAN.md — Mobile: cost providers + AddCostSheet (camera/gallery receipt) + Costs sections on job/scope/project screens, phase E2E (Wave 4)
+- [x] 31-05-PLAN.md — Mobile: cost providers + AddCostSheet (camera/gallery receipt) + Costs sections on job/scope/project screens, phase E2E (Wave 4)
 
 ### Phase 32: Labor Rates and Cost Rollup
 **Goal**: Labor cost is derived automatically and accurately from tracked time, and Owner/PM can see a complete, itemized picture of what every job actually cost
@@ -462,7 +462,7 @@ Note: Phase 37 (AI Quote Planning) depends only on Phase 32 and may run in paral
 | 25. Per-Trade Billing | v3.0 | 3/5 | Complete    | 2026-03-26 |
 | 26. AI Daily Checklists and Monitoring Dashboard | v3.0 | 4/4 | Complete    | 2026-03-26 |
 | 30. Financial Schema Foundation and RBAC Audit | v4.0 | 4/4 | Complete    | 2026-07-25 |
-| 31. Actual Cost Capture | v4.0 | 4/5 | In Progress|  |
+| 31. Actual Cost Capture | v4.0 | 5/5 | Complete   | 2026-07-26 |
 | 32. Labor Rates and Cost Rollup | v4.0 | 0/? | Not started | - |
 | 33. Profit Margin Tracking | v4.0 | 0/? | Not started | - |
 | 34. Budgeting and Overrun Alerts | v4.0 | 0/? | Not started | - |
