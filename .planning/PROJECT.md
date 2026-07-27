@@ -50,7 +50,7 @@ AI eliminates the chaos of multi-trade coordination — GCs always know exactly 
 - [x] Per-trade quoting and invoicing — trade-specific quotes that aggregate to project level — Validated in Phase 25: Per-Trade Billing
 - [x] AI schedule adaptation — adjust plans based on actual progress, flag delays, suggest rescheduling — Validated in Phase 26: AI Daily Checklists and Monitoring Dashboard
 - [ ] Online-first architecture — AI requires connectivity, offline cache for field execution
-- [ ] Profit margin tracking — actual costs (labor, materials, subcontractor) vs revenue per project and per job (actual cost capture with receipts validated in Phase 31; labor derivation and margin math pending Phases 32–33)
+- [ ] Profit margin tracking — actual costs (labor, materials, subcontractor) vs revenue per project and per job (cost capture validated in Phase 31; labor rates + derived labor cost with itemized category breakdown validated in Phase 32: Labor Rates and Cost Rollup; margin math pending Phase 33)
 - [ ] Budgeting — project/trade budgets with spend tracking and overrun-risk alerts
 - [ ] AI profitability management — AI analyzes project financial health, flags margin erosion, suggests corrective actions
 - [ ] AI quote planning — AI builds labor + materials line items priced from company history
@@ -143,4 +143,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-26 — Phase 31 complete: actual cost capture across backend (cost entries + receipts, RLS, finance.* gating), web UI, and offline-first mobile (Drift v16, sync handler, receipt upload). Backend suite 640 green.*
+*Last updated: 2026-07-27 — Phase 32 complete: effective-dated labor rates (web Team page, finance.rates.manage), computed-on-read labor derivation from tracked time, and itemized category cost breakdown on job/scope/project surfaces across backend, web, and mobile. Backend suite 686 green.*
