@@ -18,6 +18,12 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.core.base_schemas import BaseResponseSchema
+from app.features.finance.margin_math import (
+    DocumentAmounts,
+    discount_for,
+    document_total,
+    tax_for,
+)
 
 # ---------------------------------------------------------------------------
 # Line item schemas
@@ -166,29 +172,18 @@ class InvoiceResponse(BaseResponseSchema):
         """
         obj = cls.model_validate(invoice)
 
-        # Subtotal
         subtotal = sum(
             (item.quantity * item.unit_price for item in obj.line_items),
             Decimal("0"),
         )
-
-        # Discount
-        if obj.discount_type == "percent":
-            discount_amount = (subtotal * obj.discount_value / Decimal("100")).quantize(
-                Decimal("0.01")
-            )
-        elif obj.discount_type == "fixed":
-            discount_amount = min(obj.discount_value, subtotal)
-        else:
-            discount_amount = Decimal("0")
-
-        # Tax on discounted subtotal
-        taxable = subtotal - discount_amount
-        tax_amount = (taxable * obj.tax_rate / Decimal("100")).quantize(Decimal("0.01"))
-        total = taxable + tax_amount
-
+        amounts = DocumentAmounts(
+            subtotal=subtotal,
+            discount_type=obj.discount_type,
+            discount_value=obj.discount_value,
+            tax_rate=obj.tax_rate,
+        )
         obj.subtotal = subtotal
-        obj.discount_amount = discount_amount
-        obj.tax_amount = tax_amount
-        obj.total = total
+        obj.discount_amount = discount_for(amounts)
+        obj.tax_amount = tax_for(amounts)
+        obj.total = document_total(amounts)
         return obj
