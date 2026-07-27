@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,9 @@ interface AddCostDialogProps {
   onSuccess?: () => void;
 }
 
+/** Reserved for derived labor (Phase 30 D-10) — never manually enterable. */
+const LABOR_CATEGORY_NAME = "labor";
+
 function todayIso(): string {
   return new Date().toISOString().split("T")[0];
 }
@@ -45,6 +48,14 @@ export function AddCostDialog({
   const { data: categories } = useCostCategories();
   const addCostEntry = useAddCostEntry();
   const uploadReceipt = useUploadReceipt();
+
+  const selectableCategories = useMemo(
+    () =>
+      (categories ?? []).filter(
+        (category) => category.name.toLowerCase() !== LABOR_CATEGORY_NAME
+      ),
+    [categories]
+  );
 
   const [amount, setAmount] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -160,7 +171,7 @@ export function AddCostDialog({
                   <SelectValue placeholder="Select category..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {categories?.map((category) => (
+                  {selectableCategories.map((category) => (
                     <SelectItem key={category.id} value={category.id}>
                       {category.name}
                     </SelectItem>

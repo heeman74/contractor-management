@@ -216,3 +216,273 @@ test("shows the empty state for a member with no rate", async ({ page }) => {
   await expect(page.getByText("Labor rate — Mike Torres")).toBeVisible();
   await expect(page.getByText("No rate set yet")).toBeVisible();
 });
+
+// ---------------------------------------------------------------------------
+// 32-04 — cost breakdown surfaces (COST-06, D-05, D-06, D-08)
+// ---------------------------------------------------------------------------
+
+const BREAKDOWN_JOB = {
+  id: "job-bd-1",
+  company_id: "co-1",
+  description: "Kitchen sink repair",
+  trade_type: "Plumbing",
+  status: "in_progress",
+  status_history: [],
+  priority: "medium",
+  client_id: null,
+  client_name: null,
+  contractor_id: null,
+  contractor_name: null,
+  purchase_order_number: null,
+  external_reference: null,
+  tags: [],
+  notes: null,
+  estimated_duration_minutes: null,
+  scheduled_completion_date: null,
+  gps_latitude: null,
+  gps_longitude: null,
+  gps_address: null,
+  version: 1,
+  created_at: "2026-07-01T00:00:00Z",
+  updated_at: "2026-07-01T00:00:00Z",
+};
+
+const BREAKDOWN_PROJECT = {
+  id: "proj-bd-1",
+  company_id: "co-1",
+  name: "Downtown Remodel",
+  description: null,
+  address: null,
+  client_id: null,
+  target_start_date: null,
+  target_end_date: null,
+  status: "active",
+  status_history: [],
+  version: 1,
+  created_at: "2026-07-25T00:00:00Z",
+  updated_at: "2026-07-25T00:00:00Z",
+  deleted_at: null,
+  trade_scopes: [],
+};
+
+const BREAKDOWN_SCOPE = {
+  id: "scope-bd-1",
+  project_id: BREAKDOWN_PROJECT.id,
+  trade_catalog_id: null,
+  trade_name: "Plumbing",
+  trade_color: "#2563eb",
+  contractor_id: null,
+  status: "in_progress",
+  version: 1,
+  created_at: "2026-07-25T00:00:00Z",
+  updated_at: "2026-07-25T00:00:00Z",
+};
+
+const PICKER_CATEGORIES = [
+  { id: "cat-labor", name: "Labor", is_system: true },
+  { id: "cat-materials", name: "Materials", is_system: true },
+  { id: "cat-sub", name: "Subcontractor", is_system: true },
+  { id: "cat-other", name: "Other", is_system: true },
+];
+
+const JOB_BREAKDOWN = {
+  categories: [{ category_id: "c1", category_name: "materials", total: "150.00" }],
+  labor: {
+    total: "240.00",
+    rated_seconds: 28800,
+    unrated_seconds: 45000,
+    basis: "unburdened",
+  },
+  labor_tracked_at_job_level: false,
+  grand_total: "390.00",
+};
+
+const SCOPE_BREAKDOWN = {
+  categories: [{ category_id: "c1", category_name: "materials", total: "150.00" }],
+  labor: null,
+  labor_tracked_at_job_level: true,
+  grand_total: "150.00",
+};
+
+async function mockJobBreakdownApi(page: Page, options: MockOptions) {
+  await page.context().addCookies([
+    { name: "access_token", value: "mock-token", domain: "localhost", path: "/" },
+  ]);
+
+  await page.route("**/api/auth/login", async (route: Route) =>
+    route.fulfill({
+      json: {
+        user_id: "u1",
+        company_id: "co-1",
+        email: "sarah@ace.com",
+        display_name: "Sarah Mitchell",
+        company_name: "Ace",
+        roles: ["admin"],
+      },
+    })
+  );
+
+  await page.route("**/api/proxy**", async (route: Route) => {
+    const req = route.request();
+    const path = new URL(req.url()).searchParams.get("path") ?? "";
+    const method = req.method();
+
+    if (method === "GET" && path.includes("/me/permissions"))
+      return route.fulfill({ json: { permissions: options.permissions } });
+    if (method === "GET" && path.includes("/cost-breakdown"))
+      return route.fulfill({ json: JOB_BREAKDOWN });
+    if (method === "GET" && path.includes("/cost-categories"))
+      return route.fulfill({ json: PICKER_CATEGORIES });
+    if (method === "GET" && path === `/api/v1/jobs/${BREAKDOWN_JOB.id}`)
+      return route.fulfill({ json: BREAKDOWN_JOB });
+    if (method === "GET" && path.startsWith("/api/v1/jobs?"))
+      return route.fulfill({ json: [BREAKDOWN_JOB] });
+    // Everything else the job page pulls (notes, time entries, quotes, ...).
+    return route.fulfill({ json: [] });
+  });
+}
+
+async function loginAndOpenJobDetail(page: Page) {
+  await page.goto("/login");
+  await page.getByLabel(/email/i).fill("sarah@ace.com");
+  await page.locator("#password").fill("password123");
+  await page.getByRole("button", { name: /sign in|log in/i }).click();
+  await page.waitForURL("http://localhost:3000/");
+  await page.getByRole("link", { name: "Jobs" }).click();
+  const jobRow = page.locator("tbody tr").first();
+  await expect(jobRow).toBeVisible();
+  await jobRow.click();
+  await page.waitForURL(`**/jobs/${BREAKDOWN_JOB.id}`);
+  await expect(
+    page.getByRole("heading", { name: BREAKDOWN_JOB.description })
+  ).toBeVisible();
+}
+
+async function mockTradeScopeBreakdownApi(page: Page, options: MockOptions) {
+  await page.context().addCookies([
+    { name: "access_token", value: "mock-token", domain: "localhost", path: "/" },
+  ]);
+
+  await page.route("**/api/auth/login", async (route: Route) =>
+    route.fulfill({
+      json: {
+        user_id: "u1",
+        company_id: "co-1",
+        email: "sarah@ace.com",
+        display_name: "Sarah Mitchell",
+        company_name: "Ace",
+        roles: ["admin"],
+      },
+    })
+  );
+
+  await page.route("**/api/proxy**", async (route: Route) => {
+    const req = route.request();
+    const path = new URL(req.url()).searchParams.get("path") ?? "";
+    const method = req.method();
+
+    if (method === "GET" && path.includes("/me/permissions"))
+      return route.fulfill({ json: { permissions: options.permissions } });
+    if (method === "GET" && path.endsWith("/projects/"))
+      return route.fulfill({ json: [BREAKDOWN_PROJECT] });
+    if (method === "GET" && path.includes("/assignments"))
+      return route.fulfill({ json: [] });
+    if (method === "GET" && path.includes(`/jobs/?project_id=${BREAKDOWN_PROJECT.id}`))
+      return route.fulfill({ json: [] });
+    if (method === "GET" && path.includes("/cost-breakdown"))
+      return route.fulfill({ json: SCOPE_BREAKDOWN });
+    if (method === "GET" && path.includes("/trade-scopes"))
+      return route.fulfill({ json: [BREAKDOWN_SCOPE] });
+    if (method === "GET" && path.includes("/tasks"))
+      return route.fulfill({ json: [] });
+    if (method === "GET" && path.includes(`/projects/${BREAKDOWN_PROJECT.id}/cost-entries`))
+      return route.fulfill({
+        json: { project_id: BREAKDOWN_PROJECT.id, total: "0", entries: [] },
+      });
+    if (method === "GET" && path.includes("/cost-categories"))
+      return route.fulfill({ json: PICKER_CATEGORIES });
+    if (method === "GET" && path.includes("/cost-entries"))
+      return route.fulfill({ json: [] });
+    return route.fulfill({ status: 404, json: { detail: `unmatched ${method} ${path}` } });
+  });
+}
+
+async function loginAndOpenTradeScope(page: Page) {
+  await page.goto("/login");
+  await page.getByLabel(/email/i).fill("sarah@ace.com");
+  await page.locator("#password").fill("password123");
+  await page.getByRole("button", { name: /sign in|log in/i }).click();
+  await page.waitForURL("http://localhost:3000/");
+  await page.getByRole("link", { name: "Projects" }).click();
+  await page.getByRole("button", { name: "Expand project" }).click();
+  await page.getByRole("treeitem", { name: /plumbing/i }).click();
+}
+
+test.describe("cost breakdown", () => {
+  test("shows category totals, labor amount, and grand total on job detail", async ({
+    page,
+  }) => {
+    await mockJobBreakdownApi(page, {
+      permissions: ["jobs.view", "finance.view", "finance.manage"],
+    });
+    await loginAndOpenJobDetail(page);
+
+    const breakdown = page.getByTestId("cost-breakdown");
+    await expect(breakdown).toBeVisible();
+    await expect(page.getByTestId("breakdown-labor-amount")).toContainText("$240.00");
+    await expect(breakdown.getByText("Materials")).toBeVisible();
+    await expect(breakdown.getByText("$150.00")).toBeVisible();
+    await expect(page.getByTestId("breakdown-grand-total")).toContainText("$390.00");
+  });
+
+  test("shows the hours-visible unrated badge", async ({ page }) => {
+    await mockJobBreakdownApi(page, {
+      permissions: ["jobs.view", "finance.view", "finance.manage"],
+    });
+    await loginAndOpenJobDetail(page);
+
+    await expect(page.getByTestId("breakdown-unrated-badge")).toHaveText(
+      "12.5 hrs unrated"
+    );
+  });
+
+  test("discloses unburdened labor in the info popover", async ({ page }) => {
+    await mockJobBreakdownApi(page, {
+      permissions: ["jobs.view", "finance.view", "finance.manage"],
+    });
+    await loginAndOpenJobDetail(page);
+
+    await page.getByRole("button", { name: "About labor cost" }).click();
+
+    await expect(page.getByText("Unburdened labor")).toBeVisible();
+    await expect(
+      page.getByText("Wage cost only — excludes payroll tax, insurance, overhead.")
+    ).toBeVisible();
+  });
+
+  test("shows Tracked at job level on a trade scope breakdown", async ({ page }) => {
+    await mockTradeScopeBreakdownApi(page, {
+      permissions: ["projects.view", "projects.edit", "finance.view", "finance.manage"],
+    });
+
+    await loginAndOpenTradeScope(page);
+
+    await expect(page.getByText("Tracked at job level")).toBeVisible();
+    await expect(page.getByTestId("breakdown-unrated-badge")).toHaveCount(0);
+  });
+
+  test("omits the Labor option from the add-cost category picker", async ({
+    page,
+  }) => {
+    await mockJobBreakdownApi(page, {
+      permissions: ["jobs.view", "finance.view", "finance.manage"],
+    });
+    await loginAndOpenJobDetail(page);
+
+    await page.getByTestId("add-cost-button").click();
+    await page.getByRole("combobox", { name: /category/i }).click();
+
+    await expect(page.getByRole("option", { name: "Materials" })).toBeVisible();
+    await expect(page.getByRole("option", { name: "Labor", exact: true })).toHaveCount(0);
+  });
+});

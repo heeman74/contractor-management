@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/format";
 import { useProjectCostRollup } from "../hooks";
+import { CostBreakdownSummary } from "./CostBreakdownSummary";
 import { CostEntryList } from "./CostEntryList";
 
 interface ProjectCostsCardProps {
@@ -31,9 +32,23 @@ export function ProjectCostsCard({ projectId }: ProjectCostsCardProps) {
             className="text-2xl font-semibold text-gray-900"
             data-testid="project-cost-total"
           >
-            {isLoading ? "—" : formatCurrency(rollup?.total ?? "0")}
+            {isLoading ? "—" : formatCurrency(rollup?.grandTotal ?? rollup?.total ?? "0")}
           </p>
         </div>
+        <CostBreakdownSummary
+          breakdown={
+            rollup
+              ? {
+                  categories: rollup.categories,
+                  labor: rollup.labor,
+                  laborTrackedAtJobLevel: false,
+                  grandTotal: rollup.grandTotal ?? rollup.total,
+                }
+              : null
+          }
+          variant="project"
+          isLoading={isLoading}
+        />
         <CostEntryList entries={rollup?.entries} emptyLabel="No costs recorded yet." />
       </CardContent>
     </Card>

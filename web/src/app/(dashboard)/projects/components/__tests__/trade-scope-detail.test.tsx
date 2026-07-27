@@ -17,6 +17,7 @@ jest.mock("@/lib/hooks/usePermissions", () => ({
 
 jest.mock("@/features/finance/hooks", () => ({
   useCostEntriesForTradeScope: () => ({ data: [] }),
+  useTradeScopeCostBreakdown: () => ({ data: null, isLoading: false, isError: false }),
   useCostCategories: () => ({ data: [] }),
   useAddCostEntry: () => ({ mutateAsync: jest.fn(), isPending: false }),
   useUploadReceipt: () => ({ mutateAsync: jest.fn(), isPending: false }),

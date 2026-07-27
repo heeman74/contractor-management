@@ -5,8 +5,9 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { usePermissions } from "@/lib/hooks/usePermissions";
-import { useCostEntriesForJob } from "@/features/finance/hooks";
+import { useCostEntriesForJob, useJobCostBreakdown } from "@/features/finance/hooks";
 import { AddCostDialog } from "@/features/finance/components/AddCostDialog";
+import { CostBreakdownSummary } from "@/features/finance/components/CostBreakdownSummary";
 import { CostEntryList } from "@/features/finance/components/CostEntryList";
 import { PageSkeleton } from "./_components/page-skeleton";
 import { JobNotesCard } from "./_components/job-notes-card";
@@ -35,6 +36,11 @@ export default function JobDetailPage({
   const [addCostOpen, setAddCostOpen] = useState(false);
   const { can } = usePermissions();
   const { data: costEntries } = useCostEntriesForJob(jobId);
+  const {
+    data: breakdown,
+    isLoading: breakdownLoading,
+    isError: breakdownError,
+  } = useJobCostBreakdown(jobId);
 
   if (job.jobLoading) return <PageSkeleton />;
 
@@ -151,7 +157,13 @@ export default function JobDetailPage({
                   </Button>
                 )}
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
+                <CostBreakdownSummary
+                  breakdown={breakdown}
+                  variant="job"
+                  isLoading={breakdownLoading}
+                  isError={breakdownError}
+                />
                 <CostEntryList entries={costEntries} />
               </CardContent>
             </Card>

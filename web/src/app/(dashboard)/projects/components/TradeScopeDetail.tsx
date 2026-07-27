@@ -23,8 +23,12 @@ import {
   deleteTask,
 } from "@/lib/api/projects";
 import { usePermissions } from "@/lib/hooks/usePermissions";
-import { useCostEntriesForTradeScope } from "@/features/finance/hooks";
+import {
+  useCostEntriesForTradeScope,
+  useTradeScopeCostBreakdown,
+} from "@/features/finance/hooks";
 import { AddCostDialog } from "@/features/finance/components/AddCostDialog";
+import { CostBreakdownSummary } from "@/features/finance/components/CostBreakdownSummary";
 import { CostEntryList } from "@/features/finance/components/CostEntryList";
 import type { TradeScopeResponse, TaskResponse } from "@/types/projects";
 
@@ -46,6 +50,11 @@ export function TradeScopeDetail({ scope, onSelectTask }: TradeScopeDetailProps)
   const [overrideMode, setOverrideMode] = useState(false);
   const { can } = usePermissions();
   const { data: costEntries } = useCostEntriesForTradeScope(scope.id);
+  const {
+    data: breakdown,
+    isLoading: breakdownLoading,
+    isError: breakdownError,
+  } = useTradeScopeCostBreakdown(scope.id);
   const [addCostOpen, setAddCostOpen] = useState(false);
 
   const completedCount = tasks?.filter((t) => t.status === "complete" || t.status === "approved").length ?? 0;
@@ -306,7 +315,15 @@ export function TradeScopeDetail({ scope, onSelectTask }: TradeScopeDetailProps)
               </Button>
             )}
           </div>
-          <CostEntryList entries={costEntries} />
+          <div className="space-y-4">
+            <CostBreakdownSummary
+              breakdown={breakdown}
+              variant="trade-scope"
+              isLoading={breakdownLoading}
+              isError={breakdownError}
+            />
+            <CostEntryList entries={costEntries} />
+          </div>
         </div>
       )}
 
