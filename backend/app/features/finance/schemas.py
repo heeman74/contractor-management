@@ -141,3 +141,30 @@ class BudgetCreate(BaseModel):
         if breakdown_total > self.total:
             raise ValueError("Category breakdown amounts cannot exceed the total budget")
         return self
+
+
+# ---------------------------------------------------------------------------
+# Labor rate schemas
+# ---------------------------------------------------------------------------
+
+
+class LaborRateCreate(BaseModel):
+    """Schema for appending an effective-dated hourly cost rate for a worker.
+
+    Append-only (D-01/D-02): there is no update or delete schema. Corrections are
+    made by adding a new row — backdate effective_from to fill in past work days,
+    or re-enter the same effective_from with the right amount (latest created_at wins).
+    Past, today, and future effective_from values are all valid.
+    """
+
+    user_id: uuid.UUID
+    hourly_cost: Decimal = Field(..., gt=0, decimal_places=2, lt=Decimal("100000"))
+    effective_from: date
+
+
+class LaborRateResponse(BaseResponseSchema):
+    """Response schema for one labor-rate row. hourly_cost auto-serializes as a string."""
+
+    user_id: uuid.UUID
+    hourly_cost: Decimal
+    effective_from: date

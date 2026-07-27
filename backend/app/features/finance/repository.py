@@ -15,6 +15,7 @@ explicitly (D-05: soft-deleted entries drop out of lists and rollups).
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
@@ -22,9 +23,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
 from app.core.base_repository import TenantScopedRepository
-from app.features.finance.models import CostCategory, CostEntry, CostReceipt
+from app.features.finance.models import CostCategory, CostEntry, CostReceipt, LaborRate
 from app.features.jobs.models import Job
 from app.features.projects.models import TradeScope
+from app.features.users.models import User
 
 
 class FinanceRepository(TenantScopedRepository[CostEntry]):
@@ -124,3 +126,57 @@ class FinanceRepository(TenantScopedRepository[CostEntry]):
         receipt = await self.get_receipt_or_404(receipt_id)
         receipt.deleted_at = datetime.now(UTC)
         await self.db.flush()
+
+
+class LaborRateRepository(TenantScopedRepository[LaborRate]):
+    """Append-only reads/writes over labor_rates (COST-04).
+
+    RLS injects the company_id filter, so ix_labor_rates_company_user_effective
+    (company_id, user_id, effective_from) serves every query here — no new index.
+    """
+
+    model = LaborRate
+
+    async def list_history_for_user(self, user_id: uuid.UUID) -> list[LaborRate]:
+        """Full rate history for one worker, newest effective_from first (display order)."""
+        result = await self.db.execute(
+            select(LaborRate)
+            .where(LaborRate.user_id == user_id, LaborRate.deleted_at.is_(None))
+            .order_by(LaborRate.effective_from.desc(), LaborRate.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    async def list_all_rates(self) -> list[LaborRate]:
+        """Every active rate row for the tenant, ascending — the sort order the
+        effective-dated resolver requires."""
+        result = await self.db.execute(
+            select(LaborRate)
+            .where(LaborRate.deleted_at.is_(None))
+            .order_by(LaborRate.user_id, LaborRate.effective_from, LaborRate.created_at)
+        )
+        return list(result.scalars().all())
+
+    async def list_rates_for_users(self, user_ids: Sequence[uuid.UUID]) -> list[LaborRate]:
+        """Active rate rows for the given workers, ascending (resolver sort order).
+
+        Returns [] for an empty user_ids to avoid an `IN ()` round trip.
+        """
+        if not user_ids:
+            return []
+        result = await self.db.execute(
+            select(LaborRate)
+            .where(LaborRate.user_id.in_(user_ids), LaborRate.deleted_at.is_(None))
+            .order_by(LaborRate.user_id, LaborRate.effective_from, LaborRate.created_at)
+        )
+        return list(result.scalars().all())
+
+    async def user_exists(self, user_id: uuid.UUID) -> bool:
+        """True when the id belongs to an active user in the current tenant (RLS-scoped).
+
+        labor_rates.user_id is a soft FK — without this check a typo'd UUID creates
+        an orphan rate that silently never matches any tracked time.
+        """
+        result = await self.db.execute(
+            select(User.id).where(User.id == user_id, User.deleted_at.is_(None)).limit(1)
+        )
+        return result.scalar_one_or_none() is not None
