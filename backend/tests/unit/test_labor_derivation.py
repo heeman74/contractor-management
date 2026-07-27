@@ -17,6 +17,7 @@ from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 import pytest
+
 from app.features.finance.labor_derivation import (
     LaborTotals,
     WorkSession,
