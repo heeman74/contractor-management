@@ -163,9 +163,7 @@ def test_cost_breakdown_serializes_decimals_as_json_strings():
     """grand_total and every CategoryTotal.total serialize as JSON strings."""
     breakdown = CostBreakdownResponse(
         categories=[
-            CategoryTotal(
-                category_id=uuid4(), category_name="materials", total=Decimal("1250.00")
-            )
+            CategoryTotal(category_id=uuid4(), category_name="materials", total=Decimal("1250.00"))
         ],
         labor=LaborCostSummary(total=Decimal("240.00"), rated_seconds=28800, unrated_seconds=0),
         grand_total=Decimal("1490.00"),
@@ -206,8 +204,8 @@ def test_project_rollup_validates_without_breakdown_fields():
 
 def test_project_rollup_json_keeps_total_and_entries():
     """model_dump(mode="json") still contains total (string) and entries (list)."""
-    dumped = ProjectCostRollupResponse(
-        project_id=uuid4(), total=Decimal("10.00")
-    ).model_dump(mode="json")
+    dumped = ProjectCostRollupResponse(project_id=uuid4(), total=Decimal("10.00")).model_dump(
+        mode="json"
+    )
     assert dumped["total"] == "10.00"
     assert dumped["entries"] == []

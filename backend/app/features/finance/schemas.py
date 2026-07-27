@@ -95,6 +95,48 @@ class CostEntryResponse(BaseResponseSchema):
     note: str | None = None
 
 
+# ---------------------------------------------------------------------------
+# Cost breakdown schemas (COST-06)
+# ---------------------------------------------------------------------------
+
+
+class CategoryTotal(BaseModel):
+    """One cost category's summed amount within a breakdown."""
+
+    category_id: uuid.UUID
+    category_name: str
+    total: Decimal
+
+
+class LaborCostSummary(BaseModel):
+    """Derived labor cost plus the honest accounting of time that could not be costed.
+
+    unrated_seconds is the D-05 contract: hours with no rate effective on the work
+    day are reported, never silently valued at $0. Phase 33 consumes this field as
+    its incomplete-data signal (MARG-03), so it stays machine-readable (seconds, int).
+    basis marks the v4.0 wage-only scope for downstream consumers (D-06).
+    """
+
+    total: Decimal
+    rated_seconds: int
+    unrated_seconds: int
+    basis: str = "unburdened"
+
+
+class CostBreakdownResponse(BaseModel):
+    """Itemized category totals plus derived labor for one job or trade scope.
+
+    labor is None on trade-scope breakdowns, where labor_tracked_at_job_level is
+    True instead (D-07/D-08: time tracking is job-anchored in v4.0, so a trade
+    scope has no labor figure — an honest note, never a $0 row).
+    """
+
+    categories: list[CategoryTotal] = Field(default_factory=list)
+    labor: LaborCostSummary | None = None
+    labor_tracked_at_job_level: bool = False
+    grand_total: Decimal
+
+
 class ProjectCostRollupResponse(BaseModel):
     """Response schema for a project's cost rollup (D-02/D-05).
 
@@ -104,6 +146,11 @@ class ProjectCostRollupResponse(BaseModel):
     project_id: uuid.UUID
     total: Decimal
     entries: list[CostEntryResponse] = Field(default_factory=list)
+    # Added in Phase 32 — additive only: mobile's fetchProjectRollup parses
+    # total/entries strictly and throws FormatException on shape changes.
+    categories: list[CategoryTotal] = Field(default_factory=list)
+    labor: LaborCostSummary | None = None
+    grand_total: Decimal | None = None
 
 
 # ---------------------------------------------------------------------------

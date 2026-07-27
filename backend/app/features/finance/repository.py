@@ -17,22 +17,93 @@ from __future__ import annotations
 import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime
+from decimal import Decimal
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, Select, func, select
 from sqlalchemy.orm import joinedload
 
 from app.core.base_repository import TenantScopedRepository
+from app.features.finance.labor_derivation import WorkSession
 from app.features.finance.models import CostCategory, CostEntry, CostReceipt, LaborRate
-from app.features.jobs.models import Job
+from app.features.jobs.models import Job, TimeEntry
 from app.features.projects.models import TradeScope
 from app.features.users.models import User
+
+# D-03: only clocked-out sessions with a final duration contribute labor cost;
+# active sessions never do.
+_COSTABLE_SESSION_STATUSES = ("completed", "adjusted")
+
+
+def _costable_sessions_query() -> Select[tuple[uuid.UUID, datetime, int]]:
+    """Column-only select of costable tracked time (Pitfall 3 predicates, stated once)."""
+    return select(
+        TimeEntry.contractor_id, TimeEntry.clocked_in_at, TimeEntry.duration_seconds
+    ).where(
+        TimeEntry.session_status.in_(_COSTABLE_SESSION_STATUSES),
+        TimeEntry.duration_seconds.is_not(None),
+        TimeEntry.deleted_at.is_(None),
+    )
+
+
+def _to_work_sessions(rows: Sequence[tuple[uuid.UUID, datetime, int]]) -> list[WorkSession]:
+    """Map column tuples to plain WorkSessions so the service never sees Row objects."""
+    return [
+        WorkSession(
+            contractor_id=contractor_id, clocked_in_at=clocked_in_at, duration_seconds=seconds
+        )
+        for contractor_id, clocked_in_at, seconds in rows
+    ]
 
 
 class FinanceRepository(TenantScopedRepository[CostEntry]):
     """Repository for CostEntry entities — eager-loads category by default."""
 
     model = CostEntry
+
+    async def completed_work_sessions_for_job(self, job_id: uuid.UUID) -> list[WorkSession]:
+        """Costable tracked time for a job, as plain WorkSessions.
+
+        Selects columns only (never whole ORM rows) — TimeEntry.job and
+        TimeEntry.contractor are lazy="raise" and the derivation needs neither.
+        """
+        result = await self.db.execute(_costable_sessions_query().where(TimeEntry.job_id == job_id))
+        return _to_work_sessions(result.tuples().all())
+
+    async def completed_work_sessions_for_project(self, project_id: uuid.UUID) -> list[WorkSession]:
+        """Costable tracked time for every job linked to a project (jobs.project_id, D-07)."""
+        result = await self.db.execute(
+            _costable_sessions_query()
+            .join(Job, TimeEntry.job_id == Job.id)
+            .where(Job.project_id == project_id)
+        )
+        return _to_work_sessions(result.tuples().all())
+
+    async def category_totals_for_job(
+        self, job_id: uuid.UUID
+    ) -> list[tuple[uuid.UUID, str, Decimal]]:
+        """Per-category cost-entry sums for a job, in one GROUP BY round trip."""
+        return await self._category_totals_where(CostEntry.job_id == job_id)
+
+    async def category_totals_for_trade_scope(
+        self, trade_scope_id: uuid.UUID
+    ) -> list[tuple[uuid.UUID, str, Decimal]]:
+        """Per-category cost-entry sums for a trade scope, in one GROUP BY round trip."""
+        return await self._category_totals_where(CostEntry.trade_scope_id == trade_scope_id)
+
+    async def _category_totals_where(
+        self, anchor_filter: ColumnElement[bool]
+    ) -> list[tuple[uuid.UUID, str, Decimal]]:
+        """Shared GROUP BY over non-soft-deleted cost entries for one anchor filter."""
+        result = await self.db.execute(
+            select(CostCategory.id, CostCategory.name, func.sum(CostEntry.amount))
+            .select_from(CostEntry)
+            .join(CostCategory, CostEntry.category_id == CostCategory.id)
+            .where(anchor_filter, CostEntry.deleted_at.is_(None))
+            .group_by(CostCategory.id, CostCategory.name)
+            .order_by(CostCategory.name)
+        )
+        return list(result.tuples().all())
 
     async def list_for_job(self, job_id: uuid.UUID) -> list[CostEntry]:
         """Return non-soft-deleted cost entries for a job, newest incurred_date first."""
