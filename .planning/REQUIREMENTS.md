@@ -25,9 +25,9 @@ Requirements for the Financial Intelligence milestone. Each maps to roadmap phas
 
 ### Margin & Reporting
 
-- [ ] **MARG-01**: Owner/PM can see profit margin (revenue − actual costs) per job/trade scope
+- [x] **MARG-01**: Owner/PM can see profit margin (revenue − actual costs) per job/trade scope
 - [ ] **MARG-02**: Owner/PM can see project-level margin rollup across trades
-- [ ] **MARG-03**: Margin views flag incomplete cost data (legacy jobs, missing rates) instead of showing misleading numbers
+- [x] **MARG-03**: Margin views flag incomplete cost data (legacy jobs, missing rates) instead of showing misleading numbers
 - [ ] **MARG-04**: Owner/PM can see margin + budget-vs-actual charts on the web financial dashboard
 
 ### AI Financial Intelligence
@@ -88,9 +88,9 @@ Which phases cover which requirements. Filled during roadmap creation.
 | BUDG-02 | Phase 34: Budgeting and Overrun Alerts | Pending |
 | BUDG-03 | Phase 34: Budgeting and Overrun Alerts | Pending |
 | BUDG-04 | Phase 34: Budgeting and Overrun Alerts | Pending |
-| MARG-01 | Phase 33: Profit Margin Tracking | Pending |
+| MARG-01 | Phase 33: Profit Margin Tracking | Complete |
 | MARG-02 | Phase 33: Profit Margin Tracking | Pending |
-| MARG-03 | Phase 33: Profit Margin Tracking | Pending |
+| MARG-03 | Phase 33: Profit Margin Tracking | Complete |
 | MARG-04 | Phase 35: Web Financial Dashboard | Pending |
 | FINAI-01 | Phase 36: AI Profitability Analysis | Pending |
 | FINAI-02 | Phase 36: AI Profitability Analysis | Pending |

@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
-status: verifying
-stopped_at: Phase 33 context gathered
-last_updated: "2026-07-27T16:13:39.851Z"
+status: executing
+stopped_at: Completed 33-01-PLAN.md
+last_updated: "2026-07-27T17:10:29.080Z"
 last_activity: 2026-07-27
 progress:
   total_phases: 22
   completed_phases: 15
-  total_plans: 81
-  completed_plans: 78
+  total_plans: 86
+  completed_plans: 79
 ---
 
 # Project State
@@ -20,13 +20,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-24)
 
 **Core value:** AI eliminates the chaos of multi-trade coordination — GCs always know where every trade stands, contractors always know what to do today, projects stay on track.
-**Current focus:** Phase 32 — labor-rates-and-cost-rollup
+**Current focus:** Phase 33 — profit-margin-tracking
 
 ## Current Position
 
-Phase: 33
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 33 (profit-margin-tracking) — EXECUTING
+Plan: 2 of 5
+Status: Ready to execute
 Last activity: 2026-07-27
 
 ## Performance Metrics
@@ -57,6 +57,7 @@ Last activity: 2026-07-27
 | Phase 32 P02 | 29min | 3 tasks | 7 files |
 | Phase 32 P04 | 45min | 2 tasks | 11 files |
 | Phase 32 P05 | 50min | 3 tasks | 10 files |
+| Phase 33 P01 | 7min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -200,6 +201,8 @@ Last activity: 2026-07-27
 - [Phase 32]: 32-05: Mobile breakdown data is online-fetched only, never persisted to Drift — labor requires server-side rate resolution and rate data never reaches the device
 - [Phase 32]: 32-05: costRollupTotalProvider refactored onto a shared _projectRollupFetchProvider (public signature unchanged) so the project total and breakdown share one network call
 - [Phase 32]: 32-05: Riverpod 3 Override type must be imported via flutter_riverpod/misc.dart show Override; widget-bearing test files import drift as show Value to avoid the Column name clash
+- [Phase 33]: 33-01: discount_for/tax_for keep default banker's-rounding quantize (no ROUND_HALF_UP) — bit-for-bit identical to shipped invoice/quote schema math so existing totals never shift
+- [Phase 33]: 33-01: ROUND_HALF_UP applies only in margin_percent_for (one-decimal margin percent); summarize_margin forces revenue_basis to none when revenue is absent (D-07 self-consistent shape)
 
 ### Pending Todos
 
@@ -218,6 +221,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-27T16:13:39.843Z
-Stopped at: Phase 33 context gathered
-Resume file: .planning/phases/33-profit-margin-tracking/33-CONTEXT.md
+Last session: 2026-07-27T17:10:29.074Z
+Stopped at: Completed 33-01-PLAN.md
+Resume file: None
