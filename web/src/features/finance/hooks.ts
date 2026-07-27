@@ -5,6 +5,8 @@ import {
   fetchCostEntriesForJob,
   fetchCostEntriesForTradeScope,
   fetchProjectCostRollup,
+  fetchJobCostBreakdown,
+  fetchTradeScopeCostBreakdown,
   fetchCostCategories,
   fetchReceipts,
   fetchLaborRateHistory,
@@ -40,6 +42,27 @@ export function useProjectCostRollup(projectId: string) {
     queryKey: ["cost-entries", "project-rollup", projectId],
     queryFn: () => fetchProjectCostRollup(projectId),
     enabled: !!projectId,
+  });
+}
+
+/**
+ * Breakdown queries live under the "cost-entries" prefix so every cost write
+ * (and rate append via useAddLaborRate) refreshes them through
+ * invalidateAllCostEntries.
+ */
+export function useJobCostBreakdown(jobId: string) {
+  return useQuery({
+    queryKey: ["cost-entries", "breakdown", "job", jobId],
+    queryFn: () => fetchJobCostBreakdown(jobId),
+    enabled: !!jobId,
+  });
+}
+
+export function useTradeScopeCostBreakdown(tradeScopeId: string) {
+  return useQuery({
+    queryKey: ["cost-entries", "breakdown", "trade-scope", tradeScopeId],
+    queryFn: () => fetchTradeScopeCostBreakdown(tradeScopeId),
+    enabled: !!tradeScopeId,
   });
 }
 

@@ -32,10 +32,38 @@ export interface CostEntry {
   updatedAt: string;
 }
 
+export interface CategoryTotal {
+  categoryId: string;
+  categoryName: string;
+  total: string;
+}
+
+/** Derived labor cost. unratedSeconds is the D-05 honesty contract — hours with no
+ *  effective rate are reported, never silently valued at $0. basis is always
+ *  "unburdened" in v4.0 (wage only, no payroll tax/insurance/overhead). */
+export interface LaborCostSummary {
+  total: string;
+  ratedSeconds: number;
+  unratedSeconds: number;
+  basis: string;
+}
+
+export interface CostBreakdown {
+  categories: CategoryTotal[];
+  labor: LaborCostSummary | null;
+  laborTrackedAtJobLevel: boolean;
+  grandTotal: string;
+}
+
 export interface ProjectCostRollup {
   projectId: string;
+  /** Cost-entry sum only — unchanged pre-Phase-32 meaning. */
   total: string;
   entries: CostEntry[];
+  categories: CategoryTotal[];
+  labor: LaborCostSummary | null;
+  /** All-in total including derived labor; null when the backend omits it. */
+  grandTotal: string | null;
 }
 
 /** Exactly one of jobId / tradeScopeId must be set (anchor XOR, enforced backend-side). */

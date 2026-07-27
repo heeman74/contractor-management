@@ -10,6 +10,9 @@ import type {
   CostEntryPatch,
   LaborRate,
   LaborRateInput,
+  CategoryTotal,
+  LaborCostSummary,
+  CostBreakdown,
 } from "./types";
 
 // --- Raw API response shapes (snake_case, mirroring backend schemas) ---
@@ -42,10 +45,33 @@ interface CostReceiptApiResponse {
   created_at: string;
 }
 
+interface CategoryTotalApiResponse {
+  category_id: string;
+  category_name: string;
+  total: string;
+}
+
+interface LaborCostSummaryApiResponse {
+  total: string;
+  rated_seconds: number;
+  unrated_seconds: number;
+  basis: string;
+}
+
+interface CostBreakdownApiResponse {
+  categories: CategoryTotalApiResponse[];
+  labor: LaborCostSummaryApiResponse | null;
+  labor_tracked_at_job_level: boolean;
+  grand_total: string;
+}
+
 interface ProjectCostRollupApiResponse {
   project_id: string;
   total: string;
   entries: CostEntryApiResponse[];
+  categories?: CategoryTotalApiResponse[];
+  labor?: LaborCostSummaryApiResponse | null;
+  grand_total?: string;
 }
 
 // --- snake_case -> camelCase mappers ---
@@ -80,6 +106,35 @@ function mapCostReceipt(raw: CostReceiptApiResponse): CostReceipt {
   };
 }
 
+function mapCategoryTotal(raw: CategoryTotalApiResponse): CategoryTotal {
+  return {
+    categoryId: raw.category_id,
+    categoryName: raw.category_name,
+    total: raw.total,
+  };
+}
+
+function mapLaborSummary(
+  raw: LaborCostSummaryApiResponse | null | undefined
+): LaborCostSummary | null {
+  if (!raw) return null;
+  return {
+    total: raw.total,
+    ratedSeconds: raw.rated_seconds,
+    unratedSeconds: raw.unrated_seconds,
+    basis: raw.basis,
+  };
+}
+
+function mapCostBreakdown(raw: CostBreakdownApiResponse): CostBreakdown {
+  return {
+    categories: raw.categories.map(mapCategoryTotal),
+    labor: mapLaborSummary(raw.labor),
+    laborTrackedAtJobLevel: raw.labor_tracked_at_job_level,
+    grandTotal: raw.grand_total,
+  };
+}
+
 // --- Cost entries ---
 
 export async function fetchCostEntriesForJob(jobId: string): Promise<CostEntry[]> {
@@ -108,7 +163,28 @@ export async function fetchProjectCostRollup(
     projectId: raw.project_id,
     total: raw.total,
     entries: raw.entries.map(mapCostEntry),
+    categories: (raw.categories ?? []).map(mapCategoryTotal),
+    labor: mapLaborSummary(raw.labor),
+    grandTotal: raw.grand_total ?? null,
   };
+}
+
+// --- Cost breakdowns (derived category + labor totals) ---
+
+export async function fetchJobCostBreakdown(jobId: string): Promise<CostBreakdown> {
+  const raw = await apiGet<CostBreakdownApiResponse>(
+    `/api/v1/jobs/${jobId}/cost-breakdown`
+  );
+  return mapCostBreakdown(raw);
+}
+
+export async function fetchTradeScopeCostBreakdown(
+  tradeScopeId: string
+): Promise<CostBreakdown> {
+  const raw = await apiGet<CostBreakdownApiResponse>(
+    `/api/v1/trade-scopes/${tradeScopeId}/cost-breakdown`
+  );
+  return mapCostBreakdown(raw);
 }
 
 export async function fetchCostCategories(): Promise<CostCategory[]> {
