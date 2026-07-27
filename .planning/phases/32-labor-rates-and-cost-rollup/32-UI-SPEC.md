@@ -1,7 +1,8 @@
 ---
 phase: 32
 slug: labor-rates-and-cost-rollup
-status: draft
+status: approved
+reviewed_at: 2026-07-26
 shadcn_initialized: true
 preset: base-nova (detected via existing web/components.json — not re-run this phase)
 created: 2026-07-26
