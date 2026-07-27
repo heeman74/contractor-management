@@ -1,4 +1,5 @@
 import '../../../core/network/dio_client.dart';
+import 'cost_breakdown.dart';
 import 'cost_entry_dao.dart';
 import 'cost_receipt_dao.dart';
 
@@ -103,7 +104,39 @@ class FinanceRepository {
         .toSet()
         .toList();
 
-    return ProjectCostRollupFetch(total: total, jobIds: jobIds);
+    return ProjectCostRollupFetch(
+      total: total,
+      jobIds: jobIds,
+      breakdown: CostBreakdown.tryFromJson(data),
+    );
+  }
+
+  /// Fetch the itemized cost breakdown for a job.
+  ///
+  /// GET /jobs/{jobId}/cost-breakdown
+  ///
+  /// Not persisted to Drift: labor cost requires server-side rate resolution
+  /// and labor rate data never reaches the device (rates are the most
+  /// sensitive data in the system). Callers show the cached CostListSection
+  /// immediately and layer this on when it lands.
+  Future<CostBreakdown> fetchJobCostBreakdown(String jobId) =>
+      _fetchCostBreakdown('/jobs/$jobId/cost-breakdown');
+
+  /// Fetch the itemized cost breakdown for a trade scope.
+  ///
+  /// GET /trade-scopes/{tradeScopeId}/cost-breakdown
+  Future<CostBreakdown> fetchTradeScopeCostBreakdown(String tradeScopeId) =>
+      _fetchCostBreakdown('/trade-scopes/$tradeScopeId/cost-breakdown');
+
+  Future<CostBreakdown> _fetchCostBreakdown(String path) async {
+    final response = await _dioClient.instance.get<dynamic>(path);
+    final data = response.data;
+    if (data is! Map<String, dynamic>) {
+      throw const FormatException(
+        'Expected a Map response from the cost-breakdown endpoint',
+      );
+    }
+    return CostBreakdown.fromJson(data);
   }
 
   /// Fetch the tenant's cost categories lookup (materials/subcontractor/
@@ -164,11 +197,20 @@ class FinanceRepository {
 /// callers to build the `jobIds` argument for
 /// [CostEntryDao.watchByProject]).
 class ProjectCostRollupFetch {
-  const ProjectCostRollupFetch({required this.total, required this.jobIds});
+  const ProjectCostRollupFetch({
+    required this.total,
+    required this.jobIds,
+    this.breakdown,
+  });
 
   /// Decimal-as-string backend-computed total (e.g. "1250.00").
   final String total;
 
   /// Distinct job IDs anchoring at least one entry in this project's rollup.
   final List<String> jobIds;
+
+  /// Itemized breakdown from the Phase 32 additive rollup fields — null when
+  /// the backend predates them (tolerant parse; the strict total/entries
+  /// contract above is unchanged).
+  final CostBreakdown? breakdown;
 }
