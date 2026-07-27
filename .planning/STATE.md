@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
-status: verifying
-stopped_at: Phase 32 context gathered
-last_updated: "2026-07-27T03:18:19.585Z"
-last_activity: 2026-07-26
+status: executing
+stopped_at: Completed 32-01-PLAN.md
+last_updated: "2026-07-27T04:32:52.821Z"
+last_activity: 2026-07-27
 progress:
   total_phases: 22
   completed_phases: 14
-  total_plans: 76
-  completed_plans: 73
+  total_plans: 81
+  completed_plans: 74
 ---
 
 # Project State
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-24)
 
 **Core value:** AI eliminates the chaos of multi-trade coordination — GCs always know where every trade stands, contractors always know what to do today, projects stay on track.
-**Current focus:** Phase 31 — actual-cost-capture
+**Current focus:** Phase 32 — labor-rates-and-cost-rollup
 
 ## Current Position
 
-Phase: 32
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-07-26
+Phase: 32 (labor-rates-and-cost-rollup) — EXECUTING
+Plan: 2 of 5
+Status: Ready to execute
+Last activity: 2026-07-27
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Last activity: 2026-07-26
 | Phase 31 P03 | 50min | 3 tasks | 13 files |
 | Phase 31 P04 | 35min | 3 tasks | 12 files |
 | Phase 31-actual-cost-capture P05 | 32min | 3 tasks | 9 files |
+| Phase 32 P01 | 21min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -181,6 +182,9 @@ Last activity: 2026-07-26
 - [Phase 31-actual-cost-capture]: 31-05: financePermissionProvider is mobile's first fine-grained (finance.*) permission check, backed by GET /me/permissions — not derived from UserRole
 - [Phase 31-actual-cost-capture]: 31-05: FinanceRepository.fetchProjectRollup returns total + distinct jobIds (from its own response) to drive CostEntryDao.watchByProject locally — mobile Jobs has no projectId FK
 - [Phase 31-actual-cost-capture]: 31-05: Costs create action stays on job/trade-scope screens only; project detail shows a read-only rollup (no anchor-picker create path)
+- [Phase 32-01]: PEP 695 type parameters (def f[RateT: EffectiveDatedRate]) instead of module-level TypeVar — ruff UP047 enforces modern generic syntax
+- [Phase 32-01]: Labor rate read AND write both gated finance.rates.manage — zero-exception posture (admin and worker 403 even on their own rate)
+- [Phase 32-01]: UTC work-day convention (clocked_in_at.astimezone(UTC).date()); users.timezone deliberately unused so labor figures stay reproducible
 
 ### Pending Todos
 
@@ -199,6 +203,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-27T03:18:19.579Z
-Stopped at: Phase 32 context gathered
-Resume file: .planning/phases/32-labor-rates-and-cost-rollup/32-CONTEXT.md
+Last session: 2026-07-27T04:32:52.815Z
+Stopped at: Completed 32-01-PLAN.md
+Resume file: None
