@@ -12,6 +12,9 @@ billing_milestones/router.py exactly:
   DELETE /cost-entries/{entry_id}                 — finance.manage (soft delete)
   GET    /projects/{project_id}/cost-entries      — finance.view (rollup)
   GET    /cost-categories/                        — finance.view
+  POST   /labor-rates/                            — finance.rates.manage (append-only)
+  GET    /labor-rates/?user_id=X                  — finance.rates.manage (full history)
+  GET    /labor-rates/                            — finance.rates.manage (current rate per worker)
 
 Receipt upload/serve endpoints land in Plan 31-02.
 """
@@ -35,9 +38,11 @@ from app.features.finance.schemas import (
     CostEntryResponse,
     CostEntryUpdate,
     CostReceiptResponse,
+    LaborRateCreate,
+    LaborRateResponse,
     ProjectCostRollupResponse,
 )
-from app.features.finance.service import FinanceService
+from app.features.finance.service import FinanceService, LaborRateService
 
 router = APIRouter(tags=["finance"])
 
@@ -154,6 +159,41 @@ async def list_cost_categories(
     svc = FinanceService(db)
     categories = await svc.list_categories()
     return [CostCategoryResponse.model_validate(category) for category in categories]
+
+
+# ---------------------------------------------------------------------------
+# Labor rate endpoints (COST-04) — append-only: no PATCH, no DELETE
+# ---------------------------------------------------------------------------
+
+
+@router.post("/labor-rates/", response_model=LaborRateResponse, status_code=status.HTTP_201_CREATED)
+async def create_labor_rate(
+    data: LaborRateCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> LaborRateResponse:
+    """Append an effective-dated hourly cost rate for a worker (COST-04)."""
+    await require_permission("finance.rates.manage")(current_user, db)
+    svc = LaborRateService(db)
+    rate = await svc.create_labor_rate(data, company_id=current_user.company_id)
+    return LaborRateResponse.model_validate(rate)
+
+
+@router.get("/labor-rates/", response_model=list[LaborRateResponse])
+async def list_labor_rates(
+    user_id: uuid.UUID | None = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> list[LaborRateResponse]:
+    """With user_id: that worker's full history. Without: one current rate per worker."""
+    await require_permission("finance.rates.manage")(current_user, db)
+    svc = LaborRateService(db)
+    rates = (
+        await svc.list_rate_history(user_id)
+        if user_id is not None
+        else await svc.list_current_rates()
+    )
+    return [LaborRateResponse.model_validate(rate) for rate in rates]
 
 
 # ---------------------------------------------------------------------------
