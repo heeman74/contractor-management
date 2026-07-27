@@ -8,7 +8,7 @@ import {
   isBreakdownEmpty,
   orderedCategories,
 } from "../components/CostBreakdownSummary";
-import type { CategoryTotal, CostBreakdown } from "../types";
+import type { CategoryTotal, CostBreakdown, MarginSummary } from "../types";
 
 const MATERIALS: CategoryTotal = {
   categoryId: "c-materials",
@@ -34,6 +34,25 @@ function breakdownWith(overrides: Partial<CostBreakdown> = {}): CostBreakdown {
 
 function laborWith(unratedSeconds: number) {
   return { total: "240.00", ratedSeconds: 28800, unratedSeconds, basis: "unburdened" };
+}
+
+const INVOICED_MARGIN: MarginSummary = {
+  revenue: "20000.00",
+  revenueBasis: "invoiced",
+  margin: "4200.00",
+  marginPercent: "21.0",
+  incomplete: false,
+  incompleteReasons: [],
+};
+
+function emptyBreakdownWith(margin: MarginSummary | null): CostBreakdown {
+  return {
+    categories: [],
+    labor: { total: "0.00", ratedSeconds: 0, unratedSeconds: 0, basis: "unburdened" },
+    laborTrackedAtJobLevel: false,
+    grandTotal: "0",
+    margin,
+  };
 }
 
 describe("CostBreakdownSummary", () => {
@@ -160,6 +179,64 @@ describe("CostBreakdownSummary", () => {
     expect(container.firstChild).toBeNull();
   });
 
+  test.each(["job", "trade-scope", "project"] as const)(
+    "renders the margin section after the grand total on the %s variant",
+    (variant) => {
+      render(
+        <CostBreakdownSummary
+          breakdown={breakdownWith({ margin: INVOICED_MARGIN })}
+          variant={variant}
+        />
+      );
+
+      const root = screen.getByTestId("cost-breakdown");
+      const grandTotal = screen.getByTestId("breakdown-grand-total");
+      const marginSection = screen.getByTestId("margin-section");
+      expect(root).toContainElement(marginSection);
+      expect(
+        grandTotal.compareDocumentPosition(marginSection) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
+    }
+  );
+
+  test("renders no margin section when margin is null", () => {
+    render(<CostBreakdownSummary breakdown={breakdownWith()} variant="job" />);
+
+    expect(screen.queryByTestId("margin-section")).not.toBeInTheDocument();
+  });
+
+  test("renders no margin section while loading without a breakdown", () => {
+    render(<CostBreakdownSummary breakdown={undefined} variant="job" isLoading />);
+
+    expect(screen.queryByTestId("margin-section")).not.toBeInTheDocument();
+  });
+
+  test("state 12: empty breakdown with revenue renders the Total row and margin section", () => {
+    render(
+      <CostBreakdownSummary
+        breakdown={emptyBreakdownWith({
+          ...INVOICED_MARGIN,
+          incomplete: true,
+          incompleteReasons: ["no_cost_data"],
+        })}
+        variant="job"
+      />
+    );
+
+    expect(screen.getByTestId("breakdown-grand-total")).toBeInTheDocument();
+    expect(screen.getByTestId("margin-section")).toBeInTheDocument();
+    expect(screen.getByTestId("margin-incomplete-chip")).toBeInTheDocument();
+  });
+
+  test("state 11: empty breakdown with null margin still renders nothing", () => {
+    const { container } = render(
+      <CostBreakdownSummary breakdown={emptyBreakdownWith(null)} variant="job" />
+    );
+
+    expect(container.firstChild).toBeNull();
+  });
+
   test("never renders a second Labor row for a labor-named category", () => {
     render(
       <CostBreakdownSummary
@@ -235,6 +312,25 @@ describe("isBreakdownEmpty", () => {
         grandTotal: "0.00",
         margin: null,
       })
+    ).toBe(true);
+  });
+
+  test("state 12: a present margin with revenue makes an otherwise-empty breakdown non-empty", () => {
+    expect(isBreakdownEmpty(emptyBreakdownWith(INVOICED_MARGIN))).toBe(false);
+  });
+
+  test("state 11: a basis-none margin leaves an empty breakdown empty", () => {
+    expect(
+      isBreakdownEmpty(
+        emptyBreakdownWith({
+          revenue: null,
+          revenueBasis: "none",
+          margin: null,
+          marginPercent: null,
+          incomplete: false,
+          incompleteReasons: [],
+        })
+      )
     ).toBe(true);
   });
 });
