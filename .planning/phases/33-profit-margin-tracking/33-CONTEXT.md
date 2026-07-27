@@ -83,6 +83,15 @@ cost capture or labor derivation.
   net out correctly — one integration test must assert this explicitly.
   Project-level incomplete flag = any contributing job/scope is flagged.
 
+### Post-research decisions (added 2026-07-27 after 33-RESEARCH.md open questions)
+- **D-13:** **Pre-tax revenue.** Margin revenue = subtotal − discount, excluding
+  tax — applied identically to the invoice and quote legs. Consistent with every
+  existing revenue aggregation in the codebase (reports stay comparable).
+- **D-14:** **Project-level quotes count as fallback only.** A project-anchored
+  approved quote (job_id and trade_scope_id both NULL) contributes to project
+  revenue only when the entire project has zero invoices — the D-01
+  invoices-win-outright rule applied at project level.
+
 ### Claude's Discretion
 - Exact API shape (extend the Phase 32 breakdown endpoints/response vs sibling
   margin endpoints); Decimal-as-string serialization per convention.
