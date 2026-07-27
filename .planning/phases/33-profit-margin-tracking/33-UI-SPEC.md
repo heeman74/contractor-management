@@ -1,7 +1,8 @@
 ---
 phase: 33
 slug: profit-margin-tracking
-status: draft
+status: approved
+reviewed_at: 2026-07-27
 shadcn_initialized: true
 preset: base-nova (detected via existing web/components.json — not re-run this phase)
 created: 2026-07-27
