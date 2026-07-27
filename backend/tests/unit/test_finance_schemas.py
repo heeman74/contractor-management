@@ -17,7 +17,11 @@ from pydantic import ValidationError
 from app.features.finance.schemas import (
     BudgetCategoryBreakdownCreate,
     BudgetCreate,
+    CategoryTotal,
+    CostBreakdownResponse,
     CostEntryCreate,
+    LaborCostSummary,
+    ProjectCostRollupResponse,
 )
 
 # ---------------------------------------------------------------------------
@@ -148,3 +152,62 @@ def test_budget_accepts_breakdown_within_total():
         ],
     )
     assert len(budget.category_breakdowns) == 2
+
+
+# ---------------------------------------------------------------------------
+# CostBreakdownResponse / LaborCostSummary — Phase 32 breakdown schemas
+# ---------------------------------------------------------------------------
+
+
+def test_cost_breakdown_serializes_decimals_as_json_strings():
+    """grand_total and every CategoryTotal.total serialize as JSON strings."""
+    breakdown = CostBreakdownResponse(
+        categories=[
+            CategoryTotal(
+                category_id=uuid4(), category_name="materials", total=Decimal("1250.00")
+            )
+        ],
+        labor=LaborCostSummary(total=Decimal("240.00"), rated_seconds=28800, unrated_seconds=0),
+        grand_total=Decimal("1490.00"),
+    )
+    dumped = breakdown.model_dump(mode="json")
+    assert dumped["grand_total"] == "1490.00"
+    assert dumped["categories"][0]["total"] == "1250.00"
+    assert dumped["labor"]["total"] == "240.00"
+
+
+def test_cost_breakdown_labor_basis_defaults_to_unburdened():
+    """LaborCostSummary defaults basis to "unburdened" without being passed."""
+    summary = LaborCostSummary(total=Decimal("0.00"), rated_seconds=0, unrated_seconds=0)
+    assert summary.basis == "unburdened"
+    assert summary.model_dump(mode="json")["basis"] == "unburdened"
+
+
+def test_cost_breakdown_defaults_labor_none_and_job_level_false():
+    """CostBreakdownResponse defaults labor to None, labor_tracked_at_job_level to False."""
+    breakdown = CostBreakdownResponse(grand_total=Decimal("0.00"))
+    assert breakdown.labor is None
+    assert breakdown.labor_tracked_at_job_level is False
+    assert breakdown.categories == []
+
+
+# ---------------------------------------------------------------------------
+# ProjectCostRollupResponse — Phase 32 additive extension stays backward compatible
+# ---------------------------------------------------------------------------
+
+
+def test_project_rollup_validates_without_breakdown_fields():
+    """ProjectCostRollupResponse still validates with no Phase 32 field supplied."""
+    rollup = ProjectCostRollupResponse(project_id=uuid4(), total=Decimal("10.00"))
+    assert rollup.categories == []
+    assert rollup.labor is None
+    assert rollup.grand_total is None
+
+
+def test_project_rollup_json_keeps_total_and_entries():
+    """model_dump(mode="json") still contains total (string) and entries (list)."""
+    dumped = ProjectCostRollupResponse(
+        project_id=uuid4(), total=Decimal("10.00")
+    ).model_dump(mode="json")
+    assert dumped["total"] == "10.00"
+    assert dumped["entries"] == []
