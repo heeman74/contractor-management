@@ -4,6 +4,7 @@ slug: profit-margin-tracking
 status: planned
 nyquist_compliant: true
 wave_0_complete: false
+per_task_map_complete: true
 created: 2026-07-27
 ---
 
@@ -43,16 +44,21 @@ created: 2026-07-27
 
 ## Phase Requirements → Test Map
 
-| Req ID | Behavior | Test Type | Automated Command | File Exists? |
-|--------|----------|-----------|-------------------|-------------|
-| MARG-01 | Job/scope margin: invoiced revenue, quote fallback + basis label, $·% math, finance.view 403 for admin/worker | integration | `.venv/bin/pytest tests/test_phase_33_e2e.py -k "anchor or basis or forbidden" -x` | ❌ Wave 0 |
-| MARG-01 | Pure margin math (percent rounding, zero revenue, negative margin, document_total discount/tax) | unit | `.venv/bin/pytest tests/unit -k margin -x` | ❌ Wave 0 |
-| MARG-02 | Project rollup: same-traversal netting (mixed job/scope anchors), per-anchor D-01 resolution, mixed basis | integration | `.venv/bin/pytest tests/test_phase_33_e2e.py -k traversal -x` | ❌ Wave 0 |
-| MARG-03 | Incomplete flag: unrated-labor trigger, legacy zero-cost keystone, D-07 no-revenue not flagged, project any-anchor propagation | integration | `.venv/bin/pytest tests/test_phase_33_e2e.py -k "incomplete or legacy" -x` | ❌ Wave 0 |
-| MARG-01/03 (web) | Margin row states (invoiced/quoted/flagged/no-revenue) in CostBreakdownSummary contexts | component (Jest) | `cd web && npm test -- cost-breakdown` | ✅ extend existing |
-| MARG-01/02 (web) | Margin visible on job/scope/project pages for owner, absent without finance.view | E2E (Playwright) | `cd web && npx playwright test tests/phase-33-margin.spec.ts --project=chromium` | ❌ Wave 0 |
-| MARG-01/03 (mobile) | Tolerant `MarginSummary.tryFromJson` parse (present/absent/malformed) | unit | `cd mobile && flutter test test/features/finance/` | ❌ Wave 0 |
-| MARG-01/02/03 (mobile) | Margin row + chip + captions render on job/scope/project screens; gated by financePermissionProvider | E2E (widget) | `cd mobile && flutter test test/e2e/phase_33_margin_e2e_test.dart` | ❌ Wave 0 |
+Per-task map completed at plan time (2026-07-27). "Created by" is the task that writes the test
+file; "Green by" is the task whose verify command must exit 0.
+
+| Req ID | Behavior | Test Type | Automated Command | Created by | Green by |
+|--------|----------|-----------|-------------------|-----------|----------|
+| MARG-01 | Pure margin math (percent rounding, zero revenue, negative margin, document_total discount/tax, D-01 resolution) | unit | `cd backend && .venv/bin/pytest tests/unit -k margin -x` | 33-01 T1 | 33-01 T2 |
+| MARG-01 | Invoice/quote response totals unchanged after the shared-helper extraction | integration | `cd backend && .venv/bin/pytest tests/test_phase_16_e2e.py tests/test_phase_25_e2e.py tests/unit/test_quote_validation.py tests/test_project_quotes_e2e.py -q` | existing | 33-01 T3 |
+| MARG-01 | Job/scope margin: invoiced revenue, latest-approved-quote fallback + basis, pre-tax revenue, $·% math, finance.view 403 for admin | integration | `cd backend && .venv/bin/pytest tests/test_phase_33_e2e.py -k "anchor or basis or forbidden" -x` | 33-02 T1 | 33-03 T1 |
+| MARG-02 | Project rollup: same-traversal netting (mixed job/scope anchors), per-anchor D-01 resolution, D-14 project-level quote | integration | `cd backend && .venv/bin/pytest tests/test_phase_33_e2e.py -k traversal -x` | 33-02 T1 | 33-03 T2 |
+| MARG-03 | Incomplete flag: unrated-labor trigger, legacy zero-cost keystone, D-07 no-revenue not flagged, project any-anchor propagation | integration | `cd backend && .venv/bin/pytest tests/test_phase_33_e2e.py -k "incomplete or legacy" -x` | 33-02 T1 | 33-03 T1 (anchor) · 33-03 T2 (project) |
+| MARG-01/02/03 | No regression in the shipped cost/labor surfaces after the WorkSession + rate-fetch refactors | integration | `cd backend && .venv/bin/pytest tests/test_phase_31_e2e.py tests/test_phase_32_e2e.py tests/unit -q` | existing | 33-02 T2 |
+| MARG-01/03 (web) | Margin section states 1-12 (invoiced/quoted/mixed/flagged/negative/percent-absent/no-revenue/absent) + `isBreakdownEmpty` state-12 contract | component (Jest) | `cd web && npm test -- cost-breakdown margin-summary` | 33-04 T2 | 33-04 T2 |
+| MARG-01/02 (web) | Margin visible on job/scope/project pages for owner, absent without finance.view, keystone legacy job still rendered | E2E (Playwright) | `cd web && npx playwright test tests/phase-33-margin.spec.ts --project=chromium` | 33-04 T3 | 33-04 T3 |
+| MARG-01/03 (mobile) | Tolerant `MarginSummary.tryFromJson` parse (present/absent/malformed/wrong types) | unit | `cd mobile && flutter test test/features/finance/margin_summary_parse_test.dart` | 33-05 T1 | 33-05 T1 |
+| MARG-01/02/03 (mobile) | Margin rows + chip + captions + negative color render on job/scope/project variants; gated by financePermissionProvider | E2E (widget) | `cd mobile && flutter test test/e2e/phase_33_margin_e2e_test.dart` | 33-05 T3 | 33-05 T3 |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -60,12 +66,19 @@ created: 2026-07-27
 
 ## Wave 0 Requirements
 
-- [ ] `backend/tests/test_phase_33_e2e.py` — MARG-01/02/03 integration (reuse seed helpers from `test_phase_25_e2e.py` / `test_phase_32_e2e.py`, `seed_two_tenants`, tenant clients)
-- [ ] `backend/tests/unit/test_margin_math.py` — pure-math unit tests (DB-free, mirrors labor_derivation unit tests)
-- [ ] `web/tests/phase-33-margin.spec.ts` — Playwright (login through UI then SPA-navigate — direct `page.goto` leaves permissions disabled, STATE.md Phase 32-04 lesson)
-- [ ] `mobile/test/features/finance/margin_summary_parse_test.dart` — parser units
-- [ ] `mobile/test/e2e/phase_33_margin_e2e_test.dart` — widget E2E (MockDio at Dio level, ProviderScope overrides; Riverpod 3 `Override` via `flutter_riverpod/misc.dart`, STATE.md 32-05 lesson)
+Every missing test file is created by a named task BEFORE the code it validates is written
+(no task in this phase has a `<verify>` that points at a non-existent file):
+
+- [ ] `backend/tests/unit/test_margin_math.py` — **33-01 Task 1** (RED before margin_math.py exists)
+- [ ] `backend/tests/test_phase_33_e2e.py` — **33-02 Task 1** (RED; green in 33-03; reuses `seed_two_tenants`, tenant clients, and the phase-32 seed helpers)
+- [ ] `web/src/features/finance/__tests__/margin-summary-section.test.tsx` — **33-04 Task 2** (written alongside the component, TDD task)
+- [ ] `web/tests/phase-33-margin.spec.ts` — **33-04 Task 3** (login through UI then SPA-navigate — direct `page.goto` leaves permissions disabled, STATE.md 32-04 lesson)
+- [ ] `mobile/test/features/finance/margin_summary_parse_test.dart` — **33-05 Task 1** (parser units, TDD task)
+- [ ] `mobile/test/e2e/phase_33_margin_e2e_test.dart` — **33-05 Task 3** (MockDio at Dio level, ProviderScope overrides; Riverpod 3 `Override` via `flutter_riverpod/misc.dart`, STATE.md 32-05 lesson)
 - Framework install: none — all harnesses already configured and in use.
+
+Sampling continuity check: no plan has 3 consecutive tasks without an automated verify —
+every task in 33-01…33-05 carries a runnable `<automated>` command.
 
 ---
 
@@ -77,11 +90,11 @@ None — all verification items automatable per CLAUDE.md UAT-automation rules (
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 30s
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 30s
 - [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** planner-completed 2026-07-27 (per-task map assigned)
