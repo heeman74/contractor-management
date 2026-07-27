@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 32-02-PLAN.md
-last_updated: "2026-07-27T05:04:46.382Z"
+stopped_at: Completed 32-04-PLAN.md
+last_updated: "2026-07-27T15:41:19.497Z"
 last_activity: 2026-07-27
 progress:
   total_phases: 22
   completed_phases: 14
   total_plans: 81
-  completed_plans: 76
+  completed_plans: 77
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 32 (labor-rates-and-cost-rollup) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
 Last activity: 2026-07-27
 
@@ -55,6 +55,7 @@ Last activity: 2026-07-27
 | Phase 32 P01 | 21min | 3 tasks | 7 files |
 | Phase 32 P03 | 10min | 2 tasks | 7 files |
 | Phase 32 P02 | 29min | 3 tasks | 7 files |
+| Phase 32 P04 | 45min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -193,6 +194,8 @@ Last activity: 2026-07-27
 - [Phase 32]: LABOR_CATEGORY_NAME single-sourced in labor_derivation.py — repository/service both import it (repository cannot import from service without a cycle)
 - [Phase 32]: Legacy labor-category cost entries fold into the derived labor row on jobs/projects; on trade scopes (labor=None) they stay as an ordinary category row so no money hides
 - [Phase 32]: ProjectCostRollup frozen dataclass replaces tuple return from rollup_for_project; labor field carries the folded total so legacy manual labor counts exactly once
+- [Phase 32-04]: Playwright job-detail tests log in through the UI then SPA-navigate via the Jobs list row — Redux isAuthenticated is set only by the login page, so direct page.goto leaves usePermissions disabled and finance-gated cards never render
+- [Phase 32-04]: orderedCategories filters the reserved labor name so legacy labor-categorized API rows can never render a second Labor row; labor renders only from breakdown.labor
 
 ### Pending Todos
 
@@ -211,6 +214,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-27T05:04:46.375Z
-Stopped at: Completed 32-02-PLAN.md
+Last session: 2026-07-27T15:41:19.490Z
+Stopped at: Completed 32-04-PLAN.md
 Resume file: None
