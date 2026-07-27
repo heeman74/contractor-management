@@ -367,12 +367,12 @@ Plans:
   1. Owner/PM can set a worker's hourly cost rate with an effective date, and previously effective rates remain preserved and visible in history
   2. The system automatically computes labor cost for tracked time by multiplying hours worked by the rate that was effective on the day the work happened — a later rate change does not retroactively rewrite past labor cost
   3. Owner/PM can view itemized costs per job, per trade scope, and per project, broken out by category (labor/materials/subcontractor/other) with totals
-**Plans:** 1/5 plans executed
+**Plans:** 2/5 plans executed
 
 Plans:
 - [x] 32-01-PLAN.md — Backend: pure effective-dated rate resolution module + append-only labor-rate endpoints gated finance.rates.manage (COST-04/05, Wave 1)
 - [ ] 32-02-PLAN.md — Backend: two-query labor derivation, job/trade-scope cost-breakdown endpoints, additive rollup extension, reserved labor-category guard (COST-05/06, Wave 2)
-- [ ] 32-03-PLAN.md — Web: Team page Cost Rate column + RateHistoryDialog with full effective-dated history (COST-04, Wave 2)
+- [x] 32-03-PLAN.md — Web: Team page Cost Rate column + RateHistoryDialog with full effective-dated history (COST-04, Wave 2)
 - [ ] 32-04-PLAN.md — Web: shared CostBreakdownSummary on job/trade-scope/project Costs surfaces + Labor removed from the AddCost picker (COST-06, Wave 3)
 - [ ] 32-05-PLAN.md — Mobile: CostBreakdown model/providers/widget on all three Costs screens + phase E2E suite (COST-06, Wave 3)
 
@@ -470,7 +470,7 @@ Note: Phase 37 (AI Quote Planning) depends only on Phase 32 and may run in paral
 | 26. AI Daily Checklists and Monitoring Dashboard | v3.0 | 4/4 | Complete    | 2026-03-26 |
 | 30. Financial Schema Foundation and RBAC Audit | v4.0 | 4/4 | Complete    | 2026-07-25 |
 | 31. Actual Cost Capture | v4.0 | 5/5 | Complete    | 2026-07-26 |
-| 32. Labor Rates and Cost Rollup | v4.0 | 1/5 | In Progress|  |
+| 32. Labor Rates and Cost Rollup | v4.0 | 2/5 | In Progress|  |
 | 33. Profit Margin Tracking | v4.0 | 0/? | Not started | - |
 | 34. Budgeting and Overrun Alerts | v4.0 | 0/? | Not started | - |
 | 35. Web Financial Dashboard | v4.0 | 0/? | Not started | - |

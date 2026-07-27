@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 32-01-PLAN.md
-last_updated: "2026-07-27T04:32:52.821Z"
+stopped_at: Completed 32-03-PLAN.md
+last_updated: "2026-07-27T04:45:34.445Z"
 last_activity: 2026-07-27
 progress:
   total_phases: 22
   completed_phases: 14
   total_plans: 81
-  completed_plans: 74
+  completed_plans: 75
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 32 (labor-rates-and-cost-rollup) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
 Last activity: 2026-07-27
 
@@ -53,6 +53,7 @@ Last activity: 2026-07-27
 | Phase 31 P04 | 35min | 3 tasks | 12 files |
 | Phase 31-actual-cost-capture P05 | 32min | 3 tasks | 9 files |
 | Phase 32 P01 | 21min | 3 tasks | 7 files |
+| Phase 32 P03 | 10min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -185,6 +186,9 @@ Last activity: 2026-07-27
 - [Phase 32-01]: PEP 695 type parameters (def f[RateT: EffectiveDatedRate]) instead of module-level TypeVar — ruff UP047 enforces modern generic syntax
 - [Phase 32-01]: Labor rate read AND write both gated finance.rates.manage — zero-exception posture (admin and worker 403 even on their own rate)
 - [Phase 32-01]: UTC work-day convention (clocked_in_at.astimezone(UTC).date()); users.timezone deliberately unused so labor figures stay reproducible
+- [Phase 32-labor-rates-and-cost-rollup]: 32-03: Rate dates render as Mon D, YYYY via string-splitting formatter (no Date()) so date-only ISO strings never shift a day across timezones
+- [Phase 32-labor-rates-and-cost-rollup]: 32-03: RateHistoryDialog form resets on close via onOpenChange wrapper, not useEffect — react-hooks/set-state-in-effect forbids reset-on-open effects under --max-warnings 0
+- [Phase 32-labor-rates-and-cost-rollup]: 32-03: useAddLaborRate invalidates the labor-rates prefix plus cost-entries so Team column and derived labor breakdowns both refresh after an append
 
 ### Pending Todos
 
@@ -203,6 +207,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-27T04:32:52.815Z
-Stopped at: Completed 32-01-PLAN.md
+Last session: 2026-07-27T04:45:12.838Z
+Stopped at: Completed 32-03-PLAN.md
 Resume file: None
