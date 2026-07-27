@@ -24,7 +24,7 @@ from sqlalchemy import ColumnElement, Select, func, select
 from sqlalchemy.orm import joinedload
 
 from app.core.base_repository import TenantScopedRepository
-from app.features.finance.labor_derivation import WorkSession
+from app.features.finance.labor_derivation import LABOR_CATEGORY_NAME, WorkSession
 from app.features.finance.models import CostCategory, CostEntry, CostReceipt, LaborRate
 from app.features.jobs.models import Job, TimeEntry
 from app.features.projects.models import TradeScope
@@ -165,6 +165,19 @@ class FinanceRepository(TenantScopedRepository[CostEntry]):
         entry = await self.get_entry_or_404(entry_id)
         entry.deleted_at = datetime.now(UTC)
         await self.db.flush()
+
+    async def is_reserved_labor_category(self, category_id: uuid.UUID) -> bool:
+        """True when the id is this tenant's protected system `labor` category."""
+        result = await self.db.execute(
+            select(CostCategory.id)
+            .where(
+                CostCategory.id == category_id,
+                CostCategory.name == LABOR_CATEGORY_NAME,
+                CostCategory.is_system.is_(True),
+            )
+            .limit(1)
+        )
+        return result.scalar_one_or_none() is not None
 
     async def list_categories(self) -> list[CostCategory]:
         """Return the current tenant's cost categories, alphabetically."""

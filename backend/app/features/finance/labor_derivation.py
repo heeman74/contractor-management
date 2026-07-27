@@ -25,6 +25,10 @@ SECONDS_PER_HOUR = Decimal("3600")
 CENTS = Decimal("0.01")
 ZERO_MONEY = Decimal("0.00")
 
+# Phase 30 D-10: the reserved system category that derived labor cost targets.
+# Single home for the name — repository and service import it, never re-literal it.
+LABOR_CATEGORY_NAME = "labor"
+
 
 class EffectiveDatedRate(Protocol):
     """Anything carrying an effective date, a creation timestamp, and an hourly cost.

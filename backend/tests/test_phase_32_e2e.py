@@ -38,6 +38,12 @@ _TIME_ENTRY_SEED_SQL = (
     ":duration_seconds, :session_status, :deleted_at)"
 )
 
+_COST_ENTRY_SEED_SQL = (
+    "INSERT INTO cost_entries (company_id, job_id, category_id, amount, incurred_date) "
+    "VALUES (CAST(:company_id AS uuid), CAST(:job_id AS uuid), "
+    "CAST(:category_id AS uuid), :amount, :incurred_date)"
+)
+
 
 def _token(company_id: str, roles: list[str]) -> str:
     """Mint an access token for a synthetic user with the given roles."""
@@ -189,6 +195,25 @@ async def _job_breakdown(client: AsyncClient, headers: dict, job_id: str) -> dic
     resp = await client.get(f"/api/v1/jobs/{job_id}/cost-breakdown", headers=headers)
     assert resp.status_code == 200, resp.text
     return resp.json()
+
+
+async def _seed_cost_entry_directly(
+    company_id: str, job_id: str, category_id: str, amount: str
+) -> None:
+    """Insert a cost entry via SQL, bypassing the service-layer labor-category guard."""
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        await session.execute(
+            text(_COST_ENTRY_SEED_SQL),
+            {
+                "company_id": company_id,
+                "job_id": job_id,
+                "category_id": category_id,
+                "amount": amount,
+                "incurred_date": date(2026, 6, 1),
+            },
+        )
+        await session.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -715,3 +740,117 @@ async def test_breakdown_empty_job_returns_zero_totals(
     assert body["labor"]["total"] == "0.00"
     assert body["labor"]["unrated_seconds"] == 0
     assert body["grand_total"] == "0.00"
+
+
+# ---------------------------------------------------------------------------
+# Pitfall 1: reserved labor category guard on manual cost entries
+# ---------------------------------------------------------------------------
+
+_LABOR_GUARD_DETAIL = "Labor cost is derived from tracked time."
+
+
+@pytest.mark.asyncio
+async def test_labor_category_rejected_on_cost_entry_create(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """A manual cost entry targeting the reserved labor category is a 422."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    job_id = await _create_job(tenant_a_client)
+    labor_id = await _category_id(company_id, "labor")
+    headers = _pm_headers(company_id)
+
+    resp = await async_client.post(
+        "/api/v1/cost-entries/",
+        headers=headers,
+        json=_cost_entry_payload(labor_id, job_id=job_id),
+    )
+    assert resp.status_code == 422, resp.text
+    assert resp.json()["detail"] == _LABOR_GUARD_DETAIL
+
+
+@pytest.mark.asyncio
+async def test_labor_category_rejected_on_cost_entry_update(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """PATCHing an existing entry over to the labor category is also a 422."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    job_id = await _create_job(tenant_a_client)
+    materials_id = await _category_id(company_id, "materials")
+    labor_id = await _category_id(company_id, "labor")
+    headers = _pm_headers(company_id)
+
+    entry = await _post_cost_entry(
+        async_client, headers, _cost_entry_payload(materials_id, job_id=job_id)
+    )
+
+    resp = await async_client.patch(
+        f"/api/v1/cost-entries/{entry['id']}",
+        headers=headers,
+        json={"category_id": labor_id},
+    )
+    assert resp.status_code == 422, resp.text
+    assert resp.json()["detail"] == _LABOR_GUARD_DETAIL
+
+
+@pytest.mark.asyncio
+async def test_labor_category_update_without_category_still_succeeds(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """A PATCH that does not touch category_id passes the guard's None early-return."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    job_id = await _create_job(tenant_a_client)
+    materials_id = await _category_id(company_id, "materials")
+    headers = _pm_headers(company_id)
+
+    entry = await _post_cost_entry(
+        async_client, headers, _cost_entry_payload(materials_id, job_id=job_id)
+    )
+
+    resp = await async_client.patch(
+        f"/api/v1/cost-entries/{entry['id']}",
+        headers=headers,
+        json={"amount": "175.00"},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["amount"] == "175.00"
+
+
+@pytest.mark.asyncio
+async def test_labor_category_legacy_entry_folds_into_labor_row(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """A pre-guard labor-categorized entry folds into the single labor row, counted once."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    worker_id = await _create_user(tenant_a_client, "worker-labor-legacy@tenant-a.com")
+    job_id = await _create_job(tenant_a_client)
+    labor_id = await _category_id(company_id, "labor")
+    headers = _pm_headers(company_id)
+
+    await _post_rate(async_client, headers, worker_id, "30.00", date(2026, 1, 1))
+    await _seed_time_entry(
+        company_id, job_id, worker_id, datetime(2026, 6, 10, 15, 0, tzinfo=UTC), 28800
+    )
+    await _seed_cost_entry_directly(company_id, job_id, labor_id, "100.00")
+
+    body = await _job_breakdown(async_client, headers, job_id)
+    assert all(row["category_name"] != "labor" for row in body["categories"])
+    assert body["labor"]["total"] == "340.00"
+    assert body["grand_total"] == "340.00"
+
+
+@pytest.mark.asyncio
+async def test_labor_category_still_listed_in_cost_categories(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """GET /cost-categories/ keeps the labor category — pickers filter client-side."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    headers = _pm_headers(company_id)
+
+    resp = await async_client.get("/api/v1/cost-categories/", headers=headers)
+    assert resp.status_code == 200, resp.text
+    assert "labor" in {category["name"] for category in resp.json()}

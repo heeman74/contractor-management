@@ -22,6 +22,7 @@ from fastapi import HTTPException, status
 from app.core.base_service import TenantScopedService
 from app.features.finance.labor_derivation import (
     CENTS,
+    LABOR_CATEGORY_NAME,
     ZERO_MONEY,
     LaborTotals,
     WorkSession,
@@ -39,7 +40,7 @@ from app.features.finance.schemas import (
     LaborRateCreate,
 )
 
-_LABOR_CATEGORY_NAME = "labor"  # Phase 30 D-10 reserved category — derived labor's target
+_MANUAL_LABOR_DETAIL = "Labor cost is derived from tracked time."
 
 
 def _group_rates_by_user(rates: Iterable[LaborRate]) -> dict[uuid.UUID, list[LaborRate]]:
@@ -77,7 +78,7 @@ def _build_breakdown(
     labor_total = labor.total if labor is not None else ZERO_MONEY
     categories: list[CategoryTotal] = []
     for category_id, category_name, total in category_rows:
-        if labor is not None and category_name == _LABOR_CATEGORY_NAME:
+        if labor is not None and category_name == LABOR_CATEGORY_NAME:
             labor_total += total
             continue
         categories.append(
@@ -125,8 +126,24 @@ class FinanceService(TenantScopedService[CostEntry]):
     repository_class = FinanceRepository
     repository: FinanceRepository
 
+    async def _reject_reserved_labor_category(self, category_id: uuid.UUID | None) -> None:
+        """422 when a manual cost entry targets the reserved labor category.
+
+        Labor is computed from tracked time x effective rate (COST-05); a manual
+        labor entry would appear in both the category totals and the derived labor
+        row (RESEARCH Pitfall 1 double-count).
+        """
+        if category_id is None:
+            return
+        if await self.repository.is_reserved_labor_category(category_id):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=_MANUAL_LABOR_DETAIL,
+            )
+
     async def create_cost_entry(self, data: CostEntryCreate, company_id: uuid.UUID) -> CostEntry:
         """Create a cost entry anchored to a job XOR a trade scope (XOR enforced by schema)."""
+        await self._reject_reserved_labor_category(data.category_id)
         entry = CostEntry(
             company_id=company_id,
             job_id=data.job_id,
@@ -209,6 +226,7 @@ class FinanceService(TenantScopedService[CostEntry]):
 
     async def update_cost_entry(self, entry_id: uuid.UUID, data: CostEntryUpdate) -> CostEntry:
         """Update a cost entry's amount/category/date/vendor/note (anchor is immutable)."""
+        await self._reject_reserved_labor_category(data.category_id)
         entry = await self.repository.get_entry_or_404(entry_id)
         updates = data.model_dump(exclude_unset=True)
         for field, value in updates.items():
