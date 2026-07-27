@@ -8,6 +8,7 @@ import '../../../../core/routing/route_names.dart';
 import '../../../../features/auth/domain/auth_state.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
 import '../../../../features/finance/presentation/providers/cost_providers.dart';
+import '../../../../features/finance/presentation/widgets/cost_breakdown_summary.dart';
 import '../../../../features/finance/presentation/widgets/cost_entry_card.dart';
 import '../../../../shared/models/user_role.dart';
 import '../providers/project_providers.dart';
@@ -210,6 +211,7 @@ class _ProjectCostRollupSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final totalAsync = ref.watch(costRollupTotalProvider(projectId));
+    final breakdownAsync = ref.watch(projectCostBreakdownProvider(projectId));
     final entriesAsync = ref.watch(costRollupForProjectProvider(projectId));
     final entries = entriesAsync.maybeWhen(
       data: (value) => value,
@@ -251,6 +253,12 @@ class _ProjectCostRollupSection extends ConsumerWidget {
               ),
             ],
           ),
+        ),
+        CostBreakdownSummary(
+          breakdown: breakdownAsync.value,
+          variant: CostBreakdownVariant.project,
+          isLoading: breakdownAsync.isLoading,
+          isUnavailable: breakdownAsync.hasError,
         ),
         const Divider(indent: 16, endIndent: 16),
         if (entries.isEmpty)

@@ -8,6 +8,7 @@ import '../../../../core/routing/route_names.dart';
 import '../../../../features/auth/domain/auth_state.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
 import '../../../../features/finance/presentation/providers/cost_providers.dart';
+import '../../../../features/finance/presentation/widgets/cost_breakdown_summary.dart';
 import '../../../../features/finance/presentation/widgets/cost_list_section.dart';
 import '../../../../features/invoices/presentation/providers/invoice_providers.dart';
 import '../../../../features/quotes/domain/quote_entity.dart';
@@ -279,6 +280,7 @@ class _DetailsTabState extends ConsumerState<_DetailsTab> {
       data: (entries) => entries,
       orElse: () => const <CostEntry>[],
     );
+    final breakdownAsync = ref.watch(jobCostBreakdownProvider(job.id));
 
     // "Generate Invoice" is shown when: admin, job is complete/invoiced, and no invoice yet
     final canGenerateInvoice = isAdmin &&
@@ -495,7 +497,19 @@ class _DetailsTabState extends ConsumerState<_DetailsTab> {
         if (financePermission.canView) ...[
           const SizedBox(height: 12),
           Card(
-            child: CostListSection(entries: costEntries, jobId: job.id),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CostBreakdownSummary(
+                  breakdown: breakdownAsync.value,
+                  variant: CostBreakdownVariant.job,
+                  isLoading: breakdownAsync.isLoading,
+                  isUnavailable: breakdownAsync.hasError,
+                ),
+                CostListSection(entries: costEntries, jobId: job.id),
+              ],
+            ),
           ),
         ],
       ],

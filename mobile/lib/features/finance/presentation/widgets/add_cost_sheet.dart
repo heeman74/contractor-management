@@ -10,6 +10,22 @@ import '../../../jobs/presentation/widgets/add_note_bottom_sheet.dart'
     show compressPhoto;
 import '../providers/cost_providers.dart';
 
+/// Reserved for derived labor cost (Phase 30 D-10) — never manually entered,
+/// so it is filtered out of the category picker.
+const _laborCategoryName = 'labor';
+
+/// Categories a user may pick manually — everything except the reserved
+/// labor category, whose 422 backend guard can then never be triggered
+/// from the UI.
+List<Map<String, dynamic>> _selectableCategories(
+  List<Map<String, dynamic>> categories,
+) {
+  return categories.where((category) {
+    final name = category['name'];
+    return name is! String || name.toLowerCase() != _laborCategoryName;
+  }).toList();
+}
+
 /// Modal bottom sheet for adding an offline cost entry with optional
 /// camera/gallery receipt capture.
 ///
@@ -148,7 +164,7 @@ class _AddCostSheetState extends ConsumerState<AddCostSheet> {
                   border: OutlineInputBorder(),
                   isDense: true,
                 ),
-                items: categories
+                items: _selectableCategories(categories)
                     .map((category) => DropdownMenuItem<String>(
                           value: category['id'] as String?,
                           child: Text(category['name'] as String? ?? ''),

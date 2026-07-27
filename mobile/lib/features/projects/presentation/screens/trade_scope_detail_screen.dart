@@ -7,7 +7,9 @@ import '../../../../core/database/app_database.dart'
 import '../../../../core/routing/route_names.dart';
 import '../../../../features/auth/domain/auth_state.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
+import '../../../../features/finance/data/cost_breakdown.dart';
 import '../../../../features/finance/presentation/providers/cost_providers.dart';
+import '../../../../features/finance/presentation/widgets/cost_breakdown_summary.dart';
 import '../../../../features/finance/presentation/widgets/cost_list_section.dart';
 import '../../../../shared/models/user_role.dart';
 import '../providers/project_providers.dart';
@@ -42,6 +44,8 @@ class TradeScopeDetailScreen extends ConsumerWidget {
     final authState = ref.watch(authNotifierProvider);
     final financePermission = ref.watch(financePermissionProvider);
     final costEntriesAsync = ref.watch(costEntriesForTradeScopeProvider(scopeId));
+    final costBreakdownAsync =
+        ref.watch(tradeScopeCostBreakdownProvider(scopeId));
 
     final scopeName = _resolveScopeName(scopesAsync);
     final isGcOrAdmin = authState is AuthAuthenticated &&
@@ -86,6 +90,7 @@ class TradeScopeDetailScreen extends ConsumerWidget {
               data: (entries) => entries,
               orElse: () => const [],
             ),
+            costBreakdown: costBreakdownAsync,
             onTaskTap: (taskId) =>
                 context.push(RouteNames.taskDetailPath(taskId)),
             onPunchItemTap: (item) =>
@@ -139,6 +144,7 @@ class _TaskList extends StatelessWidget {
     required this.isGcOrAdmin,
     required this.canViewFinance,
     required this.costEntries,
+    required this.costBreakdown,
     required this.onTaskTap,
     required this.onPunchItemTap,
   });
@@ -150,6 +156,7 @@ class _TaskList extends StatelessWidget {
   final bool isGcOrAdmin;
   final bool canViewFinance;
   final List<CostEntry> costEntries;
+  final AsyncValue<CostBreakdown> costBreakdown;
   final void Function(String taskId) onTaskTap;
   final void Function(PunchListItem item) onPunchItemTap;
 
@@ -203,8 +210,15 @@ class _TaskList extends StatelessWidget {
           ),
 
         // Costs section — finance.view only (D-06)
-        if (canViewFinance)
+        if (canViewFinance) ...[
+          CostBreakdownSummary(
+            breakdown: costBreakdown.value,
+            variant: CostBreakdownVariant.tradeScope,
+            isLoading: costBreakdown.isLoading,
+            isUnavailable: costBreakdown.hasError,
+          ),
           CostListSection(entries: costEntries, tradeScopeId: scopeId),
+        ],
       ],
     );
   }

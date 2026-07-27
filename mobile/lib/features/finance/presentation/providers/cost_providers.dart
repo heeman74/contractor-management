@@ -11,6 +11,7 @@ import '../../../../core/di/service_locator.dart';
 import '../../../../core/network/dio_client.dart';
 import '../../../../features/auth/domain/auth_state.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
+import '../../data/cost_breakdown.dart';
 import '../../data/finance_repository.dart';
 
 /// Effective permission keys for the current user, from GET /me/permissions
@@ -199,15 +200,16 @@ final costRollupForProjectProvider = StreamProvider.autoDispose
   return dao.watchByProject(authState.companyId, projectId, jobIds: jobIds);
 });
 
-/// The authoritative backend-computed total for a project's cost rollup
-/// (Pitfall 5 — never locally-summed).
+/// The single GET /projects/{id}/cost-entries fetch backing both the rollup
+/// total and the project breakdown — one network call, two consumers
+/// ([costRollupTotalProvider] and [projectCostBreakdownProvider]).
 ///
 /// Triggers [FinanceRepository.fetchProjectRollup], which upserts entries
 /// into Drift and reports the job IDs found — written to
 /// [_projectJobIdsProvider] so [costRollupForProjectProvider] picks up
-/// job-anchored entries on the next rebuild.
-final costRollupTotalProvider =
-    FutureProvider.autoDispose.family<String?, String>((ref, projectId) async {
+/// job-anchored entries on the next rebuild. Null when unauthenticated.
+final _projectRollupFetchProvider = FutureProvider.autoDispose
+    .family<ProjectCostRollupFetch?, String>((ref, projectId) async {
   final authState = ref.read(authNotifierProvider);
   if (authState is! AuthAuthenticated) return null;
 
@@ -215,7 +217,50 @@ final costRollupTotalProvider =
   final result =
       await repository.fetchProjectRollup(authState.companyId, projectId);
   ref.read(_projectJobIdsProvider(projectId).notifier).state = result.jobIds;
-  return result.total;
+  return result;
+});
+
+/// The authoritative backend-computed total for a project's cost rollup
+/// (Pitfall 5 — never locally-summed). Derived from
+/// [_projectRollupFetchProvider] — no extra network call.
+final costRollupTotalProvider =
+    FutureProvider.autoDispose.family<String?, String>((ref, projectId) async {
+  final fetch = await ref.watch(_projectRollupFetchProvider(projectId).future);
+  return fetch?.total;
+});
+
+/// Itemized breakdown for the project Costs surface, from the same rollup
+/// fetch as [costRollupTotalProvider]. Null when unauthenticated or when
+/// the backend predates the Phase 32 additive rollup fields.
+final projectCostBreakdownProvider = FutureProvider.autoDispose
+    .family<CostBreakdown?, String>((ref, projectId) async {
+  final fetch = await ref.watch(_projectRollupFetchProvider(projectId).future);
+  return fetch?.breakdown;
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Itemized cost breakdowns — online-fetch only, never persisted to Drift
+// ────────────────────────────────────────────────────────────────────────────
+
+/// Itemized cost breakdown for a job — online-fetch only.
+///
+/// Labor cost requires server-side rate resolution (labor rates never sync
+/// to the device), so this is a plain API read with no Drift persistence,
+/// mirroring [costRollupTotalProvider]. Offline, the future fails and the
+/// UI shows a quiet unavailable state — never a fabricated $0.
+final jobCostBreakdownProvider =
+    FutureProvider.autoDispose.family<CostBreakdown, String>((ref, jobId) {
+  final repository = ref.watch(financeRepositoryProvider);
+  return repository.fetchJobCostBreakdown(jobId);
+});
+
+/// Itemized cost breakdown for a trade scope — online-fetch only, same
+/// no-persistence rationale as [jobCostBreakdownProvider]. Labor is tracked
+/// at job level, so the response carries no labor figure.
+final tradeScopeCostBreakdownProvider = FutureProvider.autoDispose
+    .family<CostBreakdown, String>((ref, tradeScopeId) {
+  final repository = ref.watch(financeRepositoryProvider);
+  return repository.fetchTradeScopeCostBreakdown(tradeScopeId);
 });
 
 // ────────────────────────────────────────────────────────────────────────────
