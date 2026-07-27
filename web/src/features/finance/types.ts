@@ -57,3 +57,20 @@ export interface CostEntryPatch {
   vendor?: string;
   note?: string;
 }
+
+/** One append-only effective-dated cost rate row. Amounts stay strings end-to-end. */
+export interface LaborRate {
+  id: string;
+  userId: string;
+  hourlyCost: string;
+  effectiveFrom: string; // ISO date, "2026-05-01"
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Payload for appending a rate. Past, today, and future effectiveFrom are all valid. */
+export interface LaborRateInput {
+  userId: string;
+  hourlyCost: string;
+  effectiveFrom: string;
+}

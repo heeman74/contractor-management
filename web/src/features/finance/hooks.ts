@@ -7,12 +7,15 @@ import {
   fetchProjectCostRollup,
   fetchCostCategories,
   fetchReceipts,
+  fetchLaborRateHistory,
+  fetchCurrentLaborRates,
   createCostEntry,
   updateCostEntry,
   deleteCostEntry,
   uploadCostReceipt,
+  createLaborRate,
 } from "./api";
-import type { CostEntryInput, CostEntryPatch } from "./types";
+import type { CostEntryInput, CostEntryPatch, LaborRateInput } from "./types";
 
 // --- Queries ---
 
@@ -89,6 +92,37 @@ export function useDeleteCostEntry() {
   return useMutation({
     mutationFn: (id: string) => deleteCostEntry(id),
     onSuccess: () => invalidateAllCostEntries(queryClient),
+  });
+}
+
+export function useLaborRateHistory(userId: string, enabled = true) {
+  return useQuery({
+    queryKey: ["labor-rates", "history", userId],
+    queryFn: () => fetchLaborRateHistory(userId),
+    enabled: enabled && !!userId,
+  });
+}
+
+export function useCurrentLaborRates(enabled = true) {
+  return useQuery({
+    queryKey: ["labor-rates", "current"],
+    queryFn: fetchCurrentLaborRates,
+    enabled,
+  });
+}
+
+/**
+ * Appending a rate moves derived labor cost in every breakdown, so this
+ * invalidates the whole cost-entries prefix as well as the rate queries.
+ */
+export function useAddLaborRate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: LaborRateInput) => createLaborRate(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["labor-rates"] });
+      invalidateAllCostEntries(queryClient);
+    },
   });
 }
 

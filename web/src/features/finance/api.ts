@@ -8,6 +8,8 @@ import type {
   ProjectCostRollup,
   CostEntryInput,
   CostEntryPatch,
+  LaborRate,
+  LaborRateInput,
 } from "./types";
 
 // --- Raw API response shapes (snake_case, mirroring backend schemas) ---
@@ -165,4 +167,49 @@ export async function fetchReceipts(costEntryId: string): Promise<CostReceipt[]>
     `/api/v1/cost-entries/${costEntryId}/receipts`
   );
   return raw.map(mapCostReceipt);
+}
+
+// --- Labor rates (append-only — no update, no delete) ---
+
+interface LaborRateApiResponse {
+  id: string;
+  user_id: string;
+  hourly_cost: string;
+  effective_from: string;
+  created_at: string;
+  updated_at: string;
+}
+
+function mapLaborRate(raw: LaborRateApiResponse): LaborRate {
+  return {
+    id: raw.id,
+    userId: raw.user_id,
+    hourlyCost: raw.hourly_cost,
+    effectiveFrom: raw.effective_from,
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+  };
+}
+
+/** Full append-only history for one worker (effective_from DESC, created_at DESC). */
+export async function fetchLaborRateHistory(userId: string): Promise<LaborRate[]> {
+  const raw = await apiGet<LaborRateApiResponse[]>(
+    `/api/v1/labor-rates/?user_id=${encodeURIComponent(userId)}`
+  );
+  return raw.map(mapLaborRate);
+}
+
+/** One currently-effective rate per worker, in a single request (no per-row fetches). */
+export async function fetchCurrentLaborRates(): Promise<LaborRate[]> {
+  const raw = await apiGet<LaborRateApiResponse[]>("/api/v1/labor-rates/");
+  return raw.map(mapLaborRate);
+}
+
+export async function createLaborRate(input: LaborRateInput): Promise<LaborRate> {
+  const raw = await apiPost<LaborRateApiResponse>("/api/v1/labor-rates/", {
+    user_id: input.userId,
+    hourly_cost: input.hourlyCost,
+    effective_from: input.effectiveFrom,
+  });
+  return mapLaborRate(raw);
 }
