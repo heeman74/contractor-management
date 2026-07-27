@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
-status: executing
-stopped_at: Completed 32-04-PLAN.md
-last_updated: "2026-07-27T15:41:19.497Z"
+status: verifying
+stopped_at: Completed 32-05-PLAN.md
+last_updated: "2026-07-27T15:42:36.311Z"
 last_activity: 2026-07-27
 progress:
   total_phases: 22
-  completed_phases: 14
+  completed_phases: 15
   total_plans: 81
-  completed_plans: 77
+  completed_plans: 78
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 
 Phase: 32 (labor-rates-and-cost-rollup) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-27
 
 ## Performance Metrics
@@ -56,6 +56,7 @@ Last activity: 2026-07-27
 | Phase 32 P03 | 10min | 2 tasks | 7 files |
 | Phase 32 P02 | 29min | 3 tasks | 7 files |
 | Phase 32 P04 | 45min | 2 tasks | 11 files |
+| Phase 32 P05 | 50min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -196,6 +197,9 @@ Last activity: 2026-07-27
 - [Phase 32]: ProjectCostRollup frozen dataclass replaces tuple return from rollup_for_project; labor field carries the folded total so legacy manual labor counts exactly once
 - [Phase 32-04]: Playwright job-detail tests log in through the UI then SPA-navigate via the Jobs list row — Redux isAuthenticated is set only by the login page, so direct page.goto leaves usePermissions disabled and finance-gated cards never render
 - [Phase 32-04]: orderedCategories filters the reserved labor name so legacy labor-categorized API rows can never render a second Labor row; labor renders only from breakdown.labor
+- [Phase 32]: 32-05: Mobile breakdown data is online-fetched only, never persisted to Drift — labor requires server-side rate resolution and rate data never reaches the device
+- [Phase 32]: 32-05: costRollupTotalProvider refactored onto a shared _projectRollupFetchProvider (public signature unchanged) so the project total and breakdown share one network call
+- [Phase 32]: 32-05: Riverpod 3 Override type must be imported via flutter_riverpod/misc.dart show Override; widget-bearing test files import drift as show Value to avoid the Column name clash
 
 ### Pending Todos
 
@@ -214,6 +218,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-27T15:41:19.490Z
-Stopped at: Completed 32-04-PLAN.md
+Last session: 2026-07-27T15:42:36.304Z
+Stopped at: Completed 32-05-PLAN.md
 Resume file: None
