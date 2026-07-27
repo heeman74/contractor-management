@@ -48,11 +48,28 @@ export interface LaborCostSummary {
   basis: string;
 }
 
+/** Revenue basis for a margin figure. "mixed" occurs only on the project rollup. */
+export type RevenueBasis = "invoiced" | "quoted" | "mixed" | "none";
+
+/** Backend-computed margin. Money and percent stay strings (Decimal-as-string, displayed
+ *  verbatim, never re-summed). null means honest absence, never zero: revenue is null when
+ *  no invoice and no approved quote exists; marginPercent is null when revenue is absent
+ *  or zero. */
+export interface MarginSummary {
+  revenue: string | null;
+  revenueBasis: RevenueBasis;
+  margin: string | null;
+  marginPercent: string | null;
+  incomplete: boolean;
+  incompleteReasons: string[];
+}
+
 export interface CostBreakdown {
   categories: CategoryTotal[];
   labor: LaborCostSummary | null;
   laborTrackedAtJobLevel: boolean;
   grandTotal: string;
+  margin: MarginSummary | null;
 }
 
 export interface ProjectCostRollup {
@@ -64,6 +81,7 @@ export interface ProjectCostRollup {
   labor: LaborCostSummary | null;
   /** All-in total including derived labor; null when the backend omits it. */
   grandTotal: string | null;
+  margin: MarginSummary | null;
 }
 
 /** Exactly one of jobId / tradeScopeId must be set (anchor XOR, enforced backend-side). */

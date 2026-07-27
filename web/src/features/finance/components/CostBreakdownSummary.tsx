@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { formatCurrency } from "@/lib/format";
+import { FinanceFlagChip } from "./FinanceFlagChip";
 import type { CategoryTotal, CostBreakdown, LaborCostSummary } from "../types";
 
 const SECONDS_PER_HOUR = 3600;
@@ -139,12 +140,9 @@ function LaborRow({
       }
     >
       {unratedSeconds > 0 && (
-        <span
-          data-testid="breakdown-unrated-badge"
-          className="rounded-full bg-brand/15 px-2 py-0.5 text-xs text-amber-900"
-        >
+        <FinanceFlagChip testId="breakdown-unrated-badge">
           {formatUnratedHours(unratedSeconds)}
-        </span>
+        </FinanceFlagChip>
       )}
       <span data-testid="breakdown-labor-amount" className="font-semibold">
         {amountOf(labor?.total ?? "0")}

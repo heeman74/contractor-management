@@ -13,6 +13,8 @@ import type {
   CategoryTotal,
   LaborCostSummary,
   CostBreakdown,
+  MarginSummary,
+  RevenueBasis,
 } from "./types";
 
 // --- Raw API response shapes (snake_case, mirroring backend schemas) ---
@@ -58,11 +60,21 @@ interface LaborCostSummaryApiResponse {
   basis: string;
 }
 
+interface MarginSummaryApiResponse {
+  revenue: string | null;
+  revenue_basis: string;
+  margin: string | null;
+  margin_percent: string | null;
+  incomplete: boolean;
+  incomplete_reasons: string[];
+}
+
 interface CostBreakdownApiResponse {
   categories: CategoryTotalApiResponse[];
   labor: LaborCostSummaryApiResponse | null;
   labor_tracked_at_job_level: boolean;
   grand_total: string;
+  margin?: MarginSummaryApiResponse | null;
 }
 
 interface ProjectCostRollupApiResponse {
@@ -72,6 +84,7 @@ interface ProjectCostRollupApiResponse {
   categories?: CategoryTotalApiResponse[];
   labor?: LaborCostSummaryApiResponse | null;
   grand_total?: string;
+  margin?: MarginSummaryApiResponse | null;
 }
 
 // --- snake_case -> camelCase mappers ---
@@ -126,12 +139,27 @@ function mapLaborSummary(
   };
 }
 
+function mapMarginSummary(
+  raw: MarginSummaryApiResponse | null | undefined
+): MarginSummary | null {
+  if (!raw) return null;
+  return {
+    revenue: raw.revenue,
+    revenueBasis: raw.revenue_basis as RevenueBasis,
+    margin: raw.margin,
+    marginPercent: raw.margin_percent,
+    incomplete: raw.incomplete,
+    incompleteReasons: raw.incomplete_reasons ?? [],
+  };
+}
+
 function mapCostBreakdown(raw: CostBreakdownApiResponse): CostBreakdown {
   return {
     categories: raw.categories.map(mapCategoryTotal),
     labor: mapLaborSummary(raw.labor),
     laborTrackedAtJobLevel: raw.labor_tracked_at_job_level,
     grandTotal: raw.grand_total,
+    margin: mapMarginSummary(raw.margin),
   };
 }
 
@@ -166,6 +194,7 @@ export async function fetchProjectCostRollup(
     categories: (raw.categories ?? []).map(mapCategoryTotal),
     labor: mapLaborSummary(raw.labor),
     grandTotal: raw.grand_total ?? null,
+    margin: mapMarginSummary(raw.margin),
   };
 }
 
