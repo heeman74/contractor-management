@@ -9,7 +9,7 @@ Rate endpoints are gated finance.rates.manage on BOTH read and write
 Helpers mirror test_phase_31_e2e.py so 32-02 can extend this file.
 """
 
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
@@ -28,6 +28,15 @@ _COST_CATEGORY_SEED_SQL = (
 )
 
 _MISSING_RATES_PERMISSION = "Missing permission: finance.rates.manage"
+_MISSING_VIEW_PERMISSION = "Missing permission: finance.view"
+
+_TIME_ENTRY_SEED_SQL = (
+    "INSERT INTO time_entries (company_id, job_id, contractor_id, clocked_in_at, "
+    "clocked_out_at, duration_seconds, session_status, deleted_at) "
+    "VALUES (CAST(:company_id AS uuid), CAST(:job_id AS uuid), "
+    "CAST(:contractor_id AS uuid), :clocked_in_at, :clocked_out_at, "
+    ":duration_seconds, :session_status, :deleted_at)"
+)
 
 
 def _token(company_id: str, roles: list[str]) -> str:
@@ -115,6 +124,70 @@ async def _post_rate(
         json=_rate_payload(user_id, hourly_cost, effective_from),
     )
     assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+async def _seed_time_entry(
+    company_id: str,
+    job_id: str,
+    contractor_id: str,
+    clocked_in_at: datetime,
+    duration_seconds: int | None,
+    session_status: str = "completed",
+    deleted: bool = False,
+) -> None:
+    """Insert a tracked-time row directly, so tests control the exact work day."""
+    clocked_out_at = (
+        clocked_in_at + timedelta(seconds=duration_seconds)
+        if duration_seconds is not None
+        else None
+    )
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        await session.execute(
+            text(_TIME_ENTRY_SEED_SQL),
+            {
+                "company_id": company_id,
+                "job_id": job_id,
+                "contractor_id": contractor_id,
+                "clocked_in_at": clocked_in_at,
+                "clocked_out_at": clocked_out_at,
+                "duration_seconds": duration_seconds,
+                "session_status": session_status,
+                "deleted_at": datetime.now(UTC) if deleted else None,
+            },
+        )
+        await session.commit()
+
+
+def _cost_entry_payload(
+    category_id: str,
+    *,
+    job_id: str | None = None,
+    trade_scope_id: str | None = None,
+    amount: str = "100.00",
+) -> dict:
+    payload: dict = {
+        "category_id": category_id,
+        "amount": amount,
+        "incurred_date": date(2026, 6, 1).isoformat(),
+    }
+    if job_id is not None:
+        payload["job_id"] = job_id
+    if trade_scope_id is not None:
+        payload["trade_scope_id"] = trade_scope_id
+    return payload
+
+
+async def _post_cost_entry(client: AsyncClient, headers: dict, payload: dict) -> dict:
+    resp = await client.post("/api/v1/cost-entries/", headers=headers, json=payload)
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+async def _job_breakdown(client: AsyncClient, headers: dict, job_id: str) -> dict:
+    resp = await client.get(f"/api/v1/jobs/{job_id}/cost-breakdown", headers=headers)
+    assert resp.status_code == 200, resp.text
     return resp.json()
 
 
@@ -341,3 +414,304 @@ async def test_rate_rls_isolation_between_tenants(
     b_current = await async_client.get("/api/v1/labor-rates/", headers=b_headers)
     assert b_current.status_code == 200, b_current.text
     assert b_current.json() == []
+
+
+# ---------------------------------------------------------------------------
+# COST-05: labor derivation from tracked time x effective-dated rates
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_derivation_later_rate_change_does_not_rewrite_history(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """ROADMAP success criterion 2: a new rate effective today leaves past labor unchanged."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    worker_id = await _create_user(tenant_a_client, "worker-derive-history@tenant-a.com")
+    job_id = await _create_job(tenant_a_client)
+    headers = _pm_headers(company_id)
+
+    await _post_rate(async_client, headers, worker_id, "30.00", date(2026, 6, 1))
+    await _seed_time_entry(
+        company_id, job_id, worker_id, datetime(2026, 6, 10, 15, 0, tzinfo=UTC), 28800
+    )
+
+    body = await _job_breakdown(async_client, headers, job_id)
+    assert body["labor"]["total"] == "240.00"
+    assert body["labor"]["unrated_seconds"] == 0
+
+    await _post_rate(async_client, headers, worker_id, "40.00", date.today())
+
+    body_after = await _job_breakdown(async_client, headers, job_id)
+    assert body_after["labor"]["total"] == "240.00"
+
+
+@pytest.mark.asyncio
+async def test_derivation_backdated_rate_fills_unrated_days(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """Unrated seconds are reported honestly, then become rated after a backdated rate."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    worker_id = await _create_user(tenant_a_client, "worker-derive-backdate@tenant-a.com")
+    job_id = await _create_job(tenant_a_client)
+    headers = _pm_headers(company_id)
+
+    await _seed_time_entry(
+        company_id, job_id, worker_id, datetime(2026, 5, 5, 16, 0, tzinfo=UTC), 14400
+    )
+
+    body = await _job_breakdown(async_client, headers, job_id)
+    assert body["labor"]["total"] == "0.00"
+    assert body["labor"]["unrated_seconds"] == 14400
+
+    await _post_rate(async_client, headers, worker_id, "25.00", date(2026, 5, 1))
+
+    body_after = await _job_breakdown(async_client, headers, job_id)
+    assert body_after["labor"]["total"] == "100.00"
+    assert body_after["labor"]["unrated_seconds"] == 0
+
+
+@pytest.mark.asyncio
+async def test_derivation_excludes_active_and_deleted_sessions(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """Active (no duration) and soft-deleted sessions contribute zero labor (D-03)."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    worker_id = await _create_user(tenant_a_client, "worker-derive-excluded@tenant-a.com")
+    job_id = await _create_job(tenant_a_client)
+    headers = _pm_headers(company_id)
+
+    await _post_rate(async_client, headers, worker_id, "30.00", date(2026, 1, 1))
+    work_day = datetime(2026, 6, 10, 9, 0, tzinfo=UTC)
+    await _seed_time_entry(company_id, job_id, worker_id, work_day, None, session_status="active")
+    await _seed_time_entry(company_id, job_id, worker_id, work_day, 7200, deleted=True)
+    await _seed_time_entry(company_id, job_id, worker_id, work_day, 3600)
+
+    body = await _job_breakdown(async_client, headers, job_id)
+    assert body["labor"]["total"] == "30.00"
+    assert body["labor"]["rated_seconds"] == 3600
+    assert body["labor"]["unrated_seconds"] == 0
+
+
+@pytest.mark.asyncio
+async def test_derivation_uses_rate_effective_on_work_day_not_today(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """Each session is costed at the rate effective on ITS work day, not the latest rate."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    worker_id = await _create_user(tenant_a_client, "worker-derive-workday@tenant-a.com")
+    job_id = await _create_job(tenant_a_client)
+    headers = _pm_headers(company_id)
+
+    await _post_rate(async_client, headers, worker_id, "20.00", date(2026, 1, 1))
+    await _post_rate(async_client, headers, worker_id, "50.00", date(2026, 7, 1))
+    await _seed_time_entry(
+        company_id, job_id, worker_id, datetime(2026, 2, 10, 12, 0, tzinfo=UTC), 3600
+    )
+    await _seed_time_entry(
+        company_id, job_id, worker_id, datetime(2026, 7, 10, 12, 0, tzinfo=UTC), 3600
+    )
+
+    body = await _job_breakdown(async_client, headers, job_id)
+    assert body["labor"]["total"] == "70.00"
+    assert body["labor"]["rated_seconds"] == 7200
+
+
+@pytest.mark.asyncio
+async def test_derivation_basis_is_unburdened(async_client, tenant_a_client, seed_two_tenants):
+    """The labor summary carries the D-06 wage-only marker for downstream consumers."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    job_id = await _create_job(tenant_a_client)
+    headers = _pm_headers(company_id)
+
+    body = await _job_breakdown(async_client, headers, job_id)
+    assert body["labor"]["basis"] == "unburdened"
+
+
+@pytest.mark.asyncio
+async def test_derivation_project_labor_rolls_up_through_job_project_link(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """Project labor equals the job breakdown's labor via jobs.project_id (D-07)."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    worker_id = await _create_user(tenant_a_client, "worker-derive-project@tenant-a.com")
+    project_id = await _create_project(tenant_a_client)
+    job_id = await _create_job(tenant_a_client, project_id=project_id)
+    headers = _pm_headers(company_id)
+
+    await _post_rate(async_client, headers, worker_id, "30.00", date(2026, 1, 1))
+    await _seed_time_entry(
+        company_id, job_id, worker_id, datetime(2026, 6, 10, 15, 0, tzinfo=UTC), 28800
+    )
+
+    job_body = await _job_breakdown(async_client, headers, job_id)
+    rollup = await async_client.get(f"/api/v1/projects/{project_id}/cost-entries", headers=headers)
+    assert rollup.status_code == 200, rollup.text
+    assert rollup.json()["labor"]["total"] == job_body["labor"]["total"] == "240.00"
+
+
+# ---------------------------------------------------------------------------
+# COST-06: itemized category breakdowns for job / trade scope / project
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_breakdown_job_category_totals_and_grand_total(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """Category totals sum per category (ordered by name) and grand_total adds labor."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    worker_id = await _create_user(tenant_a_client, "worker-breakdown-job@tenant-a.com")
+    job_id = await _create_job(tenant_a_client)
+    materials_id = await _category_id(company_id, "materials")
+    subcontractor_id = await _category_id(company_id, "subcontractor")
+    headers = _pm_headers(company_id)
+
+    await _post_rate(async_client, headers, worker_id, "30.00", date(2026, 1, 1))
+    await _seed_time_entry(
+        company_id, job_id, worker_id, datetime(2026, 6, 10, 15, 0, tzinfo=UTC), 28800
+    )
+    for category_id, amount in (
+        (materials_id, "100.00"),
+        (materials_id, "50.00"),
+        (subcontractor_id, "200.00"),
+    ):
+        await _post_cost_entry(
+            async_client, headers, _cost_entry_payload(category_id, job_id=job_id, amount=amount)
+        )
+
+    body = await _job_breakdown(async_client, headers, job_id)
+    assert [(row["category_name"], row["total"]) for row in body["categories"]] == [
+        ("materials", "150.00"),
+        ("subcontractor", "200.00"),
+    ]
+    assert body["labor"]["total"] == "240.00"
+    assert body["grand_total"] == "590.00"
+
+
+@pytest.mark.asyncio
+async def test_breakdown_trade_scope_has_no_labor_figure(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """Trade-scope breakdowns report labor_tracked_at_job_level, never a labor number (D-08)."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    project_id = await _create_project(tenant_a_client)
+    scope_id = await _create_trade_scope(tenant_a_client, project_id)
+    materials_id = await _category_id(company_id, "materials")
+    headers = _pm_headers(company_id)
+
+    await _post_cost_entry(
+        async_client,
+        headers,
+        _cost_entry_payload(materials_id, trade_scope_id=scope_id, amount="120.00"),
+    )
+
+    resp = await async_client.get(
+        f"/api/v1/trade-scopes/{scope_id}/cost-breakdown", headers=headers
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["labor"] is None
+    assert body["labor_tracked_at_job_level"] is True
+    assert body["grand_total"] == "120.00"
+
+
+@pytest.mark.asyncio
+async def test_breakdown_project_rollup_keeps_total_and_entries_backward_compatible(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """total keeps its pre-Phase-32 meaning (cost-entry sum) while new fields are additive."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    worker_id = await _create_user(tenant_a_client, "worker-breakdown-rollup@tenant-a.com")
+    project_id = await _create_project(tenant_a_client)
+    job_id = await _create_job(tenant_a_client, project_id=project_id)
+    materials_id = await _category_id(company_id, "materials")
+    headers = _pm_headers(company_id)
+
+    await _post_rate(async_client, headers, worker_id, "30.00", date(2026, 1, 1))
+    await _seed_time_entry(
+        company_id, job_id, worker_id, datetime(2026, 6, 10, 15, 0, tzinfo=UTC), 28800
+    )
+    await _post_cost_entry(
+        async_client, headers, _cost_entry_payload(materials_id, job_id=job_id, amount="50.25")
+    )
+
+    resp = await async_client.get(f"/api/v1/projects/{project_id}/cost-entries", headers=headers)
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert isinstance(body["total"], str)
+    assert isinstance(body["entries"], list)
+    assert body["total"] == "50.25"
+    assert body["labor"]["total"] == "240.00"
+    assert body["grand_total"] == "290.25"
+
+
+@pytest.mark.asyncio
+async def test_breakdown_403_for_admin_on_job_and_trade_scope(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """Admin is excluded from finance.view — 403 on both breakdown endpoints."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    project_id = await _create_project(tenant_a_client)
+    scope_id = await _create_trade_scope(tenant_a_client, project_id)
+    job_id = await _create_job(tenant_a_client)
+    admin_headers = _admin_headers(company_id)
+
+    job_resp = await async_client.get(
+        f"/api/v1/jobs/{job_id}/cost-breakdown", headers=admin_headers
+    )
+    assert job_resp.status_code == 403, job_resp.text
+    assert job_resp.json()["detail"] == _MISSING_VIEW_PERMISSION
+
+    scope_resp = await async_client.get(
+        f"/api/v1/trade-scopes/{scope_id}/cost-breakdown", headers=admin_headers
+    )
+    assert scope_resp.status_code == 403, scope_resp.text
+    assert scope_resp.json()["detail"] == _MISSING_VIEW_PERMISSION
+
+
+@pytest.mark.asyncio
+async def test_breakdown_rls_isolation_between_tenants(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """Tenant A's costs and labor never appear in a tenant-B-scoped breakdown request."""
+    tenant_a_id = seed_two_tenants["tenant_a_id"]
+    tenant_b_id = seed_two_tenants["tenant_b_id"]
+    await _seed_cost_categories(tenant_a_id)
+    worker_id = await _create_user(tenant_a_client, "worker-breakdown-rls@tenant-a.com")
+    job_id = await _create_job(tenant_a_client)
+    materials_id = await _category_id(tenant_a_id, "materials")
+    a_headers = _pm_headers(tenant_a_id)
+
+    await _post_rate(async_client, a_headers, worker_id, "30.00", date(2026, 1, 1))
+    await _seed_time_entry(
+        tenant_a_id, job_id, worker_id, datetime(2026, 6, 10, 15, 0, tzinfo=UTC), 28800
+    )
+    await _post_cost_entry(
+        async_client, a_headers, _cost_entry_payload(materials_id, job_id=job_id, amount="150.00")
+    )
+
+    b_body = await _job_breakdown(async_client, _pm_headers(tenant_b_id), job_id)
+    assert b_body["categories"] == []
+    assert b_body["labor"]["total"] == "0.00"
+    assert b_body["labor"]["rated_seconds"] == 0
+    assert b_body["grand_total"] == "0.00"
+
+
+@pytest.mark.asyncio
+async def test_breakdown_empty_job_returns_zero_totals(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """A job with no costs and no tracked time returns an all-zero breakdown."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    job_id = await _create_job(tenant_a_client)
+    headers = _pm_headers(company_id)
+
+    body = await _job_breakdown(async_client, headers, job_id)
+    assert body["categories"] == []
+    assert body["labor"]["total"] == "0.00"
+    assert body["labor"]["unrated_seconds"] == 0
+    assert body["grand_total"] == "0.00"

@@ -11,6 +11,8 @@ billing_milestones/router.py exactly:
   PATCH  /cost-entries/{entry_id}                 — finance.manage
   DELETE /cost-entries/{entry_id}                 — finance.manage (soft delete)
   GET    /projects/{project_id}/cost-entries      — finance.view (rollup)
+  GET    /jobs/{job_id}/cost-breakdown            — finance.view
+  GET    /trade-scopes/{trade_scope_id}/cost-breakdown — finance.view
   GET    /cost-categories/                        — finance.view
   POST   /labor-rates/                            — finance.rates.manage (append-only)
   GET    /labor-rates/?user_id=X                  — finance.rates.manage (full history)
@@ -33,11 +35,13 @@ from app.core.database import get_db
 from app.core.security import CurrentUser, get_current_user, require_permission
 from app.features.finance.models import CostEntry
 from app.features.finance.schemas import (
+    CostBreakdownResponse,
     CostCategoryResponse,
     CostEntryCreate,
     CostEntryResponse,
     CostEntryUpdate,
     CostReceiptResponse,
+    LaborCostSummary,
     LaborRateCreate,
     LaborRateResponse,
     ProjectCostRollupResponse,
@@ -140,13 +144,46 @@ async def get_project_cost_rollup(
 ) -> ProjectCostRollupResponse:
     """Return the project cost rollup: trade-scope costs + job costs (D-02/D-05)."""
     await require_permission("finance.view")(current_user, db)
-    svc = FinanceService(db)
-    entries, total = await svc.rollup_for_project(project_id)
+    rollup = await FinanceService(db).rollup_for_project(project_id)
     return ProjectCostRollupResponse(
         project_id=project_id,
-        total=total,
-        entries=[_to_response(entry) for entry in entries],
+        total=rollup.total,
+        entries=[_to_response(entry) for entry in rollup.entries],
+        categories=rollup.categories,
+        labor=LaborCostSummary(
+            total=rollup.labor.total,
+            rated_seconds=rollup.labor.rated_seconds,
+            unrated_seconds=rollup.labor.unrated_seconds,
+        ),
+        grand_total=rollup.grand_total,
     )
+
+
+# ---------------------------------------------------------------------------
+# Cost breakdown endpoints (COST-06)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/jobs/{job_id}/cost-breakdown", response_model=CostBreakdownResponse)
+async def get_job_cost_breakdown(
+    job_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> CostBreakdownResponse:
+    """Itemized category totals + derived labor for a job (COST-06)."""
+    await require_permission("finance.view")(current_user, db)
+    return await FinanceService(db).job_cost_breakdown(job_id)
+
+
+@router.get("/trade-scopes/{trade_scope_id}/cost-breakdown", response_model=CostBreakdownResponse)
+async def get_trade_scope_cost_breakdown(
+    trade_scope_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> CostBreakdownResponse:
+    """Itemized category totals for a trade scope; labor is tracked at job level (D-08)."""
+    await require_permission("finance.view")(current_user, db)
+    return await FinanceService(db).trade_scope_cost_breakdown(trade_scope_id)
 
 
 @router.get("/cost-categories/", response_model=list[CostCategoryResponse])
