@@ -739,8 +739,10 @@ async def _seed_scope_budget_with_spend(
     total: str = "10000.00",
     amount: str = "8200.00",
 ) -> tuple[str, str, str]:
-    """Seed project 'Riverside Remodel' + 'Plumbing' scope + scope budget + one cost entry.
+    """Seed project 'Riverside Remodel' + 'Plumbing' scope + one cost entry + scope budget.
 
+    The entry is added BEFORE the budget so the 34-06 mutation hook has nothing to
+    evaluate during seeding — these tests exercise evaluation explicitly.
     Returns (project_id, scope_id, budget_id).
     """
     await _seed_cost_categories(company_id)
@@ -748,10 +750,10 @@ async def _seed_scope_budget_with_spend(
     scope_id = await _create_trade_scope(tenant_a_client, project_id)
     materials_id = await _category_id(company_id, "materials")
     headers = _pm_headers(company_id)
-    budget = await _create_budget(async_client, headers, trade_scope_id=scope_id, total=total)
     await _add_cost_entry(
         async_client, headers, trade_scope_id=scope_id, category_id=materials_id, amount=amount
     )
+    budget = await _create_budget(async_client, headers, trade_scope_id=scope_id, total=total)
     return project_id, scope_id, budget["id"]
 
 
@@ -840,7 +842,9 @@ async def test_alerts_raising_budget_rearms_and_next_crossing_alerts_again(
         async_client, headers, trade_scope_id=scope_id, category_id=materials_id, amount="8000.00"
     )
 
-    assert await _evaluate_in_own_session(company_id, budget_id) == 1
+    # 16,200/20,000 = 81%: the 34-06 mutation hook fired the fresh warning inline,
+    # so a manual re-evaluation finds the threshold already claimed.
+    assert await _evaluate_in_own_session(company_id, budget_id) == 0
     warning_rows = [r for r in await _alert_rows(company_id) if r.alert_type == "budget_warning"]
     assert len(warning_rows) == 2
 
@@ -849,19 +853,20 @@ async def test_alerts_raising_budget_rearms_and_next_crossing_alerts_again(
 async def test_alerts_lowering_budget_below_spend_fires_on_next_evaluation(
     async_client, tenant_a_client, seed_two_tenants
 ):
-    """Lowering the total below spend fires the crossed thresholds next evaluation (D-10)."""
+    """Lowering the total below spend fires the crossed thresholds immediately (D-10)."""
     company_id = seed_two_tenants["tenant_a_id"]
     _, _, budget_id = await _seed_scope_budget_with_spend(
         async_client, tenant_a_client, company_id, amount="5000.00"
     )
     assert await _evaluate_in_own_session(company_id, budget_id) == 0
 
+    # The 34-06 inline evaluation on PATCH /budgets/{id} IS the "next evaluation".
     patch_resp = await async_client.patch(
         _budget_url(budget_id), headers=_pm_headers(company_id), json={"total": "4000.00"}
     )
     assert patch_resp.status_code == 200, patch_resp.text
 
-    assert await _evaluate_in_own_session(company_id, budget_id) == 2
+    assert await _evaluate_in_own_session(company_id, budget_id) == 0
     rows = await _alert_rows(company_id)
     assert {row.alert_type for row in rows} == {"budget_warning", "budget_overrun"}
 
@@ -1043,10 +1048,10 @@ async def test_alerts_push_project_budget_sends_empty_scope_id(
     scope_id = await _create_trade_scope(tenant_a_client, project_id)
     materials_id = await _category_id(company_id, "materials")
     headers = _pm_headers(company_id)
-    budget = await _create_budget(async_client, headers, project_id=project_id, total="1000.00")
     await _add_cost_entry(
         async_client, headers, trade_scope_id=scope_id, category_id=materials_id, amount="900.00"
     )
+    budget = await _create_budget(async_client, headers, project_id=project_id, total="1000.00")
     calls: list[dict] = []
 
     async def _capture(**kwargs):
@@ -1108,9 +1113,7 @@ async def test_alerts_push_skipped_silently_without_firebase_credentials(
 # ---------------------------------------------------------------------------
 
 
-async def _patch_cost_entry(
-    client: AsyncClient, headers: dict, entry_id: str, amount: str
-) -> None:
+async def _patch_cost_entry(client: AsyncClient, headers: dict, entry_id: str, amount: str) -> None:
     """PATCH a cost entry's amount through the API."""
     resp = await client.patch(
         f"/api/v1/cost-entries/{entry_id}", headers=headers, json={"amount": amount}

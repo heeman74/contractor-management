@@ -18,6 +18,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
 
 from app.core.base_service import TenantScopedService
 from app.features.finance.budget_service import BudgetService
@@ -62,6 +63,8 @@ from app.features.finance.schemas import (
     LaborRateCreate,
     MarginSummary,
 )
+from app.features.jobs.models import Job
+from app.features.projects.models import TradeScope
 
 _MANUAL_LABOR_DETAIL = "Labor cost is derived from tracked time."
 
@@ -313,7 +316,42 @@ class FinanceService(TenantScopedService[CostEntry]):
             note=data.note,
         )
         await self.repository.create(entry)
+        await self._evaluate_budgets_for_entry(entry)
         return await self.repository.get_entry_or_404(entry.id)
+
+    async def _evaluate_budgets_for_entry(self, entry: CostEntry) -> None:
+        """Re-check the budgets this cost entry affects (D-02, D-04).
+
+        A scope-anchored entry affects the scope budget AND its project's budget;
+        a job-anchored entry affects the project budget via jobs.project_id (a job
+        with no project affects nothing). At most two evaluations, in this same
+        transaction — a rollback un-does the alert and the threshold claim together.
+        Every call site runs AFTER its mutation's flush, so the evaluation sees the
+        post-mutation spend (RESEARCH Pitfall 5). BudgetService is imported at
+        module level here — the service<->budget_service cycle is broken from the
+        budget_service side (its lazy FinanceService import, the
+        app/core/security.py::effective_permissions convention).
+        """
+        budget_service = BudgetService(self.db)
+        if entry.trade_scope_id is not None:
+            await budget_service.evaluate_for_trade_scope(entry.trade_scope_id)
+            project_id = await self._project_id_for_trade_scope(entry.trade_scope_id)
+        else:
+            project_id = await self._project_id_for_job(entry.job_id)
+        if project_id is not None:
+            await budget_service.evaluate_for_project(project_id)
+
+    async def _project_id_for_trade_scope(self, trade_scope_id: uuid.UUID) -> uuid.UUID | None:
+        """The scope's project id in one column-only query (never a full-row load)."""
+        result = await self.db.execute(
+            select(TradeScope.project_id).where(TradeScope.id == trade_scope_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def _project_id_for_job(self, job_id: uuid.UUID | None) -> uuid.UUID | None:
+        """The job's (nullable) project id in one column-only query."""
+        result = await self.db.execute(select(Job.project_id).where(Job.id == job_id))
+        return result.scalar_one_or_none()
 
     async def list_for_job(self, job_id: uuid.UUID) -> list[CostEntry]:
         """List non-soft-deleted cost entries for a job."""
@@ -509,11 +547,18 @@ class FinanceService(TenantScopedService[CostEntry]):
         for field, value in updates.items():
             setattr(entry, field, value)
         await self.db.flush()
+        await self._evaluate_budgets_for_entry(entry)
         return await self.repository.get_entry_or_404(entry_id)
 
     async def delete_cost_entry(self, entry_id: uuid.UUID) -> None:
-        """Soft-delete a cost entry (D-05) — excluded from lists/rollups afterward."""
+        """Soft-delete a cost entry (D-05) — excluded from lists/rollups afterward.
+
+        The entry is fetched first so its anchor is known; soft_delete flushes,
+        and the evaluation then sees the post-delete spend (Pitfall 5).
+        """
+        entry = await self.repository.get_entry_or_404(entry_id)
         await self.repository.soft_delete(entry_id)
+        await self._evaluate_budgets_for_entry(entry)
 
     async def list_categories(self) -> list[CostCategory]:
         """List the current tenant's cost categories."""

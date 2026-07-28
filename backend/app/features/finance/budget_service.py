@@ -142,9 +142,16 @@ class BudgetService(TenantScopedService[Budget]):
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
 
     async def update_budget(self, budget_id: uuid.UUID, data: BudgetUpdate) -> Budget:
-        """Edit a budget's total — set_total applies the D-03 re-arm on a raise."""
+        """Edit a budget's total — set_total applies the D-03 re-arm on a raise.
+
+        Evaluates inline afterward: D-10 says a below-spend edit fires the crossed
+        thresholds "on the next evaluation", and the honest reading of that is this
+        same request. The budget is returned unchanged either way.
+        """
         budget = await self.repository.active_by_id_or_404(budget_id)
-        return await self.repository.set_total(budget, data.total)
+        budget = await self.repository.set_total(budget, data.total)
+        await self.evaluate_budget(budget)
+        return budget
 
     async def delete_budget(self, budget_id: uuid.UUID) -> None:
         """Soft-delete a budget — it drops out of every active-budget lookup."""
