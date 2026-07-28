@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../data/cost_breakdown.dart';
+import 'breakdown_row_widgets.dart';
+import 'margin_summary_section.dart';
 
 /// Which Costs surface a [CostBreakdownSummary] renders on. Trade scopes
 /// show "Tracked at job level" instead of a labor amount (D-08).
@@ -13,11 +15,7 @@ const _jobLevelLaborNote = 'Tracked at job level';
 const _offlineNote = 'Breakdown unavailable offline';
 const _laborCategoryName = 'labor';
 const _orderedCategoryNames = ['materials', 'subcontractor', 'other'];
-const _unratedChipBackground = Color(0x26F5A623);
-const _unratedChipForeground = Color(0xFF78350F);
 const _loadingAmountPlaceholder = '—';
-const _horizontalPadding = 16.0;
-const _chipBorderRadius = 999.0;
 
 /// "12.5 hrs unrated" / "1 hr unrated" / "2 hrs unrated" — hours always
 /// visible (D-05), rounded to one decimal with a trailing .0 dropped.
@@ -67,7 +65,8 @@ String displayCategoryName(String name) {
 
 /// Itemized cost breakdown rows for a job, trade-scope, or project Costs
 /// surface: labor (with unrated chip and unburdened caption), category
-/// totals in fixed order, then the grand total.
+/// totals in fixed order, the grand total, then the margin section (Phase
+/// 33 — renders nothing when the backend sends no margin block).
 ///
 /// Receives data, never fetches — callers watch the matching breakdown
 /// provider and pass its [AsyncValue] fields down. Amounts are backend
@@ -88,7 +87,7 @@ class CostBreakdownSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (isUnavailable) return _secondaryText(context, _offlineNote);
+    if (isUnavailable) return const BreakdownCaption(_offlineNote);
     final breakdown = this.breakdown;
     if (breakdown == null && !isLoading) return const SizedBox.shrink();
 
@@ -98,67 +97,46 @@ class CostBreakdownSummary extends StatelessWidget {
       children: [
         _laborRow(context, breakdown?.labor),
         if (variant != CostBreakdownVariant.tradeScope)
-          _secondaryText(context, _unburdenedCaption),
+          const BreakdownCaption(_unburdenedCaption),
         for (final category
             in orderedCategories(breakdown?.categories ?? const []))
-          _breakdownRow(
-            context,
+          BreakdownRow(
             label: displayCategoryName(category.categoryName),
             trailing: _amount(context, category.total),
           ),
-        const Divider(indent: 16, endIndent: 16),
-        _breakdownRow(
-          context,
+        const Divider(
+          indent: financeRowHorizontalPadding,
+          endIndent: financeRowHorizontalPadding,
+        ),
+        BreakdownRow(
           label: 'Total',
           trailing: _totalAmount(context, breakdown?.grandTotal),
         ),
+        MarginSummarySection(margin: breakdown?.margin),
       ],
     );
   }
 
   Widget _laborRow(BuildContext context, LaborCostSummary? labor) {
     if (variant == CostBreakdownVariant.tradeScope) {
-      return _breakdownRow(
-        context,
+      return BreakdownRow(
         label: 'Labor',
-        trailing: Text(_jobLevelLaborNote, style: _secondaryStyle(context)),
+        trailing:
+            Text(_jobLevelLaborNote, style: financeSecondaryStyle(context)),
       );
     }
 
     final chipLabel = labor == null ? '' : formatUnratedHours(labor.unratedSeconds);
-    return _breakdownRow(
-      context,
+    return BreakdownRow(
       label: 'Labor',
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (chipLabel.isNotEmpty) ...[
-            _unratedChip(context, chipLabel),
+            FinanceFlagChip(chipLabel),
             const SizedBox(width: 8),
           ],
           _amount(context, labor?.total),
-        ],
-      ),
-    );
-  }
-
-  /// Single home for the label/amount layout and 16px padding of every row.
-  Widget _breakdownRow(
-    BuildContext context, {
-    required String label,
-    required Widget trailing,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: _horizontalPadding,
-        vertical: 4,
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
-          ),
-          trailing,
         ],
       ),
     );
@@ -182,38 +160,5 @@ class CostBreakdownSummary extends StatelessWidget {
           .titleMedium
           ?.copyWith(fontWeight: FontWeight.w700),
     );
-  }
-
-  Widget _unratedChip(BuildContext context, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: _unratedChipBackground,
-        borderRadius: BorderRadius.circular(_chipBorderRadius),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context)
-            .textTheme
-            .bodySmall
-            ?.copyWith(color: _unratedChipForeground),
-      ),
-    );
-  }
-
-  Widget _secondaryText(BuildContext context, String text) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: _horizontalPadding,
-        vertical: 4,
-      ),
-      child: Text(text, style: _secondaryStyle(context)),
-    );
-  }
-
-  TextStyle? _secondaryStyle(BuildContext context) {
-    return Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-        );
   }
 }
