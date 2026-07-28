@@ -86,6 +86,17 @@ any change to the ungated Reports dashboard beyond adding the sibling nav item.
   budget-vs-actual stay all-time — budgets and margins are lifetime-of-project
   numbers, and date-filtered budget-vs-actual would mislead.
 
+### Post-research decisions (added 2026-07-28 after 35-RESEARCH.md open questions)
+- **D-11:** **Attention tiers use LIVE threshold state** — recomputed from
+  current spent/total via the shipped `budget_math.crossed_thresholds`, NOT the
+  `warning_fired_at`/`overrun_fired_at` alert-claim timestamps (those null on
+  re-arm and persist after spend drops; using them would let the list
+  contradict the charts beside it). Refines D-08's "shipped signals" to mean
+  shipped *functions*, not the alert-dedup columns.
+- **D-12:** **All projects roll into portfolio totals regardless of status**
+  (D-09 honesty posture); the response carries each project's status so the UI
+  can group/de-emphasize drafts or completed projects visually.
+
 ### Claude's Discretion
 - Trend bucket-edge semantics and how revenue basis resolves per bucket (D-02
   note); percent/rounding consistent with shipped conventions.
