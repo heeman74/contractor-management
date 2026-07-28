@@ -402,7 +402,7 @@ Plans:
   2. Owner/PM can view budgeted vs. spent vs. remaining at both the project level and the trade scope level
   3. Owner/PM receives an alert (dashboard + FCM push) when spend crosses the 80% warning threshold and again at 100% overrun, and only finance-permitted users receive it
   4. Approving a quote revision automatically adjusts the linked budget by the revision's delta amount, with no manual re-entry required
-**Plans:** 6/8 plans executed
+**Plans:** 7/8 plans executed
 
 Plans:
 - [x] 34-01-PLAN.md — Migration 0035 (alert types, budget threshold state, quote chain link), model updates, FINANCIAL_ALERT_TYPES registration, pure budget math + alert copy
@@ -410,7 +410,7 @@ Plans:
 - [x] 34-03-PLAN.md — Threshold evaluation with atomic exactly-once claim, dashboard alert emission, finance.view-targeted FCM push
 - [x] 34-04-PLAN.md — Web budget rows: types/parser, BudgetSummarySection, wiring into project + trade-scope Costs surfaces (read-only states)
 - [x] 34-05-PLAN.md — Mobile budget rows: tolerant BudgetVsActual parser, BudgetSummarySection widget, E2E through mocked Dio
-- [ ] 34-06-PLAN.md — Automatic triggers: cost-mutation + budget-edit evaluation and the 05:00 UTC nightly sweep
+- [x] 34-06-PLAN.md — Automatic triggers: cost-mutation + budget-edit evaluation and the 05:00 UTC nightly sweep
 - [x] 34-07-PLAN.md — Web SetBudgetDialog, manage affordances, AlertPanel header fix, phase-34 Playwright spec
 - [ ] 34-08-PLAN.md — Quote revision fixes (anchors, approved-revisable, chain link) + signed pre-tax budget delta on approval
 
@@ -489,7 +489,7 @@ Note: Phase 37 (AI Quote Planning) depends only on Phase 32 and may run in paral
 | 31. Actual Cost Capture | v4.0 | 5/5 | Complete    | 2026-07-26 |
 | 32. Labor Rates and Cost Rollup | v4.0 | 5/5 | Complete    | 2026-07-27 |
 | 33. Profit Margin Tracking | v4.0 | 5/5 | Complete    | 2026-07-28 |
-| 34. Budgeting and Overrun Alerts | v4.0 | 6/8 | In Progress|  |
+| 34. Budgeting and Overrun Alerts | v4.0 | 7/8 | In Progress|  |
 | 35. Web Financial Dashboard | v4.0 | 0/? | Not started | - |
 | 36. AI Profitability Analysis | v4.0 | 0/? | Not started | - |
 | 37. AI Quote Planning | v4.0 | 0/? | Not started | - |

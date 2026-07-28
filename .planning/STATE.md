@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 34-07-PLAN.md
-last_updated: "2026-07-28T16:01:19.565Z"
+stopped_at: Completed 34-06-PLAN.md
+last_updated: "2026-07-28T16:15:43.265Z"
 last_activity: 2026-07-28
 progress:
   total_phases: 22
   completed_phases: 16
   total_plans: 94
-  completed_plans: 89
+  completed_plans: 90
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 34 (budgeting-and-overrun-alerts) — EXECUTING
-Plan: 7 of 8
+Plan: 8 of 8
 Status: Ready to execute
 Last activity: 2026-07-28
 
@@ -68,6 +68,7 @@ Last activity: 2026-07-28
 | Phase 34 P04 | 28min | 3 tasks | 9 files |
 | Phase 34 P03 | 40min | 3 tasks | 6 files |
 | Phase 34 P07 | 13min | 3 tasks | 13 files |
+| Phase 34 P06 | 27min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -239,6 +240,9 @@ Last activity: 2026-07-28
 - [Phase 34]: 34-07: Budget API functions return Promise<void> — rows refresh via cost-entries invalidation, no unused response mapper (dead-code rule)
 - [Phase 34]: 34-07: SetBudgetDialog prefill uses a null untouched-sentinel (amount = editedAmount ?? budget?.total) reset in the onOpenChange wrapper — correct after refetch, no useEffect, no remount key
 - [Phase 34]: 34-07: Playwright DELETE mocks must fulfill 200 with json null — apiDelete unconditionally parses JSON, a bodyless 204 rejects
+- [Phase 34]: 34-06: Mutation hooks use the shipped module-level BudgetService import (cycle already broken from budget_service side in 34-02) — no lazy in-method re-import
+- [Phase 34]: 34-06: sweep scope spends come from one grouped scope_spends query quantized to CENTS, pinned to trade_scope_spend by a named equivalence test (soft-deleted entry included) per Pitfall 6
+- [Phase 34]: 34-06: PATCH /budgets/{id} evaluates inline after set_total so a below-spend edit fires in the same request (D-10); scheduler add_job calls extracted to _register_jobs for testability
 
 ### Pending Todos
 
@@ -257,6 +261,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-28T16:01:19.559Z
-Stopped at: Completed 34-07-PLAN.md
+Last session: 2026-07-28T16:15:32.279Z
+Stopped at: Completed 34-06-PLAN.md
 Resume file: None
