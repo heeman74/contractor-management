@@ -14,6 +14,7 @@ seeded via direct SQL because no endpoint exposes it by design.
 
 import asyncio
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from unittest.mock import patch
 from uuid import UUID, uuid4
 
@@ -27,6 +28,7 @@ from app.core.tenant import set_current_tenant_id
 from app.features.finance.budget_repository import BudgetRepository
 from app.features.finance.budget_service import BudgetService
 from app.features.finance.models import CostCategory
+from app.features.finance.service import FinanceService
 from app.features.rbac.repository import RbacRepository
 
 _BUDGETS_URL = "/api/v1/budgets/"
@@ -1356,3 +1358,197 @@ async def test_mutation_anchor_without_budget_returns_normally(
     )
 
     assert await _alert_rows(company_id) == []
+
+
+# ---------------------------------------------------------------------------
+# BUDG-03 (34-06): nightly sweep over every active budget
+# ---------------------------------------------------------------------------
+
+
+async def _run_sweep(company_id: str) -> int:
+    """Run the sweep in its own committed session — the cron _run_for_all_companies shape."""
+    async with async_session_factory() as db:
+        set_current_tenant_id(UUID(company_id))
+        fired_count = await BudgetService(db).sweep_budgets(
+            company_id=UUID(company_id), target_date=date(2026, 7, 1)
+        )
+        await db.commit()
+        return fired_count
+
+
+@pytest.mark.asyncio
+async def test_sweep_fires_crossed_thresholds_for_all_active_budgets(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """One sweep evaluates every active budget: scope AND project warnings fire together."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    project_id = await _create_project(tenant_a_client)
+    scope_id = await _create_trade_scope(tenant_a_client, project_id)
+    materials_id = await _category_id(company_id, "materials")
+    headers = _pm_headers(company_id)
+    await _add_cost_entry(
+        async_client, headers, trade_scope_id=scope_id, category_id=materials_id, amount="8200.00"
+    )
+    await _create_budget(async_client, headers, trade_scope_id=scope_id, total="10000.00")
+    await _create_budget(async_client, headers, project_id=project_id, total="9000.00")
+
+    assert await _run_sweep(company_id) == 2
+
+    rows = await _alert_rows(company_id)
+    assert len(rows) == 2
+    assert {row.alert_type for row in rows} == {"budget_warning"}
+
+
+@pytest.mark.asyncio
+async def test_sweep_twice_is_idempotent(async_client, tenant_a_client, seed_two_tenants):
+    """Running the sweep twice fires on the first run and creates nothing on the second."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    _, _, _budget_id = await _seed_scope_budget_with_spend(
+        async_client, tenant_a_client, company_id
+    )
+
+    first_run = await _run_sweep(company_id)
+    second_run = await _run_sweep(company_id)
+
+    assert first_run == 1
+    assert second_run == 0
+    assert len(await _alert_rows(company_id)) == 1
+
+
+@pytest.mark.asyncio
+async def test_sweep_already_fired_budget_fires_nothing(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """A budget past 80% with warning_fired_at already set is a sweep no-op."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    _, _, budget_id = await _seed_scope_budget_with_spend(async_client, tenant_a_client, company_id)
+    await _set_fired_thresholds(company_id, budget_id)
+
+    assert await _run_sweep(company_id) == 0
+
+    assert await _alert_rows(company_id) == []
+
+
+@pytest.mark.asyncio
+async def test_sweep_labor_only_spend_fires_project_budget(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """Tracked labor alone — no cost entry anywhere — crosses the project threshold (D-02)."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    worker_id = await _create_user(tenant_a_client, "worker-sweep-34@tenant-a.com")
+    project_id = await _create_project(tenant_a_client)
+    job_id = await _create_job(tenant_a_client, project_id=project_id)
+    headers = _pm_headers(company_id)
+    await _create_budget(async_client, headers, project_id=project_id, total="100.00")
+    await _post_rate(async_client, headers, worker_id, "45.00", date(2026, 1, 1))
+    await _seed_time_entry(
+        company_id, job_id, worker_id, 2, clocked_in_at=datetime(2026, 6, 10, 15, 0, tzinfo=UTC)
+    )
+
+    assert await _run_sweep(company_id) == 1
+
+    rows = await _alert_rows(company_id)
+    assert [row.alert_type for row in rows] == ["budget_warning"]  # $90 of $100 = 90%
+
+
+@pytest.mark.asyncio
+async def test_sweep_skips_soft_deleted_budgets(async_client, tenant_a_client, seed_two_tenants):
+    """A soft-deleted budget is skipped entirely — no evaluation, no alert."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    _, _, budget_id = await _seed_scope_budget_with_spend(async_client, tenant_a_client, company_id)
+    delete_resp = await async_client.delete(_budget_url(budget_id), headers=_pm_headers(company_id))
+    assert delete_resp.status_code == 204, delete_resp.text
+
+    assert await _run_sweep(company_id) == 0
+
+    assert await _alert_rows(company_id) == []
+
+
+@pytest.mark.asyncio
+async def test_sweep_skips_budget_whose_project_was_deleted(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """A budget whose project is gone is skipped without raising and burns no claim."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    project_id = await _create_project(tenant_a_client)
+    scope_id = await _create_trade_scope(tenant_a_client, project_id)
+    materials_id = await _category_id(company_id, "materials")
+    headers = _pm_headers(company_id)
+    await _add_cost_entry(
+        async_client, headers, trade_scope_id=scope_id, category_id=materials_id, amount="8200.00"
+    )
+    budget = await _create_budget(async_client, headers, project_id=project_id, total="9000.00")
+    delete_resp = await tenant_a_client.delete(f"/api/v1/projects/{project_id}")
+    assert delete_resp.status_code == 204, delete_resp.text
+
+    assert await _run_sweep(company_id) == 0
+
+    assert await _alert_rows(company_id) == []
+    warning_fired_at, overrun_fired_at = await _fired_state(company_id, budget["id"])
+    assert warning_fired_at is None
+    assert overrun_fired_at is None
+
+
+@pytest.mark.asyncio
+async def test_sweep_scope_spends_equivalence_matches_trade_scope_spend(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """Pitfall 6 pin: scope_spends == trade_scope_spend == breakdown grand_total, exactly.
+
+    Mixed categories plus one soft-deleted entry — if the batched sweep query ever
+    drifts from the single-scope definition, alerts would quote a number the
+    screen never shows.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    project_id = await _create_project(tenant_a_client)
+    scope_id = await _create_trade_scope(tenant_a_client, project_id)
+    materials_id = await _category_id(company_id, "materials")
+    subcontractor_id = await _category_id(company_id, "subcontractor")
+    other_id = await _category_id(company_id, "other")
+    headers = _pm_headers(company_id)
+    await _add_cost_entry(
+        async_client, headers, trade_scope_id=scope_id, category_id=materials_id, amount="2000.00"
+    )
+    await _add_cost_entry(
+        async_client,
+        headers,
+        trade_scope_id=scope_id,
+        category_id=subcontractor_id,
+        amount="1500.00",
+    )
+    await _add_cost_entry(
+        async_client, headers, trade_scope_id=scope_id, category_id=other_id, amount="300.50"
+    )
+    deleted_entry_id = await _add_cost_entry(
+        async_client, headers, trade_scope_id=scope_id, category_id=materials_id, amount="999.00"
+    )
+    await _delete_cost_entry(async_client, headers, deleted_entry_id)
+
+    breakdown = await _scope_breakdown(async_client, headers, scope_id)
+    async with async_session_factory() as db:
+        set_current_tenant_id(UUID(company_id))
+        batched_spend = (await BudgetRepository(db).scope_spends([UUID(scope_id)]))[UUID(scope_id)]
+        single_spend = await FinanceService(db).trade_scope_spend(UUID(scope_id))
+
+    assert batched_spend == single_spend == Decimal(breakdown["grand_total"]) == Decimal("3800.50")
+
+
+@pytest.mark.asyncio
+async def test_sweep_scope_spends_empty_scope_returns_zero(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """A scope with no cost entries at all yields ZERO_MONEY, matching trade_scope_spend."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    project_id = await _create_project(tenant_a_client)
+    scope_id = await _create_trade_scope(tenant_a_client, project_id)
+
+    async with async_session_factory() as db:
+        set_current_tenant_id(UUID(company_id))
+        batched_spend = (await BudgetRepository(db).scope_spends([UUID(scope_id)]))[UUID(scope_id)]
+        single_spend = await FinanceService(db).trade_scope_spend(UUID(scope_id))
+
+    assert batched_spend == single_spend == Decimal("0.00")
