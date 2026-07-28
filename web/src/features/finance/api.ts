@@ -301,6 +301,33 @@ export async function fetchReceipts(costEntryId: string): Promise<CostReceipt[]>
   return raw.map(mapCostReceipt);
 }
 
+// --- Budgets ---
+
+export interface BudgetAnchorInput {
+  /** Exactly one of projectId / tradeScopeId is set — the budget's anchor. */
+  projectId?: string;
+  tradeScopeId?: string;
+  total: string;
+}
+
+/** Callers only need success/failure — the refreshed rows come from the
+ *  breakdown/rollup queries, so no response mapping is done here. */
+export async function setBudget(input: BudgetAnchorInput): Promise<void> {
+  await apiPost<unknown>("/api/v1/budgets/", {
+    project_id: input.projectId,
+    trade_scope_id: input.tradeScopeId,
+    total: input.total,
+  });
+}
+
+export async function updateBudget(budgetId: string, total: string): Promise<void> {
+  await apiPatch<unknown>(`/api/v1/budgets/${budgetId}`, { total });
+}
+
+export function deleteBudget(budgetId: string): Promise<void> {
+  return apiDelete<void>(`/api/v1/budgets/${budgetId}`);
+}
+
 // --- Labor rates (append-only — no update, no delete) ---
 
 interface LaborRateApiResponse {

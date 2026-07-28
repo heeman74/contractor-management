@@ -16,7 +16,11 @@ import {
   deleteCostEntry,
   uploadCostReceipt,
   createLaborRate,
+  setBudget,
+  updateBudget,
+  deleteBudget,
 } from "./api";
+import type { BudgetAnchorInput } from "./api";
 import type { CostEntryInput, CostEntryPatch, LaborRateInput } from "./types";
 
 // --- Queries ---
@@ -114,6 +118,36 @@ export function useDeleteCostEntry() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => deleteCostEntry(id),
+    onSuccess: () => invalidateAllCostEntries(queryClient),
+  });
+}
+
+/**
+ * Budget mutations invalidate the whole cost-entries prefix: the breakdown and
+ * rollup queries that carry the budget block both live under it, so one
+ * invalidation refreshes every budget row on screen.
+ */
+export function useSetBudget() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: BudgetAnchorInput) => setBudget(input),
+    onSuccess: () => invalidateAllCostEntries(queryClient),
+  });
+}
+
+export function useUpdateBudget() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ budgetId, total }: { budgetId: string; total: string }) =>
+      updateBudget(budgetId, total),
+    onSuccess: () => invalidateAllCostEntries(queryClient),
+  });
+}
+
+export function useDeleteBudget() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (budgetId: string) => deleteBudget(budgetId),
     onSuccess: () => invalidateAllCostEntries(queryClient),
   });
 }
