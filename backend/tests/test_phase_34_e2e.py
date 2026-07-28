@@ -1795,3 +1795,223 @@ async def test_quote_delta_margin_revenue_hands_off_to_new_approval(
     after = await _scope_breakdown(async_client, headers, scope_id)
     assert after["margin"]["revenue"] == "1500.00"  # the new approval, never both
     assert after["margin"]["revenue_basis"] == "quoted"
+
+
+_APPLY_QUOTE_DELTA_TARGET = "app.features.finance.budget_service.BudgetService.apply_quote_delta"
+
+
+async def _approved_revision(
+    async_client: AsyncClient,
+    tenant_a_client: AsyncClient,
+    company_id: str,
+    quote_id: str,
+    *,
+    unit_price: str,
+) -> dict:
+    """Revise, send and approve through the real endpoints. Returns the revision body."""
+    revision = await _revise_quote(tenant_a_client, quote_id, unit_price=unit_price)
+    await _send_quote(tenant_a_client, revision["id"])
+    return await _approve_quote(async_client, company_id, revision["id"])
+
+
+@pytest.mark.asyncio
+async def test_quote_delta_first_approval_establishes_baseline(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """The first approval in a chain changes no budget total (D-09)."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    project_id = await _create_project(tenant_a_client)
+    scope_id, quote_id = await _sent_scope_quote(tenant_a_client, project_id, unit_price="100.00")
+    await _create_budget(async_client, headers, trade_scope_id=scope_id, total="10000.00")
+
+    await _approve_quote(async_client, company_id, quote_id)
+
+    body = await _scope_breakdown(async_client, headers, scope_id)
+    assert body["budget"]["total"] == "10000.00"
+
+
+@pytest.mark.asyncio
+async def test_quote_delta_upward_revision_raises_scope_budget(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """Approving a larger revision raises the scope budget by exactly the pre-tax delta."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    project_id = await _create_project(tenant_a_client)
+    scope_id, quote_id = await _sent_scope_quote(tenant_a_client, project_id, unit_price="100.00")
+    await _create_budget(async_client, headers, trade_scope_id=scope_id, total="10000.00")
+    await _approve_quote(async_client, company_id, quote_id)
+
+    await _approved_revision(
+        async_client, tenant_a_client, company_id, quote_id, unit_price="150.00"
+    )
+
+    body = await _scope_breakdown(async_client, headers, scope_id)
+    assert body["budget"]["total"] == "10500.00"  # 10000 + (1500 - 1000)
+
+
+@pytest.mark.asyncio
+async def test_quote_delta_downward_revision_below_spend_fires_overrun(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """A downward delta below current spend fires the overrun in the SAME request (keystone 2)."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    headers = _pm_headers(company_id)
+    project_id = await _create_project(tenant_a_client, name="Riverside Remodel")
+    scope_id, quote_id = await _sent_scope_quote(tenant_a_client, project_id, unit_price="500.00")
+    await _create_budget(async_client, headers, trade_scope_id=scope_id, total="1000.00")
+    materials_id = await _category_id(company_id, "materials")
+    await _add_cost_entry(
+        async_client, headers, trade_scope_id=scope_id, category_id=materials_id, amount="700.00"
+    )
+    await _approve_quote(async_client, company_id, quote_id)  # baseline: 5000
+    assert await _alert_rows(company_id) == []
+
+    await _approved_revision(
+        async_client, tenant_a_client, company_id, quote_id, unit_price="460.00"
+    )
+
+    body = await _scope_breakdown(async_client, headers, scope_id)
+    assert body["budget"]["total"] == "600.00"  # 1000 + (4600 - 5000), below the 700 spend
+    assert {row.alert_type for row in await _alert_rows(company_id)} == {
+        "budget_warning",
+        "budget_overrun",
+    }
+
+
+@pytest.mark.asyncio
+async def test_quote_delta_job_quote_adjusts_project_budget(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """A job-anchored revision adjusts the project budget via jobs.project_id."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    project_id = await _create_project(tenant_a_client)
+    job_id = await _create_job(tenant_a_client, project_id=project_id)
+    await _create_budget(async_client, headers, project_id=project_id, total="10000.00")
+    quote = await _create_job_quote(tenant_a_client, job_id, unit_price="100.00")
+    await _send_quote(tenant_a_client, quote["id"])
+    await _approve_quote(async_client, company_id, quote["id"])
+
+    await _approved_revision(
+        async_client, tenant_a_client, company_id, quote["id"], unit_price="130.00"
+    )
+
+    body = await _project_rollup(async_client, headers, project_id)
+    assert body["budget"]["total"] == "10300.00"  # 10000 + (1300 - 1000)
+
+
+@pytest.mark.asyncio
+async def test_quote_delta_job_without_project_adjusts_nothing(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """A job with no project adjusts nothing and the approval still returns 200."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    job_id = await _create_job(tenant_a_client)
+    quote = await _create_job_quote(tenant_a_client, job_id, unit_price="100.00")
+    await _send_quote(tenant_a_client, quote["id"])
+    await _approve_quote(async_client, company_id, quote["id"])
+
+    approved = await _approved_revision(
+        async_client, tenant_a_client, company_id, quote["id"], unit_price="130.00"
+    )
+
+    assert approved["status"] == "approved"
+    assert await _alert_rows(company_id) == []
+
+
+@pytest.mark.asyncio
+async def test_quote_delta_project_level_revision_adjusts_project_budget(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """A project-level quote revision adjusts the budget of the project it created."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    quote = await _create_project_level_quote(
+        tenant_a_client, "Riverside Remodel", unit_price="100.00"
+    )
+    await _send_quote(tenant_a_client, quote["id"])
+    approved = await _approve_quote(async_client, company_id, quote["id"])
+    project_id = approved["project_id"]
+    await _create_budget(async_client, headers, project_id=project_id, total="10000.00")
+
+    await _approved_revision(
+        async_client, tenant_a_client, company_id, quote["id"], unit_price="150.00"
+    )
+
+    body = await _project_rollup(async_client, headers, project_id)
+    assert body["budget"]["total"] == "10500.00"  # 10000 + (1500 - 1000)
+
+
+@pytest.mark.asyncio
+async def test_quote_delta_no_budget_at_anchor_is_noop(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """Approval with no budget at the anchor returns 200 and creates nothing (D-08)."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    project_id = await _create_project(tenant_a_client)
+    scope_id, quote_id = await _sent_scope_quote(tenant_a_client, project_id, unit_price="100.00")
+    await _approve_quote(async_client, company_id, quote_id)
+
+    approved = await _approved_revision(
+        async_client, tenant_a_client, company_id, quote_id, unit_price="150.00"
+    )
+
+    assert approved["status"] == "approved"
+    body = await _scope_breakdown(async_client, headers, scope_id)
+    assert body["budget"] is None
+    assert await _alert_rows(company_id) == []
+
+
+@pytest.mark.asyncio
+async def test_quote_delta_positive_delta_rearms_thresholds(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """A positive delta re-arms: crossing 80% of the NEW total alerts again (D-03)."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    headers = _pm_headers(company_id)
+    project_id = await _create_project(tenant_a_client, name="Riverside Remodel")
+    scope_id, quote_id = await _sent_scope_quote(tenant_a_client, project_id, unit_price="50.00")
+    budget = await _create_budget(async_client, headers, trade_scope_id=scope_id, total="1000.00")
+    materials_id = await _category_id(company_id, "materials")
+    await _add_cost_entry(
+        async_client, headers, trade_scope_id=scope_id, category_id=materials_id, amount="850.00"
+    )
+    assert len(await _alert_rows(company_id)) == 1  # 85% of 1000: first warning
+    await _approve_quote(async_client, company_id, quote_id)  # baseline: 500
+
+    await _approved_revision(
+        async_client, tenant_a_client, company_id, quote_id, unit_price="70.00"
+    )
+
+    warning_fired_at, overrun_fired_at = await _fired_state(company_id, budget["id"])
+    assert warning_fired_at is None  # +200 delta raised the total to 1200 and re-armed
+    assert overrun_fired_at is None
+    await _add_cost_entry(
+        async_client, headers, trade_scope_id=scope_id, category_id=materials_id, amount="150.00"
+    )
+    warning_rows = [r for r in await _alert_rows(company_id) if r.alert_type == "budget_warning"]
+    assert len(warning_rows) == 2  # 1000 of 1200 = 83%: fresh warning after re-arm
+
+
+@pytest.mark.asyncio
+async def test_quote_delta_failure_rolls_back_the_approval(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """A failure inside the delta application rolls back the status change too (atomicity)."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    project_id = await _create_project(tenant_a_client)
+    _, quote_id = await _sent_scope_quote(tenant_a_client, project_id, unit_price="100.00")
+
+    with patch(_APPLY_QUOTE_DELTA_TARGET, side_effect=RuntimeError("simulated delta failure")):
+        resp = await async_client.post(
+            f"/api/v1/quotes/{quote_id}/approve", headers=_client_headers(company_id)
+        )
+
+    assert resp.status_code == 500, resp.text
+    row = await _quote_row(company_id, quote_id)
+    assert row.status == "sent"  # the whole request rolled back together
