@@ -1011,11 +1011,11 @@ async def test_alerts_push_respects_live_matrix_revocation(
     hardcoded role list."""
     company_id = seed_two_tenants["tenant_a_id"]
     owner_id, pm_id, _ = await _seed_role_holders(tenant_a_client, company_id)
+    _, _, budget_id = await _seed_scope_budget_with_spend(async_client, tenant_a_client, company_id)
     async with async_session_factory() as db:
         set_current_tenant_id(UUID(company_id))
         await RbacRepository(db).set_role(UUID(company_id), "project_manager", ["projects.view"])
         await db.commit()
-    _, _, budget_id = await _seed_scope_budget_with_spend(async_client, tenant_a_client, company_id)
     calls: list[dict] = []
 
     async def _capture(**kwargs):

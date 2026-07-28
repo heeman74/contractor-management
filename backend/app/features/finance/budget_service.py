@@ -7,6 +7,7 @@ Never commits — get_db handles the transaction lifecycle.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from dataclasses import dataclass
 from decimal import Decimal
@@ -15,6 +16,7 @@ from typing import TYPE_CHECKING
 from fastapi import HTTPException, status
 
 from app.core.base_service import TenantScopedService
+from app.core.logging_config import get_logger
 from app.features.dashboard.alert_types import (
     BUDGET_OVERRUN_ALERT_TYPE,
     BUDGET_WARNING_ALERT_TYPE,
@@ -36,9 +38,19 @@ from app.features.finance.schemas import BudgetCreate, BudgetUpdate, BudgetVsAct
 if TYPE_CHECKING:
     from app.features.finance.service import FinanceService
 
+logger = get_logger(__name__)
+
 _PROJECT_DUPLICATE_DETAIL = "A budget already exists for this project"
 _SCOPE_DUPLICATE_DETAIL = "A budget already exists for this trade scope"
 _BREAKDOWNS_DORMANT_DETAIL = "Per-category budget allocation is not available yet"
+
+_FINANCE_VIEW_PERMISSION = "finance.view"
+_BUDGET_ALERT_PUSH_TYPE = "budget_alert"
+_NO_SCOPE_PUSH_VALUE = ""  # FCM data values must all be strings — "" means no scope
+
+# Module-level task registry: keeps fire-and-forget push tasks alive until done
+# (asyncio only holds weak references — the checklists precedent).
+_BUDGET_PUSH_TASKS: set[asyncio.Task[None]] = set()
 
 _ALERT_TYPE_BY_THRESHOLD: dict[BudgetThreshold, str] = {
     BudgetThreshold.warning: BUDGET_WARNING_ALERT_TYPE,
@@ -61,6 +73,19 @@ class FiredBudgetAlert:
     trade_scope_id: uuid.UUID | None
     title: str
     body: str
+
+
+def _push_data(fired: FiredBudgetAlert) -> dict[str, str]:
+    """FCM data payload for one fired alert — every value a string (FCM constraint)."""
+    return {
+        "type": _BUDGET_ALERT_PUSH_TYPE,
+        "alert_type": fired.alert_type,
+        "alert_id": str(fired.alert_id),
+        "project_id": str(fired.project_id),
+        "trade_scope_id": (
+            str(fired.trade_scope_id) if fired.trade_scope_id else _NO_SCOPE_PUSH_VALUE
+        ),
+    }
 
 
 def _to_budget_vs_actual(budget: Budget, spent: Decimal) -> BudgetVsActual:
@@ -181,6 +206,8 @@ class BudgetService(TenantScopedService[Budget]):
             alert = await self._fire_threshold(budget, threshold, spent, context)
             if alert is not None:
                 fired.append(alert)
+        if fired:
+            self._schedule_budget_pushes(fired, await self._recipients_for(budget.company_id))
         return fired
 
     async def evaluate_for_project(self, project_id: uuid.UUID) -> list[FiredBudgetAlert]:
@@ -256,3 +283,54 @@ class BudgetService(TenantScopedService[Budget]):
             rescheduling_payload=None,
             rescheduling_accepted=None,
         )
+
+    async def _recipients_for(self, company_id: uuid.UUID) -> list[uuid.UUID]:
+        """finance.view holders per the live matrix, resolved in the CURRENT session
+        (RLS + test visibility) before any background task is scheduled (D-05)."""
+        from app.features.rbac.repository import RbacRepository
+
+        return await RbacRepository(self.db).user_ids_with_permission(
+            company_id, _FINANCE_VIEW_PERMISSION
+        )
+
+    @staticmethod
+    def _schedule_budget_pushes(
+        fired: list[FiredBudgetAlert], recipient_ids: list[uuid.UUID]
+    ) -> None:
+        """Fire-and-forget one FCM push per fired alert (checklists pattern)."""
+        for alert in fired:
+            task = asyncio.create_task(
+                BudgetService._send_budget_push_safe(
+                    company_id=alert.company_id,
+                    recipient_ids=recipient_ids,
+                    title=alert.title,
+                    body=alert.body,
+                    data=_push_data(alert),
+                )
+            )
+            _BUDGET_PUSH_TASKS.add(task)
+            task.add_done_callback(_BUDGET_PUSH_TASKS.discard)
+
+    @staticmethod
+    async def _send_budget_push_safe(
+        company_id: uuid.UUID,
+        recipient_ids: list[uuid.UUID],
+        title: str,
+        body: str,
+        data: dict[str, str],
+    ) -> None:
+        """Send one budget push in its own session — the request session is closed
+        by the time this task runs (RESEARCH Pitfall 3). Never raises."""
+        try:
+            from app.core.database import async_session_factory
+            from app.core.tenant import set_current_tenant_id
+            from app.features.notifications.service import NotificationService
+
+            set_current_tenant_id(company_id)
+            async with async_session_factory() as db:
+                await NotificationService(db).send_budget_alert_notification(
+                    recipient_ids=recipient_ids, title=title, body=body, data=data
+                )
+                await db.commit()
+        except Exception:
+            logger.exception("budget alert push failed for company %s — continuing", company_id)

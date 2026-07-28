@@ -307,6 +307,36 @@ class NotificationService(BaseService[DeviceToken]):
                 task_id,
             )
 
+    async def send_budget_alert_notification(
+        self,
+        recipient_ids: list[uuid.UUID],
+        title: str,
+        body: str,
+        data: dict[str, str],
+    ) -> None:
+        """Fire-and-forget FCM for one fired budget alert to finance.view holders.
+
+        Mirrors send_task_rejection_notification: skips gracefully without
+        Firebase credentials, logs-and-returns on empty recipients or tokens,
+        and never raises (BUDG-03 — a push failure must not break evaluation).
+        """
+        messaging = self._resolve_messaging("budget alert notification")
+        if messaging is None:
+            return
+        try:
+            if not recipient_ids:
+                logger.debug("No budget-alert recipients — skipping push")
+                return
+            tokens = await self.repository.get_tokens_for_users(recipient_ids)
+            if not tokens:
+                logger.debug("No device tokens for budget-alert recipients — skipping push")
+                return
+            await self._dispatch_to_tokens(
+                tokens, title=title, body=body, data=data, messaging=messaging
+            )
+        except Exception:
+            logger.exception("send_budget_alert_notification failed — continuing")
+
     async def send_contract_ready_notification(
         self,
         client_user_id: uuid.UUID,

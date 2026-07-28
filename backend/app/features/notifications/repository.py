@@ -29,6 +29,13 @@ class NotificationRepository(BaseRepository[DeviceToken]):
         result = await self.db.execute(select(DeviceToken).where(DeviceToken.user_id == user_id))
         return list(result.scalars().all())
 
+    async def get_tokens_for_users(self, user_ids: list[uuid.UUID]) -> list[DeviceToken]:
+        """Return the device tokens of many users in one query (CLAUDE.md N+1 rule)."""
+        if not user_ids:
+            return []
+        result = await self.db.execute(select(DeviceToken).where(DeviceToken.user_id.in_(user_ids)))
+        return list(result.scalars().all())
+
     async def upsert_token(
         self,
         user_id: uuid.UUID,
