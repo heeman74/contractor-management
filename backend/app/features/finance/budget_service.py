@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import uuid
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -230,6 +231,48 @@ class BudgetService(TenantScopedService[Budget]):
         if budget is None:
             return []
         return await self.evaluate_budget(budget)
+
+    async def sweep_budgets(self, *, company_id: uuid.UUID, target_date: date) -> int:
+        """Evaluate every active budget for one company (D-02 nightly sweep).
+
+        Required signature: _run_for_all_companies invokes
+        method(company_id=..., target_date=...) with RLS already scoped to the
+        company. target_date is unused — budget thresholds are state-based, not
+        date-based — and is accepted only to satisfy that contract. Idempotent
+        by construction: the persistent fired-threshold claims make a re-run
+        create nothing. Returns the number of alerts fired.
+        """
+        budgets = await self.repository.list_active()
+        if not budgets:
+            return 0
+        scope_budgets = [budget for budget in budgets if budget.trade_scope_id is not None]
+        project_budgets = [budget for budget in budgets if budget.project_id is not None]
+        fired_count = await self._sweep_scope_budgets(scope_budgets)
+        return fired_count + await self._sweep_project_budgets(project_budgets)
+
+    async def _sweep_scope_budgets(self, budgets: list[Budget]) -> int:
+        """Evaluate scope budgets against ONE grouped spend query — never a SUM per budget."""
+        if not budgets:
+            return 0
+        spends = await self.repository.scope_spends([budget.trade_scope_id for budget in budgets])
+        fired_count = 0
+        for budget in budgets:
+            fired = await self.evaluate_budget(budget, spent=spends[budget.trade_scope_id])
+            fired_count += len(fired)
+        return fired_count
+
+    async def _sweep_project_budgets(self, budgets: list[Budget]) -> int:
+        """Evaluate project budgets one bounded spend computation each.
+
+        Mirrors DashboardService.detect_schedule_slips' per-project iteration:
+        the CLAUDE.md N+1 rule forbids a query per ROW, not a bounded service
+        call per budgeted project (each is the same 3-query operation the
+        rollup endpoint already performs).
+        """
+        fired_count = 0
+        for budget in budgets:
+            fired_count += len(await self.evaluate_budget(budget))
+        return fired_count
 
     async def _spend_for(self, budget: Budget) -> Decimal:
         """Current spend at the budget's anchor — always the single spend definition."""

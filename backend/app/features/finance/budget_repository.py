@@ -12,12 +12,13 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from fastapi import HTTPException, status
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.sql.elements import TextClause
 
 from app.core.base_repository import TenantScopedRepository
 from app.features.finance.budget_math import BudgetThreshold
-from app.features.finance.models import Budget
+from app.features.finance.labor_derivation import CENTS, ZERO_MONEY
+from app.features.finance.models import Budget, CostEntry
 from app.features.projects.models import Project, TradeScope
 
 
@@ -80,6 +81,28 @@ class BudgetRepository(TenantScopedRepository[Budget]):
         """All active budgets tenant-wide — drives the nightly threshold sweep."""
         result = await self.db.execute(select(Budget).where(Budget.deleted_at.is_(None)))
         return list(result.scalars().all())
+
+    async def scope_spends(self, trade_scope_ids: list[uuid.UUID]) -> dict[uuid.UUID, Decimal]:
+        """Non-deleted cost-entry totals for many scopes in ONE grouped query.
+
+        A batched restatement of FinanceService.trade_scope_spend's definition:
+        all categories, no derived labor, soft-deleted excluded. The two
+        implementations are pinned together by
+        test_sweep_scope_spends_equivalence_matches_trade_scope_spend
+        (backend/tests/test_phase_34_e2e.py) — edit either side only with that
+        test in view (RESEARCH Pitfall 6). Scopes with no entries map to
+        ZERO_MONEY.
+        """
+        if not trade_scope_ids:
+            return {}
+        result = await self.db.execute(
+            select(CostEntry.trade_scope_id, func.sum(CostEntry.amount))
+            .where(CostEntry.trade_scope_id.in_(trade_scope_ids), CostEntry.deleted_at.is_(None))
+            .group_by(CostEntry.trade_scope_id)
+        )
+        spends = dict.fromkeys(trade_scope_ids, ZERO_MONEY)
+        spends.update({scope_id: total.quantize(CENTS) for scope_id, total in result.all()})
+        return spends
 
     async def set_total(self, budget: Budget, total: Decimal) -> Budget:
         """The only write path for Budget.total.
