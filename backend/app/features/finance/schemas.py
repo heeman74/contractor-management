@@ -123,24 +123,51 @@ class LaborCostSummary(BaseModel):
     basis: str = "unburdened"
 
 
+class MarginSummary(BaseModel):
+    """Revenue minus actual cost for one job, trade scope, or project (MARG-01/02/03).
+
+    None expresses honest absence, never zero: `revenue` is None when no invoice and no
+    approved quote exists (D-07), and `margin_percent` is None when revenue is absent or
+    zero. `revenue_basis` is machine-readable for the UI caption and for Phase 36 AI:
+    "invoiced" | "quoted" | "mixed" (project only) | "none". `incomplete_reasons` holds
+    "unrated_labor" and/or "no_cost_data" (D-05); the figure is still reported alongside
+    the flag, never suppressed (D-06). Decimals auto-serialize as JSON strings.
+    """
+
+    revenue: Decimal | None = None
+    revenue_basis: str
+    margin: Decimal | None = None
+    margin_percent: Decimal | None = None
+    incomplete: bool = False
+    incomplete_reasons: list[str] = Field(default_factory=list)
+
+
 class CostBreakdownResponse(BaseModel):
     """Itemized category totals plus derived labor for one job or trade scope.
 
     labor is None on trade-scope breakdowns, where labor_tracked_at_job_level is
     True instead (D-07/D-08: time tracking is job-anchored in v4.0, so a trade
     scope has no labor figure — an honest note, never a $0 row).
+
+    margin was added in Phase 33 — additive only: mobile parses total/entries/
+    categories/grand_total/labor/labor_tracked_at_job_level strictly, so the
+    existing fields never change shape.
     """
 
     categories: list[CategoryTotal] = Field(default_factory=list)
     labor: LaborCostSummary | None = None
     labor_tracked_at_job_level: bool = False
     grand_total: Decimal
+    margin: MarginSummary | None = None
 
 
 class ProjectCostRollupResponse(BaseModel):
     """Response schema for a project's cost rollup (D-02/D-05).
 
     total = trade-scope-anchored costs + costs on jobs whose project_id = project.
+
+    margin was added in Phase 33 — additive only: mobile parses total/entries/
+    categories/grand_total/labor strictly, so the existing fields never change shape.
     """
 
     project_id: uuid.UUID
@@ -151,6 +178,7 @@ class ProjectCostRollupResponse(BaseModel):
     categories: list[CategoryTotal] = Field(default_factory=list)
     labor: LaborCostSummary | None = None
     grand_total: Decimal | None = None
+    margin: MarginSummary | None = None
 
 
 # ---------------------------------------------------------------------------

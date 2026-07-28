@@ -29,8 +29,25 @@ from app.features.finance.labor_derivation import (
     resolve_rate_row_for_work_date,
     summarize_labor,
 )
+from app.features.finance.margin_math import (
+    AnchorRevenue,
+    DocumentAmounts,
+    MarginFigures,
+    MarginInputs,
+    ResolvedRevenue,
+    RevenueAnchor,
+    missing_cost_data,
+    pre_tax_total,
+    resolve_anchor_revenue,
+    revenue_from,
+    summarize_margin,
+)
 from app.features.finance.models import CostCategory, CostEntry, CostReceipt, LaborRate
-from app.features.finance.repository import FinanceRepository, LaborRateRepository
+from app.features.finance.repository import (
+    FinanceRepository,
+    LaborRateRepository,
+    RevenueRepository,
+)
 from app.features.finance.schemas import (
     CategoryTotal,
     CostBreakdownResponse,
@@ -38,6 +55,7 @@ from app.features.finance.schemas import (
     CostEntryUpdate,
     LaborCostSummary,
     LaborRateCreate,
+    MarginSummary,
 )
 
 _MANUAL_LABOR_DETAIL = "Labor cost is derived from tracked time."
@@ -60,6 +78,31 @@ class ProjectCostRollup:
     categories: list[CategoryTotal]
     labor: LaborTotals
     grand_total: Decimal
+
+
+@dataclass(frozen=True)
+class MarginCostSide:
+    """The cost half of the margin equation, already computed by the shipped breakdown."""
+
+    total: Decimal
+    unrated_seconds: int = 0
+
+
+def _quoted_revenue(quote: DocumentAmounts) -> Decimal:
+    """One quote's pre-tax revenue leg, quantized to cents like the invoice leg."""
+    return pre_tax_total(quote).quantize(CENTS)
+
+
+def _to_margin_summary(figures: MarginFigures) -> MarginSummary:
+    """Map pure math output onto the wire schema."""
+    return MarginSummary(
+        revenue=figures.revenue,
+        revenue_basis=figures.revenue_basis,
+        margin=figures.margin,
+        margin_percent=figures.margin_percent,
+        incomplete=figures.incomplete,
+        incomplete_reasons=list(figures.incomplete_reasons),
+    )
 
 
 def _build_breakdown(
@@ -196,33 +239,72 @@ class FinanceService(TenantScopedService[CostEntry]):
             grand_total=breakdown.grand_total,
         )
 
-    async def _derive_labor(self, sessions: list[WorkSession]) -> LaborTotals:
-        """Cost tracked time in exactly TWO bounded round trips, never one per entry.
-
-        Round trip 1 already happened (the caller's session query). Round trip 2
-        fetches every rate for the distinct contractors seen, then summarize_labor
-        matches them in Python. CLAUDE.md N+1 rule: no query inside a loop.
-        """
+    async def _rates_by_contractor(
+        self, sessions: list[WorkSession]
+    ) -> dict[uuid.UUID, list[LaborRate]]:
+        """Every rate row for the contractors seen, in ONE bounded query (CLAUDE.md N+1 rule)."""
         contractor_ids = {session.contractor_id for session in sessions}
         if not contractor_ids:
-            return LaborTotals(total=ZERO_MONEY, rated_seconds=0, unrated_seconds=0)
+            return {}
         rates = await LaborRateRepository(self.db).list_rates_for_users(sorted(contractor_ids))
-        return summarize_labor(sessions, _group_rates_by_user(rates))
+        return _group_rates_by_user(rates)
+
+    async def _derive_labor(self, sessions: list[WorkSession]) -> LaborTotals:
+        """Cost tracked time from one bounded rate fetch — never a query per session."""
+        return summarize_labor(sessions, await self._rates_by_contractor(sessions))
+
+    async def _resolve_anchor_revenue(self, anchor: RevenueAnchor) -> ResolvedRevenue:
+        """Invoices at this anchor, else its latest approved quote, else nothing (D-01/D-03).
+
+        The quote query only runs when the anchor has no invoices — invoices win outright.
+        """
+        revenue_repository = RevenueRepository(self.db)
+        invoices = await revenue_repository.invoice_amounts_for_anchor(anchor)
+        if invoices:
+            return resolve_anchor_revenue(AnchorRevenue(invoiced_total=revenue_from(invoices)))
+        quote = await revenue_repository.latest_approved_quote_amounts_for_anchor(anchor)
+        quoted_total = _quoted_revenue(quote) if quote is not None else None
+        return resolve_anchor_revenue(AnchorRevenue(quoted_total=quoted_total))
+
+    async def _anchor_margin(self, anchor: RevenueAnchor, cost: MarginCostSide) -> MarginSummary:
+        """The full margin block for one job or trade-scope anchor."""
+        revenue = await self._resolve_anchor_revenue(anchor)
+        return _to_margin_summary(
+            summarize_margin(
+                MarginInputs(
+                    revenue=revenue,
+                    cost=cost.total,
+                    unrated_seconds=cost.unrated_seconds,
+                    has_missing_cost_data=missing_cost_data(cost.total, revenue.total),
+                )
+            )
+        )
 
     async def job_cost_breakdown(self, job_id: uuid.UUID) -> CostBreakdownResponse:
-        """Category totals + derived labor for a job (3 round trips total)."""
+        """Category totals + derived labor + margin for a job (3 cost + 1-2 revenue round trips)."""
         category_rows = await self.repository.category_totals_for_job(job_id)
         sessions = await self.repository.completed_work_sessions_for_job(job_id)
         labor = await self._derive_labor(sessions)
-        return _build_breakdown(category_rows, labor, tracked_at_job_level=False)
+        breakdown = _build_breakdown(category_rows, labor, tracked_at_job_level=False)
+        margin = await self._anchor_margin(
+            RevenueAnchor(job_id=job_id),
+            MarginCostSide(total=breakdown.grand_total, unrated_seconds=labor.unrated_seconds),
+        )
+        return breakdown.model_copy(update={"margin": margin})
 
     async def trade_scope_cost_breakdown(self, trade_scope_id: uuid.UUID) -> CostBreakdownResponse:
-        """Category totals only — labor is job-anchored in v4.0 (D-08), so no labor figure.
+        """Category totals + margin for a scope (1 cost + 1-2 revenue round trips).
 
-        Returns labor=None and labor_tracked_at_job_level=True.
+        Labor is job-anchored in v4.0 (D-08): labor=None, labor_tracked_at_job_level=True,
+        unrated_seconds stays 0 — only no_cost_data can flag here (D-05).
         """
         category_rows = await self.repository.category_totals_for_trade_scope(trade_scope_id)
-        return _build_breakdown(category_rows, None, tracked_at_job_level=True)
+        breakdown = _build_breakdown(category_rows, None, tracked_at_job_level=True)
+        margin = await self._anchor_margin(
+            RevenueAnchor(trade_scope_id=trade_scope_id),
+            MarginCostSide(total=breakdown.grand_total),
+        )
+        return breakdown.model_copy(update={"margin": margin})
 
     async def update_cost_entry(self, entry_id: uuid.UUID, data: CostEntryUpdate) -> CostEntry:
         """Update a cost entry's amount/category/date/vendor/note (anchor is immutable)."""

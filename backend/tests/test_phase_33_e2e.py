@@ -51,6 +51,8 @@ _QUOTE_APPROVE_SQL = (
     "UPDATE quotes SET status = 'approved', approved_at = now() WHERE id = CAST(:quote_id AS uuid)"
 )
 
+_JOB_COMPLETE_SQL = "UPDATE jobs SET status = 'complete' WHERE id = CAST(:job_id AS uuid)"
+
 _QUOTE_APPROVE_WITH_PROJECT_SQL = (
     "UPDATE quotes SET status = 'approved', approved_at = now(), "
     "project_id = CAST(:project_id AS uuid) "
@@ -207,9 +209,22 @@ def _single_line_item(unit_price: str, quantity: str) -> dict:
     }
 
 
+async def _mark_job_complete(company_id: str, job_id: str) -> None:
+    """Force a job to 'complete' via SQL so a manual invoice can be posted on it.
+
+    SQL, not the jobs API: walking quote→scheduled→in_progress→complete would
+    drag scheduling fixtures into every margin test.
+    """
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        await session.execute(text(_JOB_COMPLETE_SQL), {"job_id": job_id})
+        await session.commit()
+
+
 async def _post_invoice(
     client: AsyncClient,
     *,
+    company_id: str,
     job_id: str | None = None,
     trade_scope_id: str | None = None,
     unit_price: str,
@@ -218,7 +233,12 @@ async def _post_invoice(
     discount_type: str | None = None,
     discount_value: str = "0",
 ) -> dict:
-    """POST /api/v1/invoices/ with a single material line item at one anchor."""
+    """POST /api/v1/invoices/ with a single material line item at one anchor.
+
+    Job-anchored invoices require a 'complete' job, so the job is completed first.
+    """
+    if job_id is not None:
+        await _mark_job_complete(company_id, job_id)
     payload: dict = {
         "tax_rate": tax_rate,
         "discount_value": discount_value,
@@ -322,7 +342,7 @@ async def test_job_margin_uses_invoiced_revenue_at_the_anchor(
     job_id = await _create_job(tenant_a_client)
     materials_id = await _category_id(company_id, "materials")
 
-    await _post_invoice(tenant_a_client, job_id=job_id, unit_price="2000.00")
+    await _post_invoice(tenant_a_client, company_id=company_id, job_id=job_id, unit_price="2000.00")
     await _seed_cost_entry(company_id, job_id=job_id, category_id=materials_id, amount="500.00")
 
     margin = _margin(await _job_breakdown(async_client, _pm_headers(company_id), job_id))
@@ -364,6 +384,7 @@ async def test_job_margin_revenue_basis_is_pre_tax_subtotal_minus_discount(
 
     await _post_invoice(
         tenant_a_client,
+        company_id=company_id,
         job_id=job_id,
         unit_price="1000.00",
         discount_type="percent",
@@ -386,7 +407,9 @@ async def test_trade_scope_margin_uses_scope_anchored_invoice(
     scope_id = await _create_trade_scope(tenant_a_client, project_id)
     materials_id = await _category_id(company_id, "materials")
 
-    await _post_invoice(tenant_a_client, trade_scope_id=scope_id, unit_price="1200.00")
+    await _post_invoice(
+        tenant_a_client, company_id=company_id, trade_scope_id=scope_id, unit_price="1200.00"
+    )
     await _seed_cost_entry(
         company_id, trade_scope_id=scope_id, category_id=materials_id, amount="200.00"
     )
@@ -440,11 +463,13 @@ async def test_project_margin_same_traversal_mixed_anchors(
     materials_id = await _category_id(company_id, "materials")
     pm_headers = _pm_headers(company_id)
 
-    await _post_invoice(tenant_a_client, trade_scope_id=scope_id, unit_price="1000.00")
+    await _post_invoice(
+        tenant_a_client, company_id=company_id, trade_scope_id=scope_id, unit_price="1000.00"
+    )
     await _seed_cost_entry(
         company_id, trade_scope_id=scope_id, category_id=materials_id, amount="300.00"
     )
-    await _post_invoice(tenant_a_client, job_id=job_id, unit_price="500.00")
+    await _post_invoice(tenant_a_client, company_id=company_id, job_id=job_id, unit_price="500.00")
     await _seed_cost_entry(company_id, job_id=job_id, category_id=materials_id, amount="100.00")
     await _post_rate(async_client, pm_headers, worker_id, "50.00", date(2026, 1, 1))
     await _seed_time_entry(
@@ -472,7 +497,9 @@ async def test_project_margin_traversal_never_mixes_quote_with_invoice_at_one_an
 
     quote = await _post_quote(tenant_a_client, trade_scope_id=scope_id, unit_price="5000.00")
     await _approve_quote(company_id, quote["id"])
-    await _post_invoice(tenant_a_client, trade_scope_id=scope_id, unit_price="1000.00")
+    await _post_invoice(
+        tenant_a_client, company_id=company_id, trade_scope_id=scope_id, unit_price="1000.00"
+    )
 
     margin = _margin(await _project_rollup(async_client, _pm_headers(company_id), project_id))
     assert margin["revenue"] == "1000.00"
@@ -488,7 +515,9 @@ async def test_project_margin_mixed_basis_when_one_anchor_invoiced_one_quoted(
     scope_a_id = await _create_trade_scope(tenant_a_client, project_id, trade_name="Plumbing")
     scope_b_id = await _create_trade_scope(tenant_a_client, project_id, trade_name="Electrical")
 
-    await _post_invoice(tenant_a_client, trade_scope_id=scope_a_id, unit_price="1000.00")
+    await _post_invoice(
+        tenant_a_client, company_id=company_id, trade_scope_id=scope_a_id, unit_price="1000.00"
+    )
     quote = await _post_quote(tenant_a_client, trade_scope_id=scope_b_id, unit_price="2000.00")
     await _approve_quote(company_id, quote["id"])
 
@@ -516,7 +545,9 @@ async def test_project_level_quote_enters_traversal_only_when_no_anchor_revenue(
     assert margin_before["revenue_basis"] == "quoted"
 
     scope_id = await _create_trade_scope(tenant_a_client, project_id)
-    await _post_invoice(tenant_a_client, trade_scope_id=scope_id, unit_price="1000.00")
+    await _post_invoice(
+        tenant_a_client, company_id=company_id, trade_scope_id=scope_id, unit_price="1000.00"
+    )
 
     margin_after = _margin(await _project_rollup(async_client, pm_headers, project_id))
     assert margin_after["revenue"] == "1000.00"
@@ -535,7 +566,7 @@ async def test_legacy_job_with_revenue_and_no_costs_is_flagged_never_100_percent
     company_id = seed_two_tenants["tenant_a_id"]
     job_id = await _create_job(tenant_a_client)
 
-    await _post_invoice(tenant_a_client, job_id=job_id, unit_price="2000.00")
+    await _post_invoice(tenant_a_client, company_id=company_id, job_id=job_id, unit_price="2000.00")
 
     margin = _margin(await _job_breakdown(async_client, _pm_headers(company_id), job_id))
     assert margin["margin"] == "2000.00"
@@ -556,7 +587,7 @@ async def test_unrated_labor_hours_flag_the_margin_incomplete(
     job_id = await _create_job(tenant_a_client)
     materials_id = await _category_id(company_id, "materials")
 
-    await _post_invoice(tenant_a_client, job_id=job_id, unit_price="1000.00")
+    await _post_invoice(tenant_a_client, company_id=company_id, job_id=job_id, unit_price="1000.00")
     await _seed_cost_entry(company_id, job_id=job_id, category_id=materials_id, amount="400.00")
     await _seed_time_entry(
         company_id, job_id, worker_id, 2, clocked_in_at=datetime(2026, 6, 10, 15, 0, tzinfo=UTC)
@@ -602,11 +633,15 @@ async def test_project_incomplete_flag_propagates_from_any_contributing_anchor(
     legacy_job_id = await _create_job(tenant_a_client, project_id=project_id)
     materials_id = await _category_id(company_id, "materials")
 
-    await _post_invoice(tenant_a_client, trade_scope_id=scope_id, unit_price="1000.00")
+    await _post_invoice(
+        tenant_a_client, company_id=company_id, trade_scope_id=scope_id, unit_price="1000.00"
+    )
     await _seed_cost_entry(
         company_id, trade_scope_id=scope_id, category_id=materials_id, amount="300.00"
     )
-    await _post_invoice(tenant_a_client, job_id=legacy_job_id, unit_price="500.00")
+    await _post_invoice(
+        tenant_a_client, company_id=company_id, job_id=legacy_job_id, unit_price="500.00"
+    )
 
     margin = _margin(await _project_rollup(async_client, _pm_headers(company_id), project_id))
     assert margin["incomplete"] is True

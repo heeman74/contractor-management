@@ -233,12 +233,21 @@ class InvoiceService(JobEventsMixin, TenantScopedService[Invoice]):
         data: InvoiceCreate,
         user_id: uuid.UUID,
     ) -> Invoice:
-        """Generate a manual invoice for a job (no prior quote required).
+        """Generate a manual invoice for a job or a trade scope (no prior quote required).
 
         Useful for jobs that skip the quote step (e.g., emergency call-outs).
-        Transitions job to 'invoiced'.
+        Job-anchored invoices require a 'complete' job and transition it to
+        'invoiced'; trade-scope-anchored invoices (Phase 25 anchor) only require
+        the scope to exist — scopes have no invoiced status machine.
         """
-        job = await self._load_complete_job(data.job_id)
+        job = None
+        if data.job_id is not None:
+            job = await self._load_complete_job(data.job_id)
+        else:
+            entity_or_404(
+                await self.db.get(TradeScope, data.trade_scope_id),
+                f"TradeScope {data.trade_scope_id} not found",
+            )
 
         company_id = self._require_tenant_id()
         invoice_number = await self._generate_invoice_number(company_id)
@@ -246,6 +255,7 @@ class InvoiceService(JobEventsMixin, TenantScopedService[Invoice]):
         invoice = Invoice(
             company_id=company_id,
             job_id=data.job_id,
+            trade_scope_id=data.trade_scope_id,
             quote_id=data.quote_id,
             invoice_number=invoice_number,
             status=_INVOICE_STATUS_UNPAID,
@@ -259,7 +269,8 @@ class InvoiceService(JobEventsMixin, TenantScopedService[Invoice]):
         await self.db.flush()  # get invoice.id
 
         self._add_source_line_items(invoice.id, company_id, data.line_items)
-        await self._mark_job_invoiced(job, user_id)
+        if job is not None:
+            await self._mark_job_invoiced(job, user_id)
 
         return await self.repository.get_with_line_items(invoice.id)  # type: ignore[return-value]
 
