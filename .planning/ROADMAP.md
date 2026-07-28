@@ -62,7 +62,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 - [x] **Phase 31: Actual Cost Capture** — Materials and subcontractor/other cost entries with receipt photos, scoped to job or trade scope (completed 2026-07-26)
 - [x] **Phase 32: Labor Rates and Cost Rollup** — Effective-dated hourly cost rates, automatic labor cost derivation from time tracking, itemized cost view with category totals (completed 2026-07-27)
 - [x] **Phase 33: Profit Margin Tracking** — Revenue-minus-cost margin per job/trade scope and project-level rollup, with incomplete-data flagging (completed 2026-07-28)
-- [ ] **Phase 34: Budgeting and Overrun Alerts** — Project/trade budgets, budget-vs-actual view, threshold alerts (80%/100%), quote-revision-driven budget adjustment
+- [x] **Phase 34: Budgeting and Overrun Alerts** — Project/trade budgets, budget-vs-actual view, threshold alerts (80%/100%), quote-revision-driven budget adjustment (completed 2026-07-28)
 - [ ] **Phase 35: Web Financial Dashboard** — Margin and budget-vs-actual charts on the web financial dashboard, permission-gated navigation
 - [ ] **Phase 36: AI Profitability Analysis** — Nightly AI scan flagging margin erosion with corrective-action suggestions, finance-gated alerts
 - [ ] **Phase 37: AI Quote Planning** — AI-assisted quote line items grounded in company cost history, confidence indicators, quoted-vs-actual variance feedback loop
@@ -402,7 +402,7 @@ Plans:
   2. Owner/PM can view budgeted vs. spent vs. remaining at both the project level and the trade scope level
   3. Owner/PM receives an alert (dashboard + FCM push) when spend crosses the 80% warning threshold and again at 100% overrun, and only finance-permitted users receive it
   4. Approving a quote revision automatically adjusts the linked budget by the revision's delta amount, with no manual re-entry required
-**Plans:** 7/8 plans executed
+**Plans:** 8/8 plans complete
 
 Plans:
 - [x] 34-01-PLAN.md — Migration 0035 (alert types, budget threshold state, quote chain link), model updates, FINANCIAL_ALERT_TYPES registration, pure budget math + alert copy
@@ -412,7 +412,7 @@ Plans:
 - [x] 34-05-PLAN.md — Mobile budget rows: tolerant BudgetVsActual parser, BudgetSummarySection widget, E2E through mocked Dio
 - [x] 34-06-PLAN.md — Automatic triggers: cost-mutation + budget-edit evaluation and the 05:00 UTC nightly sweep
 - [x] 34-07-PLAN.md — Web SetBudgetDialog, manage affordances, AlertPanel header fix, phase-34 Playwright spec
-- [ ] 34-08-PLAN.md — Quote revision fixes (anchors, approved-revisable, chain link) + signed pre-tax budget delta on approval
+- [x] 34-08-PLAN.md — Quote revision fixes (anchors, approved-revisable, chain link) + signed pre-tax budget delta on approval
 
 ### Phase 35: Web Financial Dashboard
 **Goal**: Owner/PM can see the financial health of every project and the company as a whole at a glance, in the same reporting experience they already use
@@ -489,7 +489,7 @@ Note: Phase 37 (AI Quote Planning) depends only on Phase 32 and may run in paral
 | 31. Actual Cost Capture | v4.0 | 5/5 | Complete    | 2026-07-26 |
 | 32. Labor Rates and Cost Rollup | v4.0 | 5/5 | Complete    | 2026-07-27 |
 | 33. Profit Margin Tracking | v4.0 | 5/5 | Complete    | 2026-07-28 |
-| 34. Budgeting and Overrun Alerts | v4.0 | 7/8 | In Progress|  |
+| 34. Budgeting and Overrun Alerts | v4.0 | 8/8 | Complete   | 2026-07-28 |
 | 35. Web Financial Dashboard | v4.0 | 0/? | Not started | - |
 | 36. AI Profitability Analysis | v4.0 | 0/? | Not started | - |
 | 37. AI Quote Planning | v4.0 | 0/? | Not started | - |

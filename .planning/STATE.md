@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
-status: executing
-stopped_at: Completed 34-06-PLAN.md
-last_updated: "2026-07-28T16:15:43.265Z"
+status: verifying
+stopped_at: Completed 34-08-PLAN.md
+last_updated: "2026-07-28T16:52:08.833Z"
 last_activity: 2026-07-28
 progress:
   total_phases: 22
-  completed_phases: 16
+  completed_phases: 17
   total_plans: 94
-  completed_plans: 90
+  completed_plans: 91
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 
 Phase: 34 (budgeting-and-overrun-alerts) — EXECUTING
 Plan: 8 of 8
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-28
 
 ## Performance Metrics
@@ -69,6 +69,7 @@ Last activity: 2026-07-28
 | Phase 34 P03 | 40min | 3 tasks | 6 files |
 | Phase 34 P07 | 13min | 3 tasks | 13 files |
 | Phase 34 P06 | 27min | 3 tasks | 5 files |
+| Phase 34 P08 | 34min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -243,6 +244,8 @@ Last activity: 2026-07-28
 - [Phase 34]: 34-06: Mutation hooks use the shipped module-level BudgetService import (cycle already broken from budget_service side in 34-02) — no lazy in-method re-import
 - [Phase 34]: 34-06: sweep scope spends come from one grouped scope_spends query quantized to CENTS, pinned to trade_scope_spend by a named equivalence test (soft-deleted entry included) per Pitfall 6
 - [Phase 34]: 34-06: PATCH /budgets/{id} evaluates inline after set_total so a below-spend edit fires in the same request (D-10); scheduler add_job calls extracted to _register_jobs for testability
+- [Phase 34]: 34-08: quoted_revenue reached from budget_service via lazy in-method import (34-02 cycle convention); apply_quote_delta resolves job anchors with a column-only jobs.project_id lookup, never the ORM-loaded quote.job
+- [Phase 34]: 34-08: MINIMUM_BUDGET_TOTAL (0.01) clamp applies ONLY to quote deltas — user budget edits keep the no-floor D-10 behavior; phase test contract is the six VALIDATION selectors incl. mutation, not the plan text's five
 
 ### Pending Todos
 
@@ -261,6 +264,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-28T16:15:32.279Z
-Stopped at: Completed 34-06-PLAN.md
+Last session: 2026-07-28T16:52:08.822Z
+Stopped at: Completed 34-08-PLAN.md
 Resume file: None
