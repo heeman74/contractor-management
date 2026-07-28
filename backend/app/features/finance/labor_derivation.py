@@ -49,6 +49,7 @@ class WorkSession:
     contractor_id: uuid.UUID
     clocked_in_at: datetime
     duration_seconds: int
+    job_id: uuid.UUID | None = None
 
 
 @dataclass(frozen=True)

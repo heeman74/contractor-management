@@ -20,25 +20,34 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 from fastapi import HTTPException, status
-from sqlalchemy import ColumnElement, Select, func, select
+from sqlalchemy import ColumnElement, Row, Select, func, select
 from sqlalchemy.orm import joinedload
 
 from app.core.base_repository import TenantScopedRepository
-from app.features.finance.labor_derivation import LABOR_CATEGORY_NAME, WorkSession
+from app.features.finance.labor_derivation import LABOR_CATEGORY_NAME, ZERO_MONEY, WorkSession
+from app.features.finance.margin_math import DocumentAmounts, RevenueAnchor
 from app.features.finance.models import CostCategory, CostEntry, CostReceipt, LaborRate
+from app.features.invoices.models import Invoice, InvoiceLineItem
 from app.features.jobs.models import Job, TimeEntry
 from app.features.projects.models import TradeScope
+from app.features.quotes.models import Quote, QuoteLineItem
 from app.features.users.models import User
 
 # D-03: only clocked-out sessions with a final duration contribute labor cost;
 # active sessions never do.
 _COSTABLE_SESSION_STATUSES = ("completed", "adjusted")
 
+# D-03 (Phase 33): only approved quotes qualify as revenue fallback.
+QUOTE_STATUS_APPROVED = "approved"
 
-def _costable_sessions_query() -> Select[tuple[uuid.UUID, datetime, int]]:
+
+def _costable_sessions_query() -> Select[tuple[uuid.UUID, datetime, int, uuid.UUID | None]]:
     """Column-only select of costable tracked time (Pitfall 3 predicates, stated once)."""
     return select(
-        TimeEntry.contractor_id, TimeEntry.clocked_in_at, TimeEntry.duration_seconds
+        TimeEntry.contractor_id,
+        TimeEntry.clocked_in_at,
+        TimeEntry.duration_seconds,
+        TimeEntry.job_id,
     ).where(
         TimeEntry.session_status.in_(_COSTABLE_SESSION_STATUSES),
         TimeEntry.duration_seconds.is_not(None),
@@ -46,13 +55,18 @@ def _costable_sessions_query() -> Select[tuple[uuid.UUID, datetime, int]]:
     )
 
 
-def _to_work_sessions(rows: Sequence[tuple[uuid.UUID, datetime, int]]) -> list[WorkSession]:
+def _to_work_sessions(
+    rows: Sequence[tuple[uuid.UUID, datetime, int, uuid.UUID | None]],
+) -> list[WorkSession]:
     """Map column tuples to plain WorkSessions so the service never sees Row objects."""
     return [
         WorkSession(
-            contractor_id=contractor_id, clocked_in_at=clocked_in_at, duration_seconds=seconds
+            contractor_id=contractor_id,
+            clocked_in_at=clocked_in_at,
+            duration_seconds=seconds,
+            job_id=job_id,
         )
-        for contractor_id, clocked_in_at, seconds in rows
+        for contractor_id, clocked_in_at, seconds, job_id in rows
     ]
 
 
@@ -264,3 +278,186 @@ class LaborRateRepository(TenantScopedRepository[LaborRate]):
             select(User.id).where(User.id == user_id, User.deleted_at.is_(None)).limit(1)
         )
         return result.scalar_one_or_none() is not None
+
+
+def _invoice_amounts_query() -> Select:
+    """Per-invoice money fields at their anchor, in one GROUP BY round trip.
+
+    D-02: invoices have NO draft state (status constraint is exactly
+    unpaid|partially_paid|paid), so "all issued invoices" needs no status
+    filter — only the soft-delete predicate.
+    """
+    subtotal = func.coalesce(
+        func.sum(InvoiceLineItem.quantity * InvoiceLineItem.unit_price), ZERO_MONEY
+    )
+    return (
+        select(
+            Invoice.job_id,
+            Invoice.trade_scope_id,
+            Invoice.discount_type,
+            Invoice.discount_value,
+            Invoice.tax_rate,
+            subtotal,
+        )
+        .select_from(Invoice)
+        .outerjoin(
+            InvoiceLineItem,
+            (InvoiceLineItem.invoice_id == Invoice.id) & InvoiceLineItem.deleted_at.is_(None),
+        )
+        .where(Invoice.deleted_at.is_(None))
+        .group_by(
+            Invoice.id,
+            Invoice.job_id,
+            Invoice.trade_scope_id,
+            Invoice.discount_type,
+            Invoice.discount_value,
+            Invoice.tax_rate,
+        )
+    )
+
+
+def _approved_quote_amounts_query() -> Select:
+    """Per-approved-quote money fields at their anchor, newest first.
+
+    The created_at DESC ordering lets callers take the first row per anchor as
+    "latest approved" (D-03 — mirrors InvoiceService._latest_approved_quote_for_scope).
+    """
+    subtotal = func.coalesce(
+        func.sum(QuoteLineItem.quantity * QuoteLineItem.unit_price), ZERO_MONEY
+    )
+    return (
+        select(
+            Quote.job_id,
+            Quote.trade_scope_id,
+            Quote.discount_type,
+            Quote.discount_value,
+            Quote.tax_rate,
+            subtotal,
+            Quote.created_at,
+        )
+        .select_from(Quote)
+        .outerjoin(
+            QuoteLineItem,
+            (QuoteLineItem.quote_id == Quote.id) & QuoteLineItem.deleted_at.is_(None),
+        )
+        .where(Quote.status == QUOTE_STATUS_APPROVED, Quote.deleted_at.is_(None))
+        .group_by(
+            Quote.id,
+            Quote.job_id,
+            Quote.trade_scope_id,
+            Quote.discount_type,
+            Quote.discount_value,
+            Quote.tax_rate,
+            Quote.created_at,
+        )
+        .order_by(Quote.created_at.desc())
+    )
+
+
+def _to_anchored_amounts(row: Row) -> tuple[RevenueAnchor, DocumentAmounts]:
+    """Map one aggregate row to margin_math value objects (never ORM instances).
+
+    Both document queries lead with the same six columns, so one mapper serves
+    invoices and quotes alike; the quote query's trailing created_at is ignored.
+    """
+    job_id, trade_scope_id, discount_type, discount_value, tax_rate, subtotal = row[:6]
+    return (
+        RevenueAnchor(job_id=job_id, trade_scope_id=trade_scope_id),
+        DocumentAmounts(
+            subtotal=subtotal,
+            discount_type=discount_type,
+            discount_value=discount_value,
+            tax_rate=tax_rate,
+        ),
+    )
+
+
+def _anchor_filter(
+    anchor: RevenueAnchor, document: type[Invoice] | type[Quote]
+) -> ColumnElement[bool]:
+    """job_id == X for a job anchor, trade_scope_id == X for a scope anchor."""
+    if anchor.job_id is not None:
+        return document.job_id == anchor.job_id
+    return document.trade_scope_id == anchor.trade_scope_id
+
+
+class RevenueRepository(TenantScopedRepository[Invoice]):
+    """Bounded, read-only revenue aggregates for margin assembly (MARG-01/02).
+
+    Every method returns margin_math value objects, never ORM rows — all
+    Invoice/Quote relationships are lazy="raise" (Pitfall 6), and the column-only
+    GROUP BY aggregates are O(1) round trips regardless of document count.
+    RLS scopes every query to the current tenant automatically.
+    """
+
+    model = Invoice
+
+    async def invoice_amounts_for_anchor(self, anchor: RevenueAnchor) -> list[DocumentAmounts]:
+        """Money fields of every invoice at one job or trade-scope anchor."""
+        result = await self.db.execute(
+            _invoice_amounts_query().where(_anchor_filter(anchor, Invoice))
+        )
+        return [_to_anchored_amounts(row)[1] for row in result.all()]
+
+    async def latest_approved_quote_amounts_for_anchor(
+        self, anchor: RevenueAnchor
+    ) -> DocumentAmounts | None:
+        """Money fields of the latest approved quote at one anchor, or None."""
+        result = await self.db.execute(
+            _approved_quote_amounts_query().where(_anchor_filter(anchor, Quote)).limit(1)
+        )
+        row = result.first()
+        return None if row is None else _to_anchored_amounts(row)[1]
+
+    async def invoice_amounts_by_anchor_for_project(
+        self, project_id: uuid.UUID
+    ) -> list[tuple[RevenueAnchor, DocumentAmounts]]:
+        """Every invoice rolling up to a project, tagged with its anchor.
+
+        D-12: revenue traverses the exact dual-outerjoin shape of
+        rollup_for_project so mixed job/scope records net out with the cost side.
+        """
+        result = await self.db.execute(
+            _invoice_amounts_query()
+            .outerjoin(TradeScope, Invoice.trade_scope_id == TradeScope.id)
+            .outerjoin(Job, Invoice.job_id == Job.id)
+            .where((TradeScope.project_id == project_id) | (Job.project_id == project_id))
+        )
+        return [_to_anchored_amounts(row) for row in result.all()]
+
+    async def approved_quote_amounts_by_anchor_for_project(
+        self, project_id: uuid.UUID
+    ) -> list[tuple[RevenueAnchor, DocumentAmounts]]:
+        """Every approved quote rolling up to a project, newest first, per anchor.
+
+        Same D-12 traversal as the invoice leg; callers take the first row per
+        anchor as that anchor's latest approved quote.
+        """
+        result = await self.db.execute(
+            _approved_quote_amounts_query()
+            .outerjoin(TradeScope, Quote.trade_scope_id == TradeScope.id)
+            .outerjoin(Job, Quote.job_id == Job.id)
+            .where((TradeScope.project_id == project_id) | (Job.project_id == project_id))
+        )
+        return [_to_anchored_amounts(row) for row in result.all()]
+
+    async def latest_project_level_approved_quote_amounts(
+        self, project_id: uuid.UUID
+    ) -> DocumentAmounts | None:
+        """Money fields of the latest project-level approved quote, or None.
+
+        D-14: a project-anchored quote (job_id AND trade_scope_id both NULL)
+        counts only when NO anchor in the project resolved any revenue — the
+        service enforces that rule; this method only fetches the candidate.
+        """
+        result = await self.db.execute(
+            _approved_quote_amounts_query()
+            .where(
+                Quote.project_id == project_id,
+                Quote.job_id.is_(None),
+                Quote.trade_scope_id.is_(None),
+            )
+            .limit(1)
+        )
+        row = result.first()
+        return None if row is None else _to_anchored_amounts(row)[1]
