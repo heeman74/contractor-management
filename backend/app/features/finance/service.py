@@ -119,7 +119,7 @@ class MarginCostSide:
     unrated_seconds: int = 0
 
 
-def _quoted_revenue(quote: DocumentAmounts) -> Decimal:
+def quoted_revenue(quote: DocumentAmounts) -> Decimal:
     """One quote's pre-tax revenue leg, quantized to cents like the invoice leg."""
     return pre_tax_total(quote).quantize(CENTS)
 
@@ -176,7 +176,7 @@ def _anchor_revenues(
     for anchor, quote in quote_rows:
         if anchor not in resolved:
             resolved[anchor] = resolve_anchor_revenue(
-                AnchorRevenue(quoted_total=_quoted_revenue(quote))
+                AnchorRevenue(quoted_total=quoted_revenue(quote))
             )
     return resolved
 
@@ -467,7 +467,7 @@ class FinanceService(TenantScopedService[CostEntry]):
         quote = await revenue_repository.latest_project_level_approved_quote_amounts(project_id)
         if quote is None:
             return ResolvedRevenue(total=None, basis=REVENUE_BASIS_NONE)
-        return ResolvedRevenue(total=_quoted_revenue(quote), basis=REVENUE_BASIS_QUOTED)
+        return ResolvedRevenue(total=quoted_revenue(quote), basis=REVENUE_BASIS_QUOTED)
 
     async def _rates_by_contractor(
         self, sessions: list[WorkSession]
@@ -493,7 +493,7 @@ class FinanceService(TenantScopedService[CostEntry]):
         if invoices:
             return resolve_anchor_revenue(AnchorRevenue(invoiced_total=revenue_from(invoices)))
         quote = await revenue_repository.latest_approved_quote_amounts_for_anchor(anchor)
-        quoted_total = _quoted_revenue(quote) if quote is not None else None
+        quoted_total = quoted_revenue(quote) if quote is not None else None
         return resolve_anchor_revenue(AnchorRevenue(quoted_total=quoted_total))
 
     async def _anchor_margin(self, anchor: RevenueAnchor, cost: MarginCostSide) -> MarginSummary:

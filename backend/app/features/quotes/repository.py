@@ -28,6 +28,10 @@ import app.features.users.models  # noqa: F401 — User mapper (Job.client_id)
 # isort: split
 from app.features.quotes.models import Quote, QuoteLineItem, QuoteTemplate
 
+# Depth guard for the revision-chain walk: terminates cyclic or corrupt chains
+# instead of looping forever. Real chains are single-digit deep.
+MAX_REVISION_CHAIN_DEPTH = 50
+
 
 class QuoteRepository(TenantScopedRepository[Quote]):
     """Repository for Quote entities — eager-loads line_items by default."""
@@ -50,6 +54,31 @@ class QuoteRepository(TenantScopedRepository[Quote]):
             )
         )
         return result.scalars().first()
+
+    async def previous_approved_in_chain(self, quote: Quote) -> Quote | None:
+        """Nearest ancestor with approved_at set, walking revised_from_quote_id.
+
+        Returns None for the first quote of a chain (no approved ancestor) or
+        when the depth guard trips. Ancestors that were never approved
+        (declined/expired revisions) are skipped. Each ancestor loads with its
+        line items because callers compute the pre-tax delta from them.
+
+        This loop does not violate the CLAUDE.md no-query-in-a-loop rule: it is
+        bounded by revision-chain length (single-digit in practice, hard-capped
+        at MAX_REVISION_CHAIN_DEPTH), not by row count, and each step is one
+        primary-key lookup.
+        """
+        ancestor_id = quote.revised_from_quote_id
+        for _ in range(MAX_REVISION_CHAIN_DEPTH):
+            if ancestor_id is None:
+                return None
+            ancestor = await self.get_with_line_items(ancestor_id)
+            if ancestor is None:
+                return None
+            if ancestor.approved_at is not None:
+                return ancestor
+            ancestor_id = ancestor.revised_from_quote_id
+        return None
 
     async def get_for_job(self, job_id: uuid.UUID) -> Quote | None:
         """Return the latest non-deleted, non-revised quote for a job.

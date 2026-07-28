@@ -15,6 +15,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
 
 from app.core.base_service import TenantScopedService
 from app.core.logging_config import get_logger
@@ -33,8 +34,13 @@ from app.features.finance.budget_math import (
     push_title_for,
 )
 from app.features.finance.budget_repository import BudgetAlertContext, BudgetRepository
+from app.features.finance.labor_derivation import ZERO_MONEY
+from app.features.finance.margin_math import DocumentAmounts
 from app.features.finance.models import Budget
 from app.features.finance.schemas import BudgetCreate, BudgetUpdate, BudgetVsActual
+from app.features.jobs.models import Job
+from app.features.quotes.models import Quote
+from app.features.quotes.repository import QuoteRepository
 
 if TYPE_CHECKING:
     from app.features.finance.service import FinanceService
@@ -44,6 +50,11 @@ logger = get_logger(__name__)
 _PROJECT_DUPLICATE_DETAIL = "A budget already exists for this project"
 _SCOPE_DUPLICATE_DETAIL = "A budget already exists for this trade scope"
 _BREAKDOWNS_DORMANT_DETAIL = "Per-category budget allocation is not available yet"
+
+# budgets_total_positive_check floor: a quote delta may never store a
+# non-positive total, so a zeroing-or-below delta clamps here (BUDG-04 only —
+# user edits keep the full no-floor D-10 behavior).
+MINIMUM_BUDGET_TOTAL = Decimal("0.01")
 
 _FINANCE_VIEW_PERMISSION = "finance.view"
 _BUDGET_ALERT_PUSH_TYPE = "budget_alert"
@@ -87,6 +98,15 @@ def _push_data(fired: FiredBudgetAlert) -> dict[str, str]:
             str(fired.trade_scope_id) if fired.trade_scope_id else _NO_SCOPE_PUSH_VALUE
         ),
     }
+
+
+def adjusted_budget_total(current_total: Decimal, delta: Decimal) -> Decimal:
+    """New total after a signed quote delta, floored at the storable minimum.
+
+    The floor yields a valid, immediately-overrun budget instead of a
+    budgets_total_positive_check constraint error.
+    """
+    return max(current_total + delta, MINIMUM_BUDGET_TOTAL)
 
 
 def _to_budget_vs_actual(budget: Budget, spent: Decimal) -> BudgetVsActual:
@@ -231,6 +251,66 @@ class BudgetService(TenantScopedService[Budget]):
         if budget is None:
             return []
         return await self.evaluate_budget(budget)
+
+    async def apply_quote_delta(self, quote: Quote) -> None:
+        """Adjust the budget linked to an approved quote by the revision delta (BUDG-04).
+
+        D-06 linkage: trade-scope quote -> that scope's budget; job quote ->
+        jobs.project_id's budget (no project, no-op); project-level quote ->
+        quote.project_id's budget. D-08: no budget at the anchor, no-op. D-09:
+        the first approval in a chain establishes the baseline and applies
+        nothing. Runs in the caller's transaction — the approval, the budget
+        adjustment and any threshold alert commit or roll back together.
+        """
+        budget = await self._budget_for_quote(quote)
+        if budget is None:
+            return
+        previous = await QuoteRepository(self.db).previous_approved_in_chain(quote)
+        if previous is None:
+            return
+        delta = self._pre_tax_total_of(quote) - self._pre_tax_total_of(previous)
+        if delta == ZERO_MONEY:
+            return
+        # set_total re-arms both thresholds on an increase (D-03) and leaves
+        # fired state alone on a decrease.
+        await self.repository.set_total(budget, adjusted_budget_total(budget.total, delta))
+        await self.evaluate_budget(budget)
+
+    async def _budget_for_quote(self, quote: Quote) -> Budget | None:
+        """The active budget at the quote's D-06 anchor, or None."""
+        if quote.trade_scope_id is not None:
+            return await self.repository.active_for_trade_scope(quote.trade_scope_id)
+        project_id = quote.project_id
+        if quote.job_id is not None:
+            project_id = await self._project_id_of_job(quote.job_id)
+        if project_id is None:
+            return None
+        return await self.repository.active_for_project(project_id)
+
+    async def _project_id_of_job(self, job_id: uuid.UUID) -> uuid.UUID | None:
+        """One primary-key lookup for the job's project linkage."""
+        result = await self.db.execute(select(Job.project_id).where(Job.id == job_id))
+        return result.scalar_one_or_none()
+
+    def _pre_tax_total_of(self, quote: Quote) -> Decimal:
+        """One quote's pre-tax total via the single shipped discount math.
+
+        Lazy import: finance.service imports BudgetService at module level (the
+        34-02 cycle, broken from this side) — same convention as
+        _finance_service. The quote must carry eagerly loaded line items
+        (get_with_line_items); Quote.line_items is lazy="raise" otherwise.
+        """
+        from app.features.finance.service import quoted_revenue
+
+        subtotal = sum((item.quantity * item.unit_price for item in quote.line_items), ZERO_MONEY)
+        return quoted_revenue(
+            DocumentAmounts(
+                subtotal=subtotal,
+                discount_type=quote.discount_type,
+                discount_value=quote.discount_value,
+                tax_rate=quote.tax_rate,
+            )
+        )
 
     async def sweep_budgets(self, *, company_id: uuid.UUID, target_date: date) -> int:
         """Evaluate every active budget for one company (D-02 nightly sweep).
