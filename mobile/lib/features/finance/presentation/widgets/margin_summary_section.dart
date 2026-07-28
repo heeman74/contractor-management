@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../data/cost_breakdown.dart';
 import 'breakdown_row_widgets.dart';
+import 'finance_formatters.dart';
+
+export 'finance_formatters.dart' show formatMarginDollars, formatMarginPercent;
 
 const _revenueLabel = 'Revenue';
 const _marginLabel = 'Margin';
@@ -12,26 +15,10 @@ const _incompleteCaption =
     'Margin may overstate profit — some costs are missing or unrated.';
 const _noRevenueNote =
     'No revenue recorded — margin will appear once an invoice or approved quote exists.';
-const _figureSeparator = ' · ';
 const _revenueBasisQuoted = 'quoted';
 const _revenueBasisMixed = 'mixed';
 const _revenueBasisNone = 'none';
 const _absentFigurePlaceholder = '—';
-
-/// "21.0" -> "21", "8.3" -> "8.3" — one backend decimal, trailing .0 dropped.
-String formatMarginPercent(String percent) {
-  return percent.endsWith('.0')
-      ? percent.substring(0, percent.length - 2)
-      : percent;
-}
-
-/// "-350.00" -> "-$350.00", "4200.00" -> "$4200.00" (sign precedes the
-/// symbol).
-String formatMarginDollars(String amount) {
-  return amount.startsWith('-')
-      ? '-\$${amount.substring(1)}'
-      : '\$$amount';
-}
 
 /// "$4200.00 · 21%", or dollars alone when [percent] is null (D-06: the
 /// number is never suppressed, the percent is honestly absent at zero
@@ -39,7 +26,7 @@ String formatMarginDollars(String amount) {
 String formatMarginFigure(String margin, String? percent) {
   final dollars = formatMarginDollars(margin);
   if (percent == null) return dollars;
-  return '$dollars$_figureSeparator${formatMarginPercent(percent)}%';
+  return '$dollars$financeFigureSeparator${formatMarginPercent(percent)}%';
 }
 
 /// Revenue and Margin rows beneath the Total of a Costs surface, exactly as

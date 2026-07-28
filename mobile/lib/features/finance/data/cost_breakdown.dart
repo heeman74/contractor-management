@@ -116,11 +116,58 @@ class MarginSummary {
   }
 }
 
+/// Budgeted vs spent vs remaining for one project or trade scope. Every figure
+/// is a backend Decimal-as-String displayed verbatim — including
+/// [percentUsed], which the backend supplies precisely so the screen percent
+/// and the alert percent can never disagree. [remaining] is negative when over
+/// budget (honest, never clamped).
+class BudgetVsActual {
+  const BudgetVsActual({
+    required this.budgetId,
+    required this.total,
+    required this.spent,
+    required this.remaining,
+    required this.percentUsed,
+  });
+
+  final String budgetId;
+  final String total;
+  final String spent;
+  final String remaining;
+  final String percentUsed;
+
+  /// Returns null when the block is absent or malformed — the UI then renders
+  /// no budget rows rather than a fabricated figure (additive-contract rule).
+  static BudgetVsActual? tryFromJson(Object? json) {
+    if (json is! Map<String, dynamic>) return null;
+    final budgetId = json['budget_id'];
+    final total = json['total'];
+    final spent = json['spent'];
+    final remaining = json['remaining'];
+    final percentUsed = json['percent_used'];
+    if (budgetId is! String ||
+        total is! String ||
+        spent is! String ||
+        remaining is! String ||
+        percentUsed is! String) {
+      return null;
+    }
+    return BudgetVsActual(
+      budgetId: budgetId,
+      total: total,
+      spent: spent,
+      remaining: remaining,
+      percentUsed: percentUsed,
+    );
+  }
+}
+
 /// Itemized category totals plus derived labor for one job, trade scope, or
 /// project. [labor] is null on trade scopes, where [laborTrackedAtJobLevel]
 /// is true instead — time tracking is job-anchored in v4.0, so a scope has
-/// no labor figure. [margin] is null when the backend predates Phase 33 or
-/// the block is malformed — tolerant, additive contract.
+/// no labor figure. [margin] is null when the backend predates Phase 33,
+/// [budget] when it predates Phase 34 or none is set — tolerant, additive
+/// contract on both.
 class CostBreakdown {
   const CostBreakdown({
     required this.categories,
@@ -128,6 +175,7 @@ class CostBreakdown {
     required this.laborTrackedAtJobLevel,
     required this.grandTotal,
     this.margin,
+    this.budget,
   });
 
   final List<CategoryTotal> categories;
@@ -135,6 +183,7 @@ class CostBreakdown {
   final bool laborTrackedAtJobLevel;
   final String grandTotal;
   final MarginSummary? margin;
+  final BudgetVsActual? budget;
 
   factory CostBreakdown.fromJson(Map<String, dynamic> json) {
     final categories = json['categories'];
@@ -160,6 +209,7 @@ class CostBreakdown {
           laborTrackedAtJobLevel is bool && laborTrackedAtJobLevel,
       grandTotal: grandTotal,
       margin: MarginSummary.tryFromJson(json['margin']),
+      budget: BudgetVsActual.tryFromJson(json['budget']),
     );
   }
 
