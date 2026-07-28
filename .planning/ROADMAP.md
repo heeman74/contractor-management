@@ -61,7 +61,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 - [x] **Phase 30: Financial Schema Foundation and RBAC Audit** — Cost/labor-rate/budget schema, finance.* permission catalog (owner + project_manager default, admin explicitly excluded), audit of pre-existing money-adjacent surfaces (completed 2026-07-25)
 - [x] **Phase 31: Actual Cost Capture** — Materials and subcontractor/other cost entries with receipt photos, scoped to job or trade scope (completed 2026-07-26)
 - [x] **Phase 32: Labor Rates and Cost Rollup** — Effective-dated hourly cost rates, automatic labor cost derivation from time tracking, itemized cost view with category totals (completed 2026-07-27)
-- [ ] **Phase 33: Profit Margin Tracking** — Revenue-minus-cost margin per job/trade scope and project-level rollup, with incomplete-data flagging
+- [x] **Phase 33: Profit Margin Tracking** — Revenue-minus-cost margin per job/trade scope and project-level rollup, with incomplete-data flagging (completed 2026-07-28)
 - [ ] **Phase 34: Budgeting and Overrun Alerts** — Project/trade budgets, budget-vs-actual view, threshold alerts (80%/100%), quote-revision-driven budget adjustment
 - [ ] **Phase 35: Web Financial Dashboard** — Margin and budget-vs-actual charts on the web financial dashboard, permission-gated navigation
 - [ ] **Phase 36: AI Profitability Analysis** — Nightly AI scan flagging margin erosion with corrective-action suggestions, finance-gated alerts
@@ -389,7 +389,7 @@ Plans:
 Plans:
 - [x] 33-01-PLAN.md — Pure margin math: document totals, revenue resolution, margin/percent, incomplete-flag rules (+ invoice/quote total DRY extraction)
 - [x] 33-02-PLAN.md — Backend revenue aggregation: Phase 33 integration contract (13 tests) + RevenueRepository bounded queries on the D-12 traversal
-- [ ] 33-03-PLAN.md — MarginSummary schema + anchor and project margin assembly on the three finance.view-gated cost responses
+- [x] 33-03-PLAN.md — MarginSummary schema + anchor and project margin assembly on the three finance.view-gated cost responses
 - [x] 33-04-PLAN.md — Web margin section in CostBreakdownSummary (12 UI states) + Jest coverage + Playwright E2E
 - [x] 33-05-PLAN.md — Mobile margin parsing, MarginSummarySection widget, shared flag chip + parser units + widget E2E
 
@@ -478,7 +478,7 @@ Note: Phase 37 (AI Quote Planning) depends only on Phase 32 and may run in paral
 | 30. Financial Schema Foundation and RBAC Audit | v4.0 | 4/4 | Complete    | 2026-07-25 |
 | 31. Actual Cost Capture | v4.0 | 5/5 | Complete    | 2026-07-26 |
 | 32. Labor Rates and Cost Rollup | v4.0 | 5/5 | Complete    | 2026-07-27 |
-| 33. Profit Margin Tracking | v4.0 | 4/5 | In Progress|  |
+| 33. Profit Margin Tracking | v4.0 | 5/5 | Complete   | 2026-07-28 |
 | 34. Budgeting and Overrun Alerts | v4.0 | 0/? | Not started | - |
 | 35. Web Financial Dashboard | v4.0 | 0/? | Not started | - |
 | 36. AI Profitability Analysis | v4.0 | 0/? | Not started | - |

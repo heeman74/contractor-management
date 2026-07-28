@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
-status: executing
-stopped_at: Completed 33-04-PLAN.md
-last_updated: "2026-07-28T00:15:43.152Z"
+status: verifying
+stopped_at: Completed 33-03-PLAN.md
+last_updated: "2026-07-28T00:45:27.649Z"
 last_activity: 2026-07-28
 progress:
   total_phases: 22
-  completed_phases: 15
+  completed_phases: 16
   total_plans: 86
-  completed_plans: 82
+  completed_plans: 83
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 
 Phase: 33 (profit-margin-tracking) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-28
 
 ## Performance Metrics
@@ -61,6 +61,7 @@ Last activity: 2026-07-28
 | Phase 33 P02 | 25min | 2 tasks | 3 files |
 | Phase 33 P05 | 13min | 3 tasks | 6 files |
 | Phase 33 P04 | 30min | 3 tasks | 9 files |
+| Phase 33 P03 | 27min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -213,6 +214,9 @@ Last activity: 2026-07-28
 - [Phase 33]: 33-04: negative margins format sign-before-symbol (-$350.00) via formatMarginDollars since formatCurrency would render $-350.00
 - [Phase 33]: MarginSummary nullable fields are optional constructor params (basis stays required) — reconciles the 33-05 plan snippet with its own no-required-margin acceptance criterion
 - [Phase 33]: Phase-33 project-variant e2e overrides projectCostBreakdownProvider directly — the real fetch path requires AuthAuthenticated; Dio-level path covered by job/trade-scope surface tests
+- [Phase 33]: 33-03: Project margin always fetches both revenue legs; _anchor_revenues discards quotes at invoiced anchors (never conditional query skipping) so mixed invoiced/quoted anchors resolve per D-01
+- [Phase 33]: 33-03: _quoted_revenue quantizes the quote leg to cents — SUM(quantity*unit_price) subtotals carry 5 decimals and would serialize as 1500.00000 otherwise
+- [Phase 33]: 33-03: InvoiceService.generate_manual fixed to honor the Phase 25 trade_scope_id anchor — scope invoices validate the scope, skip the job status machine, and never mark a job invoiced
 
 ### Pending Todos
 
@@ -231,6 +235,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-28T00:15:37.406Z
-Stopped at: Completed 33-04-PLAN.md
+Last session: 2026-07-28T00:45:27.643Z
+Stopped at: Completed 33-03-PLAN.md
 Resume file: None
