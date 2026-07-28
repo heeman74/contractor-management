@@ -35,6 +35,13 @@ from app.core.ai_utils import (
 )
 from app.core.base_service import TenantScopedService, entity_or_404
 from app.core.logging_config import get_logger
+
+# Re-exported module attributes — get_alerts reads the module global and tests
+# monkeypatch app.features.dashboard.service.FINANCIAL_ALERT_TYPES.
+from app.features.dashboard.alert_types import (
+    FINANCIAL_ALERT_TYPES,
+    SCHEDULE_SLIP_ALERT_TYPE,
+)
 from app.features.dashboard.models import DashboardAlert
 from app.features.dashboard.prompts.alert_system import ALERT_SYSTEM_PROMPT
 from app.features.dashboard.repository import AlertRepository
@@ -53,11 +60,6 @@ logger = get_logger(__name__)
 # Schedule slip detection thresholds
 MIN_SLIP_DAYS_THRESHOLD = 1
 ALERT_DEDUP_HOURS = 24
-SCHEDULE_SLIP_ALERT_TYPE = "schedule_slip"
-
-# Alert types gated behind finance.view — empty today (no financial alerts exist yet);
-# populated by Phase 36 (margin_erosion, etc.). Filter logic below is inert until then.
-FINANCIAL_ALERT_TYPES: frozenset[str] = frozenset()
 
 
 def _compute_trade_status(tasks: list[Task], today: date) -> str:
@@ -740,8 +742,8 @@ class DashboardService(TenantScopedService[DashboardAlert]):
         """Return alerts for the current tenant, optionally filtered by project.
 
         Alerts whose alert_type is in FINANCIAL_ALERT_TYPES are dropped unless the
-        caller has finance.view. FINANCIAL_ALERT_TYPES is empty today, so this is
-        a no-op until Phase 36 introduces financial alert types.
+        caller has finance.view. The filter is live as of Phase 34: budget alerts
+        (budget_warning, budget_overrun) are dropped for callers without finance.view.
         """
         alerts = (
             await self.repository.get_for_project(project_id)

@@ -1,7 +1,7 @@
-"""Unit tests for the finance-scrub helper and the empty-alert-set contract.
+"""Unit tests for the finance-scrub helper and the financial-alert-set contract.
 
 Pure unit tests — no DB, no fixtures. Covers FINSEC-04 shared plumbing:
-scrub_finance_fields (app.core.finance_scrub) and the currently-empty
+scrub_finance_fields (app.core.finance_scrub) and the budget-alert-type
 FINANCIAL_ALERT_TYPES contract (app.features.dashboard.service).
 """
 
@@ -45,7 +45,7 @@ def test_scrub_does_not_mutate_input() -> None:
     assert context == original
 
 
-def test_financial_alert_types_currently_empty() -> None:
-    # Documents the "inert today" contract; Phase 36 updates this test when it
-    # populates FINANCIAL_ALERT_TYPES with real financial alert types.
-    assert frozenset() == FINANCIAL_ALERT_TYPES
+def test_financial_alert_types_are_the_budget_types() -> None:
+    # Phase 34 registered the two budget alert types as financial — the D-11
+    # permission filter drops them for callers without finance.view.
+    assert frozenset({"budget_warning", "budget_overrun"}) == FINANCIAL_ALERT_TYPES

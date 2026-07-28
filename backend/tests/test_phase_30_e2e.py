@@ -363,22 +363,13 @@ async def test_reports_dashboard_leaks_no_finance_fields(async_client, seed_two_
 
 @pytest.mark.asyncio
 async def test_dashboard_alerts_filtered_by_finance_permission(
-    monkeypatch, async_client, tenant_a_client, seed_two_tenants
+    async_client, tenant_a_client, seed_two_tenants
 ):
-    """FINSEC-04: once FINANCIAL_ALERT_TYPES is populated, users without
-    finance.view never see financial alerts; users with finance.view see both.
-
-    dashboard_alerts.alert_type is DB-CHECK-constrained to
-    ('schedule_slip','rescheduling_suggestion','dependency_risk') — there is no
-    real financial alert type yet (Phase 36 introduces one). We monkeypatch
-    FINANCIAL_ALERT_TYPES to treat the existing 'dependency_risk' type as the
-    stand-in "financial" type purely for this test, proving the filter itself
-    works today even though nothing marks an alert financial in production yet.
+    """FINSEC-04: users without finance.view never see financial alerts;
+    users with finance.view see both. budget_warning is a real financial
+    alert type as of Phase 34 (registered in FINANCIAL_ALERT_TYPES and
+    permitted by the migration 0035 CHECK constraint).
     """
-    monkeypatch.setattr(
-        "app.features.dashboard.service.FINANCIAL_ALERT_TYPES", frozenset({"dependency_risk"})
-    )
-
     company_id = seed_two_tenants["tenant_a_id"]
 
     project_resp = await tenant_a_client.post(
@@ -395,8 +386,8 @@ async def test_dashboard_alerts_filtered_by_finance_permission(
                     company_id=company_id,
                     project_id=project_id,
                     severity="warning",
-                    alert_type="dependency_risk",
-                    impact_text="Margin erosion risk (stand-in financial alert for this test)",
+                    alert_type="budget_warning",
+                    impact_text="Plumbing scope has spent $8,200 of its $10,000 budget (82%).",
                 ),
                 DashboardAlert(
                     company_id=company_id,
@@ -415,7 +406,7 @@ async def test_dashboard_alerts_filtered_by_finance_permission(
     )
     assert gc_resp.status_code == 200, gc_resp.text
     gc_types = {a["alert_type"] for a in gc_resp.json()}
-    assert "dependency_risk" not in gc_types
+    assert "budget_warning" not in gc_types
     assert "schedule_slip" in gc_types
 
     pm_headers = {"Authorization": f"Bearer {_token(company_id, ['project_manager'])}"}
@@ -424,7 +415,7 @@ async def test_dashboard_alerts_filtered_by_finance_permission(
     )
     assert pm_resp.status_code == 200, pm_resp.text
     pm_types = {a["alert_type"] for a in pm_resp.json()}
-    assert "dependency_risk" in pm_types
+    assert "budget_warning" in pm_types
     assert "schedule_slip" in pm_types
 
 
