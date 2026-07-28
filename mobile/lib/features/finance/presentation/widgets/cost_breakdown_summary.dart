@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/cost_breakdown.dart';
 import 'breakdown_row_widgets.dart';
+import 'budget_summary_section.dart';
 import 'margin_summary_section.dart';
 
 /// Which Costs surface a [CostBreakdownSummary] renders on. Trade scopes
@@ -112,6 +113,8 @@ class CostBreakdownSummary extends StatelessWidget {
           label: 'Total',
           trailing: _totalAmount(context, breakdown?.grandTotal),
         ),
+        if (variant != CostBreakdownVariant.job)
+          BudgetSummarySection(budget: breakdown?.budget),
         MarginSummarySection(margin: breakdown?.margin),
       ],
     );
