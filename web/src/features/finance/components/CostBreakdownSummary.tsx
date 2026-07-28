@@ -12,6 +12,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { formatCurrency } from "@/lib/format";
 import { FinanceFlagChip } from "./FinanceFlagChip";
+import { MarginSummarySection } from "./MarginSummarySection";
 import type { CategoryTotal, CostBreakdown, LaborCostSummary } from "../types";
 
 const SECONDS_PER_HOUR = 3600;
@@ -49,13 +50,18 @@ export function orderedCategories(categories: CategoryTotal[]): CategoryTotal[] 
   return [...fixed, ...custom];
 }
 
-/** True when there is nothing worth rendering: no categories, zero grand total, no unrated time. */
+/** True when there is nothing worth rendering: no categories, zero grand total, no unrated
+ *  time, and no revenue. A margin with revenue keeps the component visible so the
+ *  incomplete-data honesty flag can never be hidden (UI-SPEC state 12). */
 export function isBreakdownEmpty(breakdown: CostBreakdown): boolean {
   const hasUnratedTime = (breakdown.labor?.unratedSeconds ?? 0) > 0;
+  const hasRevenue =
+    breakdown.margin != null && breakdown.margin.revenueBasis !== "none";
   return (
     breakdown.categories.length === 0 &&
     Number(breakdown.grandTotal) === 0 &&
-    !hasUnratedTime
+    !hasUnratedTime &&
+    !hasRevenue
   );
 }
 
@@ -109,6 +115,7 @@ export function CostBreakdownSummary({
           {amountOf(breakdown?.grandTotal ?? "0")}
         </span>
       </div>
+      <MarginSummarySection margin={breakdown?.margin ?? null} />
     </div>
   );
 }
