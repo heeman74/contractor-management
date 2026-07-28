@@ -4,7 +4,8 @@ import {
   BudgetSummarySection,
   formatPercentUsed,
 } from "../components/BudgetSummarySection";
-import type { BudgetVsActual } from "../types";
+import { CostBreakdownSummary } from "../components/CostBreakdownSummary";
+import type { BudgetVsActual, CostBreakdown } from "../types";
 
 const UNDER_BUDGET: BudgetVsActual = {
   budgetId: "b-1",
@@ -106,6 +107,100 @@ describe("BudgetSummarySection", () => {
     expect(screen.getByTestId("budget-remaining")).toHaveClass("font-semibold");
     expect(screen.getByTestId("budget-amount")).not.toHaveClass("font-semibold");
     expect(screen.getByTestId("budget-spent")).not.toHaveClass("font-semibold");
+  });
+});
+
+function breakdownWithBudget(
+  overrides: Partial<CostBreakdown> = {}
+): CostBreakdown {
+  return {
+    categories: [
+      { categoryId: "c-materials", categoryName: "materials", total: "4200.00" },
+    ],
+    labor: null,
+    laborTrackedAtJobLevel: true,
+    grandTotal: "4200.00",
+    margin: {
+      revenue: "20000.00",
+      revenueBasis: "invoiced",
+      margin: "15800.00",
+      marginPercent: "79.0",
+      incomplete: false,
+      incompleteReasons: [],
+    },
+    budget: budgetWith(),
+    ...overrides,
+  };
+}
+
+describe("CostBreakdownSummary budget wiring", () => {
+  test.each(["project", "trade-scope"] as const)(
+    "%s variant renders the budget rows between the Total row and the margin section",
+    (variant) => {
+      render(
+        <CostBreakdownSummary breakdown={breakdownWithBudget()} variant={variant} />
+      );
+
+      const grandTotal = screen.getByTestId("breakdown-grand-total");
+      const budgetSection = screen.getByTestId("budget-section");
+      const marginSection = screen.getByTestId("margin-section");
+      expect(
+        grandTotal.compareDocumentPosition(budgetSection) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
+      expect(
+        budgetSection.compareDocumentPosition(marginSection) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
+    }
+  );
+
+  test("state 10: job variant never renders budget rows even with budget data", () => {
+    render(<CostBreakdownSummary breakdown={breakdownWithBudget()} variant="job" />);
+
+    expect(screen.queryByTestId("budget-section")).not.toBeInTheDocument();
+  });
+
+  test("state 7: loading renders no budget rows even with stale data present", () => {
+    render(
+      <CostBreakdownSummary
+        breakdown={breakdownWithBudget()}
+        variant="trade-scope"
+        isLoading
+      />
+    );
+
+    expect(screen.queryByTestId("budget-section")).not.toBeInTheDocument();
+  });
+
+  test("state 8: error renders only the inherited error line, no budget rows", () => {
+    render(
+      <CostBreakdownSummary
+        breakdown={breakdownWithBudget()}
+        variant="trade-scope"
+        isError
+      />
+    );
+
+    expect(
+      screen.getByText("Couldn't load cost breakdown. Refresh to try again.")
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("budget-section")).not.toBeInTheDocument();
+  });
+
+  test("a budget on an otherwise-empty breakdown still renders the summary", () => {
+    render(
+      <CostBreakdownSummary
+        breakdown={breakdownWithBudget({
+          categories: [],
+          grandTotal: "0.00",
+          margin: null,
+        })}
+        variant="trade-scope"
+      />
+    );
+
+    expect(screen.getByTestId("budget-section")).toBeInTheDocument();
   });
 });
 
