@@ -15,6 +15,7 @@ import type {
   CostBreakdown,
   MarginSummary,
   RevenueBasis,
+  BudgetVsActual,
 } from "./types";
 
 // --- Raw API response shapes (snake_case, mirroring backend schemas) ---
@@ -69,12 +70,21 @@ interface MarginSummaryApiResponse {
   incomplete_reasons: string[];
 }
 
+interface BudgetVsActualApiResponse {
+  budget_id: string;
+  total: string;
+  spent: string;
+  remaining: string;
+  percent_used: string;
+}
+
 interface CostBreakdownApiResponse {
   categories: CategoryTotalApiResponse[];
   labor: LaborCostSummaryApiResponse | null;
   labor_tracked_at_job_level: boolean;
   grand_total: string;
   margin?: MarginSummaryApiResponse | null;
+  budget?: BudgetVsActualApiResponse | null;
 }
 
 interface ProjectCostRollupApiResponse {
@@ -85,6 +95,7 @@ interface ProjectCostRollupApiResponse {
   labor?: LaborCostSummaryApiResponse | null;
   grand_total?: string;
   margin?: MarginSummaryApiResponse | null;
+  budget?: BudgetVsActualApiResponse | null;
 }
 
 // --- snake_case -> camelCase mappers ---
@@ -153,6 +164,20 @@ function mapMarginSummary(
   };
 }
 
+/** Tolerant of a missing/null budget key — older backends omit the block entirely. */
+function toBudgetVsActual(
+  raw: BudgetVsActualApiResponse | null | undefined
+): BudgetVsActual | null {
+  if (raw == null || typeof raw !== "object") return null;
+  return {
+    budgetId: raw.budget_id,
+    total: raw.total,
+    spent: raw.spent,
+    remaining: raw.remaining,
+    percentUsed: raw.percent_used,
+  };
+}
+
 function mapCostBreakdown(raw: CostBreakdownApiResponse): CostBreakdown {
   return {
     categories: raw.categories.map(mapCategoryTotal),
@@ -160,6 +185,7 @@ function mapCostBreakdown(raw: CostBreakdownApiResponse): CostBreakdown {
     laborTrackedAtJobLevel: raw.labor_tracked_at_job_level,
     grandTotal: raw.grand_total,
     margin: mapMarginSummary(raw.margin),
+    budget: toBudgetVsActual(raw.budget),
   };
 }
 
@@ -195,6 +221,7 @@ export async function fetchProjectCostRollup(
     labor: mapLaborSummary(raw.labor),
     grandTotal: raw.grand_total ?? null,
     margin: mapMarginSummary(raw.margin),
+    budget: toBudgetVsActual(raw.budget),
   };
 }
 

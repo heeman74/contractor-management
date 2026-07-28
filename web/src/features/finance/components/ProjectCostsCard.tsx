@@ -44,6 +44,7 @@ export function ProjectCostsCard({ projectId }: ProjectCostsCardProps) {
                   laborTrackedAtJobLevel: false,
                   grandTotal: rollup.grandTotal ?? rollup.total,
                   margin: rollup.margin,
+                  budget: rollup.budget,
                 }
               : null
           }

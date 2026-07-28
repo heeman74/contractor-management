@@ -55,6 +55,12 @@ export function formatCurrency(value: number | string): string {
   return `$${Number(value).toFixed(2)}`;
 }
 
+/** "-$350.00": the minus sign leads, matching how negative money reads on
+ *  every finance surface. Positive values format like formatCurrency. */
+export function formatSignedCurrency(amount: string): string {
+  return amount.startsWith("-") ? `-$${amount.slice(1)}` : `$${amount}`;
+}
+
 /** Locale date, returning a fallback for null/undefined/unparseable input. */
 export function formatDate(
   dateStr: string | null | undefined,

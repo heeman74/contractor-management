@@ -64,12 +64,26 @@ export interface MarginSummary {
   incompleteReasons: string[];
 }
 
+/** Backend-computed budget vs actual. Money stays a string end-to-end
+ *  (Decimal-as-string, displayed verbatim); `remaining` goes negative when
+ *  spend exceeds the budget. */
+export interface BudgetVsActual {
+  budgetId: string;
+  total: string;
+  spent: string;
+  remaining: string;
+  /** One decimal from the backend, e.g. "82.0" — never re-derived client-side. */
+  percentUsed: string;
+}
+
 export interface CostBreakdown {
   categories: CategoryTotal[];
   labor: LaborCostSummary | null;
   laborTrackedAtJobLevel: boolean;
   grandTotal: string;
   margin: MarginSummary | null;
+  /** null = no budget set or an older backend without the budget block. */
+  budget: BudgetVsActual | null;
 }
 
 export interface ProjectCostRollup {
@@ -82,6 +96,8 @@ export interface ProjectCostRollup {
   /** All-in total including derived labor; null when the backend omits it. */
   grandTotal: string | null;
   margin: MarginSummary | null;
+  /** null = no budget set or an older backend without the budget block. */
+  budget: BudgetVsActual | null;
 }
 
 /** Exactly one of jobId / tradeScopeId must be set (anchor XOR, enforced backend-side). */

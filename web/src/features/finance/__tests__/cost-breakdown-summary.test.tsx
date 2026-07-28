@@ -28,6 +28,7 @@ function breakdownWith(overrides: Partial<CostBreakdown> = {}): CostBreakdown {
     laborTrackedAtJobLevel: false,
     grandTotal: "590.00",
     margin: null,
+    budget: null,
     ...overrides,
   };
 }
@@ -52,6 +53,7 @@ function emptyBreakdownWith(margin: MarginSummary | null): CostBreakdown {
     laborTrackedAtJobLevel: false,
     grandTotal: "0",
     margin,
+    budget: null,
   };
 }
 
@@ -171,6 +173,7 @@ describe("CostBreakdownSummary", () => {
           laborTrackedAtJobLevel: false,
           grandTotal: "0.00",
           margin: null,
+          budget: null,
         }}
         variant="job"
       />
@@ -302,6 +305,7 @@ describe("isBreakdownEmpty", () => {
         laborTrackedAtJobLevel: false,
         grandTotal: "0.00",
         margin: null,
+        budget: null,
       })
     ).toBe(true);
     expect(
@@ -311,6 +315,7 @@ describe("isBreakdownEmpty", () => {
         laborTrackedAtJobLevel: true,
         grandTotal: "0.00",
         margin: null,
+        budget: null,
       })
     ).toBe(true);
   });

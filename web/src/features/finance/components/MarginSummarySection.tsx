@@ -1,7 +1,7 @@
 "use client";
 
 import { Separator } from "@/components/ui/separator";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatSignedCurrency } from "@/lib/format";
 import { FinanceFlagChip } from "./FinanceFlagChip";
 import type { MarginSummary, RevenueBasis } from "../types";
 
@@ -24,9 +24,9 @@ export function formatMarginPercent(percent: string): string {
   return percent.replace(/\.0$/, "");
 }
 
-/** "-350.00" -> "-$350.00" (sign before the symbol, per the UI contract). */
+/** "-350.00" -> "-$350.00" (sign before the symbol) — delegates to the shared helper. */
 export function formatMarginDollars(amount: string): string {
-  return amount.startsWith("-") ? `-$${amount.slice(1)}` : `$${amount}`;
+  return formatSignedCurrency(amount);
 }
 
 /** Revenue + Margin rows appended beneath the breakdown Total (33-UI-SPEC states 1-12). */
