@@ -1568,3 +1568,230 @@ def test_sweep_cron_job_registered_at_five_utc():
     trigger_fields = {field.name: str(field) for field in jobs_by_id["budget_sweep"].trigger.fields}
     assert trigger_fields["hour"] == "5"
     assert trigger_fields["minute"] == "0"
+
+
+# ---------------------------------------------------------------------------
+# BUDG-04 (34-08): quote revision chain + budget delta on approval
+# ---------------------------------------------------------------------------
+
+_QUOTE_CHAIN_SQL = (
+    "SELECT status, revision_number, job_id, trade_scope_id, project_id, revised_from_quote_id "
+    "FROM quotes WHERE id = CAST(:quote_id AS uuid)"
+)
+
+
+def _client_headers(company_id: str) -> dict:
+    """Authorization header for a client-role token (the only role that can approve)."""
+    return {"Authorization": f"Bearer {_token(company_id, ['client'])}"}
+
+
+def _labor_line_items(unit_price: str, quantity: str = "10.000") -> list[dict]:
+    """One labor line item — quantity x unit_price is the quote subtotal."""
+    return [
+        {
+            "item_type": "labor",
+            "description": "Install work",
+            "quantity": quantity,
+            "unit": "hours",
+            "unit_price": unit_price,
+            "sort_order": 0,
+        }
+    ]
+
+
+async def _create_scope_quote(client: AsyncClient, scope_id: str, *, unit_price: str) -> dict:
+    """Create a draft trade-scope quote through the API and return the response body."""
+    resp = await client.post(
+        f"/api/v1/trade-scopes/{scope_id}/quotes",
+        json={
+            "trade_scope_id": scope_id,
+            "tax_rate": "0",
+            "line_items": _labor_line_items(unit_price),
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+async def _create_job_quote(client: AsyncClient, job_id: str, *, unit_price: str) -> dict:
+    """Create a draft job quote through the API and return the response body."""
+    resp = await client.post(
+        "/api/v1/quotes/",
+        json={"job_id": job_id, "tax_rate": "0", "line_items": _labor_line_items(unit_price)},
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+async def _create_project_level_quote(client: AsyncClient, title: str, *, unit_price: str) -> dict:
+    """Create a draft project-level quote (no job, no scope) and return the response body."""
+    resp = await client.post(
+        "/api/v1/quotes/",
+        json={"title": title, "tax_rate": "0", "line_items": _labor_line_items(unit_price)},
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+async def _send_quote(client: AsyncClient, quote_id: str) -> None:
+    """Transition a draft quote to sent through the real endpoint."""
+    resp = await client.post(f"/api/v1/quotes/{quote_id}/send")
+    assert resp.status_code == 200, resp.text
+
+
+async def _approve_quote(client: AsyncClient, company_id: str, quote_id: str) -> dict:
+    """Approve a sent quote through the REAL endpoint — the hook under test lives here."""
+    resp = await client.post(
+        f"/api/v1/quotes/{quote_id}/approve", headers=_client_headers(company_id)
+    )
+    assert resp.status_code == 200, resp.text
+    return resp.json()
+
+
+async def _revise_quote(
+    client: AsyncClient, quote_id: str, *, unit_price: str | None = None
+) -> dict:
+    """Revise a quote through the API; optionally replace the line items."""
+    payload: dict = {}
+    if unit_price is not None:
+        payload["line_items"] = _labor_line_items(unit_price)
+    resp = await client.post(f"/api/v1/quotes/{quote_id}/revise", json=payload)
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+async def _quote_row(company_id: str, quote_id: str) -> tuple:
+    """Read a quote's chain-relevant columns via SQL (revised_from_quote_id has no API field)."""
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        result = await session.execute(text(_QUOTE_CHAIN_SQL), {"quote_id": quote_id})
+        return result.one()
+
+
+async def _sent_scope_quote(
+    tenant_a_client: AsyncClient, project_id: str, *, unit_price: str
+) -> tuple[str, str]:
+    """Create a scope + one sent scope quote. Returns (scope_id, quote_id)."""
+    scope_id = await _create_trade_scope(tenant_a_client, project_id)
+    quote = await _create_scope_quote(tenant_a_client, scope_id, unit_price=unit_price)
+    await _send_quote(tenant_a_client, quote["id"])
+    return scope_id, quote["id"]
+
+
+@pytest.mark.asyncio
+async def test_quote_delta_revision_keeps_trade_scope_anchor(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """Revising a scope quote carries trade_scope_id and links the chain (shipped-bug regression)."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    project_id = await _create_project(tenant_a_client)
+    scope_id, quote_id = await _sent_scope_quote(tenant_a_client, project_id, unit_price="100.00")
+
+    revision = await _revise_quote(tenant_a_client, quote_id)
+
+    assert revision["trade_scope_id"] == scope_id
+    assert revision["job_id"] is None
+    assert revision["status"] == "draft"
+    assert revision["revision_number"] == 2
+    row = await _quote_row(company_id, revision["id"])
+    assert str(row.revised_from_quote_id) == quote_id
+    old_row = await _quote_row(company_id, quote_id)
+    assert old_row.status == "revised"
+
+
+@pytest.mark.asyncio
+async def test_quote_delta_revision_keeps_project_anchor(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """Revising an approved project-level quote carries the project_id assigned at approval."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    quote = await _create_project_level_quote(
+        tenant_a_client, "Riverside Remodel", unit_price="100.00"
+    )
+    await _send_quote(tenant_a_client, quote["id"])
+    approved = await _approve_quote(async_client, company_id, quote["id"])
+    assert approved["project_id"] is not None
+
+    revision = await _revise_quote(tenant_a_client, quote["id"])
+
+    assert revision["project_id"] == approved["project_id"]
+    assert revision["job_id"] is None
+    assert revision["trade_scope_id"] is None
+    row = await _quote_row(company_id, revision["id"])
+    assert str(row.revised_from_quote_id) == quote["id"]
+
+
+@pytest.mark.asyncio
+async def test_quote_delta_revision_keeps_job_anchor(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """Revising a job quote still carries job_id, exactly as before the fix."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    job_id = await _create_job(tenant_a_client)
+    quote = await _create_job_quote(tenant_a_client, job_id, unit_price="100.00")
+    await _send_quote(tenant_a_client, quote["id"])
+
+    revision = await _revise_quote(tenant_a_client, quote["id"])
+
+    assert revision["job_id"] == job_id
+    assert revision["trade_scope_id"] is None
+    row = await _quote_row(company_id, revision["id"])
+    assert str(row.revised_from_quote_id) == quote["id"]
+
+
+@pytest.mark.asyncio
+async def test_quote_delta_approved_quote_can_be_revised(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """An approved quote is revisable: old row flips to revised, new draft is revision+1."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    project_id = await _create_project(tenant_a_client)
+    scope_id, quote_id = await _sent_scope_quote(tenant_a_client, project_id, unit_price="100.00")
+    await _approve_quote(async_client, company_id, quote_id)
+
+    revision = await _revise_quote(tenant_a_client, quote_id)
+
+    assert revision["status"] == "draft"
+    assert revision["revision_number"] == 2
+    assert revision["trade_scope_id"] == scope_id
+    old_row = await _quote_row(company_id, quote_id)
+    assert old_row.status == "revised"
+
+
+@pytest.mark.asyncio
+async def test_quote_delta_revise_draft_still_conflicts(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """Revising a draft quote is still refused with 409."""
+    project_id = await _create_project(tenant_a_client)
+    scope_id = await _create_trade_scope(tenant_a_client, project_id)
+    quote = await _create_scope_quote(tenant_a_client, scope_id, unit_price="100.00")
+
+    resp = await tenant_a_client.post(f"/api/v1/quotes/{quote['id']}/revise", json={})
+
+    assert resp.status_code == 409, resp.text
+
+
+@pytest.mark.asyncio
+async def test_quote_delta_margin_revenue_hands_off_to_new_approval(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """After revising an approved scope quote, margin counts only the newly approved revision."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    project_id = await _create_project(tenant_a_client)
+    scope_id, quote_id = await _sent_scope_quote(tenant_a_client, project_id, unit_price="100.00")
+    await _approve_quote(async_client, company_id, quote_id)
+    before = await _scope_breakdown(async_client, headers, scope_id)
+    assert before["margin"]["revenue"] == "1000.00"
+
+    revision = await _revise_quote(tenant_a_client, quote_id, unit_price="150.00")
+    revised_away = await _scope_breakdown(async_client, headers, scope_id)
+    assert revised_away["margin"]["revenue"] is None  # the old approval dropped out
+
+    await _send_quote(tenant_a_client, revision["id"])
+    await _approve_quote(async_client, company_id, revision["id"])
+
+    after = await _scope_breakdown(async_client, headers, scope_id)
+    assert after["margin"]["revenue"] == "1500.00"  # the new approval, never both
+    assert after["margin"]["revenue_basis"] == "quoted"
