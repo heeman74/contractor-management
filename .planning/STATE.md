@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 33-02-PLAN.md
-last_updated: "2026-07-28T00:13:40.511Z"
+stopped_at: Completed 33-04-PLAN.md
+last_updated: "2026-07-28T00:15:43.152Z"
 last_activity: 2026-07-28
 progress:
   total_phases: 22
   completed_phases: 15
   total_plans: 86
-  completed_plans: 80
+  completed_plans: 82
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 33 (profit-margin-tracking) — EXECUTING
-Plan: 3 of 5
+Plan: 5 of 5
 Status: Ready to execute
 Last activity: 2026-07-28
 
@@ -59,6 +59,8 @@ Last activity: 2026-07-28
 | Phase 32 P05 | 50min | 3 tasks | 10 files |
 | Phase 33 P01 | 7min | 3 tasks | 4 files |
 | Phase 33 P02 | 25min | 2 tasks | 3 files |
+| Phase 33 P05 | 13min | 3 tasks | 6 files |
+| Phase 33 P04 | 30min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -206,6 +208,11 @@ Last activity: 2026-07-28
 - [Phase 33]: 33-01: ROUND_HALF_UP applies only in margin_percent_for (one-decimal margin percent); summarize_margin forces revenue_basis to none when revenue is absent (D-07 self-consistent shape)
 - [Phase 33]: 33-02: Test fixtures approve quotes via raw SQL (SET LOCAL + UPDATE), never POST /quotes/{id}/approve — the endpoint demands sent/viewed transitions and creates jobs for project-level quotes
 - [Phase 33]: 33-02: One shared _to_anchored_amounts row mapper serves invoice and quote aggregates — both queries lead with the same six columns; quote's trailing created_at ignored via row[:6]
+- [Phase 33]: 33-04: FinanceFlagChip extracts the one amber honesty-chip recipe; unrated and incomplete-data chips share it so they cannot drift
+- [Phase 33]: 33-04: isBreakdownEmpty treats a present margin with revenueBasis != none as non-empty so the state-12 legacy zero-cost job always shows its honesty flag
+- [Phase 33]: 33-04: negative margins format sign-before-symbol (-$350.00) via formatMarginDollars since formatCurrency would render $-350.00
+- [Phase 33]: MarginSummary nullable fields are optional constructor params (basis stays required) — reconciles the 33-05 plan snippet with its own no-required-margin acceptance criterion
+- [Phase 33]: Phase-33 project-variant e2e overrides projectCostBreakdownProvider directly — the real fetch path requires AuthAuthenticated; Dio-level path covered by job/trade-scope surface tests
 
 ### Pending Todos
 
@@ -224,6 +231,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-28T00:13:40.495Z
-Stopped at: Completed 33-02-PLAN.md
+Last session: 2026-07-28T00:15:37.406Z
+Stopped at: Completed 33-04-PLAN.md
 Resume file: None

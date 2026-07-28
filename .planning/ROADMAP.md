@@ -390,8 +390,8 @@ Plans:
 - [x] 33-01-PLAN.md — Pure margin math: document totals, revenue resolution, margin/percent, incomplete-flag rules (+ invoice/quote total DRY extraction)
 - [x] 33-02-PLAN.md — Backend revenue aggregation: Phase 33 integration contract (13 tests) + RevenueRepository bounded queries on the D-12 traversal
 - [ ] 33-03-PLAN.md — MarginSummary schema + anchor and project margin assembly on the three finance.view-gated cost responses
-- [ ] 33-04-PLAN.md — Web margin section in CostBreakdownSummary (12 UI states) + Jest coverage + Playwright E2E
-- [ ] 33-05-PLAN.md — Mobile margin parsing, MarginSummarySection widget, shared flag chip + parser units + widget E2E
+- [x] 33-04-PLAN.md — Web margin section in CostBreakdownSummary (12 UI states) + Jest coverage + Playwright E2E
+- [x] 33-05-PLAN.md — Mobile margin parsing, MarginSummarySection widget, shared flag chip + parser units + widget E2E
 
 ### Phase 34: Budgeting and Overrun Alerts
 **Goal**: Owner/PM can set spending ceilings per project and trade scope and get warned before they're blown, with quote changes automatically kept in sync
@@ -478,7 +478,7 @@ Note: Phase 37 (AI Quote Planning) depends only on Phase 32 and may run in paral
 | 30. Financial Schema Foundation and RBAC Audit | v4.0 | 4/4 | Complete    | 2026-07-25 |
 | 31. Actual Cost Capture | v4.0 | 5/5 | Complete    | 2026-07-26 |
 | 32. Labor Rates and Cost Rollup | v4.0 | 5/5 | Complete    | 2026-07-27 |
-| 33. Profit Margin Tracking | v4.0 | 2/5 | In Progress|  |
+| 33. Profit Margin Tracking | v4.0 | 4/5 | In Progress|  |
 | 34. Budgeting and Overrun Alerts | v4.0 | 0/? | Not started | - |
 | 35. Web Financial Dashboard | v4.0 | 0/? | Not started | - |
 | 36. AI Profitability Analysis | v4.0 | 0/? | Not started | - |
