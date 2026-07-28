@@ -1101,3 +1101,255 @@ async def test_alerts_push_skipped_silently_without_firebase_credentials(
 
     rows = await _alert_rows(company_id)
     assert [row.alert_type for row in rows] == ["budget_warning"]
+
+
+# ---------------------------------------------------------------------------
+# BUDG-03 (34-06): cost-mutation and budget-edit hooks evaluate automatically
+# ---------------------------------------------------------------------------
+
+
+async def _patch_cost_entry(
+    client: AsyncClient, headers: dict, entry_id: str, amount: str
+) -> None:
+    """PATCH a cost entry's amount through the API."""
+    resp = await client.patch(
+        f"/api/v1/cost-entries/{entry_id}", headers=headers, json={"amount": amount}
+    )
+    assert resp.status_code == 200, resp.text
+
+
+async def _delete_cost_entry(client: AsyncClient, headers: dict, entry_id: str) -> None:
+    """DELETE (soft) a cost entry through the API."""
+    resp = await client.delete(f"/api/v1/cost-entries/{entry_id}", headers=headers)
+    assert resp.status_code == 204, resp.text
+
+
+@pytest.mark.asyncio
+async def test_mutation_create_scope_entry_fires_scope_warning(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """POST /cost-entries/ pushing a scope budget to 82% fires the warning with no manual call."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    project_id = await _create_project(tenant_a_client, name="Riverside Remodel")
+    scope_id = await _create_trade_scope(tenant_a_client, project_id)
+    materials_id = await _category_id(company_id, "materials")
+    headers = _pm_headers(company_id)
+    await _create_budget(async_client, headers, trade_scope_id=scope_id, total="10000.00")
+
+    await _add_cost_entry(
+        async_client, headers, trade_scope_id=scope_id, category_id=materials_id, amount="8200.00"
+    )
+
+    rows = await _alert_rows(company_id)
+    assert [row.alert_type for row in rows] == ["budget_warning"]
+    assert str(rows[0].trade_scope_id) == scope_id
+
+
+@pytest.mark.asyncio
+async def test_mutation_scope_entry_leaves_under_threshold_project_budget_alone(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """The scope's project budget is evaluated independently — under 80% it fires nothing (D-04)."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    project_id = await _create_project(tenant_a_client)
+    scope_id = await _create_trade_scope(tenant_a_client, project_id)
+    materials_id = await _category_id(company_id, "materials")
+    headers = _pm_headers(company_id)
+    await _create_budget(async_client, headers, trade_scope_id=scope_id, total="10000.00")
+    await _create_budget(async_client, headers, project_id=project_id, total="100000.00")
+
+    await _add_cost_entry(
+        async_client, headers, trade_scope_id=scope_id, category_id=materials_id, amount="8200.00"
+    )
+
+    rows = await _alert_rows(company_id)
+    assert [row.alert_type for row in rows] == ["budget_warning"]
+    assert str(rows[0].trade_scope_id) == scope_id
+
+
+@pytest.mark.asyncio
+async def test_mutation_scope_entry_evaluates_scope_and_project_budgets_independently(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """One scope-anchored POST crosses BOTH the scope and the project thresholds — two alerts."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    project_id = await _create_project(tenant_a_client)
+    scope_id = await _create_trade_scope(tenant_a_client, project_id)
+    materials_id = await _category_id(company_id, "materials")
+    headers = _pm_headers(company_id)
+    await _create_budget(async_client, headers, trade_scope_id=scope_id, total="10000.00")
+    await _create_budget(async_client, headers, project_id=project_id, total="9000.00")
+
+    await _add_cost_entry(
+        async_client, headers, trade_scope_id=scope_id, category_id=materials_id, amount="8200.00"
+    )
+
+    rows = await _alert_rows(company_id)
+    assert len(rows) == 2
+    assert {row.alert_type for row in rows} == {"budget_warning"}
+    scope_ids = {row.trade_scope_id for row in rows}
+    assert None in scope_ids  # the project budget's own alert, no cascade needed
+    assert scope_id in {str(value) for value in scope_ids if value is not None}
+
+
+@pytest.mark.asyncio
+async def test_mutation_job_entry_evaluates_project_budget(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """A job-anchored POST reaches the project budget via jobs.project_id."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    project_id = await _create_project(tenant_a_client)
+    job_id = await _create_job(tenant_a_client, project_id=project_id)
+    materials_id = await _category_id(company_id, "materials")
+    headers = _pm_headers(company_id)
+    await _create_budget(async_client, headers, project_id=project_id, total="1000.00")
+
+    await _add_cost_entry(
+        async_client, headers, job_id=job_id, category_id=materials_id, amount="900.00"
+    )
+
+    rows = await _alert_rows(company_id)
+    assert [row.alert_type for row in rows] == ["budget_warning"]
+    assert rows[0].trade_scope_id is None
+
+
+@pytest.mark.asyncio
+async def test_mutation_job_without_project_evaluates_nothing(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """A job with project_id NULL evaluates nothing and the POST still succeeds."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    job_id = await _create_job(tenant_a_client)
+    materials_id = await _category_id(company_id, "materials")
+    headers = _pm_headers(company_id)
+
+    await _add_cost_entry(
+        async_client, headers, job_id=job_id, category_id=materials_id, amount="900.00"
+    )
+
+    assert await _alert_rows(company_id) == []
+
+
+@pytest.mark.asyncio
+async def test_mutation_update_raising_amount_fires_threshold(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """PATCH /cost-entries/{id} raising the amount past 80% fires the warning inline."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    project_id = await _create_project(tenant_a_client)
+    scope_id = await _create_trade_scope(tenant_a_client, project_id)
+    materials_id = await _category_id(company_id, "materials")
+    headers = _pm_headers(company_id)
+    await _create_budget(async_client, headers, trade_scope_id=scope_id, total="10000.00")
+    entry_id = await _add_cost_entry(
+        async_client, headers, trade_scope_id=scope_id, category_id=materials_id, amount="5000.00"
+    )
+    assert await _alert_rows(company_id) == []
+
+    await _patch_cost_entry(async_client, headers, entry_id, "8500.00")
+
+    rows = await _alert_rows(company_id)
+    assert [row.alert_type for row in rows] == ["budget_warning"]
+
+
+@pytest.mark.asyncio
+async def test_mutation_delete_dropping_spend_keeps_fired_state_sticky(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """DELETE dropping spend back below 80% fires nothing new and un-fires nothing (D-01)."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    project_id = await _create_project(tenant_a_client)
+    scope_id = await _create_trade_scope(tenant_a_client, project_id)
+    materials_id = await _category_id(company_id, "materials")
+    headers = _pm_headers(company_id)
+    budget = await _create_budget(async_client, headers, trade_scope_id=scope_id, total="10000.00")
+    entry_id = await _add_cost_entry(
+        async_client, headers, trade_scope_id=scope_id, category_id=materials_id, amount="8200.00"
+    )
+    assert len(await _alert_rows(company_id)) == 1
+
+    await _delete_cost_entry(async_client, headers, entry_id)
+
+    assert len(await _alert_rows(company_id)) == 1
+    warning_fired_at, _ = await _fired_state(company_id, budget["id"])
+    assert warning_fired_at is not None
+
+
+@pytest.mark.asyncio
+async def test_mutation_budget_edit_below_spend_fires_inline(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """PATCH /budgets/{id} lowering the total below spend fires in the SAME request (D-10)."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    project_id = await _create_project(tenant_a_client)
+    scope_id = await _create_trade_scope(tenant_a_client, project_id)
+    materials_id = await _category_id(company_id, "materials")
+    headers = _pm_headers(company_id)
+    await _add_cost_entry(
+        async_client, headers, trade_scope_id=scope_id, category_id=materials_id, amount="5000.00"
+    )
+    budget = await _create_budget(async_client, headers, trade_scope_id=scope_id, total="10000.00")
+    assert await _alert_rows(company_id) == []
+
+    patch_resp = await async_client.patch(
+        _budget_url(budget["id"]), headers=headers, json={"total": "4000.00"}
+    )
+    assert patch_resp.status_code == 200, patch_resp.text
+
+    rows = await _alert_rows(company_id)
+    assert {row.alert_type for row in rows} == {"budget_warning", "budget_overrun"}
+
+
+@pytest.mark.asyncio
+async def test_mutation_budget_edit_raise_rearms_without_firing(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """PATCH raising the total re-arms (D-03) and fires nothing until the new thresholds cross."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    project_id = await _create_project(tenant_a_client)
+    scope_id = await _create_trade_scope(tenant_a_client, project_id)
+    materials_id = await _category_id(company_id, "materials")
+    headers = _pm_headers(company_id)
+    budget = await _create_budget(async_client, headers, trade_scope_id=scope_id, total="10000.00")
+    await _add_cost_entry(
+        async_client, headers, trade_scope_id=scope_id, category_id=materials_id, amount="8200.00"
+    )
+    assert len(await _alert_rows(company_id)) == 1
+
+    patch_resp = await async_client.patch(
+        _budget_url(budget["id"]), headers=headers, json={"total": "20000.00"}
+    )
+    assert patch_resp.status_code == 200, patch_resp.text
+
+    assert len(await _alert_rows(company_id)) == 1  # 41% of the new total: nothing new
+    warning_fired_at, overrun_fired_at = await _fired_state(company_id, budget["id"])
+    assert warning_fired_at is None
+    assert overrun_fired_at is None
+
+
+@pytest.mark.asyncio
+async def test_mutation_anchor_without_budget_returns_normally(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """A cost entry at an anchor with no budget creates cleanly and fires nothing."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    project_id = await _create_project(tenant_a_client)
+    scope_id = await _create_trade_scope(tenant_a_client, project_id)
+    materials_id = await _category_id(company_id, "materials")
+    headers = _pm_headers(company_id)
+
+    await _add_cost_entry(
+        async_client, headers, trade_scope_id=scope_id, category_id=materials_id, amount="8200.00"
+    )
+
+    assert await _alert_rows(company_id) == []
