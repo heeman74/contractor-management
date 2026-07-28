@@ -8,13 +8,40 @@ eager-loads Budget.breakdowns — the per-category breakdown is dormant in v4.0
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 from decimal import Decimal
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, text
+from sqlalchemy.sql.elements import TextClause
 
 from app.core.base_repository import TenantScopedRepository
+from app.features.finance.budget_math import BudgetThreshold
 from app.features.finance.models import Budget
+from app.features.projects.models import Project, TradeScope
+
+
+@dataclass(frozen=True)
+class BudgetAlertContext:
+    """Everything the alert copy and the DashboardAlert row need about a budget's anchor."""
+
+    project_id: uuid.UUID
+    project_name: str
+    trade_name: str | None  # None = project budget
+
+
+_CLAIM_SQL: dict[BudgetThreshold, TextClause] = {
+    BudgetThreshold.warning: text(
+        "UPDATE budgets SET warning_fired_at = now() "
+        "WHERE id = :budget_id AND warning_fired_at IS NULL AND deleted_at IS NULL "
+        "RETURNING id"
+    ),
+    BudgetThreshold.overrun: text(
+        "UPDATE budgets SET overrun_fired_at = now() "
+        "WHERE id = :budget_id AND overrun_fired_at IS NULL AND deleted_at IS NULL "
+        "RETURNING id"
+    ),
+}
 
 
 class BudgetRepository(TenantScopedRepository[Budget]):
@@ -69,3 +96,62 @@ class BudgetRepository(TenantScopedRepository[Budget]):
         await self.db.flush()
         await self.db.refresh(budget)
         return budget
+
+    async def claim_threshold(self, budget_id: uuid.UUID, threshold: BudgetThreshold) -> bool:
+        """Atomically claim one threshold crossing for a budget.
+
+        Executes an ``UPDATE ... WHERE <threshold>_fired_at IS NULL`` returning
+        the id (Phase 25 mark_invoiced precedent) — the entire exactly-once mechanism:
+        no locks, no unique index, no unique-violation catching. Returns False
+        when another evaluator (a concurrent request or the nightly sweep)
+        already claimed this crossing; the caller must then NOT create an alert.
+        """
+        result = await self.db.execute(_CLAIM_SQL[threshold], {"budget_id": budget_id})
+        claimed = result.scalar_one_or_none() is not None
+        if claimed:
+            await self._expire_fired_state(budget_id)
+        return claimed
+
+    async def _expire_fired_state(self, budget_id: uuid.UUID) -> None:
+        """Expire the in-session budget's fired columns after a raw-SQL claim,
+        so the ORM object cannot serve a stale None to a later reader."""
+        budget = await self.db.get(Budget, budget_id)
+        if budget is not None:
+            self.db.expire(budget, ["warning_fired_at", "overrun_fired_at"])
+
+    async def alert_context(self, budget: Budget) -> BudgetAlertContext | None:
+        """Resolve the anchor entity names an alert needs, in one query.
+
+        Returns None when the anchor row is gone or soft-deleted — callers then
+        skip the budget entirely (dashboard_alerts.project_id is NOT NULL, so
+        no alert can be written without a live anchor).
+        """
+        if budget.project_id is not None:
+            return await self._project_alert_context(budget.project_id)
+        return await self._trade_scope_alert_context(budget.trade_scope_id)
+
+    async def _project_alert_context(self, project_id: uuid.UUID) -> BudgetAlertContext | None:
+        result = await self.db.execute(
+            select(Project.id, Project.name).where(
+                Project.id == project_id, Project.deleted_at.is_(None)
+            )
+        )
+        row = result.first()
+        if row is None:
+            return None
+        return BudgetAlertContext(project_id=row.id, project_name=row.name, trade_name=None)
+
+    async def _trade_scope_alert_context(
+        self, trade_scope_id: uuid.UUID | None
+    ) -> BudgetAlertContext | None:
+        result = await self.db.execute(
+            select(TradeScope.project_id, Project.name, TradeScope.trade_name)
+            .join(Project, TradeScope.project_id == Project.id)
+            .where(TradeScope.id == trade_scope_id, TradeScope.deleted_at.is_(None))
+        )
+        row = result.first()
+        if row is None:
+            return None
+        return BudgetAlertContext(
+            project_id=row.project_id, project_name=row.name, trade_name=row.trade_name
+        )
