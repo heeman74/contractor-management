@@ -20,6 +20,7 @@ from decimal import Decimal
 from fastapi import HTTPException, status
 
 from app.core.base_service import TenantScopedService
+from app.features.finance.budget_service import BudgetService
 from app.features.finance.labor_derivation import (
     CENTS,
     LABOR_CATEGORY_NAME,
@@ -52,6 +53,7 @@ from app.features.finance.repository import (
     RevenueRepository,
 )
 from app.features.finance.schemas import (
+    BudgetVsActual,
     CategoryTotal,
     CostBreakdownResponse,
     CostEntryCreate,
@@ -73,6 +75,17 @@ def _group_rates_by_user(rates: Iterable[LaborRate]) -> dict[uuid.UUID, list[Lab
 
 
 @dataclass(frozen=True)
+class ProjectCostSide:
+    """Cost half of the project rollup — the single definition of project spend."""
+
+    entries: list[CostEntry]
+    sessions: list[WorkSession]
+    rates: dict[uuid.UUID, list[LaborRate]]
+    derived_labor: LaborTotals
+    breakdown: CostBreakdownResponse
+
+
+@dataclass(frozen=True)
 class ProjectCostRollup:
     """Everything the project rollup endpoint needs from one service call."""
 
@@ -82,6 +95,7 @@ class ProjectCostRollup:
     labor: LaborTotals
     grand_total: Decimal
     margin: MarginSummary
+    budget: BudgetVsActual | None
 
 
 @dataclass(frozen=True)
@@ -313,33 +327,62 @@ class FinanceService(TenantScopedService[CostEntry]):
         """Fetch a single cost entry, or raise 404 if missing/soft-deleted."""
         return await self.repository.get_entry_or_404(entry_id)
 
-    async def rollup_for_project(self, project_id: uuid.UUID) -> ProjectCostRollup:
-        """Itemized entries + category totals + derived project labor + margin.
+    async def _project_cost_side(self, project_id: uuid.UUID) -> ProjectCostSide:
+        """Entries + sessions + rates + derived labor + breakdown, computed once.
 
-        3 cost/labor round trips + 2 revenue + at most 1 D-14 quote. Rates are fetched
-        ONCE and shared by the project labor total and the per-job margin split.
-        `total` keeps its pre-Phase-32 meaning (cost-entry sum) — mobile parses it strictly.
+        3 cost/labor round trips. Rates are fetched ONCE and shared by the project
+        labor total and the per-job margin split. Every project spend figure —
+        rollup, budget block, alert evaluation — routes through this breakdown.
         """
         entries = await self.repository.rollup_for_project(project_id)
         sessions = await self.repository.completed_work_sessions_for_project(project_id)
         rates = await self._rates_by_contractor(sessions)
-        derived = summarize_labor(sessions, rates)
+        derived_labor = summarize_labor(sessions, rates)
         breakdown = _build_breakdown(
-            _category_rows_from_entries(entries), derived, tracked_at_job_level=False
+            _category_rows_from_entries(entries), derived_labor, tracked_at_job_level=False
         )
+        return ProjectCostSide(
+            entries=entries,
+            sessions=sessions,
+            rates=rates,
+            derived_labor=derived_labor,
+            breakdown=breakdown,
+        )
+
+    async def project_spend(self, project_id: uuid.UUID) -> Decimal:
+        """Project spend = the rollup's grand_total (cost entries + derived labor)."""
+        return (await self._project_cost_side(project_id)).breakdown.grand_total
+
+    async def trade_scope_spend(self, trade_scope_id: uuid.UUID) -> Decimal:
+        """Scope spend = the scope breakdown's grand_total (all categories; labor is
+        job-anchored, D-08, and is honestly excluded — the screen says so too)."""
+        rows = await self.repository.category_totals_for_trade_scope(trade_scope_id)
+        return _build_breakdown(rows, None, tracked_at_job_level=True).grand_total
+
+    async def rollup_for_project(self, project_id: uuid.UUID) -> ProjectCostRollup:
+        """Itemized entries + category totals + derived project labor + margin + budget.
+
+        _project_cost_side's 3 round trips + 2 revenue + at most 1 D-14 quote + 1 budget.
+        `total` keeps its pre-Phase-32 meaning (cost-entry sum) — mobile parses it strictly.
+        """
+        cost_side = await self._project_cost_side(project_id)
+        entries, breakdown = cost_side.entries, cost_side.breakdown
         margin_context = ProjectMarginContext(
             anchor_costs=_anchor_costs_from_entries(entries),
-            labor_by_job=_labor_by_job(sessions, rates),
+            labor_by_job=_labor_by_job(cost_side.sessions, cost_side.rates),
             grand_total=breakdown.grand_total,
-            unrated_seconds=derived.unrated_seconds,
+            unrated_seconds=cost_side.derived_labor.unrated_seconds,
         )
         return ProjectCostRollup(
             entries=entries,
             total=sum((entry.amount for entry in entries), Decimal("0")),
             categories=breakdown.categories,
-            labor=_folded_labor(breakdown, derived),
+            labor=_folded_labor(breakdown, cost_side.derived_labor),
             grand_total=breakdown.grand_total,
             margin=await self._project_margin(project_id, margin_context),
+            budget=await BudgetService(self.db).budget_vs_actual_for_project(
+                project_id, spent=breakdown.grand_total
+            ),
         )
 
     async def _project_margin(
@@ -453,7 +496,10 @@ class FinanceService(TenantScopedService[CostEntry]):
             RevenueAnchor(trade_scope_id=trade_scope_id),
             MarginCostSide(total=breakdown.grand_total),
         )
-        return breakdown.model_copy(update={"margin": margin})
+        budget = await BudgetService(self.db).budget_vs_actual_for_trade_scope(
+            trade_scope_id, spent=breakdown.grand_total
+        )
+        return breakdown.model_copy(update={"margin": margin, "budget": budget})
 
     async def update_cost_entry(self, entry_id: uuid.UUID, data: CostEntryUpdate) -> CostEntry:
         """Update a cost entry's amount/category/date/vendor/note (anchor is immutable)."""

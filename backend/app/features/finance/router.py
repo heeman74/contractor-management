@@ -164,6 +164,7 @@ async def get_project_cost_rollup(
         ),
         grand_total=rollup.grand_total,
         margin=rollup.margin,
+        budget=rollup.budget,
     )
 
 

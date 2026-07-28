@@ -8,17 +8,34 @@ No db.commit() — get_db handles the transaction lifecycle.
 from __future__ import annotations
 
 import uuid
+from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from fastapi import HTTPException, status
 
 from app.core.base_service import TenantScopedService
+from app.features.finance.budget_math import percent_used
 from app.features.finance.budget_repository import BudgetRepository
 from app.features.finance.models import Budget
-from app.features.finance.schemas import BudgetCreate, BudgetUpdate
+from app.features.finance.schemas import BudgetCreate, BudgetUpdate, BudgetVsActual
+
+if TYPE_CHECKING:
+    from app.features.finance.service import FinanceService
 
 _PROJECT_DUPLICATE_DETAIL = "A budget already exists for this project"
 _SCOPE_DUPLICATE_DETAIL = "A budget already exists for this trade scope"
 _BREAKDOWNS_DORMANT_DETAIL = "Per-category budget allocation is not available yet"
+
+
+def _to_budget_vs_actual(budget: Budget, spent: Decimal) -> BudgetVsActual:
+    """Assemble the wire block; remaining goes negative when over budget (D-10)."""
+    return BudgetVsActual(
+        budget_id=budget.id,
+        total=budget.total,
+        spent=spent,
+        remaining=budget.total - spent,
+        percent_used=percent_used(spent, budget.total),
+    )
 
 
 class BudgetService(TenantScopedService[Budget]):
@@ -72,3 +89,37 @@ class BudgetService(TenantScopedService[Budget]):
         """Soft-delete a budget — it drops out of every active-budget lookup."""
         budget = await self.repository.active_by_id_or_404(budget_id)
         await self.repository.soft_delete(budget.id)
+
+    async def budget_vs_actual_for_project(
+        self, project_id: uuid.UUID, *, spent: Decimal | None = None
+    ) -> BudgetVsActual | None:
+        """Budget block for a project, or None when no active budget exists (BUDG-02).
+
+        The rollup path always passes its own grand_total as spent — no extra query,
+        and budget.spent == grand_total by construction (Pitfall 6).
+        """
+        budget = await self.repository.active_for_project(project_id)
+        if budget is None:
+            return None
+        if spent is None:
+            spent = await self._finance_service().project_spend(project_id)
+        return _to_budget_vs_actual(budget, spent)
+
+    async def budget_vs_actual_for_trade_scope(
+        self, trade_scope_id: uuid.UUID, *, spent: Decimal | None = None
+    ) -> BudgetVsActual | None:
+        """Budget block for a trade scope, or None when no active budget exists (BUDG-02)."""
+        budget = await self.repository.active_for_trade_scope(trade_scope_id)
+        if budget is None:
+            return None
+        if spent is None:
+            spent = await self._finance_service().trade_scope_spend(trade_scope_id)
+        return _to_budget_vs_actual(budget, spent)
+
+    def _finance_service(self) -> FinanceService:
+        """The single spend source. Lazy import: finance.service imports BudgetService
+        at module level (cycle service -> budget_service -> service), matching the
+        convention in app/core/security.py::effective_permissions."""
+        from app.features.finance.service import FinanceService
+
+        return FinanceService(self.db)
