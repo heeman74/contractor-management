@@ -402,7 +402,17 @@ Plans:
   2. Owner/PM can view budgeted vs. spent vs. remaining at both the project level and the trade scope level
   3. Owner/PM receives an alert (dashboard + FCM push) when spend crosses the 80% warning threshold and again at 100% overrun, and only finance-permitted users receive it
   4. Approving a quote revision automatically adjusts the linked budget by the revision's delta amount, with no manual re-entry required
-**Plans**: TBD
+**Plans:** 8 plans (5 waves)
+
+Plans:
+- [ ] 34-01-PLAN.md — Migration 0035 (alert types, budget threshold state, quote chain link), model updates, FINANCIAL_ALERT_TYPES registration, pure budget math + alert copy
+- [ ] 34-02-PLAN.md — Budget CRUD endpoints + single spend definition + additive budget-vs-actual block on breakdown/rollup responses
+- [ ] 34-03-PLAN.md — Threshold evaluation with atomic exactly-once claim, dashboard alert emission, finance.view-targeted FCM push
+- [ ] 34-04-PLAN.md — Web budget rows: types/parser, BudgetSummarySection, wiring into project + trade-scope Costs surfaces (read-only states)
+- [ ] 34-05-PLAN.md — Mobile budget rows: tolerant BudgetVsActual parser, BudgetSummarySection widget, E2E through mocked Dio
+- [ ] 34-06-PLAN.md — Automatic triggers: cost-mutation + budget-edit evaluation and the 05:00 UTC nightly sweep
+- [ ] 34-07-PLAN.md — Web SetBudgetDialog, manage affordances, AlertPanel header fix, phase-34 Playwright spec
+- [ ] 34-08-PLAN.md — Quote revision fixes (anchors, approved-revisable, chain link) + signed pre-tax budget delta on approval
 
 ### Phase 35: Web Financial Dashboard
 **Goal**: Owner/PM can see the financial health of every project and the company as a whole at a glance, in the same reporting experience they already use
