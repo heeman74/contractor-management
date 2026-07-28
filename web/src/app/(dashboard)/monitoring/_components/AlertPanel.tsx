@@ -231,7 +231,7 @@ export function AlertPanel({ projectId }: AlertPanelProps) {
     <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-        <h2 className="text-sm font-semibold text-gray-900">AI Alerts</h2>
+        <h2 className="text-sm font-semibold text-gray-900">Alerts</h2>
         {unreadCount > 0 && (
           <span className="inline-flex items-center rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-white">
             {unreadCount} new
