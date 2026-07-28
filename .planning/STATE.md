@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 34-03-PLAN.md
-last_updated: "2026-07-28T06:43:34.488Z"
+stopped_at: Completed 34-07-PLAN.md
+last_updated: "2026-07-28T16:01:19.565Z"
 last_activity: 2026-07-28
 progress:
   total_phases: 22
   completed_phases: 16
   total_plans: 94
-  completed_plans: 88
+  completed_plans: 89
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 34 (budgeting-and-overrun-alerts) — EXECUTING
-Plan: 6 of 8
+Plan: 7 of 8
 Status: Ready to execute
 Last activity: 2026-07-28
 
@@ -67,6 +67,7 @@ Last activity: 2026-07-28
 | Phase 34 P05 | 18min | 3 tasks | 7 files |
 | Phase 34 P04 | 28min | 3 tasks | 9 files |
 | Phase 34 P03 | 40min | 3 tasks | 6 files |
+| Phase 34 P07 | 13min | 3 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -235,6 +236,9 @@ Last activity: 2026-07-28
 - [Phase 34]: 34-03: exactly-once budget alerts via claim-first atomic UPDATE; alert_context resolved before claiming so a vanished anchor never burns a claim; post-claim ORM expire keeps fired columns honest
 - [Phase 34]: 34-03: FCM push scheduling lives only at the tail of evaluate_budget — every trigger (mutation hook, sweep, quote delta) inherits push delivery; recipients resolved in the request session, background task gets primitives + fresh session
 - [Phase 34]: 34-03: budget-alert push recipients come from RbacRepository.user_ids_with_permission mirroring effective_permissions (live matrix, never role-name literals)
+- [Phase 34]: 34-07: Budget API functions return Promise<void> — rows refresh via cost-entries invalidation, no unused response mapper (dead-code rule)
+- [Phase 34]: 34-07: SetBudgetDialog prefill uses a null untouched-sentinel (amount = editedAmount ?? budget?.total) reset in the onOpenChange wrapper — correct after refetch, no useEffect, no remount key
+- [Phase 34]: 34-07: Playwright DELETE mocks must fulfill 200 with json null — apiDelete unconditionally parses JSON, a bodyless 204 rejects
 
 ### Pending Todos
 
@@ -253,6 +257,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-28T06:43:34.481Z
-Stopped at: Completed 34-03-PLAN.md
+Last session: 2026-07-28T16:01:19.559Z
+Stopped at: Completed 34-07-PLAN.md
 Resume file: None
