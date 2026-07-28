@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { formatCurrency } from "@/lib/format";
+import { BudgetSummarySection } from "./BudgetSummarySection";
 import { FinanceFlagChip } from "./FinanceFlagChip";
 import { MarginSummarySection } from "./MarginSummarySection";
 import type { CategoryTotal, CostBreakdown, LaborCostSummary } from "../types";
@@ -51,17 +52,21 @@ export function orderedCategories(categories: CategoryTotal[]): CategoryTotal[] 
 }
 
 /** True when there is nothing worth rendering: no categories, zero grand total, no unrated
- *  time, and no revenue. A margin with revenue keeps the component visible so the
- *  incomplete-data honesty flag can never be hidden (UI-SPEC state 12). */
+ *  time, no revenue, and no budget. A margin with revenue keeps the component visible so
+ *  the incomplete-data honesty flag can never be hidden (UI-SPEC state 12). A present
+ *  budget also keeps it visible — otherwise a freshly-set budget on an empty scope would
+ *  be invisible. */
 export function isBreakdownEmpty(breakdown: CostBreakdown): boolean {
   const hasUnratedTime = (breakdown.labor?.unratedSeconds ?? 0) > 0;
   const hasRevenue =
     breakdown.margin != null && breakdown.margin.revenueBasis !== "none";
+  const hasBudget = breakdown.budget != null;
   return (
     breakdown.categories.length === 0 &&
     Number(breakdown.grandTotal) === 0 &&
     !hasUnratedTime &&
-    !hasRevenue
+    !hasRevenue &&
+    !hasBudget
   );
 }
 
@@ -92,6 +97,7 @@ export function CostBreakdownSummary({
 
   const amountOf = (value: string) =>
     isLoading ? LOADING_AMOUNT : formatCurrency(value);
+  const showsBudget = variant !== "job" && !isLoading;
 
   return (
     <div data-testid="cost-breakdown" className="space-y-2">
@@ -115,6 +121,7 @@ export function CostBreakdownSummary({
           {amountOf(breakdown?.grandTotal ?? "0")}
         </span>
       </div>
+      {showsBudget && <BudgetSummarySection budget={breakdown?.budget ?? null} />}
       <MarginSummarySection margin={breakdown?.margin ?? null} />
     </div>
   );
