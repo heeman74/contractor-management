@@ -1,5 +1,6 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import {
   BudgetSummarySection,
   formatPercentUsed,
@@ -110,6 +111,77 @@ describe("BudgetSummarySection", () => {
   });
 });
 
+describe("BudgetSummarySection manage affordances", () => {
+  test("state 2: no budget with canManage renders the Set budget ghost button row", () => {
+    render(
+      <BudgetSummarySection budget={null} canManage onManageBudget={jest.fn()} />
+    );
+
+    const setButton = screen.getByTestId("budget-set-button");
+    expect(setButton).toHaveTextContent("Set budget");
+    expect(screen.getByText("Budget")).toBeInTheDocument();
+    expect(screen.queryByTestId("budget-amount")).not.toBeInTheDocument();
+  });
+
+  test("state 1: no budget without canManage renders nothing even with a callback", () => {
+    const { container } = render(
+      <BudgetSummarySection budget={null} onManageBudget={jest.fn()} />
+    );
+
+    expect(container.firstChild).toBeNull();
+  });
+
+  test("clicking Set budget invokes onManageBudget exactly once", async () => {
+    const user = userEvent.setup();
+    const onManageBudget = jest.fn();
+    render(
+      <BudgetSummarySection budget={null} canManage onManageBudget={onManageBudget} />
+    );
+
+    await user.click(screen.getByTestId("budget-set-button"));
+
+    expect(onManageBudget).toHaveBeenCalledTimes(1);
+  });
+
+  test("state 11: budget with canManage renders the Edit button left of the amount", () => {
+    render(
+      <BudgetSummarySection budget={budgetWith()} canManage onManageBudget={jest.fn()} />
+    );
+
+    const editButton = screen.getByTestId("budget-edit-button");
+    expect(editButton).toHaveTextContent("Edit");
+    expect(editButton).toHaveAttribute("aria-label", "Edit budget");
+    const amount = screen.getByTestId("budget-amount");
+    expect(
+      editButton.compareDocumentPosition(amount) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  test("clicking Edit invokes onManageBudget exactly once", async () => {
+    const user = userEvent.setup();
+    const onManageBudget = jest.fn();
+    render(
+      <BudgetSummarySection
+        budget={budgetWith()}
+        canManage
+        onManageBudget={onManageBudget}
+      />
+    );
+
+    await user.click(screen.getByTestId("budget-edit-button"));
+
+    expect(onManageBudget).toHaveBeenCalledTimes(1);
+  });
+
+  test("view-only: budget without canManage renders the rows with no buttons", () => {
+    render(<BudgetSummarySection budget={budgetWith()} onManageBudget={jest.fn()} />);
+
+    expect(screen.getByTestId("budget-section")).toBeInTheDocument();
+    expect(screen.queryByTestId("budget-edit-button")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("budget-set-button")).not.toBeInTheDocument();
+  });
+});
+
 function breakdownWithBudget(
   overrides: Partial<CostBreakdown> = {}
 ): CostBreakdown {
@@ -186,6 +258,50 @@ describe("CostBreakdownSummary budget wiring", () => {
       screen.getByText("Couldn't load cost breakdown. Refresh to try again.")
     ).toBeInTheDocument();
     expect(screen.queryByTestId("budget-section")).not.toBeInTheDocument();
+  });
+
+  test("state 7: loading never renders a premature Set budget button", () => {
+    render(
+      <CostBreakdownSummary
+        breakdown={breakdownWithBudget({ budget: null })}
+        variant="trade-scope"
+        isLoading
+        canManageBudget
+        onManageBudget={jest.fn()}
+      />
+    );
+
+    expect(screen.queryByTestId("budget-set-button")).not.toBeInTheDocument();
+  });
+
+  test("a loaded no-budget breakdown with manage renders the Set budget affordance", () => {
+    render(
+      <CostBreakdownSummary
+        breakdown={breakdownWithBudget({ budget: null })}
+        variant="trade-scope"
+        canManageBudget
+        onManageBudget={jest.fn()}
+      />
+    );
+
+    expect(screen.getByTestId("budget-set-button")).toBeInTheDocument();
+  });
+
+  test("forwards canManageBudget and onManageBudget to the budget section", async () => {
+    const user = userEvent.setup();
+    const onManageBudget = jest.fn();
+    render(
+      <CostBreakdownSummary
+        breakdown={breakdownWithBudget()}
+        variant="project"
+        canManageBudget
+        onManageBudget={onManageBudget}
+      />
+    );
+
+    await user.click(screen.getByTestId("budget-edit-button"));
+
+    expect(onManageBudget).toHaveBeenCalledTimes(1);
   });
 
   test("a budget on an otherwise-empty breakdown still renders the summary", () => {
