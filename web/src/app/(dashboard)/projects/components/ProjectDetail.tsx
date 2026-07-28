@@ -186,7 +186,9 @@ export function ProjectDetail({ project, onSelectScope }: ProjectDetailProps) {
       <ProjectJobsCard projectId={project.id} />
 
       {/* Costs: aggregated rollup, hidden entirely without finance.view */}
-      {can("finance.view") && <ProjectCostsCard projectId={project.id} />}
+      {can("finance.view") && (
+        <ProjectCostsCard projectId={project.id} projectName={project.name} />
+      )}
 
       {/* Trade scopes with progress */}
       <div>

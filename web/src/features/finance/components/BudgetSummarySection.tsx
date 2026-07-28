@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { formatCurrency, formatSignedCurrency } from "@/lib/format";
 import { FinanceFlagChip } from "./FinanceFlagChip";
@@ -10,6 +11,9 @@ const BUDGET_LABEL = "Budget";
 const SPENT_LABEL = "Spent";
 const REMAINING_LABEL = "Remaining";
 const NEARING_BUDGET_CHIP_LABEL = "Nearing budget";
+const SET_BUDGET_LABEL = "Set budget";
+const EDIT_BUDGET_LABEL = "Edit";
+const EDIT_BUDGET_ARIA_LABEL = "Edit budget";
 const FIGURE_SEPARATOR = " · ";
 const WARNING_PERCENT = 80;
 const REMAINING_FIGURE_CLASS = "text-sm font-semibold";
@@ -22,13 +26,24 @@ export function formatPercentUsed(percentUsed: string): string {
 
 interface BudgetSummarySectionProps {
   budget: BudgetVsActual | null | undefined;
+  canManage?: boolean;
+  onManageBudget?: () => void;
 }
 
 /** Budget/Spent/Remaining triad between the breakdown Total row and the margin
- *  section (34-UI-SPEC states 1, 3-10). Band classification derives only from
- *  the backend strings — the client never divides. */
-export function BudgetSummarySection({ budget }: BudgetSummarySectionProps) {
-  if (!budget) return null;
+ *  section (34-UI-SPEC states 1-11). Band classification derives only from
+ *  the backend strings — the client never divides. Pure display + callback:
+ *  no fetching, no permission reads. */
+export function BudgetSummarySection({
+  budget,
+  canManage = false,
+  onManageBudget,
+}: BudgetSummarySectionProps) {
+  const showsManageAffordance = canManage && onManageBudget != null;
+  if (!budget) {
+    if (!showsManageAffordance) return null;
+    return <SetBudgetAffordanceRow onManageBudget={onManageBudget} />;
+  }
   const isOverBudget = Number(budget.remaining) < 0;
   const isNearingBudget =
     Number(budget.remaining) > 0 &&
@@ -38,6 +53,17 @@ export function BudgetSummarySection({ budget }: BudgetSummarySectionProps) {
     <div data-testid="budget-section" className="space-y-2">
       <Separator />
       <BudgetRow label={BUDGET_LABEL}>
+        {showsManageAffordance && (
+          <Button
+            variant="ghost"
+            size="sm"
+            data-testid="budget-edit-button"
+            aria-label={EDIT_BUDGET_ARIA_LABEL}
+            onClick={onManageBudget}
+          >
+            {EDIT_BUDGET_LABEL}
+          </Button>
+        )}
         <span data-testid="budget-amount">{formatCurrency(budget.total)}</span>
       </BudgetRow>
       <BudgetRow label={SPENT_LABEL}>
@@ -57,6 +83,25 @@ export function BudgetSummarySection({ budget }: BudgetSummarySectionProps) {
             ? formatSignedCurrency(budget.remaining)
             : formatCurrency(budget.remaining)}
         </span>
+      </BudgetRow>
+    </div>
+  );
+}
+
+/** State 2: the "Set budget" affordance row IS the empty state — no copy. */
+function SetBudgetAffordanceRow({ onManageBudget }: { onManageBudget: () => void }) {
+  return (
+    <div data-testid="budget-section" className="space-y-2">
+      <Separator />
+      <BudgetRow label={BUDGET_LABEL}>
+        <Button
+          variant="ghost"
+          size="sm"
+          data-testid="budget-set-button"
+          onClick={onManageBudget}
+        >
+          {SET_BUDGET_LABEL}
+        </Button>
       </BudgetRow>
     </div>
   );

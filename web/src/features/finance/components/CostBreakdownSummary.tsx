@@ -80,6 +80,8 @@ interface CostBreakdownSummaryProps {
   variant: "job" | "trade-scope" | "project";
   isLoading?: boolean;
   isError?: boolean;
+  canManageBudget?: boolean;
+  onManageBudget?: () => void;
 }
 
 export function CostBreakdownSummary({
@@ -87,6 +89,8 @@ export function CostBreakdownSummary({
   variant,
   isLoading = false,
   isError = false,
+  canManageBudget = false,
+  onManageBudget,
 }: CostBreakdownSummaryProps) {
   if (isError) {
     return <p className="text-sm text-gray-500">{BREAKDOWN_ERROR}</p>;
@@ -121,7 +125,13 @@ export function CostBreakdownSummary({
           {amountOf(breakdown?.grandTotal ?? "0")}
         </span>
       </div>
-      {showsBudget && <BudgetSummarySection budget={breakdown?.budget ?? null} />}
+      {showsBudget && (
+        <BudgetSummarySection
+          budget={breakdown?.budget ?? null}
+          canManage={canManageBudget}
+          onManageBudget={onManageBudget}
+        />
+      )}
       <MarginSummarySection margin={breakdown?.margin ?? null} />
     </div>
   );

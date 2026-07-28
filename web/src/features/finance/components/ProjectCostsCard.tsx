@@ -1,22 +1,29 @@
 "use client";
 
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/format";
+import { usePermissions } from "@/lib/hooks/usePermissions";
 import { useProjectCostRollup } from "../hooks";
 import { CostBreakdownSummary } from "./CostBreakdownSummary";
 import { CostEntryList } from "./CostEntryList";
+import { SetBudgetDialog } from "./SetBudgetDialog";
 
 interface ProjectCostsCardProps {
   projectId: string;
+  projectName: string;
 }
 
 /**
- * Read-only aggregated view of every cost entry rolling up to this project
+ * Aggregated view of every cost entry rolling up to this project
  * (trade-scope-anchored costs + costs on jobs whose project_id matches).
- * Add/edit happens from the job/trade-scope detail surfaces (D-02/D-03).
+ * Cost add/edit happens from the job/trade-scope detail surfaces (D-02/D-03);
+ * the project budget is managed here via SetBudgetDialog.
  */
-export function ProjectCostsCard({ projectId }: ProjectCostsCardProps) {
+export function ProjectCostsCard({ projectId, projectName }: ProjectCostsCardProps) {
   const { data: rollup, isLoading } = useProjectCostRollup(projectId);
+  const { can } = usePermissions();
+  const [budgetDialogOpen, setBudgetDialogOpen] = useState(false);
 
   return (
     <Card>
@@ -50,9 +57,17 @@ export function ProjectCostsCard({ projectId }: ProjectCostsCardProps) {
           }
           variant="project"
           isLoading={isLoading}
+          canManageBudget={can("finance.manage")}
+          onManageBudget={() => setBudgetDialogOpen(true)}
         />
         <CostEntryList entries={rollup?.entries} emptyLabel="No costs recorded yet." />
       </CardContent>
+      <SetBudgetDialog
+        open={budgetDialogOpen}
+        onOpenChange={setBudgetDialogOpen}
+        anchor={{ projectId, name: projectName }}
+        budget={rollup?.budget ?? null}
+      />
     </Card>
   );
 }

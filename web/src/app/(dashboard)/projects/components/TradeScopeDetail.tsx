@@ -30,6 +30,7 @@ import {
 import { AddCostDialog } from "@/features/finance/components/AddCostDialog";
 import { CostBreakdownSummary } from "@/features/finance/components/CostBreakdownSummary";
 import { CostEntryList } from "@/features/finance/components/CostEntryList";
+import { SetBudgetDialog } from "@/features/finance/components/SetBudgetDialog";
 import type { TradeScopeResponse, TaskResponse } from "@/types/projects";
 
 interface TradeScopeDetailProps {
@@ -56,6 +57,7 @@ export function TradeScopeDetail({ scope, onSelectTask }: TradeScopeDetailProps)
     isError: breakdownError,
   } = useTradeScopeCostBreakdown(scope.id);
   const [addCostOpen, setAddCostOpen] = useState(false);
+  const [budgetDialogOpen, setBudgetDialogOpen] = useState(false);
 
   const completedCount = tasks?.filter((t) => t.status === "complete" || t.status === "approved").length ?? 0;
   const totalCount = tasks?.length ?? 0;
@@ -321,6 +323,8 @@ export function TradeScopeDetail({ scope, onSelectTask }: TradeScopeDetailProps)
               variant="trade-scope"
               isLoading={breakdownLoading}
               isError={breakdownError}
+              canManageBudget={can("finance.manage")}
+              onManageBudget={() => setBudgetDialogOpen(true)}
             />
             <CostEntryList entries={costEntries} />
           </div>
@@ -331,6 +335,13 @@ export function TradeScopeDetail({ scope, onSelectTask }: TradeScopeDetailProps)
         open={addCostOpen}
         onOpenChange={setAddCostOpen}
         tradeScopeId={scope.id}
+      />
+
+      <SetBudgetDialog
+        open={budgetDialogOpen}
+        onOpenChange={setBudgetDialogOpen}
+        anchor={{ tradeScopeId: scope.id, name: `${scope.trade_name} scope` }}
+        budget={breakdown?.budget ?? null}
       />
 
       <Dialog
