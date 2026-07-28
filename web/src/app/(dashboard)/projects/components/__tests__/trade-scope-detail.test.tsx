@@ -22,6 +22,9 @@ jest.mock("@/features/finance/hooks", () => ({
   useAddCostEntry: () => ({ mutateAsync: jest.fn(), isPending: false }),
   useUploadReceipt: () => ({ mutateAsync: jest.fn(), isPending: false }),
   useDeleteCostEntry: () => ({ mutate: jest.fn(), isPending: false }),
+  useSetBudget: () => ({ mutate: jest.fn(), isPending: false }),
+  useUpdateBudget: () => ({ mutate: jest.fn(), isPending: false }),
+  useDeleteBudget: () => ({ mutate: jest.fn(), isPending: false }),
 }));
 
 import { useTasks, createTask, deleteTask } from "@/lib/api/projects";
