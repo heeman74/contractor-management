@@ -51,7 +51,7 @@ AI eliminates the chaos of multi-trade coordination — GCs always know exactly 
 - [x] AI schedule adaptation — adjust plans based on actual progress, flag delays, suggest rescheduling — Validated in Phase 26: AI Daily Checklists and Monitoring Dashboard
 - [ ] Online-first architecture — AI requires connectivity, offline cache for field execution
 - [x] Profit margin tracking — actual costs (labor, materials, subcontractor) vs revenue per project and per job — Validated in Phase 33: Profit Margin Tracking (cost capture Phase 31, labor rates/derivation Phase 32)
-- [ ] Budgeting — project/trade budgets with spend tracking and overrun-risk alerts
+- [x] Budgeting — project/trade budgets with spend tracking and overrun-risk alerts — Validated in Phase 34: Budgeting and Overrun Alerts (80/100 thresholds, exactly-once alerts, quote-revision delta sync)
 - [ ] AI profitability management — AI analyzes project financial health, flags margin erosion, suggests corrective actions
 - [ ] AI quote planning — AI builds labor + materials line items priced from company history
 - [x] Financial access control — finance.* permissions granted to owner and project_manager only by default — Validated in Phase 30: Financial Schema Foundation and RBAC Audit
@@ -143,4 +143,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-28 — Phase 33 complete: profit margin tracking (invoices-else-approved-quote revenue, same-traversal project rollup, honest incomplete-data flags) on job/scope/project surfaces across backend, web, and mobile. Backend suite 727 green.*
+*Last updated: 2026-07-28 — Phase 34 complete: budgets per project/trade scope with exactly-once 80/100 alerts (dashboard + finance-gated FCM), cost-mutation + nightly-sweep evaluation, and signed quote-revision budget deltas. Backend suite 820 green.*
