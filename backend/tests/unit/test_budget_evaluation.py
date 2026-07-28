@@ -136,8 +136,7 @@ def test_scope_overrun_text_is_the_locked_template():
     text = budget_alert_text(SCOPE_OVERRUN_FACTS, BudgetThreshold.overrun)
 
     assert text == (
-        "Riverside Remodel — Plumbing scope has exceeded its $10,000 budget"
-        " — $11,200 spent (112%)."
+        "Riverside Remodel — Plumbing scope has exceeded its $10,000 budget — $11,200 spent (112%)."
     )
 
 
