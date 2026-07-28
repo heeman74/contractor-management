@@ -416,7 +416,13 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
         revision_number+1, status='draft', copies line items. Returns new quote.
         """
         old_quote = await self._get_quote_or_404(quote_id)
-        self._require_quote_status(old_quote, {"sent", "viewed", "declined", "expired"}, "revise")
+        # "approved" is revisable: without it no chain could contain a second
+        # approval and BUDG-04's budget delta would be unreachable. Margin stays
+        # correct automatically — the old row flips to 'revised' and drops out of
+        # the approved-quote revenue leg while the new approval takes over.
+        self._require_quote_status(
+            old_quote, {"sent", "viewed", "declined", "expired", "approved"}, "revise"
+        )
 
         # Mark current quote as revised
         old_quote.status = "revised"
@@ -432,6 +438,14 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
         new_quote = Quote(
             company_id=company_id,
             job_id=old_quote.job_id,
+            # Anchors must survive revision: dropping them orphaned revised scope
+            # quotes (both anchors null), breaking D-06 budget linkage AND the
+            # Phase 33 approved-quote revenue leg. Pre-existing bug, fixed here.
+            trade_scope_id=old_quote.trade_scope_id,
+            project_id=old_quote.project_id,
+            # Explicit chain link — revision_number + shared anchor is ambiguous
+            # when multiple independent chains exist at one anchor.
+            revised_from_quote_id=old_quote.id,
             status="draft",
             revision_number=old_quote.revision_number + 1,
             tax_rate=data.tax_rate if data.tax_rate is not None else old_quote.tax_rate,
