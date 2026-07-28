@@ -12,6 +12,7 @@ Threshold-fire state (budgets.warning_fired_at/overrun_fired_at) is read and
 seeded via direct SQL because no endpoint exposes it by design.
 """
 
+import asyncio
 from datetime import UTC, date, datetime
 from uuid import UUID, uuid4
 
@@ -21,6 +22,9 @@ from sqlalchemy import select, text
 
 from app.core.database import async_session_factory
 from app.core.security import create_access_token
+from app.core.tenant import set_current_tenant_id
+from app.features.finance.budget_repository import BudgetRepository
+from app.features.finance.budget_service import BudgetService
 from app.features.finance.models import CostCategory
 
 _BUDGETS_URL = "/api/v1/budgets/"
@@ -45,6 +49,11 @@ _SET_FIRED_THRESHOLDS_SQL = (
 
 _FIRED_STATE_SQL = (
     "SELECT warning_fired_at, overrun_fired_at FROM budgets WHERE id = CAST(:budget_id AS uuid)"
+)
+
+_ALERT_ROWS_SQL = (
+    "SELECT alert_type, severity, impact_text, project_id, trade_scope_id "
+    "FROM dashboard_alerts ORDER BY created_at, alert_type"
 )
 
 _TIME_ENTRY_SEED_SQL = (
@@ -686,3 +695,225 @@ async def test_budget_vs_actual_forbidden_without_finance_view(
         f"/api/v1/projects/{project_id}/cost-entries", headers=admin_headers
     )
     assert rollup_resp.status_code == 403, rollup_resp.text
+
+
+# ---------------------------------------------------------------------------
+# BUDG-03: alert evaluation — exactly-once threshold firing + locked copy
+# ---------------------------------------------------------------------------
+
+
+async def _alert_rows(company_id: str) -> list:
+    """Read (alert_type, severity, impact_text, project_id, trade_scope_id) rows via SQL."""
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        result = await session.execute(text(_ALERT_ROWS_SQL))
+        return result.all()
+
+
+async def _evaluate_in_own_session(company_id: str, budget_id: str) -> int:
+    """Evaluate one budget in an independent session/transaction (the cron/mutation shape)."""
+    async with async_session_factory() as db:
+        set_current_tenant_id(UUID(company_id))
+        budget = await BudgetRepository(db).active_by_id_or_404(UUID(budget_id))
+        fired = await BudgetService(db).evaluate_budget(budget)
+        await db.commit()  # REQUIRED: without a commit the loser blocks on the row lock
+        return len(fired)
+
+
+async def _seed_scope_budget_with_spend(
+    async_client: AsyncClient,
+    tenant_a_client: AsyncClient,
+    company_id: str,
+    *,
+    total: str = "10000.00",
+    amount: str = "8200.00",
+) -> tuple[str, str, str]:
+    """Seed project 'Riverside Remodel' + 'Plumbing' scope + scope budget + one cost entry.
+
+    Returns (project_id, scope_id, budget_id).
+    """
+    await _seed_cost_categories(company_id)
+    project_id = await _create_project(tenant_a_client, name="Riverside Remodel")
+    scope_id = await _create_trade_scope(tenant_a_client, project_id)
+    materials_id = await _category_id(company_id, "materials")
+    headers = _pm_headers(company_id)
+    budget = await _create_budget(async_client, headers, trade_scope_id=scope_id, total=total)
+    await _add_cost_entry(
+        async_client, headers, trade_scope_id=scope_id, category_id=materials_id, amount=amount
+    )
+    return project_id, scope_id, budget["id"]
+
+
+@pytest.mark.asyncio
+async def test_alerts_warning_crossing_writes_locked_copy(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """Crossing 80% creates one budget_warning alert with the verbatim UI-SPEC scope copy."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    project_id, scope_id, budget_id = await _seed_scope_budget_with_spend(
+        async_client, tenant_a_client, company_id
+    )
+
+    fired_count = await _evaluate_in_own_session(company_id, budget_id)
+
+    assert fired_count == 1
+    rows = await _alert_rows(company_id)
+    assert len(rows) == 1
+    alert_type, severity, impact_text, alert_project_id, alert_scope_id = rows[0]
+    assert alert_type == "budget_warning"
+    assert severity == "warning"
+    assert impact_text == (
+        "Riverside Remodel — Plumbing scope has spent $8,200 of its $10,000 budget (82%)."
+    )
+    assert str(alert_project_id) == project_id
+    assert str(alert_scope_id) == scope_id
+
+
+@pytest.mark.asyncio
+async def test_alerts_reevaluation_fires_each_threshold_only_once(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """Re-running evaluation with unchanged spend never creates a second alert (keystone 1)."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    _, _, budget_id = await _seed_scope_budget_with_spend(async_client, tenant_a_client, company_id)
+
+    first = await _evaluate_in_own_session(company_id, budget_id)
+    second = await _evaluate_in_own_session(company_id, budget_id)
+
+    assert first == 1
+    assert second == 0
+    assert len(await _alert_rows(company_id)) == 1
+
+
+@pytest.mark.asyncio
+async def test_alerts_jump_past_both_thresholds_fires_warning_and_overrun(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """A 0% -> 120% jump fires one budget_warning AND one budget_overrun (critical)."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    _, _, budget_id = await _seed_scope_budget_with_spend(
+        async_client, tenant_a_client, company_id, amount="12000.00"
+    )
+
+    fired_count = await _evaluate_in_own_session(company_id, budget_id)
+
+    assert fired_count == 2
+    rows = await _alert_rows(company_id)
+    by_type = {row.alert_type: row for row in rows}
+    assert set(by_type) == {"budget_warning", "budget_overrun"}
+    assert by_type["budget_warning"].severity == "warning"
+    assert by_type["budget_overrun"].severity == "critical"
+    assert by_type["budget_overrun"].impact_text == (
+        "Riverside Remodel — Plumbing scope has exceeded its $10,000 budget — $12,000 spent (120%)."
+    )
+
+
+@pytest.mark.asyncio
+async def test_alerts_raising_budget_rearms_and_next_crossing_alerts_again(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """Raising the total re-arms (D-03): crossing 80% of the NEW total fires a fresh warning."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    _, scope_id, budget_id = await _seed_scope_budget_with_spend(
+        async_client, tenant_a_client, company_id
+    )
+    headers = _pm_headers(company_id)
+    assert await _evaluate_in_own_session(company_id, budget_id) == 1
+
+    patch_resp = await async_client.patch(
+        _budget_url(budget_id), headers=headers, json={"total": "20000.00"}
+    )
+    assert patch_resp.status_code == 200, patch_resp.text
+    materials_id = await _category_id(company_id, "materials")
+    await _add_cost_entry(
+        async_client, headers, trade_scope_id=scope_id, category_id=materials_id, amount="8000.00"
+    )
+
+    assert await _evaluate_in_own_session(company_id, budget_id) == 1
+    warning_rows = [r for r in await _alert_rows(company_id) if r.alert_type == "budget_warning"]
+    assert len(warning_rows) == 2
+
+
+@pytest.mark.asyncio
+async def test_alerts_lowering_budget_below_spend_fires_on_next_evaluation(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """Lowering the total below spend fires the crossed thresholds next evaluation (D-10)."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    _, _, budget_id = await _seed_scope_budget_with_spend(
+        async_client, tenant_a_client, company_id, amount="5000.00"
+    )
+    assert await _evaluate_in_own_session(company_id, budget_id) == 0
+
+    patch_resp = await async_client.patch(
+        _budget_url(budget_id), headers=_pm_headers(company_id), json={"total": "4000.00"}
+    )
+    assert patch_resp.status_code == 200, patch_resp.text
+
+    assert await _evaluate_in_own_session(company_id, budget_id) == 2
+    rows = await _alert_rows(company_id)
+    assert {row.alert_type for row in rows} == {"budget_warning", "budget_overrun"}
+
+
+@pytest.mark.asyncio
+async def test_alerts_concurrent_evaluations_fire_exactly_once(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """Two racing evaluations in SEPARATE transactions yield one alert, not two."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    _, _, budget_id = await _seed_scope_budget_with_spend(async_client, tenant_a_client, company_id)
+
+    results = await asyncio.gather(
+        _evaluate_in_own_session(company_id, budget_id),
+        _evaluate_in_own_session(company_id, budget_id),
+    )
+
+    assert sum(results) == 1
+    rows = await _alert_rows(company_id)
+    assert [row.alert_type for row in rows] == ["budget_warning"]
+    warning_fired_at, overrun_fired_at = await _fired_state(company_id, budget_id)
+    assert warning_fired_at is not None
+    assert overrun_fired_at is None
+
+
+@pytest.mark.asyncio
+async def test_alerts_soft_deleted_anchor_produces_no_alert(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """A budget whose scope was soft-deleted evaluates to nothing — no alert, no claim burned."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    _, scope_id, budget_id = await _seed_scope_budget_with_spend(
+        async_client, tenant_a_client, company_id
+    )
+    delete_resp = await tenant_a_client.delete(f"/api/v1/trade-scopes/{scope_id}")
+    assert delete_resp.status_code == 204, delete_resp.text
+
+    assert await _evaluate_in_own_session(company_id, budget_id) == 0
+
+    assert await _alert_rows(company_id) == []
+    warning_fired_at, overrun_fired_at = await _fired_state(company_id, budget_id)
+    assert warning_fired_at is None
+    assert overrun_fired_at is None
+
+
+@pytest.mark.asyncio
+async def test_alerts_dashboard_visibility_follows_finance_view(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """GET /dashboard/alerts includes budget alerts for finance.view holders only (keystone 3)."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    _, _, budget_id = await _seed_scope_budget_with_spend(async_client, tenant_a_client, company_id)
+    assert await _evaluate_in_own_session(company_id, budget_id) == 1
+
+    pm_resp = await async_client.get("/api/v1/dashboard/alerts", headers=_pm_headers(company_id))
+    assert pm_resp.status_code == 200, pm_resp.text
+    pm_types = [alert["alert_type"] for alert in pm_resp.json()]
+    assert "budget_warning" in pm_types
+
+    admin_resp = await async_client.get(
+        "/api/v1/dashboard/alerts", headers=_admin_headers(company_id)
+    )
+    assert admin_resp.status_code == 200, admin_resp.text
+    admin_types = [alert["alert_type"] for alert in admin_resp.json()]
+    assert "budget_warning" not in admin_types
+    assert "budget_overrun" not in admin_types
