@@ -30,12 +30,15 @@ from app.features.finance.labor_derivation import (
     summarize_labor,
 )
 from app.features.finance.margin_math import (
+    REVENUE_BASIS_NONE,
+    REVENUE_BASIS_QUOTED,
     AnchorRevenue,
     DocumentAmounts,
     MarginFigures,
     MarginInputs,
     ResolvedRevenue,
     RevenueAnchor,
+    combine_revenue_bases,
     missing_cost_data,
     pre_tax_total,
     resolve_anchor_revenue,
@@ -78,6 +81,17 @@ class ProjectCostRollup:
     categories: list[CategoryTotal]
     labor: LaborTotals
     grand_total: Decimal
+    margin: MarginSummary
+
+
+@dataclass(frozen=True)
+class ProjectMarginContext:
+    """Everything the project margin needs from the rollup that already ran."""
+
+    anchor_costs: dict[RevenueAnchor, Decimal]
+    labor_by_job: dict[uuid.UUID | None, LaborTotals]
+    grand_total: Decimal
+    unrated_seconds: int
 
 
 @dataclass(frozen=True)
@@ -102,6 +116,83 @@ def _to_margin_summary(figures: MarginFigures) -> MarginSummary:
         margin_percent=figures.margin_percent,
         incomplete=figures.incomplete,
         incomplete_reasons=list(figures.incomplete_reasons),
+    )
+
+
+def _anchor_costs_from_entries(entries: Iterable[CostEntry]) -> dict[RevenueAnchor, Decimal]:
+    """Sum already-fetched rollup entries per (job XOR scope) anchor — zero extra queries."""
+    costs: dict[RevenueAnchor, Decimal] = {}
+    for entry in entries:
+        anchor = RevenueAnchor(job_id=entry.job_id, trade_scope_id=entry.trade_scope_id)
+        costs[anchor] = costs.get(anchor, ZERO_MONEY) + entry.amount
+    return costs
+
+
+def _labor_by_job(
+    sessions: Iterable[WorkSession],
+    rates_by_contractor: dict[uuid.UUID, Sequence[LaborRate]],
+) -> dict[uuid.UUID | None, LaborTotals]:
+    """Per-job labor totals from the SAME sessions and rates the project total uses."""
+    sessions_by_job: dict[uuid.UUID | None, list[WorkSession]] = {}
+    for session in sessions:
+        sessions_by_job.setdefault(session.job_id, []).append(session)
+    return {
+        job_id: summarize_labor(job_sessions, rates_by_contractor)
+        for job_id, job_sessions in sessions_by_job.items()
+    }
+
+
+def _anchor_revenues(
+    invoice_rows: Sequence[tuple[RevenueAnchor, DocumentAmounts]],
+    quote_rows: Sequence[tuple[RevenueAnchor, DocumentAmounts]],
+) -> dict[RevenueAnchor, ResolvedRevenue]:
+    """Per-anchor D-01 resolution: sum this anchor's invoices, else its FIRST quote row
+    (the query returns newest-first), then resolve_anchor_revenue. A quote at an anchor
+    that has invoices is discarded — never mixed, never max()ed (Pitfall 2)."""
+    invoices_by_anchor: dict[RevenueAnchor, list[DocumentAmounts]] = {}
+    for anchor, amounts in invoice_rows:
+        invoices_by_anchor.setdefault(anchor, []).append(amounts)
+    resolved = {
+        anchor: resolve_anchor_revenue(AnchorRevenue(invoiced_total=revenue_from(documents)))
+        for anchor, documents in invoices_by_anchor.items()
+    }
+    for anchor, quote in quote_rows:
+        if anchor not in resolved:
+            resolved[anchor] = resolve_anchor_revenue(
+                AnchorRevenue(quoted_total=_quoted_revenue(quote))
+            )
+    return resolved
+
+
+def _combined_anchor_revenue(
+    anchor_revenues: dict[RevenueAnchor, ResolvedRevenue],
+) -> ResolvedRevenue | None:
+    """Project revenue summed across resolved anchors, or None when no anchor resolved any."""
+    totals = [revenue.total for revenue in anchor_revenues.values() if revenue.total is not None]
+    if not totals:
+        return None
+    return ResolvedRevenue(
+        total=sum(totals, ZERO_MONEY).quantize(CENTS),
+        basis=combine_revenue_bases(revenue.basis for revenue in anchor_revenues.values()),
+    )
+
+
+def _contributing_anchor_cost(anchor: RevenueAnchor, context: ProjectMarginContext) -> Decimal:
+    """One anchor's cost-entry sum plus, for job anchors, its derived labor total."""
+    cost = context.anchor_costs.get(anchor, ZERO_MONEY)
+    if anchor.job_id is None:
+        return cost
+    labor = context.labor_by_job.get(anchor.job_id)
+    return cost if labor is None else cost + labor.total
+
+
+def _any_anchor_missing_cost_data(
+    anchor_revenues: dict[RevenueAnchor, ResolvedRevenue], context: ProjectMarginContext
+) -> bool:
+    """D-12: any revenue-bearing anchor with zero cost flags the whole project."""
+    return any(
+        missing_cost_data(_contributing_anchor_cost(anchor, context), revenue.total)
+        for anchor, revenue in anchor_revenues.items()
     )
 
 
@@ -146,6 +237,16 @@ def _build_breakdown(
         labor=labor_summary,
         labor_tracked_at_job_level=tracked_at_job_level,
         grand_total=grand_total.quantize(CENTS),
+    )
+
+
+def _folded_labor(breakdown: CostBreakdownResponse, derived: LaborTotals) -> LaborTotals:
+    """Derived labor with legacy manual labor-category entries folded in (Pitfall 1)."""
+    folded_total = breakdown.labor.total if breakdown.labor is not None else derived.total
+    return LaborTotals(
+        total=folded_total,
+        rated_seconds=derived.rated_seconds,
+        unrated_seconds=derived.unrated_seconds,
     )
 
 
@@ -213,31 +314,79 @@ class FinanceService(TenantScopedService[CostEntry]):
         return await self.repository.get_entry_or_404(entry_id)
 
     async def rollup_for_project(self, project_id: uuid.UUID) -> ProjectCostRollup:
-        """Itemized entries + cost-entry total + category totals + derived project labor.
+        """Itemized entries + category totals + derived project labor + margin.
 
-        Category totals are computed in Python from the already-fetched entries (zero
-        extra queries); labor adds the two derivation round trips. `total` keeps its
-        pre-Phase-32 meaning (cost-entry sum) — mobile parses it strictly.
+        3 cost/labor round trips + 2 revenue + at most 1 D-14 quote. Rates are fetched
+        ONCE and shared by the project labor total and the per-job margin split.
+        `total` keeps its pre-Phase-32 meaning (cost-entry sum) — mobile parses it strictly.
         """
         entries = await self.repository.rollup_for_project(project_id)
-        total = sum((entry.amount for entry in entries), Decimal("0"))
         sessions = await self.repository.completed_work_sessions_for_project(project_id)
-        derived = await self._derive_labor(sessions)
+        rates = await self._rates_by_contractor(sessions)
+        derived = summarize_labor(sessions, rates)
         breakdown = _build_breakdown(
             _category_rows_from_entries(entries), derived, tracked_at_job_level=False
         )
-        folded_total = breakdown.labor.total if breakdown.labor is not None else derived.total
+        margin_context = ProjectMarginContext(
+            anchor_costs=_anchor_costs_from_entries(entries),
+            labor_by_job=_labor_by_job(sessions, rates),
+            grand_total=breakdown.grand_total,
+            unrated_seconds=derived.unrated_seconds,
+        )
         return ProjectCostRollup(
             entries=entries,
-            total=total,
+            total=sum((entry.amount for entry in entries), Decimal("0")),
             categories=breakdown.categories,
-            labor=LaborTotals(
-                total=folded_total,
-                rated_seconds=derived.rated_seconds,
-                unrated_seconds=derived.unrated_seconds,
-            ),
+            labor=_folded_labor(breakdown, derived),
             grand_total=breakdown.grand_total,
+            margin=await self._project_margin(project_id, margin_context),
         )
+
+    async def _project_margin(
+        self, project_id: uuid.UUID, context: ProjectMarginContext
+    ) -> MarginSummary:
+        """Project revenue and margin through the D-12 dual-outerjoin traversal.
+
+        Both revenue legs are always fetched (two bounded queries): a quote at an
+        anchor without invoices still counts, so the quote leg cannot be skipped just
+        because SOME anchor is invoiced — _anchor_revenues discards quotes at invoiced
+        anchors instead. D-14 without a double-count: a project-anchored approved quote
+        is the anchor of last resort — it counts only when NO anchor in the project
+        resolved any revenue. Any invoice anywhere makes an anchor revenue-bearing,
+        satisfying D-14's "entire project has zero invoices" condition while preventing
+        a project quote from being added on top of the per-scope quotes it spawned.
+        """
+        revenue_repository = RevenueRepository(self.db)
+        invoice_rows = await revenue_repository.invoice_amounts_by_anchor_for_project(project_id)
+        quote_rows = await revenue_repository.approved_quote_amounts_by_anchor_for_project(
+            project_id
+        )
+        anchor_revenues = _anchor_revenues(invoice_rows, quote_rows)
+        revenue = _combined_anchor_revenue(anchor_revenues)
+        if revenue is None:
+            revenue = await self._project_fallback_revenue(revenue_repository, project_id)
+        flagged = _any_anchor_missing_cost_data(anchor_revenues, context) or missing_cost_data(
+            context.grand_total, revenue.total
+        )
+        return _to_margin_summary(
+            summarize_margin(
+                MarginInputs(
+                    revenue=revenue,
+                    cost=context.grand_total,
+                    unrated_seconds=context.unrated_seconds,
+                    has_missing_cost_data=flagged,
+                )
+            )
+        )
+
+    async def _project_fallback_revenue(
+        self, revenue_repository: RevenueRepository, project_id: uuid.UUID
+    ) -> ResolvedRevenue:
+        """D-14 anchor of last resort: the latest project-level approved quote, or nothing."""
+        quote = await revenue_repository.latest_project_level_approved_quote_amounts(project_id)
+        if quote is None:
+            return ResolvedRevenue(total=None, basis=REVENUE_BASIS_NONE)
+        return ResolvedRevenue(total=_quoted_revenue(quote), basis=REVENUE_BASIS_QUOTED)
 
     async def _rates_by_contractor(
         self, sessions: list[WorkSession]

@@ -156,6 +156,7 @@ async def get_project_cost_rollup(
             unrated_seconds=rollup.labor.unrated_seconds,
         ),
         grand_total=rollup.grand_total,
+        margin=rollup.margin,
     )
 
 
