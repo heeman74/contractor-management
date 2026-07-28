@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 34-01-PLAN.md
-last_updated: "2026-07-28T05:24:26.158Z"
+stopped_at: Completed 34-02-PLAN.md
+last_updated: "2026-07-28T06:01:25.166Z"
 last_activity: 2026-07-28
 progress:
   total_phases: 22
   completed_phases: 16
   total_plans: 94
-  completed_plans: 84
+  completed_plans: 85
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 34 (budgeting-and-overrun-alerts) — EXECUTING
-Plan: 2 of 8
+Plan: 3 of 8
 Status: Ready to execute
 Last activity: 2026-07-28
 
@@ -63,6 +63,7 @@ Last activity: 2026-07-28
 | Phase 33 P04 | 30min | 3 tasks | 9 files |
 | Phase 33 P03 | 27min | 2 tasks | 5 files |
 | Phase 34 P01 | 13min | 3 tasks | 11 files |
+| Phase 34 P02 | 34min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -221,6 +222,9 @@ Last activity: 2026-07-28
 - [Phase 34]: 34-01: Alembic revision ID shortened to 0035_budget_alerts_quote_chain — plan's 34-char ID overflowed alembic_version varchar(32); migration filename unchanged
 - [Phase 34]: 34-01: alert_types.py is the constants-only single source of dashboard alert_type values; service.py re-imports FINANCIAL_ALERT_TYPES/SCHEDULE_SLIP_ALERT_TYPE so monkeypatch paths and module-global reads keep working
 - [Phase 34]: 34-01: budget_math reuses PERCENT_MULTIPLIER (margin_math) and CENTS (labor_derivation); ZERO_MONEY not imported — no use site, unused import fails ruff
+- [Phase 34]: 34-02: Single spend definition — project_spend/trade_scope_spend route through _project_cost_side/_build_breakdown grand_total; budget.spent == grand_total by construction, no second SUM
+- [Phase 34]: 34-02: D-03 re-arm lives only in BudgetRepository.set_total (raise nulls fired timestamps + refresh after flush so server-updated columns never lazy-load); decrease keeps fired state
+- [Phase 34]: 34-02: service<->budget_service cycle broken from the budget_service side — lazy FinanceService import in _finance_service(); schemas.py gained from __future__ import annotations for the forward-referenced budget field
 
 ### Pending Todos
 
@@ -239,6 +243,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-28T05:24:26.150Z
-Stopped at: Completed 34-01-PLAN.md
+Last session: 2026-07-28T06:01:03.930Z
+Stopped at: Completed 34-02-PLAN.md
 Resume file: None

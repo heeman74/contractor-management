@@ -18,8 +18,8 @@ Requirements for the Financial Intelligence milestone. Each maps to roadmap phas
 
 ### Budgeting
 
-- [ ] **BUDG-01**: Owner/PM can set a budget per project and per trade scope
-- [ ] **BUDG-02**: Owner/PM can view budgeted vs spent vs remaining at project and trade level
+- [x] **BUDG-01**: Owner/PM can set a budget per project and per trade scope
+- [x] **BUDG-02**: Owner/PM can view budgeted vs spent vs remaining at project and trade level
 - [x] **BUDG-03**: Owner/PM receives alerts when spend crosses thresholds (80% warning / 100% overrun), via dashboard + FCM
 - [x] **BUDG-04**: Approving a quote revision adjusts the linked budget by the revision delta
 
@@ -84,8 +84,8 @@ Which phases cover which requirements. Filled during roadmap creation.
 | COST-04 | Phase 32: Labor Rates and Cost Rollup | Complete |
 | COST-05 | Phase 32: Labor Rates and Cost Rollup | Complete |
 | COST-06 | Phase 32: Labor Rates and Cost Rollup | Complete |
-| BUDG-01 | Phase 34: Budgeting and Overrun Alerts | Pending |
-| BUDG-02 | Phase 34: Budgeting and Overrun Alerts | Pending |
+| BUDG-01 | Phase 34: Budgeting and Overrun Alerts | Complete |
+| BUDG-02 | Phase 34: Budgeting and Overrun Alerts | Complete |
 | BUDG-03 | Phase 34: Budgeting and Overrun Alerts | Complete |
 | BUDG-04 | Phase 34: Budgeting and Overrun Alerts | Complete |
 | MARG-01 | Phase 33: Profit Margin Tracking | Complete |
