@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 34-04-PLAN.md
-last_updated: "2026-07-28T06:22:44.963Z"
+stopped_at: Completed 34-03-PLAN.md
+last_updated: "2026-07-28T06:43:34.488Z"
 last_activity: 2026-07-28
 progress:
   total_phases: 22
   completed_phases: 16
   total_plans: 94
-  completed_plans: 87
+  completed_plans: 88
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 34 (budgeting-and-overrun-alerts) — EXECUTING
-Plan: 5 of 8
+Plan: 6 of 8
 Status: Ready to execute
 Last activity: 2026-07-28
 
@@ -66,6 +66,7 @@ Last activity: 2026-07-28
 | Phase 34 P02 | 34min | 3 tasks | 6 files |
 | Phase 34 P05 | 18min | 3 tasks | 7 files |
 | Phase 34 P04 | 28min | 3 tasks | 9 files |
+| Phase 34 P03 | 40min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -231,6 +232,9 @@ Last activity: 2026-07-28
 - [Phase 34]: 34-05: formatMarginPercent/formatMarginDollars moved to finance_formatters.dart with formatPercentUsed delegating; margin_summary_section re-exports them so shipped Phase 33 imports keep compiling
 - [Phase 34]: 34-04: Nearing-budget chip band requires remaining > 0 (not just percent >= 80) so exactly-at-budget shows no chip, per UI-SPEC state-4 spent < total condition
 - [Phase 34]: 34-04: Budget figures assert shipped formatCurrency output (no thousands separators) — UI-SPEC comma examples are illustrative; changing formatCurrency would ripple across all Phase 32/33 finance tests
+- [Phase 34]: 34-03: exactly-once budget alerts via claim-first atomic UPDATE; alert_context resolved before claiming so a vanished anchor never burns a claim; post-claim ORM expire keeps fired columns honest
+- [Phase 34]: 34-03: FCM push scheduling lives only at the tail of evaluate_budget — every trigger (mutation hook, sweep, quote delta) inherits push delivery; recipients resolved in the request session, background task gets primitives + fresh session
+- [Phase 34]: 34-03: budget-alert push recipients come from RbacRepository.user_ids_with_permission mirroring effective_permissions (live matrix, never role-name literals)
 
 ### Pending Todos
 
@@ -249,6 +253,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-28T06:22:44.956Z
-Stopped at: Completed 34-04-PLAN.md
+Last session: 2026-07-28T06:43:34.481Z
+Stopped at: Completed 34-03-PLAN.md
 Resume file: None
