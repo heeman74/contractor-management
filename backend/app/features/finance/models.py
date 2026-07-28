@@ -25,10 +25,20 @@ All CLAUDE.md rules apply:
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, Date, ForeignKey, Index, Numeric, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Numeric,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -155,6 +165,11 @@ class Budget(TenantScopedModel):
     enforces this — see BudgetCreate.validate_fields). IMPORTANT ASYMMETRY vs
     CostEntry: Budget anchors on project_id (not job_id) per D-09.
 
+    warning_fired_at / overrun_fired_at: exactly-once threshold-fire state
+    (D-01). NULL = the threshold has not fired for the current total; a
+    timestamp = it fired. Raising the total sets both back to NULL (D-03
+    re-arm), letting the thresholds fire again against the new total.
+
     Relationships:
     - breakdowns: one-to-many — per-category allocation of this budget's total
     """
@@ -172,6 +187,14 @@ class Budget(TenantScopedModel):
         nullable=True,
     )
     total: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    warning_fired_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    overrun_fired_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    __table_args__ = (CheckConstraint("total > 0", name="budgets_total_positive_check"),)
 
     # Relationships — lazy="raise" to surface accidental lazy loads loudly
     breakdowns: Mapped[list[BudgetCategoryBreakdown]] = relationship(

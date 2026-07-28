@@ -40,6 +40,8 @@ class Quote(TenantScopedModel):
 
     job_id: nullable — either job_id or trade_scope_id must be set (schema validator enforces this)
     trade_scope_id: nullable — set for per-trade quotes (Phase 25)
+    revised_from_quote_id: parent pointer of a revision chain, set by revise_quote,
+    used to find the previous approved revision (BUDG-04)
 
     Relationships:
     - job: many-to-one (nullable) — each quote may belong to one job
@@ -83,6 +85,13 @@ class Quote(TenantScopedModel):
     decline_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     decline_detail: Mapped[str | None] = mapped_column(Text, nullable=True)
     admin_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Revision-chain parent pointer — the walk is an explicit query (plan 34-08),
+    # so no relationship() is declared for it.
+    revised_from_quote_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("quotes.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     __table_args__ = (
         CheckConstraint(
