@@ -1,10 +1,11 @@
 """APScheduler setup with FastAPI lifespan integration.
 
-Two cron jobs:
-1. run_morning_checklists — 06:00 UTC daily, generates AI daily checklists per contractor
-2. run_alert_detection — every hour 07:00–19:00 UTC, detects schedule slips and generates alerts
+Three cron jobs:
+1. run_budget_sweep — 05:00 UTC daily, evaluates every active budget's alert thresholds
+2. run_morning_checklists — 06:00 UTC daily, generates AI daily checklists per contractor
+3. run_alert_detection — every hour 07:00–19:00 UTC, detects schedule slips and generates alerts
 
-Both jobs iterate over all active companies, creating their own DB sessions per company.
+All jobs iterate over all active companies, creating their own DB sessions per company.
 Errors per company are logged and execution continues to the next company.
 
 The `lifespan` async context manager is wired into FastAPI(lifespan=lifespan) in main.py.
@@ -32,8 +33,12 @@ scheduler = AsyncIOScheduler(timezone="UTC")
 # Scheduler configuration constants
 MORNING_CHECKLIST_HOUR_UTC = 6
 ALERT_DETECTION_HOURS_UTC = "7-19"
+# 05:00 UTC — before the 06:00 checklists, so budget alerts are already waiting
+# when owners open the app for the day.
+BUDGET_SWEEP_HOUR_UTC = 5
 CHECKLIST_MISFIRE_GRACE_SECONDS = 3600
 ALERT_MISFIRE_GRACE_SECONDS = 600
+BUDGET_SWEEP_MISFIRE_GRACE_SECONDS = 3600
 
 
 async def _run_for_all_companies(
@@ -120,6 +125,49 @@ async def run_alert_detection() -> None:
     )
 
 
+async def run_budget_sweep() -> None:
+    """Cron job: evaluate every active budget in every company (D-02).
+
+    Called at 05:00 UTC daily. Idempotent — the persistent fired-threshold
+    state means a re-run creates no duplicate alerts.
+    """
+    from app.features.finance.budget_service import BudgetService
+
+    await _run_for_all_companies(
+        job_name="run_budget_sweep",
+        service_class=BudgetService,
+        method_name="sweep_budgets",
+        target_date=datetime.now(UTC).date(),
+    )
+
+
+def _register_jobs(target_scheduler: AsyncIOScheduler) -> None:
+    """Register every cron job on a scheduler — testable without starting the app."""
+    target_scheduler.add_job(
+        run_morning_checklists,
+        trigger=CronTrigger(hour=MORNING_CHECKLIST_HOUR_UTC, minute=0),
+        id="morning_checklists",
+        replace_existing=True,
+        misfire_grace_time=CHECKLIST_MISFIRE_GRACE_SECONDS,
+    )
+
+    target_scheduler.add_job(
+        run_alert_detection,
+        trigger=CronTrigger(hour=ALERT_DETECTION_HOURS_UTC, minute=0),
+        id="alert_detection",
+        replace_existing=True,
+        misfire_grace_time=ALERT_MISFIRE_GRACE_SECONDS,
+    )
+
+    target_scheduler.add_job(
+        run_budget_sweep,
+        trigger=CronTrigger(hour=BUDGET_SWEEP_HOUR_UTC, minute=0),
+        id="budget_sweep",
+        replace_existing=True,
+        misfire_grace_time=BUDGET_SWEEP_MISFIRE_GRACE_SECONDS,
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """FastAPI lifespan context manager — starts and stops APScheduler.
@@ -128,21 +176,7 @@ async def lifespan(app: FastAPI):
     Starts the scheduler on app startup, shuts it down on shutdown (wait=False
     avoids blocking the process for in-flight job runs during graceful shutdown).
     """
-    scheduler.add_job(
-        run_morning_checklists,
-        trigger=CronTrigger(hour=MORNING_CHECKLIST_HOUR_UTC, minute=0),
-        id="morning_checklists",
-        replace_existing=True,
-        misfire_grace_time=CHECKLIST_MISFIRE_GRACE_SECONDS,
-    )
-
-    scheduler.add_job(
-        run_alert_detection,
-        trigger=CronTrigger(hour=ALERT_DETECTION_HOURS_UTC, minute=0),
-        id="alert_detection",
-        replace_existing=True,
-        misfire_grace_time=ALERT_MISFIRE_GRACE_SECONDS,
-    )
+    _register_jobs(scheduler)
 
     scheduler.start()
     logger.info("APScheduler started with %d jobs", len(scheduler.get_jobs()))

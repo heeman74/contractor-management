@@ -1552,3 +1552,19 @@ async def test_sweep_scope_spends_empty_scope_returns_zero(
         single_spend = await FinanceService(db).trade_scope_spend(UUID(scope_id))
 
     assert batched_spend == single_spend == Decimal("0.00")
+
+
+def test_sweep_cron_job_registered_at_five_utc():
+    """_register_jobs registers the budget_sweep job with an hour-5 cron trigger."""
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+    from app.core.scheduler import _register_jobs
+
+    fresh_scheduler = AsyncIOScheduler(timezone="UTC")
+    _register_jobs(fresh_scheduler)
+
+    jobs_by_id = {job.id: job for job in fresh_scheduler.get_jobs()}
+    assert "budget_sweep" in jobs_by_id
+    trigger_fields = {field.name: str(field) for field in jobs_by_id["budget_sweep"].trigger.fields}
+    assert trigger_fields["hour"] == "5"
+    assert trigger_fields["minute"] == "0"
