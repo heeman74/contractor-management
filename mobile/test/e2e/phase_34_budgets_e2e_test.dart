@@ -17,15 +17,39 @@
 //
 // Widget-level half pumps CostBreakdownSummary directly; the network-driven
 // half (mocked Dio → FinanceRepository → provider → widget) follows the
-// phase-33 harness.
+// phase-33 harness and asserts the real endpoint paths:
+// 8.  Trade-scope response WITH a budget block renders the triad on screen.
+// 9.  Trade-scope response WITHOUT a budget key renders the shipped rows,
+//     no budget rows, and throws nothing (state 9 tolerance).
+// 10. Project rollup response with a budget block renders the triad on the
+//     project surface.
+// 11. Over-budget response shows the negative Remaining figure, no chip.
+// 12. Request paths asserted: /trade-scopes/{id}/cost-breakdown and
+//     /projects/{id}/cost-entries, payload-free GETs.
 library;
 
+import 'package:contractorhub/core/database/app_database.dart';
+import 'package:contractorhub/core/network/dio_client.dart';
 import 'package:contractorhub/features/finance/data/cost_breakdown.dart';
+import 'package:contractorhub/features/finance/data/finance_repository.dart';
+import 'package:contractorhub/features/finance/presentation/providers/cost_providers.dart';
 import 'package:contractorhub/features/finance/presentation/widgets/cost_breakdown_summary.dart';
+import 'package:dio/dio.dart';
+import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+
+class MockDioClient extends Mock implements DioClient {}
+
+class MockDio extends Mock implements Dio {}
 
 const _nearingBudgetChip = 'Nearing budget';
+const _scopeId = 'scope-1';
+const _projectId = 'project-1';
+const _scopeBreakdownPath = '/trade-scopes/$_scopeId/cost-breakdown';
+const _projectRollupPath = '/projects/$_projectId/cost-entries';
 
 BudgetVsActual _budget({
   String total = '10000.00',
@@ -54,6 +78,57 @@ CostBreakdown _tradeScopeBreakdown({BudgetVsActual? budget}) => CostBreakdown(
       grandTotal: '150.00',
       budget: budget,
     );
+
+/// Wire-shape budget block exactly as the backend serializes it
+/// (snake_case, Decimal-as-string).
+Map<String, dynamic> _budgetJson({
+  String total = '10000.00',
+  String spent = '8200.00',
+  String remaining = '1800.00',
+  String percentUsed = '82.0',
+}) =>
+    {
+      'budget_id': 'budget-1',
+      'total': total,
+      'spent': spent,
+      'remaining': remaining,
+      'percent_used': percentUsed,
+    };
+
+Map<String, dynamic> _scopeBreakdownJson({Map<String, dynamic>? budget}) => {
+      'categories': [
+        {
+          'category_id': 'cat-materials',
+          'category_name': 'materials',
+          'total': '8200.00',
+        },
+      ],
+      'labor': null,
+      'labor_tracked_at_job_level': true,
+      'grand_total': '8200.00',
+      if (budget != null) 'budget': budget,
+    };
+
+Map<String, dynamic> _projectRollupJson({Map<String, dynamic>? budget}) => {
+      'entries': <Map<String, dynamic>>[],
+      'total': '8200.00',
+      'categories': [
+        {
+          'category_id': 'cat-materials',
+          'category_name': 'materials',
+          'total': '8200.00',
+        },
+      ],
+      'labor': {
+        'total': '0.00',
+        'rated_seconds': 0,
+        'unrated_seconds': 0,
+        'basis': 'unburdened',
+      },
+      'labor_tracked_at_job_level': false,
+      'grand_total': '8200.00',
+      if (budget != null) 'budget': budget,
+    };
 
 Future<void> _pumpSummary(
   WidgetTester tester, {
@@ -200,6 +275,179 @@ void main() {
         remainingFigure.style?.fontSize,
         theme.textTheme.titleMedium?.fontSize,
       );
+    });
+  });
+
+  group('BUDG-02 network-driven fetch path', () {
+    late AppDatabase db;
+    late MockDioClient mockDioClient;
+    late MockDio mockDio;
+    late FinanceRepository repository;
+
+    setUp(() {
+      db = AppDatabase(NativeDatabase.memory());
+      mockDioClient = MockDioClient();
+      mockDio = MockDio();
+      when(() => mockDioClient.instance).thenReturn(mockDio);
+      repository = FinanceRepository(
+        dioClient: mockDioClient,
+        costEntryDao: db.costEntryDao,
+        costReceiptDao: db.costReceiptDao,
+      );
+    });
+
+    tearDown(() async => await db.close());
+
+    void stubGet(String path, Map<String, dynamic> data) {
+      when(() => mockDio.get<dynamic>(path))
+          .thenAnswer((_) async => Response<dynamic>(
+                requestOptions: RequestOptions(path: path),
+                statusCode: 200,
+                data: data,
+              ));
+    }
+
+    Future<void> pumpTradeScopeSurface(WidgetTester tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            financeRepositoryProvider.overrideWithValue(repository),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: Consumer(
+                builder: (context, ref, _) {
+                  final breakdownAsync =
+                      ref.watch(tradeScopeCostBreakdownProvider(_scopeId));
+                  return SingleChildScrollView(
+                    child: CostBreakdownSummary(
+                      breakdown: breakdownAsync.value,
+                      variant: CostBreakdownVariant.tradeScope,
+                      isLoading: breakdownAsync.isLoading,
+                      isUnavailable: breakdownAsync.hasError,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+    }
+
+    testWidgets(
+        'trade-scope response with a budget block renders the triad on screen',
+        (tester) async {
+      stubGet(_scopeBreakdownPath, _scopeBreakdownJson(budget: _budgetJson()));
+
+      await pumpTradeScopeSurface(tester);
+
+      expect(find.text('Budget'), findsOneWidget);
+      expect(find.text('Spent'), findsOneWidget);
+      expect(find.text('Remaining'), findsOneWidget);
+      expect(find.text(r'$8200.00 · 82%'), findsOneWidget);
+      expect(find.text(_nearingBudgetChip), findsOneWidget);
+      verify(() => mockDio.get<dynamic>(_scopeBreakdownPath)).called(1);
+    });
+
+    testWidgets(
+        'trade-scope response without a budget key renders the shipped rows '
+        'and no budget rows', (tester) async {
+      stubGet(_scopeBreakdownPath, _scopeBreakdownJson());
+
+      await pumpTradeScopeSurface(tester);
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Total'), findsOneWidget);
+      expect(find.text('Tracked at job level'), findsOneWidget);
+      expect(find.text('Budget'), findsNothing);
+      expect(find.text('Spent'), findsNothing);
+      expect(find.text('Remaining'), findsNothing);
+    });
+
+    testWidgets(
+        'over-budget trade-scope response shows negative Remaining, no chip',
+        (tester) async {
+      stubGet(
+        _scopeBreakdownPath,
+        _scopeBreakdownJson(
+          budget: _budgetJson(
+            spent: '11200.00',
+            remaining: '-1200.00',
+            percentUsed: '112.0',
+          ),
+        ),
+      );
+
+      await pumpTradeScopeSurface(tester);
+
+      expect(find.text(r'-$1200.00'), findsOneWidget);
+      expect(find.text(_nearingBudgetChip), findsNothing);
+    });
+
+    test(
+        'project rollup fetch parses the budget block from '
+        '/projects/{id}/cost-entries as a payload-free GET', () async {
+      stubGet(_projectRollupPath, _projectRollupJson(budget: _budgetJson()));
+
+      final fetch =
+          await repository.fetchProjectRollup('company-1', _projectId);
+
+      expect(fetch.breakdown, isNotNull);
+      expect(fetch.breakdown!.budget, isNotNull);
+      expect(fetch.breakdown!.budget!.spent, '8200.00');
+      expect(fetch.breakdown!.budget!.percentUsed, '82.0');
+      verify(() => mockDio.get<dynamic>(_projectRollupPath)).called(1);
+    });
+
+    testWidgets('project rollup budget block renders the triad on the '
+        'project surface', (tester) async {
+      // The real fetch path requires AuthAuthenticated
+      // (_projectRollupFetchProvider reads authNotifierProvider), so this
+      // surface overrides projectCostBreakdownProvider directly — the Phase
+      // 33 precedent. The Dio-level path is covered by the trade-scope
+      // surface tests above and the repository-level rollup test.
+      final breakdown = CostBreakdown.fromJson(
+        _projectRollupJson(budget: _budgetJson()),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            projectCostBreakdownProvider.overrideWith(
+              (ref, projectId) async => breakdown,
+            ),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: Consumer(
+                builder: (context, ref, _) {
+                  final breakdownAsync =
+                      ref.watch(projectCostBreakdownProvider(_projectId));
+                  return SingleChildScrollView(
+                    child: CostBreakdownSummary(
+                      breakdown: breakdownAsync.value,
+                      variant: CostBreakdownVariant.project,
+                      isLoading: breakdownAsync.isLoading,
+                      isUnavailable: breakdownAsync.hasError,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Budget'), findsOneWidget);
+      expect(find.text('Spent'), findsOneWidget);
+      expect(find.text('Remaining'), findsOneWidget);
+      expect(find.text(r'$10000.00'), findsOneWidget);
+      expect(find.text(_nearingBudgetChip), findsOneWidget);
     });
   });
 }
