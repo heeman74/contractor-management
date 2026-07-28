@@ -24,6 +24,13 @@ from app.features.finance.budget_math import (
     percent_used,
     push_title_for,
 )
+from app.features.finance.budget_service import (
+    MINIMUM_BUDGET_TOTAL,
+    adjusted_budget_total,
+)
+from app.features.finance.labor_derivation import CENTS
+from app.features.finance.margin_math import DocumentAmounts, pre_tax_total
+from app.features.finance.service import quoted_revenue
 
 SCOPE_WARNING_FACTS = BudgetFacts(
     project_name="Riverside Remodel",
@@ -151,3 +158,54 @@ def test_push_title_per_threshold():
     assert push_title_for(BudgetThreshold.overrun) == BUDGET_OVERRUN_PUSH_TITLE
     assert push_title_for(BudgetThreshold.warning) == "Budget warning"
     assert push_title_for(BudgetThreshold.overrun) == "Budget exceeded"
+
+
+# --- quote revision delta ---
+
+
+def _quote_amounts(subtotal: str, *, discount_value: str = "0") -> DocumentAmounts:
+    discount_type = "percent" if Decimal(discount_value) > 0 else None
+    return DocumentAmounts(
+        subtotal=Decimal(subtotal),
+        discount_type=discount_type,
+        discount_value=Decimal(discount_value),
+        tax_rate=Decimal("13.00"),
+    )
+
+
+def test_quoted_revenue_is_pre_tax_total_quantized_to_cents():
+    # The single shipped discount math: subtotal minus discount, cents quantize.
+    amounts = _quote_amounts("1000.005", discount_value="10.00")
+
+    assert quoted_revenue(amounts) == pre_tax_total(amounts).quantize(CENTS)
+    assert quoted_revenue(amounts) == Decimal("900.00")
+
+
+def test_quoted_revenue_without_discount_is_the_quantized_subtotal():
+    assert quoted_revenue(_quote_amounts("1500.00000")) == Decimal("1500.00")
+
+
+def test_quote_delta_is_positive_for_a_larger_revision():
+    delta = quoted_revenue(_quote_amounts("1500.00")) - quoted_revenue(_quote_amounts("1000.00"))
+
+    assert delta == Decimal("500.00")
+
+
+def test_quote_delta_is_negative_for_a_smaller_revision():
+    delta = quoted_revenue(_quote_amounts("700.00")) - quoted_revenue(_quote_amounts("1000.00"))
+
+    assert delta == Decimal("-300.00")
+
+
+def test_adjusted_total_applies_a_signed_delta():
+    assert adjusted_budget_total(Decimal("10000.00"), Decimal("500.00")) == Decimal("10500.00")
+    assert adjusted_budget_total(Decimal("10000.00"), Decimal("-300.00")) == Decimal("9700.00")
+
+
+def test_adjusted_total_clamps_a_zeroing_delta_to_the_minimum():
+    assert adjusted_budget_total(Decimal("1000.00"), Decimal("-1000.00")) == MINIMUM_BUDGET_TOTAL
+
+
+def test_adjusted_total_clamps_a_negative_going_delta_to_the_minimum():
+    assert adjusted_budget_total(Decimal("1000.00"), Decimal("-2500.00")) == MINIMUM_BUDGET_TOTAL
+    assert Decimal("0.01") == MINIMUM_BUDGET_TOTAL
