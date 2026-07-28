@@ -14,6 +14,7 @@ seeded via direct SQL because no endpoint exposes it by design.
 
 import asyncio
 from datetime import UTC, date, datetime
+from unittest.mock import patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -26,6 +27,7 @@ from app.core.tenant import set_current_tenant_id
 from app.features.finance.budget_repository import BudgetRepository
 from app.features.finance.budget_service import BudgetService
 from app.features.finance.models import CostCategory
+from app.features.rbac.repository import RbacRepository
 
 _BUDGETS_URL = "/api/v1/budgets/"
 _SECONDS_PER_HOUR = 3600
@@ -54,6 +56,15 @@ _FIRED_STATE_SQL = (
 _ALERT_ROWS_SQL = (
     "SELECT alert_type, severity, impact_text, project_id, trade_scope_id "
     "FROM dashboard_alerts ORDER BY created_at, alert_type"
+)
+
+_ASSIGN_ROLE_SQL = (
+    "INSERT INTO user_roles (company_id, user_id, role) "
+    "VALUES (CAST(:company_id AS uuid), CAST(:user_id AS uuid), :role)"
+)
+
+_SEND_BUDGET_PUSH_TARGET = (
+    "app.features.notifications.service.NotificationService.send_budget_alert_notification"
 )
 
 _TIME_ENTRY_SEED_SQL = (
@@ -917,3 +928,176 @@ async def test_alerts_dashboard_visibility_follows_finance_view(
     admin_types = [alert["alert_type"] for alert in admin_resp.json()]
     assert "budget_warning" not in admin_types
     assert "budget_overrun" not in admin_types
+
+
+# ---------------------------------------------------------------------------
+# BUDG-03: FCM push targeting — finance.view holders from the live matrix
+# ---------------------------------------------------------------------------
+
+
+async def _assign_role(company_id: str, user_id: str, role: str) -> None:
+    """Insert a user_roles row directly (no role-assignment endpoint exists)."""
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        await session.execute(
+            text(_ASSIGN_ROLE_SQL),
+            {"company_id": company_id, "user_id": user_id, "role": role},
+        )
+        await session.commit()
+
+
+async def _seed_role_holders(tenant_a_client: AsyncClient, company_id: str) -> tuple[str, str, str]:
+    """Create an owner, a project_manager and a contractor user. Returns their ids."""
+    owner_id = await _create_user(tenant_a_client, "owner-alerts-34@tenant-a.com")
+    pm_id = await _create_user(tenant_a_client, "pm-alerts-34@tenant-a.com")
+    contractor_id = await _create_user(tenant_a_client, "contractor-alerts-34@tenant-a.com")
+    await _assign_role(company_id, owner_id, "owner")
+    await _assign_role(company_id, pm_id, "project_manager")
+    await _assign_role(company_id, contractor_id, "contractor")
+    return owner_id, pm_id, contractor_id
+
+
+async def _flush_background_pushes(calls: list, expected: int = 1) -> None:
+    """Yield to the event loop until the fire-and-forget push task has run."""
+    for _ in range(40):
+        if len(calls) >= expected:
+            return
+        await asyncio.sleep(0.05)
+
+
+@pytest.mark.asyncio
+async def test_alerts_push_targets_finance_view_holders_only(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """The push goes exactly once to owner + PM (finance.view) and never to others (keystone 3)."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    owner_id, pm_id, contractor_id = await _seed_role_holders(tenant_a_client, company_id)
+    project_id, scope_id, budget_id = await _seed_scope_budget_with_spend(
+        async_client, tenant_a_client, company_id
+    )
+    calls: list[dict] = []
+
+    async def _capture(**kwargs):
+        calls.append(kwargs)
+
+    with patch(_SEND_BUDGET_PUSH_TARGET, side_effect=_capture):
+        assert await _evaluate_in_own_session(company_id, budget_id) == 1
+        await _flush_background_pushes(calls)
+
+    assert len(calls) == 1
+    recipients = {str(user_id) for user_id in calls[0]["recipient_ids"]}
+    assert owner_id in recipients
+    assert pm_id in recipients
+    assert contractor_id not in recipients
+    assert seed_two_tenants["tenant_a_user_id"] not in recipients  # admin: no finance.view
+    assert calls[0]["title"] == "Budget warning"
+    assert calls[0]["body"] == (
+        "Riverside Remodel — Plumbing scope has spent $8,200 of its $10,000 budget (82%)."
+    )
+    data = calls[0]["data"]
+    assert data["type"] == "budget_alert"
+    assert data["alert_type"] == "budget_warning"
+    assert data["project_id"] == project_id
+    assert data["trade_scope_id"] == scope_id
+    assert data["alert_id"]
+    assert all(isinstance(value, str) for value in data.values())
+
+
+@pytest.mark.asyncio
+async def test_alerts_push_respects_live_matrix_revocation(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """Revoking finance.view from project_manager targets only the owner — live matrix, no
+    hardcoded role list."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    owner_id, pm_id, _ = await _seed_role_holders(tenant_a_client, company_id)
+    async with async_session_factory() as db:
+        set_current_tenant_id(UUID(company_id))
+        await RbacRepository(db).set_role(UUID(company_id), "project_manager", ["projects.view"])
+        await db.commit()
+    _, _, budget_id = await _seed_scope_budget_with_spend(async_client, tenant_a_client, company_id)
+    calls: list[dict] = []
+
+    async def _capture(**kwargs):
+        calls.append(kwargs)
+
+    with patch(_SEND_BUDGET_PUSH_TARGET, side_effect=_capture):
+        assert await _evaluate_in_own_session(company_id, budget_id) == 1
+        await _flush_background_pushes(calls)
+
+    assert len(calls) == 1
+    recipients = {str(user_id) for user_id in calls[0]["recipient_ids"]}
+    assert owner_id in recipients
+    assert pm_id not in recipients
+
+
+@pytest.mark.asyncio
+async def test_alerts_push_project_budget_sends_empty_scope_id(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """A project-budget push carries trade_scope_id "" and the project-variant copy."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_role_holders(tenant_a_client, company_id)
+    await _seed_cost_categories(company_id)
+    project_id = await _create_project(tenant_a_client, name="Riverside Remodel")
+    scope_id = await _create_trade_scope(tenant_a_client, project_id)
+    materials_id = await _category_id(company_id, "materials")
+    headers = _pm_headers(company_id)
+    budget = await _create_budget(async_client, headers, project_id=project_id, total="1000.00")
+    await _add_cost_entry(
+        async_client, headers, trade_scope_id=scope_id, category_id=materials_id, amount="900.00"
+    )
+    calls: list[dict] = []
+
+    async def _capture(**kwargs):
+        calls.append(kwargs)
+
+    with patch(_SEND_BUDGET_PUSH_TARGET, side_effect=_capture):
+        assert await _evaluate_in_own_session(company_id, budget["id"]) == 1
+        await _flush_background_pushes(calls)
+
+    assert len(calls) == 1
+    assert calls[0]["title"] == "Budget warning"
+    assert calls[0]["body"] == "Riverside Remodel has spent $900 of its $1,000 budget (90%)."
+    data = calls[0]["data"]
+    assert data["project_id"] == project_id
+    assert data["trade_scope_id"] == ""
+
+
+@pytest.mark.asyncio
+async def test_alerts_push_failure_never_breaks_evaluation(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """A raising notification never breaks evaluation — the alert row is still committed."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_role_holders(tenant_a_client, company_id)
+    _, _, budget_id = await _seed_scope_budget_with_spend(async_client, tenant_a_client, company_id)
+
+    async def _explode(**kwargs):
+        raise RuntimeError("Simulated FCM network failure")
+
+    with patch(_SEND_BUDGET_PUSH_TARGET, side_effect=_explode):
+        assert await _evaluate_in_own_session(company_id, budget_id) == 1
+        await asyncio.sleep(0.2)
+
+    rows = await _alert_rows(company_id)
+    assert [row.alert_type for row in rows] == ["budget_warning"]
+    warning_fired_at, _ = await _fired_state(company_id, budget_id)
+    assert warning_fired_at is not None
+
+
+@pytest.mark.asyncio
+async def test_alerts_push_skipped_silently_without_firebase_credentials(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """With no Firebase credentials the send is skipped and evaluation still succeeds."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_role_holders(tenant_a_client, company_id)
+    _, _, budget_id = await _seed_scope_budget_with_spend(async_client, tenant_a_client, company_id)
+
+    with patch("app.features.notifications.service._get_firebase_app", return_value=None):
+        assert await _evaluate_in_own_session(company_id, budget_id) == 1
+        await asyncio.sleep(0.2)
+
+    rows = await _alert_rows(company_id)
+    assert [row.alert_type for row in rows] == ["budget_warning"]
