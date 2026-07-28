@@ -17,6 +17,9 @@ billing_milestones/router.py exactly:
   POST   /labor-rates/                            — finance.rates.manage (append-only)
   GET    /labor-rates/?user_id=X                  — finance.rates.manage (full history)
   GET    /labor-rates/                            — finance.rates.manage (current rate per worker)
+  POST   /budgets/                                — finance.manage (BUDG-01)
+  PATCH  /budgets/{budget_id}                     — finance.manage (D-03 re-arm on a raise)
+  DELETE /budgets/{budget_id}                     — finance.manage (soft delete)
 
 Receipt upload/serve endpoints land in Plan 31-02.
 """
@@ -33,8 +36,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import CurrentUser, get_current_user, require_permission
+from app.features.finance.budget_service import BudgetService
 from app.features.finance.models import CostEntry
 from app.features.finance.schemas import (
+    BudgetCreate,
+    BudgetResponse,
+    BudgetUpdate,
     CostBreakdownResponse,
     CostCategoryResponse,
     CostEntryCreate,
@@ -232,6 +239,48 @@ async def list_labor_rates(
         else await svc.list_current_rates()
     )
     return [LaborRateResponse.model_validate(rate) for rate in rates]
+
+
+# ---------------------------------------------------------------------------
+# Budget endpoints (BUDG-01)
+# ---------------------------------------------------------------------------
+
+
+@router.post("/budgets/", response_model=BudgetResponse, status_code=status.HTTP_201_CREATED)
+async def create_budget(
+    data: BudgetCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> BudgetResponse:
+    """Create a budget anchored to a project XOR a trade scope (BUDG-01)."""
+    await require_permission("finance.manage")(current_user, db)
+    budget = await BudgetService(db).create_budget(data, company_id=current_user.company_id)
+    return BudgetResponse.model_validate(budget)
+
+
+@router.patch("/budgets/{budget_id}", response_model=BudgetResponse)
+async def update_budget(
+    budget_id: uuid.UUID,
+    data: BudgetUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> BudgetResponse:
+    """Edit a budget's total — raising it re-arms both alert thresholds (D-03)."""
+    await require_permission("finance.manage")(current_user, db)
+    budget = await BudgetService(db).update_budget(budget_id, data)
+    return BudgetResponse.model_validate(budget)
+
+
+@router.delete("/budgets/{budget_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+async def delete_budget(
+    budget_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> Response:
+    """Soft-delete a budget — its anchor becomes free for a fresh budget."""
+    await require_permission("finance.manage")(current_user, db)
+    await BudgetService(db).delete_budget(budget_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # ---------------------------------------------------------------------------

@@ -67,4 +67,5 @@ class BudgetRepository(TenantScopedRepository[Budget]):
             budget.overrun_fired_at = None
         budget.total = total
         await self.db.flush()
+        await self.db.refresh(budget)
         return budget
