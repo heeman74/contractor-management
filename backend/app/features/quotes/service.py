@@ -305,7 +305,17 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
         # FCM notification to admin (fire-and-forget)
         # NOTE: Admin notification on quote approval is omitted here — admin_user_id is not
         # available in this context. Admin receives updates via dashboard polling or webhook.
-        return await self.repository.get_with_line_items(quote_id)  # type: ignore[return-value]
+        return await self._apply_budget_delta(quote_id)
+
+    async def _apply_budget_delta(self, quote_id: uuid.UUID) -> Quote:
+        """Budget delta (BUDG-04): same transaction as the approval, so the status
+        change, the budget adjustment and any threshold alert commit together.
+        Reuses the one get_with_line_items load approve_quote returns anyway."""
+        from app.features.finance.budget_service import BudgetService  # local: quotes -> finance
+
+        approved = await self.repository.get_with_line_items(quote_id)
+        await BudgetService(self.db).apply_quote_delta(approved)
+        return approved  # type: ignore[return-value]
 
     async def _convert_project_quote(self, quote: Quote, client_user_id: uuid.UUID) -> None:
         """Create a project from an approved project-level quote — one job per field.
