@@ -9,6 +9,8 @@ IMPORTANT ASYMMETRY: CostEntryCreate anchors on job_id/trade_scope_id (D-04);
 BudgetCreate anchors on project_id/trade_scope_id (D-09) — do not conflate the two.
 """
 
+from __future__ import annotations
+
 import uuid
 from datetime import date
 from decimal import Decimal
@@ -37,7 +39,7 @@ class CostEntryCreate(BaseModel):
     note: str | None = Field(default=None, max_length=2000)
 
     @model_validator(mode="after")
-    def validate_fields(self) -> "CostEntryCreate":
+    def validate_fields(self) -> CostEntryCreate:
         """Validate job/scope anchor linkage."""
         if self.job_id is None and self.trade_scope_id is None:
             raise ValueError("Either job_id or trade_scope_id must be provided")
@@ -159,6 +161,9 @@ class CostBreakdownResponse(BaseModel):
     labor_tracked_at_job_level: bool = False
     grand_total: Decimal
     margin: MarginSummary | None = None
+    # Added in Phase 34 — additive only: mobile parses it tolerantly while the
+    # existing keys stay strict. None means "no active budget at this anchor".
+    budget: BudgetVsActual | None = None
 
 
 class ProjectCostRollupResponse(BaseModel):
@@ -179,6 +184,9 @@ class ProjectCostRollupResponse(BaseModel):
     labor: LaborCostSummary | None = None
     grand_total: Decimal | None = None
     margin: MarginSummary | None = None
+    # Added in Phase 34 — additive only: mobile parses it tolerantly while the
+    # existing keys stay strict. None means "no active budget for this project".
+    budget: BudgetVsActual | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -197,16 +205,18 @@ class BudgetCreate(BaseModel):
     """Schema for creating a budget anchored to a project or a trade scope.
 
     Either project_id or trade_scope_id must be provided (not both None, not both
-    set). category_breakdowns amounts may not sum to more than total.
+    set). category_breakdowns amounts may not sum to more than total. total must
+    be strictly positive (D-10), mirroring the budgets_total_positive_check DB
+    constraint from migration 0035.
     """
 
     project_id: uuid.UUID | None = None
     trade_scope_id: uuid.UUID | None = None
-    total: Decimal = Field(..., ge=0, decimal_places=2)
+    total: Decimal = Field(..., gt=0, decimal_places=2)
     category_breakdowns: list[BudgetCategoryBreakdownCreate] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def validate_fields(self) -> "BudgetCreate":
+    def validate_fields(self) -> BudgetCreate:
         """Validate project/scope anchor linkage and breakdown-sum consistency."""
         if self.project_id is None and self.trade_scope_id is None:
             raise ValueError("Either project_id or trade_scope_id must be provided")
@@ -216,6 +226,41 @@ class BudgetCreate(BaseModel):
         if breakdown_total > self.total:
             raise ValueError("Category breakdown amounts cannot exceed the total budget")
         return self
+
+
+class BudgetUpdate(BaseModel):
+    """Edit a budget's total. Any positive amount is allowed — including below
+    current spend (D-10, no floor); the next evaluation fires the crossed
+    thresholds, which is honest. Raising the total re-arms both thresholds (D-03).
+    The per-category breakdown stays dormant in v4.0 (D-11), so total is the
+    only editable field."""
+
+    total: Decimal = Field(..., gt=0, decimal_places=2)
+
+
+class BudgetResponse(BaseResponseSchema):
+    """One budget row. Exactly one of project_id / trade_scope_id is set."""
+
+    project_id: uuid.UUID | None = None
+    trade_scope_id: uuid.UUID | None = None
+    total: Decimal
+
+
+class BudgetVsActual(BaseModel):
+    """Budgeted vs spent vs remaining for one project or trade-scope budget.
+
+    Embedded additively on the trade-scope cost breakdown and the project cost
+    rollup (never on a job breakdown — budgets anchor project/scope only).
+    `spent` is the same figure as that response's grand_total by construction.
+    `remaining` goes negative when over budget (honest, D-10). `percent_used`
+    is supplied by the backend at one decimal so no client ever re-derives a
+    percent from a float division."""
+
+    budget_id: uuid.UUID
+    total: Decimal
+    spent: Decimal
+    remaining: Decimal
+    percent_used: Decimal
 
 
 # ---------------------------------------------------------------------------
