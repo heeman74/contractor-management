@@ -16,7 +16,18 @@ import type {
   MarginSummary,
   RevenueBasis,
   BudgetVsActual,
+  PortfolioTotals,
+  ProjectFinancialsRow,
+  AttentionRow,
+  AttentionTier,
+  CompanyFinancials,
+  ScopeBudgetRow,
+  ProjectFinancials,
+  TrendBucket,
+  TrendWindow,
+  MarginTrend,
 } from "./types";
+import { TREND_WINDOWS } from "./types";
 
 // --- Raw API response shapes (snake_case, mirroring backend schemas) ---
 
@@ -371,4 +382,205 @@ export async function createLaborRate(input: LaborRateInput): Promise<LaborRate>
     effective_from: input.effectiveFrom,
   });
   return mapLaborRate(raw);
+}
+
+// --- Financial dashboard (company rollup, project drill-down, margin trend) ---
+
+interface PortfolioTotalsApiResponse {
+  cost: string;
+  quoted_revenue: string | null;
+  incomplete_project_count: number;
+  margin: MarginSummaryApiResponse;
+}
+
+interface ProjectFinancialsRowApiResponse {
+  project_id: string;
+  name: string;
+  status: string;
+  cost: string;
+  margin: MarginSummaryApiResponse;
+  budget?: BudgetVsActualApiResponse | null;
+}
+
+interface AttentionRowApiResponse {
+  project_id: string;
+  project_name: string;
+  project_status: string;
+  tier: string;
+  anchor_label: string;
+  spent: string | null;
+  budget_total: string | null;
+  percent_used: string | null;
+}
+
+interface CompanyFinancialsApiResponse {
+  portfolio: PortfolioTotalsApiResponse;
+  projects: ProjectFinancialsRowApiResponse[];
+  attention: AttentionRowApiResponse[];
+}
+
+interface ScopeBudgetRowApiResponse {
+  trade_scope_id: string;
+  trade_name: string;
+  spent: string;
+  budget?: BudgetVsActualApiResponse | null;
+}
+
+interface ProjectFinancialsApiResponse {
+  project_id: string;
+  name: string;
+  status: string;
+  breakdown: CostBreakdownApiResponse;
+  scopes: ScopeBudgetRowApiResponse[];
+}
+
+interface TrendBucketApiResponse {
+  month: string;
+  cost: string;
+  margin: MarginSummaryApiResponse;
+}
+
+interface MarginTrendApiResponse {
+  project_id: string;
+  window: string;
+  buckets: TrendBucketApiResponse[];
+}
+
+const ATTENTION_TIERS: readonly AttentionTier[] = ["overrun", "warning", "incomplete"];
+
+/** Validates an enum-ish wire value instead of casting it — a bad payload must
+ *  fail loudly at the boundary rather than surface as an impossible UI state. */
+function toKnownValue<T extends string>(
+  raw: string,
+  allowed: readonly T[],
+  label: string
+): T {
+  const match = allowed.find((value) => value === raw);
+  if (!match) {
+    throw new Error(`Malformed financials response: unknown ${label} "${raw}"`);
+  }
+  return match;
+}
+
+/** Every dashboard block carries a margin, so a missing one is a malformed
+ *  payload — not the legitimate "no margin computed" null the shipped mapper
+ *  returns for older breakdown responses. */
+function requireMarginSummary(
+  raw: MarginSummaryApiResponse | null | undefined,
+  context: string
+): MarginSummary {
+  const margin = mapMarginSummary(raw);
+  if (!margin) {
+    throw new Error(`Malformed financials response: missing margin block for ${context}`);
+  }
+  return margin;
+}
+
+function mapPortfolioTotals(raw: PortfolioTotalsApiResponse): PortfolioTotals {
+  return {
+    cost: raw.cost,
+    quotedRevenue: raw.quoted_revenue ?? null,
+    incompleteProjectCount: raw.incomplete_project_count,
+    margin: requireMarginSummary(raw.margin, "the portfolio"),
+  };
+}
+
+function mapProjectFinancialsRow(
+  raw: ProjectFinancialsRowApiResponse
+): ProjectFinancialsRow {
+  return {
+    projectId: raw.project_id,
+    name: raw.name,
+    status: raw.status,
+    cost: raw.cost,
+    margin: requireMarginSummary(raw.margin, `project ${raw.project_id}`),
+    budget: toBudgetVsActual(raw.budget),
+  };
+}
+
+function mapAttentionRow(raw: AttentionRowApiResponse): AttentionRow {
+  return {
+    projectId: raw.project_id,
+    projectName: raw.project_name,
+    projectStatus: raw.project_status,
+    tier: toKnownValue(raw.tier, ATTENTION_TIERS, "attention tier"),
+    anchorLabel: raw.anchor_label,
+    spent: raw.spent ?? null,
+    budgetTotal: raw.budget_total ?? null,
+    percentUsed: raw.percent_used ?? null,
+  };
+}
+
+function mapCompanyFinancials(raw: CompanyFinancialsApiResponse): CompanyFinancials {
+  return {
+    portfolio: mapPortfolioTotals(raw.portfolio),
+    projects: raw.projects.map(mapProjectFinancialsRow),
+    attention: raw.attention.map(mapAttentionRow),
+  };
+}
+
+function mapScopeBudgetRow(raw: ScopeBudgetRowApiResponse): ScopeBudgetRow {
+  return {
+    tradeScopeId: raw.trade_scope_id,
+    tradeName: raw.trade_name,
+    spent: raw.spent,
+    budget: toBudgetVsActual(raw.budget),
+  };
+}
+
+function mapProjectFinancials(raw: ProjectFinancialsApiResponse): ProjectFinancials {
+  return {
+    projectId: raw.project_id,
+    name: raw.name,
+    status: raw.status,
+    breakdown: mapCostBreakdown(raw.breakdown),
+    scopes: raw.scopes.map(mapScopeBudgetRow),
+  };
+}
+
+function mapTrendBucket(raw: TrendBucketApiResponse): TrendBucket {
+  return {
+    month: raw.month,
+    cost: raw.cost,
+    margin: requireMarginSummary(raw.margin, `bucket ${raw.month}`),
+  };
+}
+
+function mapMarginTrend(raw: MarginTrendApiResponse): MarginTrend {
+  return {
+    projectId: raw.project_id,
+    window: toKnownValue(raw.window, TREND_WINDOWS, "trend window"),
+    buckets: raw.buckets.map(mapTrendBucket),
+  };
+}
+
+const COMPANY_FINANCIALS_PATH = "/api/v1/financials/company";
+
+const projectFinancialsPath = (projectId: string) =>
+  `/api/v1/projects/${encodeURIComponent(projectId)}/financials`;
+
+export async function fetchCompanyFinancials(): Promise<CompanyFinancials> {
+  const raw = await apiGet<CompanyFinancialsApiResponse>(COMPANY_FINANCIALS_PATH);
+  return mapCompanyFinancials(raw);
+}
+
+export async function fetchProjectFinancials(
+  projectId: string
+): Promise<ProjectFinancials> {
+  const raw = await apiGet<ProjectFinancialsApiResponse>(
+    projectFinancialsPath(projectId)
+  );
+  return mapProjectFinancials(raw);
+}
+
+/** The window slices which monthly buckets come back — never which records
+ *  they aggregate, so a month shared by two windows carries identical values. */
+export async function fetchProjectMarginTrend(
+  projectId: string,
+  window: TrendWindow
+): Promise<MarginTrend> {
+  const raw = await apiGet<MarginTrendApiResponse>(
+    `${projectFinancialsPath(projectId)}/trend?window=${window}`
+  );
+  return mapMarginTrend(raw);
 }
