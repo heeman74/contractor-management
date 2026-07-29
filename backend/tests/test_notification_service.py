@@ -272,3 +272,88 @@ async def test_no_notification_when_fcm_not_configured():
 
     # get_tokens_for_user should NOT be called (FCM not configured — early exit)
     svc.repository.get_tokens_for_user.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# send_profitability_finding_notification (Phase 36, FINAI-02)
+#
+# The Phase 36 e2e suite patches this method to assert WHO it is called with;
+# these two exercise the body itself, which that patch necessarily skips.
+# ---------------------------------------------------------------------------
+
+_PROFITABILITY_PUSH_DATA = {
+    "type": "ai_profitability_finding",
+    "alert_type": "ai_profitability",
+    "alert_id": "0f1c9a4e-0000-4000-8000-000000000001",
+    "finding_id": "0f1c9a4e-0000-4000-8000-000000000002",
+    "project_id": "0f1c9a4e-0000-4000-8000-000000000003",
+    "severity": "warning",
+}
+_PROFITABILITY_PUSH_TITLE = "Margin warning"
+_PROFITABILITY_PUSH_BODY = "AI finding — Billed margin trails the approved quote."
+
+
+@pytest.mark.asyncio
+async def test_send_profitability_finding_notification_dispatches_to_every_token():
+    """Every device token of every finance.view recipient receives the same push."""
+    from app.features.notifications.models import DeviceToken
+    from app.features.notifications.service import NotificationService
+
+    recipient_ids = [uuid.uuid4(), uuid.uuid4()]
+    tokens = []
+    for index in range(2):
+        token = DeviceToken()
+        token.id = uuid.uuid4()
+        token.user_id = recipient_ids[index]
+        token.token = f"finance-device-{index}"
+        token.platform = "android"
+        tokens.append(token)
+
+    service = NotificationService(AsyncMock())
+    service.repository = AsyncMock()
+    service.repository.get_tokens_for_users = AsyncMock(return_value=tokens)
+
+    mock_messaging = MagicMock()
+    mock_messaging.UnregisteredError = Exception
+    send_calls = []
+
+    async def fake_send_to_token(token_record=None, **kwargs):
+        send_calls.append(kwargs)
+
+    with (
+        patch("app.features.notifications.service._get_firebase_app", return_value=MagicMock()),
+        patch("firebase_admin.messaging", mock_messaging, create=True),
+    ):
+        service._send_to_token = fake_send_to_token
+        await service.send_profitability_finding_notification(
+            recipient_ids=recipient_ids,
+            title=_PROFITABILITY_PUSH_TITLE,
+            body=_PROFITABILITY_PUSH_BODY,
+            data=_PROFITABILITY_PUSH_DATA,
+        )
+
+    service.repository.get_tokens_for_users.assert_awaited_once_with(recipient_ids)
+    assert len(send_calls) == len(tokens)
+    assert all(call["title"] == _PROFITABILITY_PUSH_TITLE for call in send_calls)
+    assert all(call["body"] == _PROFITABILITY_PUSH_BODY for call in send_calls)
+    assert all(call["data"] == _PROFITABILITY_PUSH_DATA for call in send_calls)
+
+
+@pytest.mark.asyncio
+async def test_send_profitability_finding_notification_skips_without_fcm():
+    """Without Firebase credentials it degrades silently and queries no tokens."""
+    from app.features.notifications.service import NotificationService
+
+    service = NotificationService(AsyncMock())
+    service.repository = AsyncMock()
+    service.repository.get_tokens_for_users = AsyncMock(return_value=[])
+
+    with patch("app.features.notifications.service._get_firebase_app", return_value=None):
+        await service.send_profitability_finding_notification(
+            recipient_ids=[uuid.uuid4()],
+            title=_PROFITABILITY_PUSH_TITLE,
+            body=_PROFITABILITY_PUSH_BODY,
+            data=_PROFITABILITY_PUSH_DATA,
+        )
+
+    service.repository.get_tokens_for_users.assert_not_awaited()

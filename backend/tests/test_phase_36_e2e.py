@@ -22,6 +22,7 @@ a parameterized SET LOCAL) and commit in the test — the scheduler-path
 convention, where the repository never commits and its caller does.
 """
 
+import asyncio
 import contextlib
 import json
 from collections.abc import AsyncIterator, Iterator, Sequence
@@ -60,6 +61,7 @@ from app.features.finance.profitability_models import (
 )
 from app.features.finance.profitability_repository import FindingUpsert, ProfitabilityRepository
 from app.features.finance.profitability_service import (
+    _PROFITABILITY_PUSH_TYPE,
     AI_FINDING_PREFIX,
     CAP_DROP_LOG_TEMPLATE,
     DISMISSAL_LOG_TEMPLATE,
@@ -85,6 +87,7 @@ from app.features.finance.prompts.profitability_system import (
     CORRECTIVE_ACTION_MAX_CHARS,
     NARRATIVE_MAX_CHARS,
 )
+from app.features.rbac.repository import RbacRepository
 
 _SECONDS_PER_HOUR = 3600
 _ALERT_TYPE_CHECK_NAME = "dashboard_alerts_alert_type_check"
@@ -2075,3 +2078,209 @@ def test_push_title_map_covers_both_bands() -> None:
         SEVERITY_BAND_WARNING: "Margin warning",
         SEVERITY_BAND_CRITICAL: "Margin critical",
     }
+
+
+# ---------------------------------------------------------------------------
+# FINAI-02: FCM dispatch to the LIVE finance.view holder set (D-07)
+#
+# Recipients are never a role-name list: a company can move finance.view onto any
+# role through the shipped permission editor, and the push has to follow that
+# without a code change. Patch target is the NotificationService method (the
+# Phase 34 precedent), so the whole scheduling path runs for real.
+# ---------------------------------------------------------------------------
+
+_SEND_PROFITABILITY_PUSH_TARGET = (
+    "app.features.notifications.service.NotificationService.send_profitability_finding_notification"
+)
+
+_FINANCE_VIEW_PERMISSION_KEY = "finance.view"
+_CONTRACTOR_ROLE = "contractor"
+
+_ASSIGN_ROLE_SQL = (
+    "INSERT INTO user_roles (company_id, user_id, role) "
+    "VALUES (CAST(:company_id AS uuid), CAST(:user_id AS uuid), :role)"
+)
+
+_EXPECTED_PUSH_DATA_KEYS = frozenset(
+    {"type", "alert_type", "alert_id", "finding_id", "project_id", "severity"}
+)
+
+_PUSH_FLUSH_ATTEMPTS = 40
+_PUSH_FLUSH_INTERVAL_SECONDS = 0.05
+
+
+@dataclass(frozen=True)
+class _RoleHolders:
+    """One user per role, so a recipient set can be asserted by identity."""
+
+    owner_id: str
+    project_manager_id: str
+    contractor_id: str
+
+
+async def _assign_role(company_id: str, user_id: str, role: str) -> None:
+    """Insert a user_roles row directly — no role-assignment endpoint exists."""
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        await session.execute(
+            text(_ASSIGN_ROLE_SQL),
+            {"company_id": company_id, "user_id": user_id, "role": role},
+        )
+        await session.commit()
+
+
+async def _seed_role_holders(client: AsyncClient, company_id: str) -> _RoleHolders:
+    """Create one owner, one project manager and one contractor for this company."""
+    holders = _RoleHolders(
+        owner_id=await _create_user(client, f"owner-{uuid4().hex[:8]}@tenant-a.com"),
+        project_manager_id=await _create_user(client, f"pm-{uuid4().hex[:8]}@tenant-a.com"),
+        contractor_id=await _create_user(client, f"crew-{uuid4().hex[:8]}@tenant-a.com"),
+    )
+    await _assign_role(company_id, holders.owner_id, "owner")
+    await _assign_role(company_id, holders.project_manager_id, "project_manager")
+    await _assign_role(company_id, holders.contractor_id, _CONTRACTOR_ROLE)
+    return holders
+
+
+async def _finance_view_holders(company_id: str) -> set[str]:
+    """The live finance.view holder set, read through the shipped RBAC repository."""
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        holders = await RbacRepository(session).user_ids_with_permission(
+            UUID(company_id), _FINANCE_VIEW_PERMISSION_KEY
+        )
+        return {str(user_id) for user_id in holders}
+
+
+async def _grant_finance_view(company_id: str, role: str) -> None:
+    """Add finance.view to one role the way the shipped permission editor does."""
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        repository = RbacRepository(session)
+        granted = [*(await repository.get_map()).get(role, []), _FINANCE_VIEW_PERMISSION_KEY]
+        await repository.set_role(UUID(company_id), role, granted)
+        await session.commit()
+
+
+@contextlib.contextmanager
+def _patched_profitability_push() -> Iterator[list[dict]]:
+    """Capture every profitability push instead of dispatching one."""
+    calls: list[dict] = []
+
+    async def _capture(**kwargs: object) -> None:
+        calls.append(kwargs)
+
+    with patch(_SEND_PROFITABILITY_PUSH_TARGET, side_effect=_capture):
+        yield calls
+
+
+async def _flush_background_pushes(calls: list, expected: int = 1) -> None:
+    """Yield to the event loop until the fire-and-forget push tasks have run.
+
+    COPIED from test_phase_34_e2e.py per the self-contained-test-file convention.
+    """
+    for _ in range(_PUSH_FLUSH_ATTEMPTS):
+        if len(calls) >= expected:
+            return
+        await asyncio.sleep(_PUSH_FLUSH_INTERVAL_SECONDS)
+
+
+async def test_push_recipients_follow_live_permission_matrix(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """Recipients equal the live finance.view holder set, and follow a new grant.
+
+    The second run also pins the critical band's push title, which is why it
+    worsens the condition instead of re-running the same one: a restated
+    fingerprint never re-alerts, so it would never push either.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    holders = await _seed_role_holders(tenant_a_client, company_id)
+    project = await _seed_lifecycle_project(
+        tenant_a_client, company_id, name="Recipients Project 36"
+    )
+
+    with _patched_profitability_push() as calls, _patched_claude(side_effect=[_lifecycle_reply()]):
+        await _analyze_company(company_id, _FIRST_NIGHT)
+        await _flush_background_pushes(calls)
+
+    assert len(calls) == 1
+    recipients = {str(user_id) for user_id in calls[0]["recipient_ids"]}
+    assert recipients == await _finance_view_holders(company_id)
+    assert holders.owner_id in recipients
+    assert holders.project_manager_id in recipients
+    assert holders.contractor_id not in recipients
+    assert seed_two_tenants["tenant_a_user_id"] not in recipients  # admin: no finance.view
+
+    alerts = await _ai_profitability_alerts(company_id)
+    assert calls[0]["title"] == PUSH_TITLE_BY_BAND[SEVERITY_BAND_WARNING]
+    assert calls[0]["body"] == alerts[0]["impact_text"]
+
+    await _grant_finance_view(company_id, _CONTRACTOR_ROLE)
+    await _worsen_into_critical_band(tenant_a_client, company_id, project.job_id)
+
+    with _patched_profitability_push() as calls, _patched_claude(side_effect=[_lifecycle_reply()]):
+        await _analyze_company(company_id, _SECOND_NIGHT)
+        await _flush_background_pushes(calls)
+
+    assert len(calls) == 1
+    widened = {str(user_id) for user_id in calls[0]["recipient_ids"]}
+    assert widened == await _finance_view_holders(company_id)
+    assert holders.contractor_id in widened
+    assert calls[0]["title"] == PUSH_TITLE_BY_BAND[SEVERITY_BAND_CRITICAL]
+    assert calls[0]["body"] == (await _ai_profitability_alerts(company_id))[1]["impact_text"]
+
+
+async def test_push_data_values_are_all_strings(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """The data payload carries the six documented keys, every value a str (FCM)."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_role_holders(tenant_a_client, company_id)
+    project = await _seed_lifecycle_project(
+        tenant_a_client, company_id, name="Push Data Project 36"
+    )
+
+    with _patched_profitability_push() as calls, _patched_claude(side_effect=[_lifecycle_reply()]):
+        await _analyze_company(company_id, _FIRST_NIGHT)
+        await _flush_background_pushes(calls)
+
+    assert len(calls) == 1
+    data = calls[0]["data"]
+    assert all(isinstance(value, str) for value in data.values())
+    assert set(data) == _EXPECTED_PUSH_DATA_KEYS
+    assert data["type"] == _PROFITABILITY_PUSH_TYPE
+    assert data["alert_type"] == AI_PROFITABILITY_ALERT_TYPE
+    assert data["severity"] == SEVERITY_BAND_WARNING
+    assert data["project_id"] == project.project_id
+
+    finding = (await _all_findings(company_id))[0]
+    assert data["finding_id"] == str(finding["id"])
+    assert data["alert_id"] == str(finding["dashboard_alert_id"])
+
+
+async def test_push_failure_does_not_break_analysis(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """A raising push is swallowed inside its own task — the finding and alert persist."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_role_holders(tenant_a_client, company_id)
+    await _seed_lifecycle_project(tenant_a_client, company_id, name="Push Failure Project 36")
+    attempts: list[dict] = []
+
+    async def _explode(**kwargs: object) -> None:
+        attempts.append(kwargs)
+        raise RuntimeError("FCM unavailable")
+
+    with (
+        patch(_SEND_PROFITABILITY_PUSH_TARGET, side_effect=_explode),
+        _patched_claude(side_effect=[_lifecycle_reply()]),
+    ):
+        await _analyze_company(company_id, _FIRST_NIGHT)
+        await _flush_background_pushes(attempts)
+
+    assert len(attempts) == 1
+    findings = await _all_findings(company_id)
+    assert len(findings) == 1
+    assert findings[0]["dashboard_alert_id"] is not None
+    assert await _ai_profitability_alert_count(company_id) == 1
