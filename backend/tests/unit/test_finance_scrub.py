@@ -46,6 +46,9 @@ def test_scrub_does_not_mutate_input() -> None:
 
 
 def test_financial_alert_types_are_the_budget_types() -> None:
-    # Phase 34 registered the two budget alert types as financial — the D-11
-    # permission filter drops them for callers without finance.view.
-    assert frozenset({"budget_warning", "budget_overrun"}) == FINANCIAL_ALERT_TYPES
+    # Phase 34 registered the two budget alert types as financial and Phase 36 added
+    # ai_profitability — the D-11 permission filter drops all of them for callers
+    # without finance.view. Asserted as a subset, not equality: every future financial
+    # alert type must be dropped by the same filter, so a new registration should
+    # extend this set rather than break this test.
+    assert {"budget_warning", "budget_overrun", "ai_profitability"} <= FINANCIAL_ALERT_TYPES
