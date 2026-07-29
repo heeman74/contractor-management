@@ -23,13 +23,13 @@ from datetime import date, datetime
 from unittest.mock import MagicMock
 from uuid import UUID, uuid4
 
-from app.features.finance.profitability_repository import FindingUpsert, ProfitabilityRepository
 from httpx import AsyncClient
 from sqlalchemy import select, text
 
 from app.core.database import async_session_factory
 from app.core.security import create_access_token
 from app.features.finance.models import CostCategory
+from app.features.finance.profitability_repository import FindingUpsert, ProfitabilityRepository
 
 _SECONDS_PER_HOUR = 3600
 

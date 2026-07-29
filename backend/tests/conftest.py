@@ -166,6 +166,8 @@ async def clean_tables(test_engine):
                 "tasks, "
                 "project_zones, "
                 "trade_scopes, "
+                # Phase 36 AI profitability findings -> projects, dashboard_alerts
+                "ai_profitability_findings, "
                 "projects, "
                 "user_trade_specialties, "
                 "trade_catalog, "
