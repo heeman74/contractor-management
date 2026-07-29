@@ -446,7 +446,19 @@ Plans:
   1. Every active project is analyzed by AI on a nightly schedule, and margin erosion is flagged with a specific, suggested corrective action
   2. Owner/PM receives a finance-gated alert for each AI profitability finding — the alert is invisible to any user without finance.* permission
   3. Every dollar figure stated in an AI profitability finding traces to a real tool-sourced cost/margin/budget value, never an AI estimate
-**Plans**: TBD
+**Plans:** 10 plans
+
+Plans:
+- [ ] 36-01-PLAN.md — Findings table + RLS + alert-type registration in all three literals + ProfitabilityRepository (upsert/claim/resolve)
+- [ ] 36-02-PLAN.md — Web data layer: ProfitabilityFinding type, fetcher, permission-gated hook, formatFindingDate, chip/caption extractions
+- [ ] 36-03-PLAN.md — DB-free profitability_math: D-01 eligibility, the three D-03 signals, severity bands, fingerprint
+- [ ] 36-04-PLAN.md — ProfitabilityFindingCard + drill-down mount + jest state matrix
+- [ ] 36-05-PLAN.md — Reusable ai_grounding validator, call_claude_json_strict, the D-09 prompt contract
+- [ ] 36-06-PLAN.md — Playwright: finding render, SC2 deny + zero-request keystone, findings-outage isolation
+- [ ] 36-07-PLAN.md — Candidate scan: PortfolioService public seams, eligibility pass, aggregates-only payload with named deltas
+- [ ] 36-08-PLAN.md — Publish path: per-candidate Claude call, D-05 one-retry grounding block, length contract, nightly cap
+- [ ] 36-09-PLAN.md — Alert lifecycle: resolve stale fingerprints, claim-first exactly-once alerts, FCM to live finance.view holders
+- [ ] 36-10-PLAN.md — Nightly cron registration, GET /financials/finding endpoint, SC2 keystone, phase gate
 
 ### Phase 37: AI Quote Planning
 **Goal**: Owner/PM gets AI-assisted quote line items grounded in the company's own cost history, always reviewed by a human before anything is sent to a client
@@ -467,6 +479,7 @@ Note: Phase 23 (Chat) depends only on Phase 19 and may start in parallel with Ph
 Note: Phase 25 (Billing) depends only on Phase 19 and may start in parallel with Phase 24.
 
 v4.0 phases: 30 -> {31, 32 in parallel} -> 33 -> 34 -> {35, 36 in parallel} ; 37 depends only on 32 and may run in parallel with 33-36.
+Note: Phase 36 runs in 7 waves — at most one backend plan per wave (conftest TRUNCATEs all tables per test, so two pytest processes against contractorhub_test deadlock); the three web plans (36-02, 36-04, 36-06) run in parallel with the backend chain.
 Note: Phase 31 (Cost Capture) and Phase 32 (Labor Rates) both depend only on Phase 30 and may run in parallel.
 Note: Phase 37 (AI Quote Planning) depends only on Phase 32 and may run in parallel with Phases 33-36.
 
