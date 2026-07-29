@@ -9,10 +9,18 @@ import {
   budgetBarsCsvRows,
   toBudgetBarRows,
 } from "../_components/project-budget-bars";
+import { AttentionList, attentionKpi } from "../_components/attention-list";
+import { ProjectsTable, groupProjectsByActivity } from "../_components/projects-table";
 import { useCompanyFinancials } from "@/features/finance/hooks";
-import { INCOMPLETE_CAPTION } from "@/features/finance/components/MarginSummarySection";
+import {
+  INCOMPLETE_CAPTION,
+  INCOMPLETE_CHIP_LABEL,
+} from "@/features/finance/components/MarginSummarySection";
+import { FINANCE_FLAG_CHIP_CLASS } from "@/features/finance/components/FinanceFlagChip";
 import { BUDGET_TIER_FILL } from "@/components/shared/chart-theme";
 import type {
+  AttentionRow,
+  AttentionTier,
   BudgetVsActual,
   CompanyFinancials,
   MarginSummary,
@@ -481,5 +489,269 @@ describe("CompanyFinancialsDashboard budget card", () => {
     expect(within(card).getByText("Budget vs Actual by Project")).toBeInTheDocument();
     expect(within(card).getByText("1 of 2 projects budgeted")).toBeInTheDocument();
     expect(within(card).getByTestId("project-budget-bars")).toBeInTheDocument();
+  });
+});
+
+// --- Task 3: attention list and the All Projects table ---
+
+function attentionRow(
+  projectId: string,
+  tier: AttentionTier,
+  overrides: Partial<AttentionRow> = {}
+): AttentionRow {
+  return {
+    projectId,
+    projectName: `Project ${projectId}`,
+    projectStatus: BUDGETED_STATUS,
+    tier,
+    anchorLabel: `Project ${projectId}`,
+    spent: "11200.00",
+    budgetTotal: "10000.00",
+    percentUsed: "112.0",
+    ...overrides,
+  };
+}
+
+describe("AttentionList", () => {
+  it("state 16: renders the server order unchanged, one link per row", () => {
+    const rows = [
+      attentionRow("c", "overrun"),
+      attentionRow("a", "warning", { percentUsed: "88.0", spent: "8800.00" }),
+      attentionRow("b", "incomplete", {
+        spent: null,
+        budgetTotal: null,
+        percentUsed: null,
+      }),
+    ];
+
+    render(<AttentionList rows={rows} />);
+
+    const rendered = screen.getAllByTestId(/^attention-row-/);
+    expect(rendered.map((row) => row.getAttribute("data-testid"))).toEqual([
+      "attention-row-c",
+      "attention-row-a",
+      "attention-row-b",
+    ]);
+    expect(rendered[0].closest("a")).toHaveAttribute("href", "/financials/c");
+  });
+
+  it("renders one tier badge per tier with the shipped chip vocabulary", () => {
+    render(
+      <AttentionList
+        rows={[
+          attentionRow("c", "overrun"),
+          attentionRow("a", "warning"),
+          attentionRow("b", "incomplete"),
+        ]}
+      />
+    );
+
+    const overBudget = screen.getByText("Over budget");
+    expect(overBudget).toHaveClass("bg-red-100");
+    expect(overBudget).toHaveClass("text-red-800");
+    expect(screen.getByText("Nearing budget")).toHaveClass(FINANCE_FLAG_CHIP_CLASS);
+    expect(screen.getByText(INCOMPLETE_CHIP_LABEL)).toHaveClass(FINANCE_FLAG_CHIP_CLASS);
+  });
+
+  it("colours the overrun percent red, the warning percent ink, and omits it when incomplete", () => {
+    render(
+      <AttentionList
+        rows={[
+          attentionRow("c", "overrun", { percentUsed: "340.0" }),
+          attentionRow("a", "warning", { percentUsed: "88.0" }),
+          attentionRow("b", "incomplete", {
+            spent: null,
+            budgetTotal: null,
+            percentUsed: null,
+          }),
+        ]}
+      />
+    );
+
+    expect(screen.getByText("340%")).toHaveClass("text-red-800");
+    expect(screen.getByText("88%")).toHaveClass("text-gray-900");
+    expect(
+      within(screen.getByTestId("attention-row-b")).queryByText(/%$/)
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the spend sub-line on budget tiers and the incomplete caption otherwise", () => {
+    render(
+      <AttentionList
+        rows={[
+          attentionRow("c", "overrun"),
+          attentionRow("b", "incomplete", {
+            spent: null,
+            budgetTotal: null,
+            percentUsed: null,
+          }),
+        ]}
+      />
+    );
+
+    expect(screen.getByTestId("attention-row-c")).toHaveTextContent(
+      "$11200.00 of $10000.00"
+    );
+    expect(screen.getByTestId("attention-row-b")).toHaveTextContent(INCOMPLETE_CAPTION);
+  });
+
+  it("state 18: an inactive-status row is dimmed and carries its status badge", () => {
+    render(
+      <AttentionList
+        rows={[attentionRow("c", "overrun", { projectStatus: "archived" })]}
+      />
+    );
+
+    const row = screen.getByTestId("attention-row-c");
+    expect(row).toHaveClass("opacity-60");
+    expect(within(row).getByText("archived")).toBeInTheDocument();
+  });
+
+  it("state 15: an empty list renders the all-clear kpi and the empty state", () => {
+    expect(attentionKpi([])).toBe("All clear");
+    expect(attentionKpi([attentionRow("c", "overrun")])).toBe("1 needs attention");
+    expect(
+      attentionKpi([attentionRow("c", "overrun"), attentionRow("a", "warning")])
+    ).toBe("2 need attention");
+
+    render(<AttentionList rows={[]} />);
+
+    expect(screen.getByTestId("attention-empty")).toHaveTextContent(
+      "Nothing needs attention"
+    );
+    expect(screen.getByTestId("attention-empty")).toHaveTextContent(
+      "No project is over budget, nearing its budget, or missing cost data."
+    );
+    expect(screen.queryByTestId("attention-list")).not.toBeInTheDocument();
+  });
+
+  it("anchors the list so the incomplete-data badge can reach it", () => {
+    render(<AttentionList rows={[attentionRow("c", "overrun")]} />);
+
+    expect(screen.getByTestId("attention-list")).toHaveAttribute("id", "attention-list");
+  });
+});
+
+describe("ProjectsTable", () => {
+  it("state 18: groups inactive projects below the honesty separator", () => {
+    render(
+      <ProjectsTable
+        projects={[
+          projectRow("p-1", "Archived Job", budgetOf("1000.00", "400.00"), "archived"),
+          projectRow("p-2", "Running Job", budgetOf("1000.00", "300.00"), "active"),
+          projectRow("p-3", "Paused Job", null, "on_hold"),
+        ]}
+      />
+    );
+
+    const names = Array.from(
+      screen.getByTestId("projects-table").querySelectorAll("tbody tr")
+    ).map((row) => row.textContent ?? "");
+    expect(names[0]).toContain("Running Job");
+    expect(names[1]).toContain("Paused Job");
+    expect(names[2]).toContain("Inactive projects — still included in portfolio totals");
+    expect(names[3]).toContain("Archived Job");
+    expect(screen.getByTestId("projects-table-inactive-header")).toBeInTheDocument();
+  });
+
+  it("omits the separator when every project is active", () => {
+    render(
+      <ProjectsTable
+        projects={[projectRow("p-2", "Running Job", budgetOf("1000.00", "300.00"))]}
+      />
+    );
+
+    expect(
+      screen.queryByTestId("projects-table-inactive-header")
+    ).not.toBeInTheDocument();
+  });
+
+  it("sorts each group by descending cost, ties broken by name", () => {
+    const grouped = groupProjectsByActivity([
+      projectRow("p-1", "Beta", budgetOf("1000.00", "500.00")),
+      projectRow("p-2", "Alpha", budgetOf("1000.00", "500.00")),
+      projectRow("p-3", "Biggest", budgetOf("9000.00", "900.00")),
+      projectRow("p-4", "Old", budgetOf("1000.00", "800.00"), "complete"),
+    ]);
+
+    expect(grouped.active.map((row) => row.name)).toEqual(["Biggest", "Alpha", "Beta"]);
+    expect(grouped.inactive.map((row) => row.name)).toEqual(["Old"]);
+  });
+
+  it("renders the column headers and a per-row drill-down link", () => {
+    render(
+      <ProjectsTable
+        projects={[projectRow("p-2", "Running Job", budgetOf("1000.00", "300.00"))]}
+      />
+    );
+
+    ["Project", "Status", "Revenue", "Cost", "Margin", "Budget used"].forEach((header) => {
+      expect(screen.getByText(header)).toBeInTheDocument();
+    });
+    const link = screen.getByLabelText("View financials for Running Job");
+    expect(link).toHaveTextContent("View financials");
+    expect(link).toHaveAttribute("href", "/financials/p-2");
+  });
+
+  it("state 14: a negative margin cell uses the 14px red, never the destructive token", () => {
+    const project = projectRow("p-1", "Losing Job", budgetOf("1000.00", "1400.00"));
+    project.margin = marginWith({ margin: "-3500.00", marginPercent: "-8.0" });
+
+    render(<ProjectsTable projects={[project]} />);
+
+    const cell = screen.getByTestId("projects-table-margin-p-1");
+    expect(cell).toHaveTextContent("-$3500.00");
+    expect(cell).toHaveClass("text-red-800");
+    expect(cell).not.toHaveClass("text-destructive");
+  });
+
+  it("renders em dashes for null money, No budget without one, and the true percent", () => {
+    const withoutRevenue = projectRow("p-1", "No Revenue", null);
+    withoutRevenue.margin = marginWith({
+      revenue: null,
+      revenueBasis: "none",
+      margin: null,
+      marginPercent: null,
+    });
+    const overrun = projectRow("p-2", "Runaway", budgetOf("500.00", "1700.00"));
+
+    render(<ProjectsTable projects={[withoutRevenue, overrun]} />);
+
+    expect(screen.getByTestId("projects-table-revenue-p-1")).toHaveTextContent("—");
+    expect(screen.getByTestId("projects-table-margin-p-1")).toHaveTextContent("—");
+    expect(screen.getByTestId("projects-table-budget-used-p-1")).toHaveTextContent(
+      "No budget"
+    );
+    expect(screen.getByTestId("projects-table-budget-used-p-2")).toHaveTextContent("340%");
+  });
+
+  it("state 6: with no projects at all the table shows its empty state", () => {
+    render(<ProjectsTable projects={[]} />);
+
+    expect(screen.getByText("No projects yet")).toBeInTheDocument();
+    expect(
+      screen.getByText("Create a project to start tracking margin and budget.")
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("projects-table")).not.toBeInTheDocument();
+  });
+});
+
+describe("CompanyFinancialsDashboard attention and table cards", () => {
+  it("wires the attention card and the All Projects card", () => {
+    mockQueryState({
+      data: financialsWith({
+        projects: [projectRow("p-1", "Harbour Fitout", budgetOf("10000.00", "11200.00"))],
+        attention: [attentionRow("p-1", "overrun")],
+      }),
+    });
+
+    render(<CompanyFinancialsDashboard />);
+
+    const card = screen.getByLabelText("Needs Attention list");
+    expect(within(card).getByText("Needs Attention")).toBeInTheDocument();
+    expect(within(card).getByText("1 needs attention")).toBeInTheDocument();
+    expect(within(card).getByTestId("attention-list")).toBeInTheDocument();
+    expect(screen.getByText("All Projects")).toBeInTheDocument();
+    expect(screen.getByTestId("projects-table")).toBeInTheDocument();
   });
 });
