@@ -286,16 +286,22 @@ function barFillOpacities(container: HTMLElement): string[] {
   );
 }
 
-function categoryAxisLabels(container: HTMLElement): string[] {
+const PERCENT_TICK = /^\d+%$/;
+
+/** Recharts renders every axis tick label into a shared layer, so the two axes are
+ *  told apart by their content: the value axis is percentages, the other is names. */
+function axisTickLabels(container: HTMLElement): string[] {
   return Array.from(
-    container.querySelectorAll(".recharts-yAxis .recharts-cartesian-axis-tick-value")
+    container.querySelectorAll(".recharts-cartesian-axis-tick-value")
   ).map((tick) => tick.textContent ?? "");
 }
 
+function categoryAxisLabels(container: HTMLElement): string[] {
+  return axisTickLabels(container).filter((label) => !PERCENT_TICK.test(label));
+}
+
 function valueAxisLabels(container: HTMLElement): string[] {
-  return Array.from(
-    container.querySelectorAll(".recharts-xAxis .recharts-cartesian-axis-tick-value")
-  ).map((tick) => tick.textContent ?? "");
+  return axisTickLabels(container).filter((label) => PERCENT_TICK.test(label));
 }
 
 describe("ProjectBudgetBars", () => {

@@ -1,8 +1,18 @@
 "use client";
 
+import { Gauge } from "lucide-react";
+
+import { ChartCard } from "@/app/(dashboard)/reports/_components/chart-card";
 import { useCompanyFinancials } from "@/features/finance/hooks";
 import { FinanceSummaryTiles } from "./finance-summary-tiles";
 import { FinancialsSkeleton } from "./financials-skeleton";
+import {
+  BUDGET_BARS_CSV_FILENAME,
+  BUDGET_BARS_TITLE,
+  ProjectBudgetBars,
+  budgetBarsCsvRows,
+  budgetedProjectsKpi,
+} from "./project-budget-bars";
 
 const LOAD_ERROR_MESSAGE = "Couldn't load financials. Refresh to try again.";
 const ERROR_PANEL_CLASS =
@@ -34,7 +44,7 @@ export default function CompanyFinancialsDashboard() {
     );
   }
 
-  const { portfolio } = data;
+  const { portfolio, projects } = data;
 
   return (
     <div className="space-y-6">
@@ -48,6 +58,19 @@ export default function CompanyFinancialsDashboard() {
         quotedRevenue={portfolio.quotedRevenue}
         incompleteProjectCount={portfolio.incompleteProjectCount}
       />
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <ChartCard
+          title={BUDGET_BARS_TITLE}
+          kpiValue={budgetedProjectsKpi(projects)}
+          icon={Gauge}
+          csvFilename={BUDGET_BARS_CSV_FILENAME}
+          csvRows={budgetBarsCsvRows(projects)}
+          ariaLabel={`${BUDGET_BARS_TITLE} chart`}
+        >
+          <ProjectBudgetBars projects={projects} />
+        </ChartCard>
+      </div>
     </div>
   );
 }

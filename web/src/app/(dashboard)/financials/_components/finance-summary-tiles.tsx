@@ -23,7 +23,8 @@ const SINGLE_INCOMPLETE_PROJECT = 1;
 const TILE_GRID_CLASS = "grid grid-cols-1 md:grid-cols-3 gap-8";
 const TITLE_CLASS = "text-sm text-gray-500";
 const FIGURE_CLASS = "mt-1 text-3xl font-bold text-gray-900";
-/** 30px is the one size at which #d64545 clears AA — see 35-UI-SPEC § the red rule. */
+/** 30px is the one size at which the destructive token clears AA as large text —
+ *  see 35-UI-SPEC § the red rule. Table cells at 14px use the red-800 family instead. */
 const NEGATIVE_FIGURE_CLASS = "mt-1 text-3xl font-bold text-destructive";
 const SUBLINE_CLASS = "mt-1 text-sm text-gray-500";
 const CAPTION_CLASS = "mt-1 text-xs text-gray-500";

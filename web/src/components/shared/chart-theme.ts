@@ -32,6 +32,14 @@ export const BUDGET_WARNING_PERCENT = 80;
 /** Draft/complete/archived projects are de-emphasized, never excluded (D-12). */
 export const INACTIVE_BAR_FILL_OPACITY = 0.45;
 
+/** The 100% budget line every bullet bar is read against — ink, not a tier colour,
+ *  because the reference is the same wherever a bar happens to fall. */
+export const BULLET_REFERENCE_STROKE = "#0e1726";
+
+/** The clamp overflow label. red-800 rather than --destructive: this glyph renders at
+ *  11px, where #d64545 is sub-AA (35-UI-SPEC § the red rule). */
+export const OVERFLOW_LABEL_FILL = "#991b1b";
+
 /** Nominal ramp: cost categories carry no ordering, so hues are stable per name and never repeat. */
 export const CATEGORY_FILL: Record<string, string> = {
   labor: "#0e1726",
