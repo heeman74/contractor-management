@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 35-01-PLAN.md
-last_updated: "2026-07-29T03:03:54.243Z"
+stopped_at: Completed 35-03-PLAN.md
+last_updated: "2026-07-29T03:35:14.464Z"
 last_activity: 2026-07-29
 progress:
   total_phases: 22
   completed_phases: 17
   total_plans: 105
-  completed_plans: 94
+  completed_plans: 95
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 35 (web-financial-dashboard) — EXECUTING
-Plan: 4 of 11
+Plan: 5 of 11
 Status: Ready to execute
 Last activity: 2026-07-29
 
@@ -73,6 +73,7 @@ Last activity: 2026-07-29
 | Phase 35 P04 | 9min | 3 tasks | 5 files |
 | Phase 35-web-financial-dashboard P02 | 54min | 3 tasks | 1 files |
 | Phase 35 P01 | 96min | 3 tasks | 7 files |
+| Phase 35 P03 | 27min | 3 tasks tasks | 10 files files |
 
 ## Accumulated Context
 
@@ -252,6 +253,9 @@ Last activity: 2026-07-29
 - [Phase 35-web-financial-dashboard]: 35-02: Query counter listens on engine.sync_engine before_cursor_execute, not on sessions — SQLAlchemy event API is synchronous by design (same reason tenant.py after_begin is sync); conftest monkey-patches db_module.engine before test modules import, so the import binds the NullPool test engine the ASGI app actually uses
 - [Phase 35-web-financial-dashboard]: 35-02: _seed_company_portfolio excludes the labor cost category — A labor-categorised cost entry folds into the derived labor row (Phase 32), which would make grand_total greater than total ambiguous; seeding only materials/subcontractor/other keeps that a clean proof that time entries and rates seeded
 - [Phase 35-web-financial-dashboard]: 35-02: Seeded invoices and approved quotes sit on different anchors within a project — Invoices on job[0]/scope[0] and quotes on job[1]/scope[1] make every seeded project resolve revenue_basis mixed, exercising both legs of the D-12 dual traversal instead of letting invoices win everywhere
+- [Phase 35-web-financial-dashboard]: 35-03: FinanceGate imports FINANCE_VIEW_PERMISSION from types.ts and never inlines the key, so the render gate and the hooks' enabled branch fail closed on exactly the same string
+- [Phase 35-web-financial-dashboard]: 35-03: truncateLabel follows the UI-SPEC formula (slice(0,21) + ellipsis = 22 chars total), not the plan prose's "22 plus ellipsis" — the axis width contract wins
+- [Phase 35-web-financial-dashboard]: 35-03: rollUpCategories sums numeric amounts because the Other bucket is a real sum; the CSV still exports one unrolled row per category so the export never inherits the chart's simplification
 
 ### Pending Todos
 
@@ -271,6 +275,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-29T03:03:54.123Z
-Stopped at: Completed 35-01-PLAN.md
+Last session: 2026-07-29T03:34:56.187Z
+Stopped at: Completed 35-03-PLAN.md
 Resume file: None

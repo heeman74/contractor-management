@@ -422,13 +422,13 @@ Plans:
   1. Owner/PM can view a web financial dashboard showing margin trend and budget-vs-actual charts for any project
   2. Owner/PM can view a company-wide financial rollup alongside the existing v2.0 reporting dashboard, using the same navigation and visual conventions
   3. A user without finance.* permission does not see the Financials nav item or any financial dashboard route at all
-**Plans:** 3/11 plans executed
+**Plans:** 4/11 plans executed
 **UI hint**: yes
 
 Plans:
 - [x] 35-01-PLAN.md — Shared finance math: promote D-01 revenue resolution into margin_math; new DB-free trend_math + portfolio_math with unit tests
 - [x] 35-02-PLAN.md — Backend E2E harness: reused helper set, multi-project portfolio seeder, SQL statement-counting context manager
-- [ ] 35-03-PLAN.md — Web foundation: FinanceGate + /financials layout, chart theme, shared empty state, pure formatters, gated sidebar item
+- [x] 35-03-PLAN.md — Web foundation: FinanceGate + /financials layout, chart theme, shared empty state, pure formatters, gated sidebar item
 - [x] 35-04-PLAN.md — Web data layer: financial response types, snake_case mappers, permission-gated TanStack hooks
 - [ ] 35-05-PLAN.md — GET /financials/company: batched PortfolioRepository/Service, portfolio totals, attention tiers, equivalence pin
 - [ ] 35-06-PLAN.md — GET /projects/{id}/financials: aggregate-only drill-down with per-scope budget-vs-actual
@@ -503,6 +503,6 @@ Note: Phase 37 (AI Quote Planning) depends only on Phase 32 and may run in paral
 | 32. Labor Rates and Cost Rollup | v4.0 | 5/5 | Complete    | 2026-07-27 |
 | 33. Profit Margin Tracking | v4.0 | 5/5 | Complete    | 2026-07-28 |
 | 34. Budgeting and Overrun Alerts | v4.0 | 8/8 | Complete    | 2026-07-28 |
-| 35. Web Financial Dashboard | v4.0 | 3/11 | In Progress|  |
+| 35. Web Financial Dashboard | v4.0 | 4/11 | In Progress|  |
 | 36. AI Profitability Analysis | v4.0 | 0/? | Not started | - |
 | 37. AI Quote Planning | v4.0 | 0/? | Not started | - |
