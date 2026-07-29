@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 36-05-PLAN.md
-last_updated: "2026-07-29T19:27:53.167Z"
+stopped_at: Completed 36-06-PLAN.md
+last_updated: "2026-07-29T21:34:46.408Z"
 last_activity: 2026-07-29
 progress:
   total_phases: 22
   completed_phases: 18
   total_plans: 115
-  completed_plans: 107
+  completed_plans: 108
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 36 (ai-profitability-analysis) — EXECUTING
-Plan: 6 of 10
+Plan: 7 of 10
 Status: Ready to execute
 Last activity: 2026-07-29
 
@@ -86,6 +86,7 @@ Last activity: 2026-07-29
 | Phase 36 P04 | 8min | 3 tasks tasks | 4 files files |
 | Phase 36 P03 | 15min | 3 tasks tasks | 3 files files |
 | Phase 36 P05 | 12min | 3 tasks tasks | 5 files files |
+| Phase 36 P06 | 2h 25m | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -311,6 +312,9 @@ Last activity: 2026-07-29
 - [Phase 36]: 36-05: the whole-dollar grounding tolerance is one-directional — a cited "$3,200" matches payload Decimal("3200.41"), but a cited "$3,200.41" never matches payload Decimal("3200") — A model dropping cents is formatting (format_alert_money already does it); a model inventing cents is fabrication, which is exactly what SC3 must block
 - [Phase 36]: 36-05: two docstrings were reworded away from the plan's literal prose ("imports nothing from app.features" -> "carries no feature-package imports"; "returns a caller-supplied fallback dict" -> "degrades to a caller-supplied default dict") — Both acceptance criteria are token-ABSENCE greps and the plan's own suggested prose contained the exact tokens — same trap as the 36-03 prose decision; meaning preserved, only the greppable tokens changed
 - [Phase 36]: 36-05: collect_allowed_values admits only Decimal and non-bool int — strings, bools and floats are all skipped — Strings keep a project named "2026" from making "$2,026" citable; bool is an int subclass so True must not become Decimal("1"); a float in a money payload is a caller bug that should surface as an unmatched figure rather than be admitted under binary-float equality
+- [Phase 36]: 36-06: the SC2 Playwright keystone asserts the deny panel AND a zero-request counter on /financials/finding in two auth states (logged-in with permissions resolved, and cold load) -- a non-finance user has no SPA route into the drill-down because the sidebar item is itself gated — Break-it-once verified: deleting FinanceGate fails the panel half; with the gate gone, weakening the hook's enabled to !!projectId fires one request to /financials/finding and fails the counter half. The gate short-circuits the mount, so the request half is only observable once the render half is already broken -- that is what makes it a second independent lock, and the spec says so in-file. The proof that enabled alone holds lives in the 36-02 hook test.
+- [Phase 36]: 36-06: mapProfitabilityFinding validates severity through the shipped toKnownValue instead of casting it, backed by a new FINDING_SEVERITIES const — An unknown band indexed the card's SEVERITY_CHIP map with undefined and threw at render, replacing the entire /financials/[projectId] page with the error boundary -- two shipped Phase 35 tests were red on it. Validating at the boundary turns a malformed payload into the finding query's own error, so the card shows its scoped error line and the money dashboard still renders (state 19).
+- [Phase 36]: 36-06: the Phase 35 spec gained an explicit finding-route branch returning null rather than having its assertions relaxed — 36-04 added a third drill-down query that Phase 35's shell-chatter fallback answered with [], which is not a finding shape; after the boundary fix it errored and retried mid-test, breaking the trend window's exactly-one-refetch assertion (reproduced 3/3 with --repeat-each=3). A mock needs a real body for every route a new query introduces.
 
 ### Pending Todos
 
@@ -328,9 +332,10 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 - Phase 36 (v4.0): AI cost-data completeness threshold (minimum cost entries / days elapsed before AI analysis runs) needs a product decision during Phase 34/36 planning
 - Phase 35 (v4.0): backend suites run red under parallel agent execution -- conftest.py TRUNCATEs all tables per test, which deadlocks when two pytest processes share contractorhub_test. A deadlock inside seed_two_tenants is contention, not a regression. Consider per-worker test databases if parallel execution stays routine.
 - Phase 36: tests/unit/test_finance_scrub.py::test_financial_alert_types_are_the_budget_types is RED since 36-01 registered ai_profitability -- the assertion is an exact frozenset equality against the two budget types. Not a 36-03 regression; see the phase deferred-items.md. Whichever plan next touches the alert-delivery path should relax it to a superset check.
+- Phase 36: web full-suite runs (npm run test-e2e, 175 tests, default workers, one dev server, backend agent running concurrently) are not a trustworthy gate -- four runs returned 16/4/7/24 failures with a shifting set. At --workers=2 --retries=1: 173 passed, 2 failed, 0 flaky. Later web plans should gate on --workers=2. The 2 failures are the pre-existing Phase 21 URL-shape drift already logged in Phase 35's deferred-items.md.
 
 ## Session Continuity
 
-Last session: 2026-07-29T19:27:23.156Z
-Stopped at: Completed 36-05-PLAN.md
+Last session: 2026-07-29T21:34:37.049Z
+Stopped at: Completed 36-06-PLAN.md
 Resume file: None
