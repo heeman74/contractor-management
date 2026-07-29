@@ -17,11 +17,11 @@ selects. PostgreSQL's functional-dependency shortcut does not reach an
 expression over other tables, so PROJECT_KEY must appear in `group_by` as well
 as `select` (RESEARCH Pitfall 7).
 
-Row-access rule: the project key is always read from a result row BY LABEL —
-`row.project_id` — never by positional index, and `to_anchored_amounts` keeps
-its `row[:6]` contract untouched. Plan 35-07 appends `issued_at` / `approved_on`
-at indices 6 and 7 of the same shared builders; any positional read of the
-project key here would silently break when that lands.
+Row-access rule: every column past the shared six is read from a result row BY
+LABEL — `row.project_id`, `row.issued_at`, `row.approved_on` — never by
+positional index, and `to_anchored_amounts` keeps its `row[:6]` contract
+untouched. The builders already carry two trailing date columns for the margin
+trend; a positional read here would silently break at the next appended column.
 
 Pitfall 8: `BaseRepository.list_all()` does NOT filter `deleted_at`, so every
 query below states its soft-delete predicate at its own call site rather than
@@ -31,7 +31,7 @@ inheriting one silently.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import Row, Select, func, select
 
@@ -46,6 +46,7 @@ from app.features.finance.repository import (
     to_anchored_amounts,
     to_work_sessions,
 )
+from app.features.finance.trend_math import DatedDocument
 from app.features.invoices.models import Invoice
 from app.features.jobs.models import Job, TimeEntry
 from app.features.projects.models import Project, TradeScope
@@ -66,6 +67,30 @@ def _keyed_by_project(query: Select, document: type[Invoice] | type[Quote]) -> S
         .outerjoin(Job, document.job_id == Job.id)
         .where(document.deleted_at.is_(None), PROJECT_KEY.is_not(None))
         .group_by(PROJECT_KEY)
+    )
+
+
+def _for_project(
+    query: Select, document: type[Invoice] | type[Quote], project_id: uuid.UUID
+) -> Select:
+    """Restrict a document aggregate to one project via the shipped dual-outerjoin traversal."""
+    return (
+        query.outerjoin(TradeScope, document.trade_scope_id == TradeScope.id)
+        .outerjoin(Job, document.job_id == Job.id)
+        .where((TradeScope.project_id == project_id) | (Job.project_id == project_id))
+    )
+
+
+def _to_dated_document(row: Row, effective_at: datetime) -> DatedDocument:
+    """One document aggregate as a trend_math value object, dated on its UTC calendar day.
+
+    The timestamp arrives by label (`row.issued_at` / `row.approved_on`) so appended
+    columns can never shift it, and it is normalised to UTC exactly once here —
+    the trend's month edges are UTC calendar days.
+    """
+    anchor, amounts = to_anchored_amounts(row)
+    return DatedDocument(
+        anchor=anchor, amounts=amounts, effective_date=effective_at.astimezone(UTC).date()
     )
 
 
@@ -175,6 +200,41 @@ class PortfolioRepository(TenantScopedRepository[Project]):
         for row in result.all():
             latest.setdefault(row.project_id, to_anchored_amounts(row)[1])
         return latest
+
+    async def dated_invoices_for_project(self, project_id: uuid.UUID) -> list[DatedDocument]:
+        """Every invoice rolling up to a project, carrying its issue date — 1 round trip."""
+        result = await self.db.execute(_for_project(invoice_amounts_query(), Invoice, project_id))
+        return [_to_dated_document(row, row.issued_at) for row in result.all()]
+
+    async def dated_quotes_for_project(self, project_id: uuid.UUID) -> list[DatedDocument]:
+        """Every approved quote rolling up to a project, newest first — 1 round trip.
+
+        The builder's created_at DESC order survives, so the FIRST row an anchor
+        yields is still its latest approved quote (D-03), which is what makes the
+        replay resolve the same document the shipped rollup does.
+        """
+        result = await self.db.execute(
+            _for_project(approved_quote_amounts_query(), Quote, project_id)
+        )
+        return [_to_dated_document(row, row.approved_on) for row in result.all()]
+
+    async def dated_project_level_quote(self, project_id: uuid.UUID) -> DatedDocument | None:
+        """The latest project-anchored approved quote with its effective date, or None.
+
+        D-14 candidate only: job_id AND trade_scope_id both NULL. The trend
+        applies it exactly as the rollup does — when no anchor resolved revenue.
+        """
+        result = await self.db.execute(
+            approved_quote_amounts_query()
+            .where(
+                Quote.project_id == project_id,
+                Quote.job_id.is_(None),
+                Quote.trade_scope_id.is_(None),
+            )
+            .limit(1)
+        )
+        row = result.first()
+        return None if row is None else _to_dated_document(row, row.approved_on)
 
     async def project_header(self, project_id: uuid.UUID) -> Row | None:
         """(id, name, status) for one live project, or None — RLS scopes the tenant.

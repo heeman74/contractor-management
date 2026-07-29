@@ -292,6 +292,11 @@ def invoice_amounts_query() -> Select:
     D-02: invoices have NO draft state (status constraint is exactly
     unpaid|partially_paid|paid), so "all issued invoices" needs no status
     filter — only the soft-delete predicate.
+
+    `issued_at` trails the six money columns because the Phase 35 margin trend
+    buckets an invoice by the UTC day it was issued. It is grouped explicitly
+    even though Invoice.id already determines it: stating the intent beats
+    relying on PostgreSQL's functional-dependency shortcut.
     """
     subtotal = func.coalesce(
         func.sum(InvoiceLineItem.quantity * InvoiceLineItem.unit_price), ZERO_MONEY
@@ -304,6 +309,7 @@ def invoice_amounts_query() -> Select:
             Invoice.discount_value,
             Invoice.tax_rate,
             subtotal,
+            Invoice.issued_at,
         )
         .select_from(Invoice)
         .outerjoin(
@@ -318,6 +324,7 @@ def invoice_amounts_query() -> Select:
             Invoice.discount_type,
             Invoice.discount_value,
             Invoice.tax_rate,
+            Invoice.issued_at,
         )
     )
 
@@ -327,10 +334,17 @@ def approved_quote_amounts_query() -> Select:
 
     The created_at DESC ordering lets callers take the first row per anchor as
     "latest approved" (D-03 — mirrors InvoiceService._latest_approved_quote_for_scope).
+
+    `approved_on` trails created_at because the Phase 35 margin trend buckets a
+    quote by the UTC day it became effective. The COALESCE fallback exists
+    because `approved_at` is nullable even for status `approved` (legacy and
+    imported rows): dropping such a quote would break the final trend bucket's
+    reconciliation with the all-time rollup, which is the trend's only self-check.
     """
     subtotal = func.coalesce(
         func.sum(QuoteLineItem.quantity * QuoteLineItem.unit_price), ZERO_MONEY
     )
+    approved_on = func.coalesce(Quote.approved_at, Quote.created_at).label("approved_on")
     return (
         select(
             Quote.job_id,
@@ -340,6 +354,7 @@ def approved_quote_amounts_query() -> Select:
             Quote.tax_rate,
             subtotal,
             Quote.created_at,
+            approved_on,
         )
         .select_from(Quote)
         .outerjoin(
@@ -355,6 +370,7 @@ def approved_quote_amounts_query() -> Select:
             Quote.discount_value,
             Quote.tax_rate,
             Quote.created_at,
+            approved_on,
         )
         .order_by(Quote.created_at.desc())
     )
@@ -364,7 +380,8 @@ def to_anchored_amounts(row: Row) -> tuple[RevenueAnchor, DocumentAmounts]:
     """Map one aggregate row to margin_math value objects (never ORM instances).
 
     Both document queries lead with the same six columns, so one mapper serves
-    invoices and quotes alike; the quote query's trailing created_at is ignored.
+    invoices and quotes alike; their trailing date columns are read by label at
+    the call sites that need them, never through this mapper.
     """
     job_id, trade_scope_id, discount_type, discount_value, tax_rate, subtotal = row[:6]
     return (
