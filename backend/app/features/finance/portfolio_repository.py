@@ -26,6 +26,10 @@ trend; a positional read here would silently break at the next appended column.
 Pitfall 8: `BaseRepository.list_all()` does NOT filter `deleted_at`, so every
 query below states its soft-delete predicate at its own call site rather than
 inheriting one silently.
+
+D-03: constant in project count — pinned by
+test_company_rollup_query_count_is_constant_in_project_count and measured by
+test_company_rollup_latency_budget (backend/tests/test_phase_35_e2e.py).
 """
 
 from __future__ import annotations

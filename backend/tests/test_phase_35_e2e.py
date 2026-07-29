@@ -2076,3 +2076,76 @@ async def test_company_rollup_latency_budget(tenant_a_client, seed_two_tenants):
         f"{_LATENCY_BUDGET_EXCEEDED} Measured median {median_ms:.0f} ms against a committed "
         f"{_COMPANY_ROLLUP_LATENCY_BUDGET_MS} ms at {_LARGE_PORTFOLIO_PROJECTS} projects."
     )
+
+
+# ---------------------------------------------------------------------------
+# SC3 backend gating — the honest half of the permission story (plan 35-08)
+# ---------------------------------------------------------------------------
+
+_ISOLATION_TENANT_A_PROJECTS = 2
+_ISOLATION_TENANT_B_PROJECTS = 1
+
+
+@pytest.mark.asyncio
+async def test_financial_endpoints_forbidden_without_finance_view(
+    async_client, tenant_a_client, seed_two_tenants
+):
+    """All three Phase 35 endpoints 403 for a token without finance.view.
+
+    The admin token is the correct negative fixture: Phase 30 subtracts the
+    finance.* keys from the admin default matrix, so an admin has every
+    operational permission and none of the financial ones. This is also the only
+    honest SC3 denial test — the Playwright direct-navigation deny is a false
+    green by construction, since a hard page.goto resets Redux and would deny a
+    permitted user too (RESEARCH Pitfall 6).
+
+    The three URLs are asserted in one loop so a future endpoint change cannot
+    leave one of them behind with a weaker guard.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    project_id = await _create_project(tenant_a_client)
+    admin_headers = _admin_headers(company_id)
+    gated_urls = [
+        _COMPANY_FINANCIALS_URL,
+        _project_financials_url(project_id),
+        _project_trend_url(project_id),
+    ]
+
+    for url in gated_urls:
+        resp = await async_client.get(url, headers=admin_headers)
+        assert resp.status_code == 403, f"{url} -> {resp.status_code}: {resp.text}"
+        assert resp.json()["detail"] == _MISSING_VIEW_PERMISSION, url
+
+
+@pytest.mark.asyncio
+async def test_company_rollup_is_tenant_isolated(
+    tenant_a_client, tenant_b_client, seed_two_tenants
+):
+    """Tenant B's company rollup names only B's projects and counts only B's spend.
+
+    The rollup is the one financial endpoint with no id in its URL, so RLS is
+    the only thing standing between two tenants' portfolios — a missing
+    company predicate would silently sum the whole table instead of 404-ing.
+    """
+    tenant_a_id = seed_two_tenants["tenant_a_id"]
+    tenant_b_id = seed_two_tenants["tenant_b_id"]
+    tenant_b_headers = _pm_headers(tenant_b_id)
+
+    tenant_a_projects = await _seed_company_portfolio(
+        tenant_a_client,
+        _pm_headers(tenant_a_id),
+        tenant_a_id,
+        project_count=_ISOLATION_TENANT_A_PROJECTS,
+    )
+    tenant_b_projects = await _seed_company_portfolio(
+        tenant_b_client, tenant_b_headers, tenant_b_id, project_count=_ISOLATION_TENANT_B_PROJECTS
+    )
+
+    body = await _company_financials(tenant_b_client, tenant_b_headers)
+
+    assert {row["project_id"] for row in body["projects"]} == set(tenant_b_projects)
+    for project_id in tenant_a_projects:
+        assert _project_row(body, project_id) is None
+
+    tenant_b_cost = sum(Decimal(row["cost"]) for row in body["projects"])
+    assert Decimal(body["portfolio"]["cost"]) == tenant_b_cost
