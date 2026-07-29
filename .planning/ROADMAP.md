@@ -64,7 +64,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 - [x] **Phase 33: Profit Margin Tracking** — Revenue-minus-cost margin per job/trade scope and project-level rollup, with incomplete-data flagging (completed 2026-07-28)
 - [x] **Phase 34: Budgeting and Overrun Alerts** — Project/trade budgets, budget-vs-actual view, threshold alerts (80%/100%), quote-revision-driven budget adjustment (completed 2026-07-28)
 - [x] **Phase 35: Web Financial Dashboard** — Margin and budget-vs-actual charts on the web financial dashboard, permission-gated navigation (completed 2026-07-29)
-- [ ] **Phase 36: AI Profitability Analysis** — Nightly AI scan flagging margin erosion with corrective-action suggestions, finance-gated alerts
+- [x] **Phase 36: AI Profitability Analysis** — Nightly AI scan flagging margin erosion with corrective-action suggestions, finance-gated alerts (completed 2026-07-29)
 - [ ] **Phase 37: AI Quote Planning** — AI-assisted quote line items grounded in company cost history, confidence indicators, quoted-vs-actual variance feedback loop
 
 ## Phase Details
@@ -446,7 +446,7 @@ Plans:
   1. Every active project is analyzed by AI on a nightly schedule, and margin erosion is flagged with a specific, suggested corrective action
   2. Owner/PM receives a finance-gated alert for each AI profitability finding — the alert is invisible to any user without finance.* permission
   3. Every dollar figure stated in an AI profitability finding traces to a real tool-sourced cost/margin/budget value, never an AI estimate
-**Plans:** 9/10 plans executed
+**Plans:** 10/10 plans complete
 
 Plans:
 - [x] 36-01-PLAN.md — Findings table + RLS + alert-type registration in all three literals + ProfitabilityRepository (upsert/claim/resolve)
@@ -458,7 +458,7 @@ Plans:
 - [x] 36-07-PLAN.md — Candidate scan: PortfolioService public seams, eligibility pass, aggregates-only payload with named deltas
 - [x] 36-08-PLAN.md — Publish path: per-candidate Claude call, D-05 one-retry grounding block, length contract, nightly cap
 - [x] 36-09-PLAN.md — Alert lifecycle: resolve stale fingerprints, claim-first exactly-once alerts, FCM to live finance.view holders
-- [ ] 36-10-PLAN.md — Nightly cron registration, GET /financials/finding endpoint, SC2 keystone, phase gate
+- [x] 36-10-PLAN.md — Nightly cron registration, GET /financials/finding endpoint, SC2 keystone, phase gate
 
 ### Phase 37: AI Quote Planning
 **Goal**: Owner/PM gets AI-assisted quote line items grounded in the company's own cost history, always reviewed by a human before anything is sent to a client
@@ -517,5 +517,5 @@ Note: Phase 37 (AI Quote Planning) depends only on Phase 32 and may run in paral
 | 33. Profit Margin Tracking | v4.0 | 5/5 | Complete    | 2026-07-28 |
 | 34. Budgeting and Overrun Alerts | v4.0 | 8/8 | Complete    | 2026-07-28 |
 | 35. Web Financial Dashboard | v4.0 | 11/11 | Complete    | 2026-07-29 |
-| 36. AI Profitability Analysis | v4.0 | 9/10 | In Progress|  |
+| 36. AI Profitability Analysis | v4.0 | 10/10 | Complete   | 2026-07-29 |
 | 37. AI Quote Planning | v4.0 | 0/? | Not started | - |
