@@ -18,7 +18,8 @@ so later Phase 35 plans reuse them as-is. Two deliberate exceptions:
 
 import contextlib
 from collections.abc import Iterator
-from datetime import UTC, date, datetime
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -375,9 +376,330 @@ async def _create_invoice(
 
 
 # ---------------------------------------------------------------------------
+# _seed_company_portfolio — the D-03 measurement scale
+# ---------------------------------------------------------------------------
+
+_TRADE_NAMES = ("Plumbing", "Electrical", "Framing", "Drywall")
+_SCOPES_PER_PROJECT = len(_TRADE_NAMES)
+_JOBS_PER_PROJECT = 2
+_COST_ENTRIES_PER_PROJECT = 20
+_JOB_ANCHORED_COST_ENTRIES_PER_PROJECT = _COST_ENTRIES_PER_PROJECT // 2
+_TIME_ENTRIES_PER_JOB = 25
+_HOURS_PER_TIME_ENTRY = 2
+_CONTRACTORS_PER_COMPANY = 2
+
+# 'labor' is deliberately absent: a labor-categorised cost entry folds into the
+# derived labor row (Phase 32), which would blur the cost-entry vs derived-labor
+# distinction every rollup assertion here depends on.
+_SEEDED_CATEGORY_NAMES = ("materials", "subcontractor", "other")
+
+_COST_ENTRY_AMOUNT = Decimal("100.00")
+_SEED_HOURLY_COST = "20.00"
+_SEED_INVOICE_AMOUNT = Decimal("3000.00")
+_SEED_QUOTE_AMOUNT = Decimal("2000.00")
+
+# A routable-looking domain: email-validator rejects the reserved .test TLD.
+_CONTRACTOR_EMAIL_DOMAIN = "portfolio-contractors.com"
+
+_SEED_YEAR = 2026
+_SEED_MONTHS = (1, 2, 3, 4, 5, 6)
+_SEED_DAY_OF_MONTH = 15
+_SEED_HOUR_OF_DAY = 9
+_RATE_EFFECTIVE_FROM = date(_SEED_YEAR - 1, 1, 1)
+
+# Attention-tier fixtures. Spend per project is
+# _COST_ENTRIES_PER_PROJECT * _COST_ENTRY_AMOUNT ($2,000.00) plus derived labor
+# (_JOBS_PER_PROJECT * _TIME_ENTRIES_PER_JOB * _HOURS_PER_TIME_ENTRY hours at
+# _SEED_HOURLY_COST = $2,000.00), so every project spends $4,000.00.
+_OVERRUN_PROJECT_INDEX = 0
+_WARNING_PROJECT_INDEX = 1
+_OVERRUN_BUDGET_TOTAL = "3000.00"
+_WARNING_BUDGET_TOTAL = "4500.00"
+_HEALTHY_BUDGET_TOTAL = "20000.00"
+_SCOPE_BUDGET_TOTAL = "5000.00"
+
+# Invoices and quotes sit on different anchors so a seeded project resolves both
+# an invoiced and a quoted anchor (revenue_basis "mixed").
+_INVOICE_ANCHOR_INDEX = 0
+_QUOTE_ANCHOR_INDEX = 1
+
+_COST_ENTRY_BULK_SQL = (
+    "INSERT INTO cost_entries "
+    "(company_id, job_id, trade_scope_id, category_id, amount, incurred_date) "
+    "VALUES (CAST(:company_id AS uuid), CAST(:job_id AS uuid), "
+    "CAST(:trade_scope_id AS uuid), CAST(:category_id AS uuid), :amount, :incurred_date)"
+)
+
+_INVOICE_BULK_SQL = (
+    "INSERT INTO invoices "
+    "(id, company_id, job_id, trade_scope_id, invoice_number, status, issued_at) "
+    "VALUES (CAST(:id AS uuid), CAST(:company_id AS uuid), CAST(:job_id AS uuid), "
+    "CAST(:trade_scope_id AS uuid), :invoice_number, 'unpaid', :issued_at)"
+)
+
+_INVOICE_LINE_ITEM_BULK_SQL = (
+    "INSERT INTO invoice_line_items "
+    "(company_id, invoice_id, item_type, description, quantity, unit, unit_price) "
+    "VALUES (CAST(:company_id AS uuid), CAST(:document_id AS uuid), 'material', "
+    "'Portfolio revenue line', 1, 'each', :unit_price)"
+)
+
+_QUOTE_BULK_SQL = (
+    "INSERT INTO quotes (id, company_id, job_id, trade_scope_id, status, approved_at) "
+    "VALUES (CAST(:id AS uuid), CAST(:company_id AS uuid), CAST(:job_id AS uuid), "
+    "CAST(:trade_scope_id AS uuid), 'approved', :approved_at)"
+)
+
+_QUOTE_LINE_ITEM_BULK_SQL = (
+    "INSERT INTO quote_line_items "
+    "(company_id, quote_id, item_type, description, quantity, unit, unit_price) "
+    "VALUES (CAST(:company_id AS uuid), CAST(:document_id AS uuid), 'material', "
+    "'Portfolio revenue line', 1, 'each', :unit_price)"
+)
+
+
+@dataclass(frozen=True)
+class _ProjectStructure:
+    """One seeded project's endpoint-created skeleton."""
+
+    project_id: str
+    scope_ids: list[str]
+    job_ids: list[str]
+
+
+@dataclass(frozen=True)
+class _PortfolioSeed:
+    """Everything the bulk row builders need to fabricate a company's money rows."""
+
+    company_id: str
+    category_ids: list[str]
+    contractor_ids: list[str]
+    structures: list[_ProjectStructure]
+
+
+@dataclass(frozen=True)
+class _RevenueRows:
+    """A revenue table's documents plus their line items, ready for executemany."""
+
+    documents: list[dict]
+    line_items: list[dict]
+
+
+def _seed_date(sequence: int) -> date:
+    """Spread seeded rows across _SEED_MONTHS so the margin trend gets real buckets."""
+    return date(_SEED_YEAR, _SEED_MONTHS[sequence % len(_SEED_MONTHS)], _SEED_DAY_OF_MONTH)
+
+
+def _seed_datetime(sequence: int) -> datetime:
+    """Timezone-aware UTC instant on the same month spread as _seed_date."""
+    day = _seed_date(sequence)
+    return datetime(day.year, day.month, day.day, _SEED_HOUR_OF_DAY, tzinfo=UTC)
+
+
+def _project_budget_total(project_index: int) -> str:
+    """Budget total that puts the nth seeded project in its attention tier."""
+    if project_index == _OVERRUN_PROJECT_INDEX:
+        return _OVERRUN_BUDGET_TOTAL
+    if project_index == _WARNING_PROJECT_INDEX:
+        return _WARNING_BUDGET_TOTAL
+    return _HEALTHY_BUDGET_TOTAL
+
+
+def _cost_entry_anchor(
+    structure: _ProjectStructure, sequence: int
+) -> tuple[str | None, str | None]:
+    """(job_id, trade_scope_id) for the nth cost entry — the first half sit on jobs."""
+    if sequence < _JOB_ANCHORED_COST_ENTRIES_PER_PROJECT:
+        return structure.job_ids[sequence % _JOBS_PER_PROJECT], None
+    return None, structure.scope_ids[sequence % _SCOPES_PER_PROJECT]
+
+
+def _cost_entry_rows(seed: _PortfolioSeed) -> list[dict]:
+    """Half job-anchored, half scope-anchored cost entries spread over _SEED_MONTHS."""
+    rows: list[dict] = []
+    for structure in seed.structures:
+        for sequence in range(_COST_ENTRIES_PER_PROJECT):
+            job_id, trade_scope_id = _cost_entry_anchor(structure, sequence)
+            rows.append(
+                {
+                    "company_id": seed.company_id,
+                    "job_id": job_id,
+                    "trade_scope_id": trade_scope_id,
+                    "category_id": seed.category_ids[sequence % len(seed.category_ids)],
+                    "amount": _COST_ENTRY_AMOUNT,
+                    "incurred_date": _seed_date(sequence),
+                }
+            )
+    return rows
+
+
+def _time_entry_rows(seed: _PortfolioSeed) -> list[dict]:
+    """_TIME_ENTRIES_PER_JOB completed sessions per job, alternating rated contractors."""
+    rows: list[dict] = []
+    for structure in seed.structures:
+        for job_index, job_id in enumerate(structure.job_ids):
+            for sequence in range(_TIME_ENTRIES_PER_JOB):
+                clocked_in_at = _seed_datetime(sequence)
+                contractor_index = (job_index + sequence) % len(seed.contractor_ids)
+                rows.append(
+                    {
+                        "company_id": seed.company_id,
+                        "job_id": job_id,
+                        "contractor_id": seed.contractor_ids[contractor_index],
+                        "clocked_in_at": clocked_in_at,
+                        "clocked_out_at": clocked_in_at + timedelta(hours=_HOURS_PER_TIME_ENTRY),
+                        "duration_seconds": _HOURS_PER_TIME_ENTRY * _SECONDS_PER_HOUR,
+                    }
+                )
+    return rows
+
+
+def _revenue_anchors(
+    structure: _ProjectStructure, anchor_index: int
+) -> list[tuple[str | None, str | None]]:
+    """One job anchor and one trade-scope anchor for a project's revenue documents."""
+    return [
+        (structure.job_ids[anchor_index], None),
+        (None, structure.scope_ids[anchor_index]),
+    ]
+
+
+def _line_item_row(seed: _PortfolioSeed, document_id: str, unit_price: Decimal) -> dict:
+    """The single material line carrying a seeded document's whole amount."""
+    return {
+        "company_id": seed.company_id,
+        "document_id": document_id,
+        "unit_price": unit_price,
+    }
+
+
+def _invoice_rows(seed: _PortfolioSeed) -> _RevenueRows:
+    """One job-anchored and one scope-anchored invoice per project, issued in range."""
+    rows = _RevenueRows(documents=[], line_items=[])
+    for structure in seed.structures:
+        for job_id, trade_scope_id in _revenue_anchors(structure, _INVOICE_ANCHOR_INDEX):
+            sequence = len(rows.documents)
+            document_id = str(uuid4())
+            rows.documents.append(
+                {
+                    "id": document_id,
+                    "company_id": seed.company_id,
+                    "job_id": job_id,
+                    "trade_scope_id": trade_scope_id,
+                    "invoice_number": f"INV-P35-{sequence:05d}",
+                    "issued_at": _seed_datetime(sequence),
+                }
+            )
+            rows.line_items.append(_line_item_row(seed, document_id, _SEED_INVOICE_AMOUNT))
+    return rows
+
+
+def _quote_rows(seed: _PortfolioSeed) -> _RevenueRows:
+    """One job-anchored and one scope-anchored approved quote per project, dated in range."""
+    rows = _RevenueRows(documents=[], line_items=[])
+    for structure in seed.structures:
+        for job_id, trade_scope_id in _revenue_anchors(structure, _QUOTE_ANCHOR_INDEX):
+            sequence = len(rows.documents)
+            document_id = str(uuid4())
+            rows.documents.append(
+                {
+                    "id": document_id,
+                    "company_id": seed.company_id,
+                    "job_id": job_id,
+                    "trade_scope_id": trade_scope_id,
+                    "approved_at": _seed_datetime(sequence),
+                }
+            )
+            rows.line_items.append(_line_item_row(seed, document_id, _SEED_QUOTE_AMOUNT))
+    return rows
+
+
+async def _bulk_insert_portfolio_rows(seed: _PortfolioSeed) -> None:
+    """Insert the portfolio's money and time rows — one multi-row statement per table."""
+    invoices = _invoice_rows(seed)
+    quotes = _quote_rows(seed)
+    batches = (
+        (_COST_ENTRY_BULK_SQL, _cost_entry_rows(seed)),
+        (_TIME_ENTRY_SEED_SQL, _time_entry_rows(seed)),
+        (_INVOICE_BULK_SQL, invoices.documents),
+        (_INVOICE_LINE_ITEM_BULK_SQL, invoices.line_items),
+        (_QUOTE_BULK_SQL, quotes.documents),
+        (_QUOTE_LINE_ITEM_BULK_SQL, quotes.line_items),
+    )
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{seed.company_id}'"))
+        for statement, rows in batches:
+            await session.execute(text(statement), rows)
+        await session.commit()
+
+
+async def _seed_rated_contractors(client: AsyncClient, headers: dict) -> list[str]:
+    """Create the portfolio's contractors, each rated from before every seeded work day."""
+    contractor_ids: list[str] = []
+    for _ in range(_CONTRACTORS_PER_COMPANY):
+        email = f"portfolio-{uuid4().hex}@{_CONTRACTOR_EMAIL_DOMAIN}"
+        contractor_id = await _create_user(client, email)
+        await _post_rate(client, headers, contractor_id, _SEED_HOURLY_COST, _RATE_EFFECTIVE_FROM)
+        contractor_ids.append(contractor_id)
+    return contractor_ids
+
+
+async def _seed_project_structure(
+    client: AsyncClient, headers: dict, project_index: int
+) -> _ProjectStructure:
+    """Create one project's scopes, jobs and budgets through the shipped endpoints."""
+    project_id = await _create_project(client, name=f"Portfolio Project {project_index}")
+    scope_ids = [
+        await _create_trade_scope(client, project_id, trade_name=trade_name)
+        for trade_name in _TRADE_NAMES
+    ]
+    job_ids = [await _create_job(client, project_id) for _ in range(_JOBS_PER_PROJECT)]
+    await _create_budget(
+        client, headers, project_id=project_id, total=_project_budget_total(project_index)
+    )
+    for scope_id in scope_ids:
+        await _create_budget(client, headers, trade_scope_id=scope_id, total=_SCOPE_BUDGET_TOTAL)
+    return _ProjectStructure(project_id=project_id, scope_ids=scope_ids, job_ids=job_ids)
+
+
+async def _seed_company_portfolio(
+    client: AsyncClient, headers: dict, company_id: str, *, project_count: int
+) -> list[str]:
+    """Seed `project_count` fully-populated projects and return their ids.
+
+    Per project: 4 trade scopes, 2 jobs, 20 cost entries, 50 completed time
+    entries, 2 invoices, 2 approved quotes, 1 project budget, 4 scope budgets
+    (~2,250 rows at project_count=25 — the D-03 measurement scale).
+
+    Structure rows (projects/scopes/jobs/budgets) go through the shipped
+    endpoints so real validation runs; the high-volume money/time rows are
+    bulk-inserted with one multi-row statement per table because ~2,000
+    sequential HTTP calls would dominate the very latency this seeds for.
+
+    `client` carries the tenant's own auth for the structure endpoints;
+    `headers` carries a finance.* holder's token and overrides it per request
+    on the finance-gated ones.
+    """
+    await _seed_cost_categories(company_id)
+    seed = _PortfolioSeed(
+        company_id=company_id,
+        category_ids=[await _category_id(company_id, name) for name in _SEEDED_CATEGORY_NAMES],
+        contractor_ids=await _seed_rated_contractors(client, headers),
+        structures=[
+            await _seed_project_structure(client, headers, project_index)
+            for project_index in range(project_count)
+        ],
+    )
+    await _bulk_insert_portfolio_rows(seed)
+    return [structure.project_id for structure in seed.structures]
+
+
+# ---------------------------------------------------------------------------
 # Harness self-tests — the helpers are proven against SHIPPED endpoints before
 # any Phase 35 endpoint exists
 # ---------------------------------------------------------------------------
+
+_SMOKE_PROJECT_COUNT = 2
 
 
 @pytest.mark.asyncio
@@ -460,3 +782,53 @@ async def test_undated_approved_quote_keeps_a_null_approved_at(tenant_a_client, 
 
     assert status == "approved"
     assert approved_at is None
+
+
+@pytest.mark.asyncio
+async def test_seed_company_portfolio_matches_shipped_project_rollup(
+    tenant_a_client, seed_two_tenants
+):
+    """The portfolio seeder's figures are confirmed by the SHIPPED project rollup.
+
+    This is what makes a scaffolding-only plan verifiable: none of the three
+    Phase 35 endpoints exist yet, so the seeder is proven against Phase 32/33/34
+    output instead.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+
+    project_ids = await _seed_company_portfolio(
+        tenant_a_client, headers, company_id, project_count=_SMOKE_PROJECT_COUNT
+    )
+    body = await _project_rollup(tenant_a_client, headers, project_ids[_OVERRUN_PROJECT_INDEX])
+
+    assert len(body["entries"]) == _COST_ENTRIES_PER_PROJECT
+    assert Decimal(body["grand_total"]) > Decimal(body["total"])
+    assert Decimal(body["budget"]["total"]) == Decimal(
+        _project_budget_total(_OVERRUN_PROJECT_INDEX)
+    )
+    assert body["margin"]["revenue"] is not None
+    assert body["margin"]["revenue_basis"] in {"invoiced", "mixed"}
+
+
+@pytest.mark.asyncio
+async def test_seed_company_portfolio_is_tenant_isolated(
+    tenant_a_client, tenant_b_client, seed_two_tenants
+):
+    """A portfolio seeded into tenant A is invisible to tenant B (RLS)."""
+    tenant_a_id = seed_two_tenants["tenant_a_id"]
+    tenant_b_id = seed_two_tenants["tenant_b_id"]
+
+    tenant_a_projects = await _seed_company_portfolio(
+        tenant_a_client, _pm_headers(tenant_a_id), tenant_a_id, project_count=1
+    )
+    await _seed_company_portfolio(
+        tenant_b_client, _pm_headers(tenant_b_id), tenant_b_id, project_count=1
+    )
+
+    resp = await tenant_b_client.get(_PROJECTS_URL)
+    assert resp.status_code == 200, resp.text
+
+    visible_project_ids = {project["id"] for project in resp.json()}
+    assert visible_project_ids
+    assert tenant_a_projects[0] not in visible_project_ids
