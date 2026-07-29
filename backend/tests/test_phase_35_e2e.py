@@ -18,6 +18,8 @@ so later Phase 35 plans reuse them as-is. Two deliberate exceptions:
 
 import contextlib
 import itertools
+import statistics
+import time
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -2013,4 +2015,64 @@ async def test_company_rollup_query_count_is_constant_in_project_count(
     assert len(small_statements) <= _MAX_COMPANY_ROLLUP_STATEMENTS, (
         f"company rollup issued {len(small_statements)} statements, above the pinned ceiling of "
         f"{_MAX_COMPANY_ROLLUP_STATEMENTS} — the batching has grown while staying equal"
+    )
+
+
+_MS_PER_SECOND = 1000
+_LATENCY_SAMPLE_COUNT = 5
+
+# The committed D-03 ceiling for the 25-project rollup's median latency. The
+# endpoint is a constant ~10-query read whose cost is dominated by Python
+# Decimal aggregation over ~5,000 rows, so a reintroduced per-project loop of
+# 25 x 7 round trips blows straight through this. Measured medians on
+# 2026-07-28 across three runs: 127 ms idle, 199 ms and 252 ms under concurrent
+# machine load. The ceiling is ~2x the middle reading — tight enough to keep
+# teeth, loose enough that ordinary load on shared hardware cannot redden an
+# unrelated build. Raise it only alongside a new recorded measurement.
+_COMPANY_ROLLUP_LATENCY_BUDGET_MS = 400
+
+_LATENCY_BUDGET_EXCEEDED = (
+    "D-03: the measured median exceeds the committed budget — per 35-CONTEXT D-03 the "
+    "cache/snapshot decision reopens as a follow-up; do NOT add caching inside this phase."
+)
+
+
+async def _rollup_latencies_ms(client: AsyncClient, headers: dict) -> list[float]:
+    """Milliseconds each of _LATENCY_SAMPLE_COUNT rollups took, after a discarded warm-up.
+
+    The warm-up request is timed by nobody: its cost includes connection
+    checkout and first-use statement preparation, which would skew a five-sample
+    median far more than they represent steady-state behaviour.
+    """
+    await _company_financials(client, headers)
+    durations_ms: list[float] = []
+    for _ in range(_LATENCY_SAMPLE_COUNT):
+        started_at = time.perf_counter()
+        await _company_financials(client, headers)
+        durations_ms.append((time.perf_counter() - started_at) * _MS_PER_SECOND)
+    return durations_ms
+
+
+@pytest.mark.asyncio
+async def test_company_rollup_latency_budget(tenant_a_client, seed_two_tenants):
+    """D-03's wall-clock half: computed-on-read stays usable at ~5,000 financial rows.
+
+    The median, not the max, is asserted so one scheduler hiccup cannot fail a
+    build. This measurement is in-process ASGI against local Postgres: it is
+    evidence that the rollup does not blow up at this data scale, not a
+    production SLO.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_company_portfolio(
+        tenant_a_client, headers, company_id, project_count=_LARGE_PORTFOLIO_PROJECTS
+    )
+
+    durations_ms = await _rollup_latencies_ms(tenant_a_client, headers)
+    median_ms = statistics.median(durations_ms)
+    print(f"\nD-03 company rollup median: {median_ms:.0f} ms over {len(durations_ms)} samples")
+
+    assert median_ms < _COMPANY_ROLLUP_LATENCY_BUDGET_MS, (
+        f"{_LATENCY_BUDGET_EXCEEDED} Measured median {median_ms:.0f} ms against a committed "
+        f"{_COMPANY_ROLLUP_LATENCY_BUDGET_MS} ms at {_LARGE_PORTFOLIO_PROJECTS} projects."
     )
