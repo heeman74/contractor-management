@@ -15,6 +15,14 @@ from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
+from app.features.finance.labor_derivation import WorkSession
+from app.features.finance.margin_math import (
+    REVENUE_BASIS_INVOICED,
+    REVENUE_BASIS_NONE,
+    REVENUE_BASIS_QUOTED,
+    DocumentAmounts,
+    RevenueAnchor,
+)
 from app.features.finance.trend_math import (
     DEFAULT_TREND_WINDOW,
     TREND_WINDOW_3M,
@@ -28,15 +36,6 @@ from app.features.finance.trend_math import (
     month_key,
     trend_buckets,
     window_slice,
-)
-
-from app.features.finance.labor_derivation import WorkSession
-from app.features.finance.margin_math import (
-    REVENUE_BASIS_INVOICED,
-    REVENUE_BASIS_NONE,
-    REVENUE_BASIS_QUOTED,
-    DocumentAmounts,
-    RevenueAnchor,
 )
 
 CONTRACTOR_ID = uuid.UUID("11111111-1111-1111-1111-111111111111")
