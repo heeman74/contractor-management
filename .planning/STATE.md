@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 36-07-PLAN.md
-last_updated: "2026-07-29T21:58:17.428Z"
+stopped_at: Completed 36-08-PLAN.md
+last_updated: "2026-07-29T22:28:30.671Z"
 last_activity: 2026-07-29
 progress:
   total_phases: 22
   completed_phases: 18
   total_plans: 115
-  completed_plans: 109
+  completed_plans: 110
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 36 (ai-profitability-analysis) — EXECUTING
-Plan: 8 of 10
+Plan: 9 of 10
 Status: Ready to execute
 Last activity: 2026-07-29
 
@@ -88,6 +88,7 @@ Last activity: 2026-07-29
 | Phase 36 P05 | 12min | 3 tasks tasks | 5 files files |
 | Phase 36 P06 | 2h 25m | 2 tasks | 5 files |
 | Phase 36 P07 | 26min | 3 tasks tasks | 3 files files |
+| Phase 36 P08 | 26min | 2 tasks tasks | 2 files files |
 
 ## Accumulated Context
 
@@ -320,6 +321,11 @@ Last activity: 2026-07-29
 - [Phase 36]: 36-07: the revenue-bearing zero-cost project is skipped as NO_COST_DATA, not the plan's expected INCOMPLETE_DATA — The shipped D-01 ladder tests cost <= 0 before margin.incomplete, so NO_COST_DATA is the real verdict; the Pitfall-9 property (a fabricated 100% margin never reaches the AI) holds either way and INCOMPLETE_DATA is covered by the unrated-labor test where cost is positive
 - [Phase 36]: 36-07: skip and summary log lines are %-rendered at the call site and asserted through structlog.testing.capture_logs, never caplog — This app binds structlog to the stdlib bridge, which defers %-formatting to the handler: with positional args the values never reach capture_logs, and caplog captures zero records from this configuration at all (verified empirically) — a caplog-based skip-reason assertion would have passed vacuously
 - [Phase 36]: 36-07: test fixtures must PATCH a project to active — POST /api/v1/projects silently ignores a status body — ProjectCreate declares no status field, so every project lands in draft and the pre-existing "status": "active" in the POST body was a no-op; D-01 analyzes active projects only, so without _activate_project every eligibility test would have asserted the draft path
+- [Phase 36]: 36-08: _within_length_contract documents "rejected whole rather than shortened" -- the task's acceptance grep forbids the token "truncate" anywhere in the service, so the plan's own suggested docstring would have failed it — Third occurrence of this trap in Phase 36 (36-03, 36-05): a token-ABSENCE grep and the plan's suggested prose can contradict each other. Meaning preserved, only the greppable token changed.
+- [Phase 36]: 36-08: the service rejects over-length text against profitability_models' MAX_* constants (the DB CHECK source), and a new test pins the prompt module's three copies equal to them — The two literal sets are independent (600/280/280 twice). If the prompt ever advertised a looser bound, every finding written to it would become a silent service-side drop with no failing test.
+- [Phase 36]: 36-08: PublishResult.qualifying_fingerprints is built from EVERY candidate (raised calls, over-length drafts, cap drops included), never from published — D-06 keep-set correctness: built from published, a transient Claude failure would resolve a still-true finding, and the next successful night would insert a fresh unalerted row and alert a condition that never cleared (RESEARCH Pitfall 6).
+- [Phase 36]: 36-08: a confirmed Claude reply with empty text is dropped as malformed, not published -- the prompt reserves empty strings for a dismissal — Empty strings pass grounding (no figures) and pass the length bounds, so without this guard a malformed reply would persist a finding with a blank card and a blank alert body.
+- [Phase 36]: 36-08: cap/length tests hand publish_findings synthetic ProfitabilityCandidates with distinct fingerprints against one seeded project, and the Claude mock answers from payload content rather than call order — The cap and the length rule are orchestration properties, not detection ones; identical fingerprints would upsert onto one open row and make a cap assertion meaningless, and gather_with_concurrency interleaves calls so a positional side_effect list would be flaky. Cap-after-validation is mutation-verified (7 findings and 0 cap logs when the cap is counted before validation).
 
 ### Pending Todos
 
@@ -336,11 +342,11 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 - Phase 34 (v4.0): Overrun-alert projection algorithm (trend/velocity-based vs. static threshold) needs a short design pass during Phase 34 planning — research flags this as unspecified
 - Phase 36 (v4.0): AI cost-data completeness threshold (minimum cost entries / days elapsed before AI analysis runs) needs a product decision during Phase 34/36 planning
 - Phase 35 (v4.0): backend suites run red under parallel agent execution -- conftest.py TRUNCATEs all tables per test, which deadlocks when two pytest processes share contractorhub_test. A deadlock inside seed_two_tenants is contention, not a regression. Consider per-worker test databases if parallel execution stays routine.
-- Phase 36: tests/unit/test_finance_scrub.py::test_financial_alert_types_are_the_budget_types is RED since 36-01 registered ai_profitability -- the assertion is an exact frozenset equality against the two budget types. Not a 36-03 regression; see the phase deferred-items.md. Whichever plan next touches the alert-delivery path should relax it to a superset check.
+- ~~Phase 36: tests/unit/test_finance_scrub.py::test_financial_alert_types_are_the_budget_types RED since 36-01~~ RESOLVED in bb3a151 (relaxed to a subset check); re-verified green during 36-08 (tests/unit: 229 passed).
 - Phase 36: web full-suite runs (npm run test-e2e, 175 tests, default workers, one dev server, backend agent running concurrently) are not a trustworthy gate -- four runs returned 16/4/7/24 failures with a shifting set. At --workers=2 --retries=1: 173 passed, 2 failed, 0 flaky. Later web plans should gate on --workers=2. The 2 failures are the pre-existing Phase 21 URL-shape drift already logged in Phase 35's deferred-items.md.
 
 ## Session Continuity
 
-Last session: 2026-07-29T21:57:52.420Z
-Stopped at: Completed 36-07-PLAN.md
+Last session: 2026-07-29T22:27:58.463Z
+Stopped at: Completed 36-08-PLAN.md
 Resume file: None
