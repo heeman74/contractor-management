@@ -89,7 +89,7 @@ Each missing test file is CREATED by the plan/task that owns its first row — t
 no separate scaffolding wave, because every owning task is TDD-shaped and its
 `<verify>` runs the file it writes.
 
-- [ ] `backend/tests/test_phase_36_e2e.py` — created by **36-01 T3** (harness + helpers + schema tests); extended by 36-07 T3, 36-08 T1/T2, 36-09 T1/T2, 36-10 T1/T2/T3
+- [ ] `backend/tests/test_phase_36_e2e.py` — created by **36-01 T2** (harness + helpers + the three repository tests, RED before the repository exists); extended by 36-01 T3 (schema tests), 36-07 T3, 36-08 T1/T2, 36-09 T1/T2, 36-10 T1/T2/T3
 - [ ] `backend/tests/unit/test_profitability_math.py` — created by **36-03 T1**; extended by 36-03 T2/T3
 - [ ] `backend/tests/unit/test_ai_grounding.py` — created by **36-05 T1**; extended by 36-05 T2
 - [ ] `web/src/features/finance/__tests__/financials-hooks.test.tsx` — extended by **36-02 T3** (file already ships)
