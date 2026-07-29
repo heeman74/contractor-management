@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 36-06-PLAN.md
-last_updated: "2026-07-29T21:34:46.408Z"
+stopped_at: Completed 36-07-PLAN.md
+last_updated: "2026-07-29T21:58:17.428Z"
 last_activity: 2026-07-29
 progress:
   total_phases: 22
   completed_phases: 18
   total_plans: 115
-  completed_plans: 108
+  completed_plans: 109
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 36 (ai-profitability-analysis) — EXECUTING
-Plan: 7 of 10
+Plan: 8 of 10
 Status: Ready to execute
 Last activity: 2026-07-29
 
@@ -87,6 +87,7 @@ Last activity: 2026-07-29
 | Phase 36 P03 | 15min | 3 tasks tasks | 3 files files |
 | Phase 36 P05 | 12min | 3 tasks tasks | 5 files files |
 | Phase 36 P06 | 2h 25m | 2 tasks | 5 files |
+| Phase 36 P07 | 26min | 3 tasks tasks | 3 files files |
 
 ## Accumulated Context
 
@@ -315,6 +316,10 @@ Last activity: 2026-07-29
 - [Phase 36]: 36-06: the SC2 Playwright keystone asserts the deny panel AND a zero-request counter on /financials/finding in two auth states (logged-in with permissions resolved, and cold load) -- a non-finance user has no SPA route into the drill-down because the sidebar item is itself gated — Break-it-once verified: deleting FinanceGate fails the panel half; with the gate gone, weakening the hook's enabled to !!projectId fires one request to /financials/finding and fails the counter half. The gate short-circuits the mount, so the request half is only observable once the render half is already broken -- that is what makes it a second independent lock, and the spec says so in-file. The proof that enabled alone holds lives in the 36-02 hook test.
 - [Phase 36]: 36-06: mapProfitabilityFinding validates severity through the shipped toKnownValue instead of casting it, backed by a new FINDING_SEVERITIES const — An unknown band indexed the card's SEVERITY_CHIP map with undefined and threw at render, replacing the entire /financials/[projectId] page with the error boundary -- two shipped Phase 35 tests were red on it. Validating at the boundary turns a malformed payload into the finding query's own error, so the card shows its scoped error line and the money dashboard still renders (state 19).
 - [Phase 36]: 36-06: the Phase 35 spec gained an explicit finding-route branch returning null rather than having its assertions relaxed — 36-04 added a third drill-down query that Phase 35's shell-chatter fallback answered with [], which is not a finding shape; after the boundary fix it errored and retried mid-test, breaking the trend window's exactly-one-refetch assertion (reproduced 3/3 with --repeat-each=3). A mock needs a real body for every route a new query introduces.
+- [Phase 36]: 36-07: _build_payload consumes a PayloadInputs dataclass carrying the batched ProjectCostBlocks, never the plan's ProjectCostRollup — A real rollup means FinanceService.rollup_for_project per project — the per-project rollup loop this plan's own key_links forbid — and it carries raw CostEntry rows the payload must never see; portfolio_service.project_cost_blocks supplies the category mix and folded labor row from the one batched company read instead
+- [Phase 36]: 36-07: the revenue-bearing zero-cost project is skipped as NO_COST_DATA, not the plan's expected INCOMPLETE_DATA — The shipped D-01 ladder tests cost <= 0 before margin.incomplete, so NO_COST_DATA is the real verdict; the Pitfall-9 property (a fabricated 100% margin never reaches the AI) holds either way and INCOMPLETE_DATA is covered by the unrated-labor test where cost is positive
+- [Phase 36]: 36-07: skip and summary log lines are %-rendered at the call site and asserted through structlog.testing.capture_logs, never caplog — This app binds structlog to the stdlib bridge, which defers %-formatting to the handler: with positional args the values never reach capture_logs, and caplog captures zero records from this configuration at all (verified empirically) — a caplog-based skip-reason assertion would have passed vacuously
+- [Phase 36]: 36-07: test fixtures must PATCH a project to active — POST /api/v1/projects silently ignores a status body — ProjectCreate declares no status field, so every project lands in draft and the pre-existing "status": "active" in the POST body was a no-op; D-01 analyzes active projects only, so without _activate_project every eligibility test would have asserted the draft path
 
 ### Pending Todos
 
@@ -336,6 +341,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-29T21:34:37.049Z
-Stopped at: Completed 36-06-PLAN.md
+Last session: 2026-07-29T21:57:52.420Z
+Stopped at: Completed 36-07-PLAN.md
 Resume file: None
