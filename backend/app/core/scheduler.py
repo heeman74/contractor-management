@@ -1,9 +1,10 @@
 """APScheduler setup with FastAPI lifespan integration.
 
-Three cron jobs:
+Four cron jobs:
 1. run_budget_sweep — 05:00 UTC daily, evaluates every active budget's alert thresholds
 2. run_morning_checklists — 06:00 UTC daily, generates AI daily checklists per contractor
-3. run_alert_detection — every hour 07:00–19:00 UTC, detects schedule slips and generates alerts
+3. run_ai_profitability_analysis — 06:30 UTC daily, AI profitability findings per company
+4. run_alert_detection — every hour 07:00–19:00 UTC, detects schedule slips and generates alerts
 
 All jobs iterate over all active companies, creating their own DB sessions per company.
 Errors per company are logged and execution continues to the next company.
@@ -36,9 +37,19 @@ ALERT_DETECTION_HOURS_UTC = "7-19"
 # 05:00 UTC — before the 06:00 checklists, so budget alerts are already waiting
 # when owners open the app for the day.
 BUDGET_SWEEP_HOUR_UTC = 5
+# 06:30 UTC — after the 05:00 budget sweep, so the budget figures the AI payload
+# carries are current, and offset from the 06:00 checklist burst so the two AI
+# jobs never overlap. _run_for_all_companies holds its semaphore ACROSS companies
+# while the publish step opens its own bounded fan-out WITHIN each company, so
+# either AI job alone can reach the product of the two limits in flight; an
+# overlapping run would stack on top of that. The offset keeps them disjoint
+# rather than relying on a shared cap. Still before the 07:00 alert tick.
+AI_PROFITABILITY_HOUR_UTC = 6
+AI_PROFITABILITY_MINUTE_UTC = 30
 CHECKLIST_MISFIRE_GRACE_SECONDS = 3600
 ALERT_MISFIRE_GRACE_SECONDS = 600
 BUDGET_SWEEP_MISFIRE_GRACE_SECONDS = 3600
+AI_PROFITABILITY_MISFIRE_GRACE_SECONDS = 3600
 
 
 async def _run_for_all_companies(
@@ -141,6 +152,23 @@ async def run_budget_sweep() -> None:
     )
 
 
+async def run_ai_profitability_analysis() -> None:
+    """Cron job: nightly AI profitability analysis for all companies (FINAI-01).
+
+    Called at 06:30 UTC daily. Idempotent — the fingerprint upsert plus the
+    claim-first alert mean a re-run creates no duplicate finding and no duplicate
+    alert.
+    """
+    from app.features.finance.profitability_service import ProfitabilityService
+
+    await _run_for_all_companies(
+        job_name="run_ai_profitability_analysis",
+        service_class=ProfitabilityService,
+        method_name="analyze_company",
+        target_date=datetime.now(UTC).date(),
+    )
+
+
 def _register_jobs(target_scheduler: AsyncIOScheduler) -> None:
     """Register every cron job on a scheduler — testable without starting the app."""
     target_scheduler.add_job(
@@ -165,6 +193,14 @@ def _register_jobs(target_scheduler: AsyncIOScheduler) -> None:
         id="budget_sweep",
         replace_existing=True,
         misfire_grace_time=BUDGET_SWEEP_MISFIRE_GRACE_SECONDS,
+    )
+
+    target_scheduler.add_job(
+        run_ai_profitability_analysis,
+        trigger=CronTrigger(hour=AI_PROFITABILITY_HOUR_UTC, minute=AI_PROFITABILITY_MINUTE_UTC),
+        id="ai_profitability_analysis",
+        replace_existing=True,
+        misfire_grace_time=AI_PROFITABILITY_MISFIRE_GRACE_SECONDS,
     )
 
 
