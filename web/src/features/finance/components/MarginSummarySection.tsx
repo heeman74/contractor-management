@@ -9,10 +9,10 @@ const REVENUE_LABEL = "Revenue";
 const MARGIN_LABEL = "Margin";
 const QUOTED_BASIS_CAPTION = "Based on approved quote — not yet invoiced.";
 const MIXED_BASIS_CAPTION = "Includes approved quote amounts not yet invoiced.";
-const INCOMPLETE_CHIP_LABEL = "Incomplete cost data";
-const INCOMPLETE_CAPTION =
+export const INCOMPLETE_CHIP_LABEL = "Incomplete cost data"; // exported: the Phase 35 dashboard reuses these three strings byte-for-byte, so one condition can never carry two names across finance surfaces
+export const INCOMPLETE_CAPTION =
   "Margin may overstate profit — some costs are missing or unrated.";
-const NO_REVENUE_NOTE =
+export const NO_REVENUE_NOTE =
   "No revenue recorded — margin will appear once an invoice or approved quote exists.";
 const FIGURE_SEPARATOR = " · ";
 const CAPTION_CLASS = "text-xs text-gray-500";

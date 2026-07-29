@@ -24,6 +24,7 @@ import {
   Smartphone,
   ShieldCheck,
   FileSignature,
+  Wallet,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
@@ -84,6 +85,7 @@ const navItems: NavItem[] = [
     roles: ["contractor", "foreman"],
   },
   { label: "Reports", href: "/reports", icon: BarChart3 },
+  { label: "Financials", href: "/financials", icon: Wallet, permission: "finance.view" },
   // Access control — only visible to roles that can edit permissions
   {
     label: "Roles & Permissions",
