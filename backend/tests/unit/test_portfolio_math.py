@@ -14,6 +14,16 @@ import uuid
 from dataclasses import dataclass, fields, replace
 from decimal import Decimal
 
+from app.features.finance.margin_math import (
+    INCOMPLETE_NO_COST_DATA,
+    INCOMPLETE_UNRATED_LABOR,
+    REVENUE_BASIS_INVOICED,
+    REVENUE_BASIS_MIXED,
+    REVENUE_BASIS_NONE,
+    REVENUE_BASIS_QUOTED,
+    MarginFigures,
+    ResolvedRevenue,
+)
 from app.features.finance.portfolio_math import (
     ATTENTION_TIER_INCOMPLETE,
     ATTENTION_TIER_OVERRUN,
@@ -25,17 +35,6 @@ from app.features.finance.portfolio_math import (
     attention_entry_for,
     portfolio_totals,
     worst_crossed_budget,
-)
-
-from app.features.finance.margin_math import (
-    INCOMPLETE_NO_COST_DATA,
-    INCOMPLETE_UNRATED_LABOR,
-    REVENUE_BASIS_INVOICED,
-    REVENUE_BASIS_MIXED,
-    REVENUE_BASIS_NONE,
-    REVENUE_BASIS_QUOTED,
-    MarginFigures,
-    ResolvedRevenue,
 )
 
 PROJECT_STATUS_ACTIVE = "active"
