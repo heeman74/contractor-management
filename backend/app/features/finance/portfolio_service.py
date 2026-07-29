@@ -213,7 +213,7 @@ def _anchor_costs(rows: Sequence[Row]) -> dict[RevenueAnchor, Decimal]:
     return costs
 
 
-def _margin_context(project_id: uuid.UUID, inputs: PortfolioInputs) -> ProjectMarginContext:
+def margin_context(project_id: uuid.UUID, inputs: PortfolioInputs) -> ProjectMarginContext:
     """The cost half of one project's figures, through the shipped breakdown assembly."""
     rows = inputs.category_rows.get(project_id, [])
     sessions = inputs.sessions.get(project_id, [])
@@ -294,7 +294,7 @@ def _anchored_budgets(project: Row, spent: Decimal, budgets: BudgetInputs) -> li
 
 def _project_figures(project: Row, inputs: PortfolioInputs) -> ProjectFinancialFigures:
     """One project's whole financial block, assembled from already-fetched data."""
-    context = _margin_context(project.id, inputs)
+    context = margin_context(project.id, inputs)
     revenue = _project_revenue(project.id, context, inputs)
     return ProjectFinancialFigures(
         project_id=project.id,
@@ -419,10 +419,32 @@ class PortfolioService(TenantScopedService[Project]):
     repository_class = PortfolioRepository
     repository: PortfolioRepository
 
+    async def all_project_figures(
+        self,
+    ) -> tuple[list[ProjectFinancialFigures], PortfolioInputs]:
+        """Every project's shipped financial block plus the batched rows behind it.
+
+        One company-wide read whose statement count is constant in project count
+        (pinned by test_company_rollup_query_count_is_constant_in_project_count).
+        The inputs travel with the figures because the D-03 quote-implied signal
+        needs the raw per-anchor invoice and quote rows the figures already
+        summarized.
+        """
+        inputs = await self._fetch_portfolio_inputs()
+        return [_project_figures(project, inputs) for project in inputs.projects], inputs
+
+    async def unsliced_trend_buckets(self, project_id: uuid.UUID) -> list[TrendBucket]:
+        """The full cumulative bucket list, before any UI window slice.
+
+        D-03 signal 1 must never be able to change with a window setting. Six
+        bounded queries — the same profile as the shipped project rollup — then a
+        pure Python replay in trend_math.
+        """
+        return trend_buckets(await self._trend_inputs(project_id))
+
     async def company_financials(self) -> CompanyFinancialsResponse:
         """Portfolio totals, every project's figures, and the ordered attention list."""
-        inputs = await self._fetch_portfolio_inputs()
-        figures = [_project_figures(project, inputs) for project in inputs.projects]
+        figures, inputs = await self.all_project_figures()
         return CompanyFinancialsResponse(
             portfolio=_to_portfolio_totals(portfolio_totals(figures)),
             projects=[_to_project_row(project, inputs.budgets) for project in figures],
@@ -460,16 +482,14 @@ class PortfolioService(TenantScopedService[Project]):
     async def margin_trend(self, project_id: uuid.UUID, window: str) -> MarginTrendResponse:
         """Monthly cumulative margin for one project (MARG-04, D-01/D-02).
 
-        Six bounded queries — the same profile as the shipped project rollup —
-        then a pure Python replay in trend_math. Nothing is bucketed in SQL
+        Buckets come from `unsliced_trend_buckets`, so the window slices the
+        produced BUCKETS rather than the records: a month shared by two windows
+        carries identical figures (Pitfall 2). Nothing is bucketed in SQL,
         because the effective-dated rate rule lives in exactly one place
         (labor_derivation) and must never be duplicated in a query (Phase 32).
-
-        The window slices the produced BUCKETS; every record is always read, so
-        a month shared by two windows carries identical figures (Pitfall 2).
         """
         active_entity_or_404(await self.repository.project_header(project_id), _PROJECT_NOT_FOUND)
-        buckets = trend_buckets(await self._trend_inputs(project_id))
+        buckets = await self.unsliced_trend_buckets(project_id)
         return _to_trend_response(project_id, window, window_slice(buckets, window))
 
     async def _trend_inputs(self, project_id: uuid.UUID) -> TrendInputs:
