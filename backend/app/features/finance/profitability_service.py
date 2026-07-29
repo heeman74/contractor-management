@@ -25,6 +25,7 @@ No method here commits — on the scheduler path only `_run_for_all_companies` d
 
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from collections.abc import Mapping, Sequence
@@ -135,6 +136,13 @@ PUSH_TITLE_BY_BAND: dict[str, str] = {
 }
 """One name per band. The chip label, the push title and the alert severity all
 read from here, because the same condition must never carry two names."""
+
+_PROFITABILITY_PUSH_TYPE = "ai_profitability_finding"
+_FINANCE_VIEW_PERMISSION = "finance.view"
+
+_PROFITABILITY_PUSH_TASKS: set[asyncio.Task[None]] = set()
+"""Module-level registry keeping fire-and-forget push tasks alive until they
+finish — asyncio holds only weak references to running tasks."""
 
 type SkippedProject = tuple[uuid.UUID, SkipReason]
 type PayloadRow = dict[str, object]
@@ -273,7 +281,9 @@ class ProfitabilityService(TenantScopedService[AIProfitabilityFinding]):
         # unalerted row, claim it, and fire a SECOND alert for a condition that
         # never cleared (D-06, RESEARCH Pitfall 6).
         await self.repository.resolve_absent_fingerprints(result.qualifying_fingerprints)
-        await self._fire_findings(result.published, company_id)
+        fired = await self._fire_findings(result.published, company_id)
+        if fired:
+            self._schedule_profitability_pushes(fired, await self._recipients_for(company_id))
 
     async def _fire_findings(
         self, published: Sequence[PublishedFinding], company_id: uuid.UUID
@@ -308,8 +318,65 @@ class ProfitabilityService(TenantScopedService[AIProfitabilityFinding]):
             project_id=published.project_id,
             severity=published.severity_band,
             title=PUSH_TITLE_BY_BAND[published.severity_band],
-            body=alert.impact_text,
+            body=alert.impact_text,  # UI-SPEC: the push body is byte-identical to impact_text
         )
+
+    async def _recipients_for(self, company_id: uuid.UUID) -> list[uuid.UUID]:
+        """finance.view holders per the LIVE permission matrix, resolved in the
+        current session (RLS + test visibility) before any background task is
+        scheduled (D-07).
+
+        Read from the matrix, never from a hard-coded set of role names: FINSEC-02
+        lets a company move finance visibility onto any role, and the push has to
+        follow that with no code change.
+        """
+        from app.features.rbac.repository import RbacRepository
+
+        return await RbacRepository(self.db).user_ids_with_permission(
+            company_id, _FINANCE_VIEW_PERMISSION
+        )
+
+    @staticmethod
+    def _schedule_profitability_pushes(
+        fired: list[FiredFinding], recipient_ids: list[uuid.UUID]
+    ) -> None:
+        """Fire-and-forget one FCM push per newly alerted finding (checklists pattern)."""
+        for finding in fired:
+            task = asyncio.create_task(
+                ProfitabilityService._send_profitability_push_safe(
+                    company_id=finding.company_id,
+                    recipient_ids=recipient_ids,
+                    title=finding.title,
+                    body=finding.body,
+                    data=_push_data(finding),
+                )
+            )
+            _PROFITABILITY_PUSH_TASKS.add(task)
+            task.add_done_callback(_PROFITABILITY_PUSH_TASKS.discard)
+
+    @staticmethod
+    async def _send_profitability_push_safe(
+        company_id: uuid.UUID,
+        recipient_ids: list[uuid.UUID],
+        title: str,
+        body: str,
+        data: dict[str, str],
+    ) -> None:
+        """Send one finding push in its OWN session — the request session is closed
+        by the time this task runs (RESEARCH Pitfall 3). Never raises."""
+        try:
+            from app.core.database import async_session_factory
+            from app.core.tenant import set_current_tenant_id
+            from app.features.notifications.service import NotificationService
+
+            set_current_tenant_id(company_id)
+            async with async_session_factory() as db:
+                await NotificationService(db).send_profitability_finding_notification(
+                    recipient_ids=recipient_ids, title=title, body=body, data=data
+                )
+                await db.commit()
+        except Exception:
+            logger.exception("ai profitability push failed for company %s — continuing", company_id)
 
     async def scan_candidates(self, company_id: uuid.UUID) -> list[ProfitabilityCandidate]:
         """Every project in this company the AI should write a finding about tonight.
@@ -581,6 +648,22 @@ def _within_length_contract(draft: FindingDraft) -> bool:
         and len(draft.corrective_action) <= MAX_CORRECTIVE_ACTION_LENGTH
         and len(draft.alert_summary) <= MAX_ALERT_SUMMARY_LENGTH
     )
+
+
+def _push_data(fired: FiredFinding) -> dict[str, str]:
+    """FCM data payload for one alerted finding — every value a string (FCM constraint).
+
+    finding_id travels alongside alert_id so a future mobile findings screen can
+    deep-link to the audit trail without a second push contract.
+    """
+    return {
+        "type": _PROFITABILITY_PUSH_TYPE,
+        "alert_type": AI_PROFITABILITY_ALERT_TYPE,
+        "alert_id": str(fired.alert_id),
+        "finding_id": str(fired.finding_id),
+        "project_id": str(fired.project_id),
+        "severity": fired.severity,
+    }
 
 
 def _build_alert(published: PublishedFinding, company_id: uuid.UUID) -> DashboardAlert:

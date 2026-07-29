@@ -337,6 +337,43 @@ class NotificationService(BaseService[DeviceToken]):
         except Exception:
             logger.exception("send_budget_alert_notification failed — continuing")
 
+    async def send_profitability_finding_notification(
+        self,
+        recipient_ids: list[uuid.UUID],
+        title: str,
+        body: str,
+        data: dict[str, str],
+    ) -> None:
+        """Fire-and-forget FCM for one published AI profitability finding (FINAI-02).
+
+        A sibling of send_budget_alert_notification rather than a reuse of it: the
+        method name is what identifies this channel in the logs, and a budget-named
+        line for an AI finding would misreport every push. The real shared surface
+        is _resolve_messaging and _dispatch_to_tokens, which both go through.
+
+        Addressed to finance.view holders resolved by the caller. Skips gracefully
+        without Firebase credentials, logs and returns on empty recipients or
+        tokens, and never raises — a push failure must not break the nightly run.
+        """
+        messaging = self._resolve_messaging("profitability finding notification")
+        if messaging is None:
+            return
+        try:
+            if not recipient_ids:
+                logger.debug("No profitability-finding recipients — skipping push")
+                return
+            tokens = await self.repository.get_tokens_for_users(recipient_ids)
+            if not tokens:
+                logger.debug(
+                    "No device tokens for profitability-finding recipients — skipping push"
+                )
+                return
+            await self._dispatch_to_tokens(
+                tokens, title=title, body=body, data=data, messaging=messaging
+            )
+        except Exception:
+            logger.exception("send_profitability_finding_notification failed — continuing")
+
     async def send_contract_ready_notification(
         self,
         client_user_id: uuid.UUID,
