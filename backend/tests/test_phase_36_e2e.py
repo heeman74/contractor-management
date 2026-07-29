@@ -42,6 +42,7 @@ from app.core.ai_grounding import collect_allowed_values
 from app.core.ai_utils import gather_with_concurrency
 from app.core.database import async_session_factory, engine
 from app.core.security import create_access_token
+from app.features.checklists.service import ChecklistService
 from app.features.dashboard.alert_types import AI_PROFITABILITY_ALERT_TYPE, FINANCIAL_ALERT_TYPES
 from app.features.dashboard.models import DashboardAlert
 from app.features.finance.models import CostCategory
@@ -2529,3 +2530,182 @@ async def test_finding_endpoint_rls_isolation(
     owner = await tenant_a_client.get(_finding_url(project_id), headers=_pm_headers(company_a_id))
     assert owner.status_code == 200, owner.text
     assert owner.json()["narrative"] == finding.narrative
+
+
+# ---------------------------------------------------------------------------
+# SC2 KEYSTONE #3: a non-finance user sees AI findings NOWHERE
+#
+# Registration in FINANCIAL_ALERT_TYPES covers GET /dashboard/alerts and nothing
+# else. Three further surfaces carry the same text: the finding endpoint, the FCM
+# recipient list, and the AI checklist/chat channel (RESEARCH Pitfall 7). A test
+# asserting only the dashboard half would leave those three unproven, so all four
+# live in ONE test — a passing keystone is the claim that the whole posture holds,
+# not that one quarter of it does.
+# ---------------------------------------------------------------------------
+
+_ALERTS_URL = "/api/v1/dashboard/alerts"
+_CHECKLIST_TODAY_URL = "/api/v1/checklists/today"
+_TASKS_URL = "/api/v1/tasks/"
+
+_SEND_CHECKLIST_PUSH_TARGET = (
+    "app.features.notifications.service.NotificationService.send_checklist_notification"
+)
+
+# The field names this phase introduced. finance_scrub's FINANCE_FIELD_NAMES does
+# NOT contain them, so a non-finance AI builder that emitted one would be scrubbed
+# by nothing — which is what makes asserting their absence worth doing.
+_PHASE_36_FIELD_NAMES = ("revenue", "margin_percent", "corrective_action")
+
+_KEYSTONE_TRADE_NAME = "Plumbing"
+_KEYSTONE_TASK_TITLE = "Rough-in supply lines"
+_KEYSTONE_CHECKLIST_REPLY = {
+    "tasks": [
+        {
+            "title": _KEYSTONE_TASK_TITLE,
+            "priority": 1,
+            "estimated_minutes": 45,
+            "materials_needed": ["pipe wrench"],
+            "photo_required": True,
+            "dependency_status": "clear",
+            "notes": "Pressure-test the run before closing the wall.",
+        }
+    ]
+}
+
+
+def _headers_for_user(company_id: str, user_id: str, roles: list[str]) -> dict:
+    """Authorization header bound to a REAL user id, not a synthetic one.
+
+    The generic helpers mint a random subject, which is fine for a role-only gate
+    but useless where identity is the assertion: the checklist endpoint scopes by
+    the caller's user id, and the FCM recipient check names this contractor.
+    """
+    return {
+        "Authorization": f"Bearer {create_access_token(UUID(user_id), UUID(company_id), roles)}"
+    }
+
+
+async def _assign_contractor(client: AsyncClient, scope_id: str, contractor_id: str) -> None:
+    """Assign a contractor to a trade scope so the checklist pipeline includes it."""
+    resp = await client.patch(
+        f"{_TRADE_SCOPES_URL}{scope_id}", json={"contractor_id": contractor_id}
+    )
+    assert resp.status_code == 200, resp.text
+
+
+async def _create_task(client: AsyncClient, scope_id: str, target_date: date) -> str:
+    """Create one open, already-started task — the checklist's eligibility minimum."""
+    resp = await client.post(
+        _TASKS_URL,
+        json={
+            "trade_scope_id": scope_id,
+            "title": _KEYSTONE_TASK_TITLE,
+            "priority": "medium",
+            "start_date": target_date.isoformat(),
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()["id"]
+
+
+async def _alert_types_for(client: AsyncClient, headers: dict, project_id: str) -> set[str]:
+    """The alert types one caller can see on one project."""
+    resp = await client.get(_ALERTS_URL, params={"project_id": project_id}, headers=headers)
+    assert resp.status_code == 200, resp.text
+    return {alert["alert_type"] for alert in resp.json()}
+
+
+async def _generate_checklists(company_id: str, target_date: date) -> list[dict]:
+    """Run the real checklist pipeline with Claude mocked; return the captured calls.
+
+    The captured PROMPT is the load-bearing half of the AI-surface assertion: the
+    reply is authored by this test, so asserting only the response body would
+    mostly re-assert the mock. What the shipped dict-builder puts ON THE WIRE is
+    the part a leak would show up in.
+    """
+    with (
+        _patched_claude(
+            side_effect=[_make_mock_anthropic_response(_KEYSTONE_CHECKLIST_REPLY)]
+        ) as create,
+        patch(_SEND_CHECKLIST_PUSH_TARGET, new_callable=AsyncMock),
+    ):
+        async with async_session_factory() as session:
+            await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+            generated = await ChecklistService(session).generate_daily_checklists(
+                company_id=UUID(company_id), target_date=target_date
+            )
+            await session.commit()
+
+    assert generated >= 1, "the checklist fixture produced no AI call to inspect"
+    return [dict(call.kwargs) for call in create.await_args_list]
+
+
+async def test_non_finance_sees_no_ai_findings_anywhere(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """★ KEYSTONE #3 (SC2): all FOUR leak surfaces, proven in one test.
+
+    1. Dashboard alerts — the contractor's /alerts drops the finding's alert while
+       the same company's PM sees it.
+    2. Endpoint — the contractor is refused the finding outright.
+    3. FCM — the recipient set is a subset of the live finance.view holders and
+       excludes the contractor.
+    4. AI surfaces — the contractor's checklist prompt and body, generated for the
+       very project under analysis, carry no money figure and none of this phase's
+       field names.
+
+    Each half is asserted against a permitted counterpart wherever one exists, so
+    no half can pass because a URL was wrong or a fixture was empty.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    target_date = datetime.now(UTC).date()
+    holders = await _seed_role_holders(tenant_a_client, company_id)
+    project = await _seed_lifecycle_project(tenant_a_client, company_id, name="SC2 Project 36")
+    scope_id = await _create_trade_scope(tenant_a_client, project.project_id, _KEYSTONE_TRADE_NAME)
+    await _assign_contractor(tenant_a_client, scope_id, holders.contractor_id)
+    await _create_task(tenant_a_client, scope_id, target_date)
+
+    contractor_headers = _headers_for_user(company_id, holders.contractor_id, [_CONTRACTOR_ROLE])
+    finance_headers = _headers_for_user(company_id, holders.project_manager_id, ["project_manager"])
+
+    with _patched_profitability_push() as pushes, _patched_claude(side_effect=[_lifecycle_reply()]):
+        await _analyze_company(company_id, target_date)
+        await _flush_background_pushes(pushes)
+
+    # 1. Dashboard alerts
+    assert AI_PROFITABILITY_ALERT_TYPE in await _alert_types_for(
+        tenant_a_client, finance_headers, project.project_id
+    )
+    assert AI_PROFITABILITY_ALERT_TYPE not in await _alert_types_for(
+        tenant_a_client, contractor_headers, project.project_id
+    )
+
+    # 2. The finding endpoint
+    refused = await tenant_a_client.get(
+        _finding_url(project.project_id), headers=contractor_headers
+    )
+    assert refused.status_code == 403, refused.text
+    assert _LIFECYCLE_NARRATIVE not in refused.text
+
+    # 3. FCM recipients
+    assert len(pushes) == 1
+    recipients = {str(user_id) for user_id in pushes[0]["recipient_ids"]}
+    finance_holders = await _finance_view_holders(company_id)
+    assert recipients <= finance_holders
+    assert holders.contractor_id not in recipients
+    assert holders.project_manager_id in recipients
+
+    # 4. The AI checklist surface, for the analyzed project — what the shipped
+    # builder puts ON THE WIRE, plus what the contractor reads back.
+    ai_surfaces = [
+        json.dumps(call, default=str)
+        for call in await _generate_checklists(company_id, target_date)
+    ]
+    checklists = await tenant_a_client.get(_CHECKLIST_TODAY_URL, headers=contractor_headers)
+    assert checklists.status_code == 200, checklists.text
+    assert len(checklists.json()) == 1
+    ai_surfaces.append(checklists.text)
+
+    for surface in ai_surfaces:
+        assert "$" not in surface
+        assert all(name not in surface for name in _PHASE_36_FIELD_NAMES)
