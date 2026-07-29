@@ -2008,7 +2008,9 @@ async def test_transient_claude_failure_does_not_resolve_or_realert(
     with _patched_claude(side_effect=RuntimeError("Anthropic API unavailable")) as create:
         await _analyze_company(company_id, _SECOND_NIGHT)
 
-    assert create.call_count == GROUNDING_RETRY_LIMIT + 1
+    # A raised transport error is not a grounding failure, so it consumes no D-05
+    # retry: the candidate is abandoned on its first and only call.
+    assert create.call_count == 1
     after_failure = await _all_findings(company_id)
     assert len(after_failure) == 1
     assert after_failure[0]["id"] == original["id"]

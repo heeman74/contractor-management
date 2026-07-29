@@ -1,12 +1,13 @@
-"""ProfitabilityService — the nightly AI profitability analysis (FINAI-01).
+"""ProfitabilityService — the nightly AI profitability analysis (FINAI-01/02).
 
-Two halves live here. The read half fetches and gates; it decides nothing about
+Three halves live here. The read half fetches and gates; it decides nothing about
 margin, because detection is deterministic and lives entirely in
 `profitability_math` (D-02), so no threshold, band rule or signal comparison is
 restated here. The publish half calls Claude once per candidate and lets nothing
 reach the database until `validate_grounding` accepts every figure the model wrote
 (D-05, SC3): a finding still citing an unmatched figure after its single retry is
-dropped and logged.
+dropped and logged. The alerting half resolves what stopped qualifying, claims
+each finding's alert exactly once, and pushes to the live finance.view holder set.
 
 Two orderings in `scan_candidates` are load-bearing:
 
@@ -39,6 +40,9 @@ from app.core.ai_utils import (
 )
 from app.core.base_service import TenantScopedService
 from app.core.logging_config import get_logger
+from app.features.dashboard.alert_types import AI_PROFITABILITY_ALERT_TYPE
+from app.features.dashboard.models import DashboardAlert
+from app.features.dashboard.repository import AlertRepository
 from app.features.finance.budget_math import percent_used
 from app.features.finance.labor_derivation import ZERO_MONEY
 from app.features.finance.margin_math import RevenueAnchor, anchor_revenues
@@ -50,6 +54,8 @@ from app.features.finance.portfolio_service import (
     project_cost_blocks,
 )
 from app.features.finance.profitability_math import (
+    SEVERITY_BAND_CRITICAL,
+    SEVERITY_BAND_WARNING,
     CandidateSignal,
     DetectionInputs,
     QuoteGapInputs,
@@ -113,6 +119,22 @@ LABOR_BASIS_UNBURDENED = "unburdened"
 the finding can never present an unburdened figure as a fully loaded one."""
 
 TREND_PAYLOAD_BUCKETS = 2
+
+AI_FINDING_PREFIX = "AI finding — "
+SUGGESTED_ACTION_PREFIX = "Suggested action: "
+"""The two locked UI-SPEC frame strings.
+
+They are the only byte-assertable part of an alert whose body is AI-written, and
+the only place the panel can declare the text's provenance — the finding card's
+disclosure line cannot follow the prose into the alert channel.
+"""
+
+PUSH_TITLE_BY_BAND: dict[str, str] = {
+    SEVERITY_BAND_WARNING: "Margin warning",
+    SEVERITY_BAND_CRITICAL: "Margin critical",
+}
+"""One name per band. The chip label, the push title and the alert severity all
+read from here, because the same condition must never carry two names."""
 
 type SkippedProject = tuple[uuid.UUID, SkipReason]
 type PayloadRow = dict[str, object]
@@ -183,6 +205,24 @@ class PublishResult:
 
 
 @dataclass(frozen=True)
+class FiredFinding:
+    """One finding that just alerted — the hand-off to FCM dispatch.
+
+    Resolved in the request session so the background push task receives
+    primitives only: the session that produced these values is closed by the time
+    the task runs.
+    """
+
+    alert_id: uuid.UUID
+    finding_id: uuid.UUID
+    company_id: uuid.UUID
+    project_id: uuid.UUID
+    severity: str
+    title: str
+    body: str
+
+
+@dataclass(frozen=True)
 class _PublishContext:
     """The two run-level values every persisted finding needs."""
 
@@ -203,13 +243,73 @@ class PayloadInputs:
 class ProfitabilityService(TenantScopedService[AIProfitabilityFinding]):
     """Nightly AI profitability analysis (FINAI-01/02).
 
-    Detection is deterministic and lives in profitability_math; this service only
-    fetches, gates, assembles the payload, and (in later plans) calls Claude,
-    validates, persists and alerts.
+    Detection is deterministic and lives in profitability_math; this service
+    fetches, gates, assembles the payload, calls Claude, validates, persists,
+    resolves and alerts.
     """
 
     repository_class = ProfitabilityRepository
     repository: ProfitabilityRepository
+
+    async def analyze_company(self, *, company_id: uuid.UUID, target_date: date) -> None:
+        """One company's whole night: publish tonight's findings, then alert (FINAI-02).
+
+        Required signature: the nightly scheduler invokes
+        method(company_id=..., target_date=...) with RLS already scoped to the
+        company. Never commits — the caller's transaction owns the run, so a
+        rollback un-claims every alert with it.
+
+        Resolve-then-claim ordering is load-bearing. The band lives inside the
+        fingerprint, so a worsening band is a NEW fingerprint — and the prior
+        band's row must resolve in the SAME run, or one condition leaves two open
+        findings behind (D-06).
+        """
+        result = await self.publish_findings(company_id, target_date)
+        # The keep-set is every fingerprint that still QUALIFIES tonight, never
+        # what published. A candidate is dropped from the publish list when its
+        # Claude call raised, when its draft failed the length contract, and when
+        # the nightly cap hit — and none of those mean the erosion cleared.
+        # Resolving such a row would let the next successful night insert a fresh
+        # unalerted row, claim it, and fire a SECOND alert for a condition that
+        # never cleared (D-06, RESEARCH Pitfall 6).
+        await self.repository.resolve_absent_fingerprints(result.qualifying_fingerprints)
+        await self._fire_findings(result.published, company_id)
+
+    async def _fire_findings(
+        self, published: Sequence[PublishedFinding], company_id: uuid.UUID
+    ) -> list[FiredFinding]:
+        """Alert every finding that has not alerted yet, in the order they persisted."""
+        fired: list[FiredFinding] = []
+        for finding in published:
+            alerted = await self._fire_finding(finding, company_id)
+            if alerted is not None:
+                fired.append(alerted)
+        return fired
+
+    async def _fire_finding(
+        self, published: PublishedFinding, company_id: uuid.UUID
+    ) -> FiredFinding | None:
+        """Claim this finding's alert and write it; None when it already alerted.
+
+        Claim BEFORE writing the alert (34-03): the read-then-write version
+        double-fires under concurrent runs. Nothing has to be resolved ahead of the
+        claim here — PublishedFinding already carries its project anchor, read in
+        this session off the row that was just persisted — so no claim can be burnt
+        on a vanished anchor.
+        """
+        if await self.repository.claim_alert(published.finding_id) is None:
+            return None
+        alert = await AlertRepository(self.db).create(_build_alert(published, company_id))
+        await self.repository.update(published.finding_id, {"dashboard_alert_id": alert.id})
+        return FiredFinding(
+            alert_id=alert.id,
+            finding_id=published.finding_id,
+            company_id=company_id,
+            project_id=published.project_id,
+            severity=published.severity_band,
+            title=PUSH_TITLE_BY_BAND[published.severity_band],
+            body=alert.impact_text,
+        )
 
     async def scan_candidates(self, company_id: uuid.UUID) -> list[ProfitabilityCandidate]:
         """Every project in this company the AI should write a finding about tonight.
@@ -480,6 +580,31 @@ def _within_length_contract(draft: FindingDraft) -> bool:
         len(draft.narrative) <= MAX_NARRATIVE_LENGTH
         and len(draft.corrective_action) <= MAX_CORRECTIVE_ACTION_LENGTH
         and len(draft.alert_summary) <= MAX_ALERT_SUMMARY_LENGTH
+    )
+
+
+def _build_alert(published: PublishedFinding, company_id: uuid.UUID) -> DashboardAlert:
+    """One published finding as its DashboardAlert row, inside the locked frames.
+
+    `severity` is the band itself with no mapping table in between: the band name IS
+    the severity value (UI-SPEC), so the two cannot drift. days_behind,
+    affected_scope_ids and both rescheduling columns stay empty, and that is exactly
+    what lets AlertPanel render this alert type with no schedule line and no
+    Accept/Dismiss controls — no component change required.
+    """
+    return DashboardAlert(
+        company_id=company_id,
+        project_id=published.project_id,
+        trade_scope_id=None,
+        severity=published.severity_band,
+        alert_type=AI_PROFITABILITY_ALERT_TYPE,
+        days_behind=None,
+        impact_text=AI_FINDING_PREFIX + published.alert_summary,
+        remediation_text=SUGGESTED_ACTION_PREFIX + published.corrective_action,
+        affected_scope_ids=[],
+        is_read=False,
+        rescheduling_payload=None,
+        rescheduling_accepted=None,
     )
 
 
