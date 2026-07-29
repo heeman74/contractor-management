@@ -19,7 +19,12 @@ import {
   setBudget,
   updateBudget,
   deleteBudget,
+  fetchCompanyFinancials,
+  fetchProjectFinancials,
+  fetchProjectMarginTrend,
 } from "./api";
+import { usePermissions } from "@/lib/hooks/usePermissions";
+import { FINANCE_VIEW_PERMISSION, type TrendWindow } from "./types";
 import type { BudgetAnchorInput } from "./api";
 import type { CostEntryInput, CostEntryPatch, LaborRateInput } from "./types";
 
@@ -82,6 +87,52 @@ export function useReceipts(costEntryId: string) {
     queryKey: ["cost-receipts", costEntryId],
     queryFn: () => fetchReceipts(costEntryId),
     enabled: !!costEntryId,
+  });
+}
+
+/**
+ * Financial dashboard queries.
+ *
+ * Their keys sit under the "cost-entries" prefix so invalidateAllCostEntries —
+ * already fired by every cost, budget and rate write — refreshes the dashboard
+ * for free. The trend window is part of its own key, so switching 3m→12m
+ * refetches only the trend and never the window-independent portfolio tiles.
+ */
+
+/**
+ * `enabled` is the fetch-side half of the permission gate: FinanceGate stops the
+ * render, this stops the request, and can() is false while permissions are still
+ * loading. Together they are what guarantee zero /api/v1/financials/* traffic on
+ * an unauthorized or not-yet-resolved visit. Dropping `enabled` would still look
+ * correct on screen while silently weakening the SC3 zero-request test into one
+ * that passes for the wrong reason.
+ */
+export function useCompanyFinancials() {
+  const { can } = usePermissions();
+  return useQuery({
+    queryKey: ["cost-entries", "financials", "company"],
+    queryFn: fetchCompanyFinancials,
+    enabled: can(FINANCE_VIEW_PERMISSION),
+  });
+}
+
+export function useProjectFinancials(projectId: string) {
+  const { can } = usePermissions();
+  return useQuery({
+    queryKey: ["cost-entries", "financials", "project", projectId],
+    queryFn: () => fetchProjectFinancials(projectId),
+    enabled: can(FINANCE_VIEW_PERMISSION) && !!projectId,
+  });
+}
+
+export function useProjectMarginTrend(projectId: string, window: TrendWindow) {
+  const { can } = usePermissions();
+  return useQuery({
+    queryKey: ["cost-entries", "financials", "trend", projectId, window],
+    queryFn: () => fetchProjectMarginTrend(projectId, window),
+    enabled: can(FINANCE_VIEW_PERMISSION) && !!projectId,
+    // Keeps the previous window's chart on screen while the new one loads.
+    placeholderData: (previous) => previous,
   });
 }
 
