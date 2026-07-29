@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 35-03-PLAN.md
-last_updated: "2026-07-29T03:35:14.464Z"
+stopped_at: Completed 35-05-PLAN.md
+last_updated: "2026-07-29T03:42:56.182Z"
 last_activity: 2026-07-29
 progress:
   total_phases: 22
   completed_phases: 17
   total_plans: 105
-  completed_plans: 95
+  completed_plans: 96
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 35 (web-financial-dashboard) — EXECUTING
-Plan: 5 of 11
+Plan: 6 of 11
 Status: Ready to execute
 Last activity: 2026-07-29
 
@@ -74,6 +74,7 @@ Last activity: 2026-07-29
 | Phase 35-web-financial-dashboard P02 | 54min | 3 tasks | 1 files |
 | Phase 35 P01 | 96min | 3 tasks | 7 files |
 | Phase 35 P03 | 27min | 3 tasks tasks | 10 files files |
+| Phase 35 P05 | 79min | 3 tasks tasks | 6 files files |
 
 ## Accumulated Context
 
@@ -256,6 +257,10 @@ Last activity: 2026-07-29
 - [Phase 35-web-financial-dashboard]: 35-03: FinanceGate imports FINANCE_VIEW_PERMISSION from types.ts and never inlines the key, so the render gate and the hooks' enabled branch fail closed on exactly the same string
 - [Phase 35-web-financial-dashboard]: 35-03: truncateLabel follows the UI-SPEC formula (slice(0,21) + ellipsis = 22 chars total), not the plan prose's "22 plus ellipsis" — the axis width contract wins
 - [Phase 35-web-financial-dashboard]: 35-03: rollUpCategories sums numeric amounts because the Other bucket is a real sum; the CSV still exports one unrolled row per category so the export never inherits the chart's simplification
+- [Phase 35-web-financial-dashboard]: 35-05: Five module-level finance query builders/mappers made public so portfolio_repository composes the shipped traversal predicates instead of restating them
+- [Phase 35-web-financial-dashboard]: 35-05: PROJECT_KEY is a raw COALESCE expression in WHERE/GROUP BY and a labelled column in SELECT — PostgreSQL groups on the full expression, never an output alias; rows are read by label so 35-07 can append date columns safely
+- [Phase 35-web-financial-dashboard]: 35-05: PortfolioService reuses service.py's _build_breakdown/_labor_by_job/_any_anchor_missing_cost_data/ProjectMarginContext directly — restating the labor folding or D-12 anchor flag is exactly the Pitfall-1 drift the equivalence test guards
+- [Phase 35-web-financial-dashboard]: 35-05: The D-11 live-threshold test asserts BOTH directions (never-alerted overrun must be listed; stale claim after a soft-delete must not) because the plan's raise-below-spend route is unreachable under 34-06's inline PATCH evaluation
 
 ### Pending Todos
 
@@ -275,6 +280,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-29T03:34:56.187Z
-Stopped at: Completed 35-03-PLAN.md
+Last session: 2026-07-29T03:42:37.779Z
+Stopped at: Completed 35-05-PLAN.md
 Resume file: None
