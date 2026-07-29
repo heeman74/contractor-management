@@ -1,13 +1,18 @@
-"""Unit tests for the D-05 grounding validator (app.core.ai_grounding).
+"""Unit tests for the D-05 grounding validator and the strict Claude JSON call.
 
 Pure unit tests — no DB, no network. Covers figure extraction, the closed
 allowed-value set, the two representation tolerances the shipped formatters
-make unavoidable, and the fabricated-zero failure mode (Pitfall 9).
+make unavoidable, the fabricated-zero failure mode (Pitfall 9), and the
+fail-closed parsing contract of call_claude_json_strict.
 """
 
 from __future__ import annotations
 
+import json
 from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from app.core.ai_grounding import (
     CitedFigure,
@@ -16,6 +21,7 @@ from app.core.ai_grounding import (
     matches_allowed,
     validate_grounding,
 )
+from app.core.ai_utils import ClaudeJsonResponse, call_claude_json_strict
 
 
 def _allowed(*values: str) -> frozenset[Decimal]:
@@ -231,3 +237,122 @@ def test_validate_grounding_ok_for_text_with_no_figures_at_all() -> None:
 
     assert result.ok is True
     assert result.unmatched == ()
+
+
+# ---------------------------------------------------------------------------
+# call_claude_json_strict — the fail-closed sibling of call_claude_json
+# ---------------------------------------------------------------------------
+
+_FINDING_JSON = {"confirmed": True, "narrative": "Margin fell 6.2%."}
+_ONE_TURN: tuple[dict[str, str], ...] = ({"role": "user", "content": "payload"},)
+
+
+def _make_mock_anthropic_response(
+    content: dict | str,
+    *,
+    usage: tuple[int, int] | None = None,
+) -> MagicMock:
+    """Build a mock Anthropic message response with content[0].text (Phase 26 helper)."""
+    text = json.dumps(content) if isinstance(content, dict) else content
+
+    mock_content = MagicMock()
+    mock_content.text = text
+
+    mock_response = MagicMock()
+    mock_response.content = [mock_content]
+    if usage is None:
+        del mock_response.usage
+    else:
+        mock_response.usage.input_tokens, mock_response.usage.output_tokens = usage
+    return mock_response
+
+
+def _patched_claude(mock_response: MagicMock) -> tuple[object, AsyncMock]:
+    """Patch the client factory and hand back the patcher plus the create AsyncMock."""
+    patcher = patch("app.core.ai_utils.get_anthropic_client")
+    mock_client = patcher.start()
+    create = AsyncMock(return_value=mock_response)
+    mock_client.return_value.messages.create = create
+    return patcher, create
+
+
+async def test_strict_call_returns_parsed_data_and_raw_text() -> None:
+    patcher, _ = _patched_claude(_make_mock_anthropic_response(_FINDING_JSON))
+    try:
+        response = await call_claude_json_strict("system", _ONE_TURN)
+    finally:
+        patcher.stop()
+
+    assert isinstance(response, ClaudeJsonResponse)
+    assert response.data == _FINDING_JSON
+    assert response.raw_text == json.dumps(_FINDING_JSON)
+
+
+async def test_strict_call_parses_a_fenced_json_response() -> None:
+    fenced = f"```json\n{json.dumps(_FINDING_JSON)}\n```"
+    patcher, _ = _patched_claude(_make_mock_anthropic_response(fenced))
+    try:
+        response = await call_claude_json_strict("system", _ONE_TURN)
+    finally:
+        patcher.stop()
+
+    assert response.data == _FINDING_JSON
+    assert response.raw_text == json.dumps(_FINDING_JSON)
+
+
+async def test_strict_call_raises_on_empty_content() -> None:
+    empty = MagicMock()
+    empty.content = []
+    patcher, _ = _patched_claude(empty)
+    try:
+        with pytest.raises(ValueError, match="Empty response"):
+            await call_claude_json_strict("system", _ONE_TURN)
+    finally:
+        patcher.stop()
+
+
+async def test_strict_call_raises_on_unparseable_json() -> None:
+    patcher, _ = _patched_claude(_make_mock_anthropic_response("I think the margin looks fine."))
+    try:
+        with pytest.raises(ValueError):  # noqa: PT011 — json.JSONDecodeError is a ValueError
+            await call_claude_json_strict("system", _ONE_TURN)
+    finally:
+        patcher.stop()
+
+
+async def test_strict_call_tolerates_a_response_without_usage() -> None:
+    patcher, _ = _patched_claude(_make_mock_anthropic_response(_FINDING_JSON))
+    try:
+        response = await call_claude_json_strict("system", _ONE_TURN)
+    finally:
+        patcher.stop()
+
+    assert response.input_tokens is None
+    assert response.output_tokens is None
+
+
+async def test_strict_call_reads_usage_tokens_when_present() -> None:
+    patcher, _ = _patched_claude(_make_mock_anthropic_response(_FINDING_JSON, usage=(1200, 340)))
+    try:
+        response = await call_claude_json_strict("system", _ONE_TURN)
+    finally:
+        patcher.stop()
+
+    assert response.input_tokens == 1200
+    assert response.output_tokens == 340
+
+
+async def test_strict_call_passes_a_multi_turn_message_list_through_unchanged() -> None:
+    conversation = (
+        {"role": "user", "content": "payload"},
+        {"role": "assistant", "content": "first answer"},
+        {"role": "user", "content": "these figures are ungrounded"},
+    )
+    patcher, create = _patched_claude(_make_mock_anthropic_response(_FINDING_JSON))
+    try:
+        await call_claude_json_strict("system", conversation)
+    finally:
+        patcher.stop()
+
+    assert create.await_args.kwargs["messages"] == list(conversation)
+    assert create.await_args.kwargs["system"] == "system"
