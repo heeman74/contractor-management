@@ -16,15 +16,17 @@ so later Phase 35 plans reuse them as-is. Two deliberate exceptions:
   validation runs against them.
 """
 
+import contextlib
+from collections.abc import Iterator
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select, text
+from sqlalchemy import event, select, text
 
-from app.core.database import async_session_factory
+from app.core.database import async_session_factory, engine
 from app.core.security import create_access_token
 from app.features.finance.models import CostCategory
 
@@ -92,6 +94,27 @@ def _project_financials_url(project_id: str) -> str:
 def _project_trend_url(project_id: str) -> str:
     """URL of one project's margin trend series (endpoint lands in a later Phase 35 plan)."""
     return f"{_project_financials_url(project_id)}/trend"
+
+
+@contextlib.contextmanager
+def _count_sql_statements() -> Iterator[list[str]]:
+    """Record every SQL statement issued while the block runs.
+
+    The D-03 N+1 guard: a wall-clock ceiling alone cannot prove the company
+    rollup is constant in project count, but a statement count can. Listens on
+    engine.sync_engine because SQLAlchemy's event API is synchronous by design
+    (same reason app/core/tenant.py's after_begin listener is sync).
+    """
+    statements: list[str] = []
+
+    def _record(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    event.listen(engine.sync_engine, "before_cursor_execute", _record)
+    try:
+        yield statements
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", _record)
 
 
 async def _seed_cost_categories(company_id: str) -> None:
@@ -355,6 +378,24 @@ async def _create_invoice(
 # Harness self-tests — the helpers are proven against SHIPPED endpoints before
 # any Phase 35 endpoint exists
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_sql_statement_counter_records_statements(async_client, seed_two_tenants):
+    """The counter records inside its block and detaches on exit — no leak into other tests."""
+    headers = _pm_headers(seed_two_tenants["tenant_a_id"])
+
+    with _count_sql_statements() as statements:
+        resp = await async_client.get(_PROJECTS_URL, headers=headers)
+        assert resp.status_code == 200, resp.text
+
+    assert statements
+    assert any("FROM projects" in statement for statement in statements)
+
+    recorded_while_listening = len(statements)
+    resp = await async_client.get(_PROJECTS_URL, headers=headers)
+    assert resp.status_code == 200, resp.text
+    assert len(statements) == recorded_while_listening
 
 
 @pytest.mark.asyncio
