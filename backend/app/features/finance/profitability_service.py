@@ -28,10 +28,15 @@ import json
 import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
 
 from app.core.ai_grounding import collect_allowed_values, validate_grounding
-from app.core.ai_utils import ClaudeJsonResponse, call_claude_json_strict
+from app.core.ai_utils import (
+    ClaudeJsonResponse,
+    call_claude_json_strict,
+    gather_with_concurrency,
+)
 from app.core.base_service import TenantScopedService
 from app.core.logging_config import get_logger
 from app.features.finance.budget_math import percent_used
@@ -53,8 +58,13 @@ from app.features.finance.profitability_math import (
     latest_quote_per_anchor,
     skip_reason_for,
 )
-from app.features.finance.profitability_models import AIProfitabilityFinding
-from app.features.finance.profitability_repository import ProfitabilityRepository
+from app.features.finance.profitability_models import (
+    MAX_ALERT_SUMMARY_LENGTH,
+    MAX_CORRECTIVE_ACTION_LENGTH,
+    MAX_NARRATIVE_LENGTH,
+    AIProfitabilityFinding,
+)
+from app.features.finance.profitability_repository import FindingUpsert, ProfitabilityRepository
 from app.features.finance.prompts.profitability_system import (
     GROUNDING_RETRY_TEMPLATE,
     PROFITABILITY_SYSTEM_PROMPT,
@@ -75,6 +85,8 @@ TOKEN_USAGE_LOG_TEMPLATE = "ai_profitability: tokens project=%s input=%s output=
 DISMISSAL_LOG_TEMPLATE = "ai_profitability: dismissed project=%s reason=%s"
 EMPTY_DRAFT_LOG_TEMPLATE = "ai_profitability: dropped textless finding project=%s"
 UNGROUNDED_DROP_LOG_TEMPLATE = "ai_profitability: dropped ungrounded finding project=%s figures=%s"
+OVER_LENGTH_DROP_LOG_TEMPLATE = "ai_profitability: dropped over-length finding project=%s"
+CAP_DROP_LOG_TEMPLATE = "ai_profitability: nightly cap reached project=%s cap=%d"
 
 GROUNDING_RETRY_LIMIT = 1
 """D-05: one VALIDATION retry, and only one.
@@ -87,6 +99,14 @@ candidate that gather_with_concurrency isolates.
 PROFITABILITY_MAX_OUTPUT_TOKENS = 1024
 """D-10 per-project ceiling. max_tokens caps OUTPUT only; the input side is bounded
 by the aggregates-only payload rule, not by this number."""
+
+MAX_FINDINGS_PER_COMPANY_PER_NIGHT = 10
+"""D-10 nightly cap on published findings per company.
+
+Counted in memory over tonight's publishes, after validation — a dropped finding
+never spends a slot, and no open-row count is read from the database because the
+cap is about what this run alerts, not about history.
+"""
 
 LABOR_BASIS_UNBURDENED = "unburdened"
 """D-06: v4.0 labor cost is wage-only, so the basis travels with the payload and
@@ -127,6 +147,47 @@ class FindingDraft:
     narrative: str
     corrective_action: str
     alert_summary: str
+
+
+@dataclass(frozen=True)
+class PublishedFinding:
+    """One persisted finding, resolved in the request session so the alerting step
+    never has to re-read the ORM.
+
+    `severity_band` carries the DB column's name (not `band`) so the alert payload
+    and the row can never be spelled differently.
+    """
+
+    finding_id: uuid.UUID
+    project_id: uuid.UUID
+    fingerprint: str
+    severity_band: str
+    alert_summary: str
+    corrective_action: str
+
+
+@dataclass(frozen=True)
+class PublishResult:
+    """Tonight's publish outcome for one company.
+
+    `qualifying_fingerprints` is EVERY candidate's fingerprint — including the ones
+    whose Claude call raised, whose draft failed the length contract, and the ones
+    the nightly cap dropped. It is the D-06 keep-set: built from `published`
+    instead, a transient API failure would resolve a still-true finding, and the
+    next successful night would insert a fresh unalerted row and alert a condition
+    that never cleared.
+    """
+
+    published: list[PublishedFinding]
+    qualifying_fingerprints: list[str]
+
+
+@dataclass(frozen=True)
+class _PublishContext:
+    """The two run-level values every persisted finding needs."""
+
+    company_id: uuid.UUID
+    target_date: date
 
 
 @dataclass(frozen=True)
@@ -228,6 +289,45 @@ class ProfitabilityService(TenantScopedService[AIProfitabilityFinding]):
             PayloadInputs(figures=figures, candidate=candidate, blocks=blocks, buckets=buckets)
         )
 
+    @staticmethod
+    def _quote_gap_inputs(
+        figures: ProjectFinancialFigures, blocks: ProjectCostBlocks, inputs: PortfolioInputs
+    ) -> QuoteGapInputs:
+        """The three D-03 signal-3 maps, all built from already-fetched rows.
+
+        The anchor-cost map is a dict comprehension over the batched cost rows,
+        composing the SHIPPED per-anchor cost predicate — not a query per anchor.
+        """
+        project_id = figures.project_id
+        quote_rows = inputs.quotes.get(project_id, [])
+        resolved = anchor_revenues(inputs.invoices.get(project_id, []), quote_rows)
+        latest_quotes = latest_quote_per_anchor(quote_rows)
+        anchors: set[RevenueAnchor] = resolved.keys() | latest_quotes.keys()
+        return QuoteGapInputs(
+            resolved=resolved,
+            latest_quotes=latest_quotes,
+            anchor_costs={
+                anchor: contributing_anchor_cost(anchor, blocks.context) for anchor in anchors
+            },
+        )
+
+    async def publish_findings(self, company_id: uuid.UUID, target_date: date) -> PublishResult:
+        """Draft, validate, cap and persist every candidate's finding.
+
+        Per-candidate calls under gather_with_concurrency: the D-10 per-project
+        token ceiling stays meaningful, one bad candidate cannot poison the rest,
+        and a failed call returns None instead of aborting the company's run.
+        """
+        candidates = await self.scan_candidates(company_id)
+        drafts = await gather_with_concurrency(candidates, self._draft_for)
+        published = await self._persist_publishable(
+            candidates, drafts, _PublishContext(company_id=company_id, target_date=target_date)
+        )
+        return PublishResult(
+            published=published,
+            qualifying_fingerprints=[candidate.candidate.fingerprint for candidate in candidates],
+        )
+
     async def _draft_for(self, candidate: ProfitabilityCandidate) -> FindingDraft | None:
         """One candidate's grounded finding, or None when it is dismissed or ungrounded.
 
@@ -257,26 +357,45 @@ class ProfitabilityService(TenantScopedService[AIProfitabilityFinding]):
         logger.warning(UNGROUNDED_DROP_LOG_TEMPLATE % (candidate.project_id, ", ".join(ungrounded)))
         return None
 
-    @staticmethod
-    def _quote_gap_inputs(
-        figures: ProjectFinancialFigures, blocks: ProjectCostBlocks, inputs: PortfolioInputs
-    ) -> QuoteGapInputs:
-        """The three D-03 signal-3 maps, all built from already-fetched rows.
+    async def _persist_publishable(
+        self,
+        candidates: Sequence[ProfitabilityCandidate],
+        drafts: Sequence[FindingDraft | None],
+        context: _PublishContext,
+    ) -> list[PublishedFinding]:
+        """Persist the drafts that clear the length contract, up to the nightly cap.
 
-        The anchor-cost map is a dict comprehension over the batched cost rows,
-        composing the SHIPPED per-anchor cost predicate — not a query per anchor.
+        The cap is checked AFTER both the drafting and the length verdict, so a
+        dropped finding never spends one of tonight's slots (RESEARCH Pitfall 6).
         """
-        project_id = figures.project_id
-        quote_rows = inputs.quotes.get(project_id, [])
-        resolved = anchor_revenues(inputs.invoices.get(project_id, []), quote_rows)
-        latest_quotes = latest_quote_per_anchor(quote_rows)
-        anchors: set[RevenueAnchor] = resolved.keys() | latest_quotes.keys()
-        return QuoteGapInputs(
-            resolved=resolved,
-            latest_quotes=latest_quotes,
-            anchor_costs={
-                anchor: contributing_anchor_cost(anchor, blocks.context) for anchor in anchors
-            },
+        published: list[PublishedFinding] = []
+        for candidate, draft in zip(candidates, drafts, strict=True):
+            if draft is None:
+                continue
+            if not _within_length_contract(draft):
+                logger.warning(OVER_LENGTH_DROP_LOG_TEMPLATE % (candidate.project_id,))
+                continue
+            if len(published) >= MAX_FINDINGS_PER_COMPANY_PER_NIGHT:
+                logger.info(
+                    CAP_DROP_LOG_TEMPLATE
+                    % (candidate.project_id, MAX_FINDINGS_PER_COMPANY_PER_NIGHT)
+                )
+                continue
+            published.append(await self._persist(candidate, draft, context))
+        return published
+
+    async def _persist(
+        self, candidate: ProfitabilityCandidate, draft: FindingDraft, context: _PublishContext
+    ) -> PublishedFinding:
+        """Upsert one validated finding and resolve what the alerting step will read."""
+        finding = await self.repository.upsert_finding(_to_upsert(candidate, draft, context))
+        return PublishedFinding(
+            finding_id=finding.id,
+            project_id=finding.project_id,
+            fingerprint=finding.fingerprint,
+            severity_band=finding.severity_band,
+            alert_summary=finding.alert_summary,
+            corrective_action=finding.corrective_action,
         )
 
 
@@ -349,6 +468,49 @@ def _log_token_usage(candidate: ProfitabilityCandidate, response: ClaudeJsonResp
 def _log_dismissal(candidate: ProfitabilityCandidate, data: Mapping[str, object]) -> None:
     """An AI dismissal is a normal outcome (D-02), so it is logged with its reason."""
     logger.info(DISMISSAL_LOG_TEMPLATE % (candidate.project_id, data.get("dismissal_reason")))
+
+
+def _within_length_contract(draft: FindingDraft) -> bool:
+    """The D-09/UI-SPEC bounds, checked against the same constants the DB enforces.
+
+    Over-length text is rejected whole rather than shortened to fit: clipping a
+    grounded sentence can drop the very figure that justifies it.
+    """
+    return (
+        len(draft.narrative) <= MAX_NARRATIVE_LENGTH
+        and len(draft.corrective_action) <= MAX_CORRECTIVE_ACTION_LENGTH
+        and len(draft.alert_summary) <= MAX_ALERT_SUMMARY_LENGTH
+    )
+
+
+def _to_upsert(
+    candidate: ProfitabilityCandidate, draft: FindingDraft, context: _PublishContext
+) -> FindingUpsert:
+    """One night's row for this candidate: the AI text, the honesty columns, the audit payload."""
+    signal = candidate.candidate
+    return FindingUpsert(
+        company_id=context.company_id,
+        project_id=signal.project_id,
+        signal=signal.signal,
+        severity_band=signal.band,
+        fingerprint=signal.fingerprint,
+        narrative=draft.narrative,
+        corrective_action=draft.corrective_action,
+        alert_summary=draft.alert_summary,
+        revenue_basis=candidate.revenue_basis,
+        labor_included=candidate.labor_included,
+        payload=_jsonb_payload(candidate.payload),
+        analyzed_on=context.target_date,
+    )
+
+
+def _jsonb_payload(payload: Mapping[str, object]) -> dict:
+    """The payload as JSONB-safe data, Decimals rendered as exact strings.
+
+    The SC3 audit trail must stay re-readable, so every figure the finding was
+    validated against is stored verbatim rather than as a lossy float.
+    """
+    return json.loads(json.dumps(payload, default=str))
 
 
 def _to_profitability_candidate(inputs: PayloadInputs) -> ProfitabilityCandidate:
