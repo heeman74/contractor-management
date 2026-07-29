@@ -29,7 +29,9 @@ from sqlalchemy import event, select, text
 
 from app.core.database import async_session_factory, engine
 from app.core.security import create_access_token
+from app.core.tenant import set_current_tenant_id
 from app.features.finance.models import CostCategory
+from app.features.finance.service import FinanceService
 
 _SECONDS_PER_HOUR = 3600
 _MISSING_VIEW_PERMISSION = "Missing permission: finance.view"
@@ -832,3 +834,476 @@ async def test_seed_company_portfolio_is_tenant_isolated(
     visible_project_ids = {project["id"] for project in resp.json()}
     assert visible_project_ids
     assert tenant_a_projects[0] not in visible_project_ids
+
+
+# ---------------------------------------------------------------------------
+# GET /financials/company — the batched company rollup (MARG-04, plan 35-05)
+# ---------------------------------------------------------------------------
+
+_OVERRUN_FIRED_SQL = "SELECT overrun_fired_at FROM budgets WHERE id = CAST(:budget_id AS uuid)"
+
+_EQUIVALENCE_BUDGET_TOTAL = "5000.00"
+_TIER_BUDGET_TOTAL = "1000.00"
+_OVERRUN_SCOPE_SPEND = "1400.00"
+_OVERRUN_PROJECT_SPEND = "1150.00"
+_WARNING_HIGH_SPEND = "920.00"
+_WARNING_LOW_SPEND = "850.00"
+
+
+async def _company_financials(client: AsyncClient, headers: dict) -> dict:
+    """GET the company rollup as a finance.view holder."""
+    resp = await client.get(_COMPANY_FINANCIALS_URL, headers=headers)
+    assert resp.status_code == 200, resp.text
+    return resp.json()
+
+
+def _project_row(body: dict, project_id: str) -> dict | None:
+    """One project's row from a company rollup body, or None when it is absent."""
+    return next((row for row in body["projects"] if row["project_id"] == project_id), None)
+
+
+def _attention_rows_for(body: dict, project_id: str) -> list[dict]:
+    """Every attention row naming one project."""
+    return [row for row in body["attention"] if row["project_id"] == project_id]
+
+
+def _tier_percents(body: dict, tier: str) -> list[Decimal]:
+    """The percent_used figures of one attention tier, in the order returned."""
+    return [Decimal(row["percent_used"]) for row in body["attention"] if row["tier"] == tier]
+
+
+async def _delete_cost_entry(client: AsyncClient, headers: dict, entry_id: str) -> None:
+    """Soft-delete a cost entry through the shipped endpoint."""
+    resp = await client.delete(f"{_COST_ENTRIES_URL}{entry_id}", headers=headers)
+    assert resp.status_code == 204, resp.text
+
+
+async def _delete_budget(client: AsyncClient, headers: dict, budget_id: str) -> None:
+    """Soft-delete a budget through the shipped endpoint."""
+    resp = await client.delete(f"{_BUDGETS_URL}{budget_id}", headers=headers)
+    assert resp.status_code == 204, resp.text
+
+
+async def _delete_project(client: AsyncClient, project_id: str) -> None:
+    """Soft-delete a project through the shipped endpoint."""
+    resp = await client.delete(f"{_PROJECTS_URL}{project_id}")
+    assert resp.status_code == 204, resp.text
+
+
+async def _seed_legacy_labor_cost_entry(
+    company_id: str, *, job_id: str, category_id: str, amount: Decimal
+) -> None:
+    """Plant a legacy `labor`-category cost entry with SQL.
+
+    POST /cost-entries/ rejects the reserved labor category with 422 (Phase 32
+    double-count guard), so the only way to reproduce a pre-Phase-32 row — the
+    one `_build_breakdown` folds into derived labor — is a direct insert.
+    """
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        await session.execute(
+            text(_COST_ENTRY_BULK_SQL),
+            {
+                "company_id": company_id,
+                "job_id": job_id,
+                "trade_scope_id": None,
+                "category_id": category_id,
+                "amount": amount,
+                "incurred_date": _seed_date(0),
+            },
+        )
+        await session.commit()
+
+
+async def _overrun_fired_at(company_id: str, budget_id: str) -> datetime | None:
+    """Read a budget's overrun_fired_at claim column directly (D-11 evidence)."""
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        result = await session.execute(text(_OVERRUN_FIRED_SQL), {"budget_id": budget_id})
+        return result.scalar_one()
+
+
+async def _contractor_without_rate(client: AsyncClient) -> str:
+    """A worker with tracked time but no labor rate — the unrated-labor fixture."""
+    return await _create_user(client, f"unrated-{uuid4().hex}@{_CONTRACTOR_EMAIL_DOMAIN}")
+
+
+async def _seed_drift_trap_project(client: AsyncClient, headers: dict, company_id: str) -> str:
+    """One project carrying every batched-vs-per-project drift trap Pitfall 1 names.
+
+    A soft-deleted entry, a legacy labor-category entry, an unrated session, a
+    rated session, a scope quoted but never invoiced, and an invoiced job.
+    """
+    project_id = await _create_project(client, name="Drift Trap Project")
+    scope_id = await _create_trade_scope(client, project_id, trade_name="Plumbing")
+    job_id = await _create_job(client, project_id)
+    materials_id = await _category_id(company_id, "materials")
+
+    await _add_cost_entry(client, headers, job_id=job_id, category_id=materials_id, amount="400.00")
+    await _add_cost_entry(
+        client, headers, trade_scope_id=scope_id, category_id=materials_id, amount="250.00"
+    )
+    removed_entry_id = await _add_cost_entry(
+        client, headers, job_id=job_id, category_id=materials_id, amount="999.00"
+    )
+    await _delete_cost_entry(client, headers, removed_entry_id)
+    await _seed_legacy_labor_cost_entry(
+        company_id,
+        job_id=job_id,
+        category_id=await _category_id(company_id, "labor"),
+        amount=Decimal("125.00"),
+    )
+
+    await _seed_time_entry(
+        company_id,
+        job_id,
+        await _contractor_without_rate(client),
+        3,
+        clocked_in_at=_seed_datetime(0),
+    )
+    rated_contractor_id = await _create_user(
+        client, f"rated-{uuid4().hex}@{_CONTRACTOR_EMAIL_DOMAIN}"
+    )
+    await _post_rate(client, headers, rated_contractor_id, _SEED_HOURLY_COST, _RATE_EFFECTIVE_FROM)
+    await _seed_time_entry(
+        company_id, job_id, rated_contractor_id, 4, clocked_in_at=_seed_datetime(1)
+    )
+
+    await _create_invoice(
+        client, company_id, job_id=job_id, amount="3000.00", issued_at=_seed_datetime(2)
+    )
+    await _create_approved_quote(
+        client, company_id, trade_scope_id=scope_id, amount="900.00", approved_at=_seed_datetime(3)
+    )
+    await _create_budget(client, headers, project_id=project_id, total=_EQUIVALENCE_BUDGET_TOTAL)
+    return project_id
+
+
+@pytest.mark.asyncio
+async def test_company_rollup_matches_rollup_for_project(tenant_a_client, seed_two_tenants):
+    """Pitfall 1 pin: the batched company row equals FinanceService.rollup_for_project exactly.
+
+    Two independent traversals of the same soft-delete, labor-folding, anchor and
+    D-14 rules drift silently. Money is compared as Decimal, never as strings, so
+    a cent of quantization drift cannot hide behind equal text.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_cost_categories(company_id)
+    project_id = await _seed_drift_trap_project(tenant_a_client, headers, company_id)
+
+    row = _project_row(await _company_financials(tenant_a_client, headers), project_id)
+    async with async_session_factory() as db:
+        set_current_tenant_id(UUID(company_id))
+        rollup = await FinanceService(db).rollup_for_project(UUID(project_id))
+
+    assert row is not None
+    assert Decimal(row["cost"]) == rollup.grand_total
+    margin, shipped_margin = row["margin"], rollup.margin
+    assert Decimal(margin["revenue"]) == shipped_margin.revenue
+    assert margin["revenue_basis"] == shipped_margin.revenue_basis
+    assert Decimal(margin["margin"]) == shipped_margin.margin
+    assert Decimal(margin["margin_percent"]) == shipped_margin.margin_percent
+    assert margin["incomplete"] == shipped_margin.incomplete
+    assert sorted(margin["incomplete_reasons"]) == sorted(shipped_margin.incomplete_reasons)
+    budget, shipped_budget = row["budget"], rollup.budget
+    assert Decimal(budget["total"]) == shipped_budget.total
+    assert Decimal(budget["spent"]) == shipped_budget.spent
+    assert Decimal(budget["remaining"]) == shipped_budget.remaining
+    assert Decimal(budget["percent_used"]) == shipped_budget.percent_used
+
+
+@pytest.mark.asyncio
+async def test_company_rollup_excludes_soft_deleted(tenant_a_client, seed_two_tenants):
+    """A soft-deleted project, cost entry and budget are all invisible (Pitfall 8)."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_cost_categories(company_id)
+    materials_id = await _category_id(company_id, "materials")
+
+    live_project_id = await _create_project(tenant_a_client, name="Live Project")
+    live_scope_id = await _create_trade_scope(tenant_a_client, live_project_id)
+    await _add_cost_entry(
+        tenant_a_client,
+        headers,
+        trade_scope_id=live_scope_id,
+        category_id=materials_id,
+        amount="300.00",
+    )
+    removed_entry_id = await _add_cost_entry(
+        tenant_a_client,
+        headers,
+        trade_scope_id=live_scope_id,
+        category_id=materials_id,
+        amount="777.00",
+    )
+    await _delete_cost_entry(tenant_a_client, headers, removed_entry_id)
+    removed_budget = await _create_budget(
+        tenant_a_client, headers, project_id=live_project_id, total=_EQUIVALENCE_BUDGET_TOTAL
+    )
+    await _delete_budget(tenant_a_client, headers, removed_budget["id"])
+
+    removed_project_id = await _create_project(tenant_a_client, name="Removed Project")
+    removed_scope_id = await _create_trade_scope(tenant_a_client, removed_project_id)
+    await _add_cost_entry(
+        tenant_a_client,
+        headers,
+        trade_scope_id=removed_scope_id,
+        category_id=materials_id,
+        amount="1200.00",
+    )
+    await _delete_project(tenant_a_client, removed_project_id)
+
+    body = await _company_financials(tenant_a_client, headers)
+
+    assert _project_row(body, removed_project_id) is None
+    assert _attention_rows_for(body, removed_project_id) == []
+    live_row = _project_row(body, live_project_id)
+    assert live_row is not None
+    assert Decimal(live_row["cost"]) == Decimal("300.00")
+    assert live_row["budget"] is None
+    assert Decimal(body["portfolio"]["cost"]) == Decimal("300.00")
+
+
+@pytest.mark.asyncio
+async def test_portfolio_totals_include_flagged_projects_with_count(
+    tenant_a_client, seed_two_tenants
+):
+    """D-09: flagged projects roll INTO the totals and the badge equals the incomplete tier."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_cost_categories(company_id)
+    materials_id = await _category_id(company_id, "materials")
+
+    clean_project_id = await _create_project(tenant_a_client, name="Clean Project")
+    clean_job_id = await _create_job(tenant_a_client, clean_project_id)
+    await _add_cost_entry(
+        tenant_a_client, headers, job_id=clean_job_id, category_id=materials_id, amount="500.00"
+    )
+    await _create_invoice(
+        tenant_a_client,
+        company_id,
+        job_id=clean_job_id,
+        amount="2000.00",
+        issued_at=_seed_datetime(0),
+    )
+
+    unrated_project_id = await _create_project(tenant_a_client, name="Unrated Labor Project")
+    unrated_job_id = await _create_job(tenant_a_client, unrated_project_id)
+    await _add_cost_entry(
+        tenant_a_client, headers, job_id=unrated_job_id, category_id=materials_id, amount="400.00"
+    )
+    await _seed_time_entry(
+        company_id,
+        unrated_job_id,
+        await _contractor_without_rate(tenant_a_client),
+        5,
+        clocked_in_at=_seed_datetime(1),
+    )
+    await _create_invoice(
+        tenant_a_client,
+        company_id,
+        job_id=unrated_job_id,
+        amount="1000.00",
+        issued_at=_seed_datetime(1),
+    )
+
+    no_cost_project_id = await _create_project(tenant_a_client, name="No Cost Data Project")
+    no_cost_job_id = await _create_job(tenant_a_client, no_cost_project_id)
+    await _create_invoice(
+        tenant_a_client,
+        company_id,
+        job_id=no_cost_job_id,
+        amount="750.00",
+        issued_at=_seed_datetime(2),
+    )
+
+    body = await _company_financials(tenant_a_client, headers)
+
+    project_costs = [Decimal(row["cost"]) for row in body["projects"]]
+    assert sorted(project_costs) == [Decimal("0.00"), Decimal("400.00"), Decimal("500.00")]
+    assert Decimal(body["portfolio"]["cost"]) == sum(project_costs)
+    assert body["portfolio"]["incomplete_project_count"] == 2
+    incomplete_rows = [row for row in body["attention"] if row["tier"] == "incomplete"]
+    assert len(incomplete_rows) == body["portfolio"]["incomplete_project_count"]
+    assert {row["project_id"] for row in incomplete_rows} == {
+        unrated_project_id,
+        no_cost_project_id,
+    }
+    assert _project_row(body, clean_project_id)["margin"]["incomplete"] is False
+
+
+@pytest.mark.asyncio
+async def test_portfolio_surfaces_quoted_revenue_share(tenant_a_client, seed_two_tenants):
+    """D-09: the estimated (quote-basis) share is surfaced and the basis reads `mixed`."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_cost_categories(company_id)
+    materials_id = await _category_id(company_id, "materials")
+
+    invoiced_project_id = await _create_project(tenant_a_client, name="Invoiced Project")
+    invoiced_job_id = await _create_job(tenant_a_client, invoiced_project_id)
+    await _add_cost_entry(
+        tenant_a_client, headers, job_id=invoiced_job_id, category_id=materials_id, amount="100.00"
+    )
+    await _create_invoice(
+        tenant_a_client,
+        company_id,
+        job_id=invoiced_job_id,
+        amount="1200.00",
+        issued_at=_seed_datetime(0),
+    )
+
+    quoted_project_id = await _create_project(tenant_a_client, name="Quoted Project")
+    quoted_scope_id = await _create_trade_scope(tenant_a_client, quoted_project_id)
+    await _add_cost_entry(
+        tenant_a_client,
+        headers,
+        trade_scope_id=quoted_scope_id,
+        category_id=materials_id,
+        amount="50.00",
+    )
+    await _create_approved_quote(
+        tenant_a_client,
+        company_id,
+        trade_scope_id=quoted_scope_id,
+        amount="800.00",
+        approved_at=_seed_datetime(1),
+    )
+
+    portfolio = (await _company_financials(tenant_a_client, headers))["portfolio"]
+
+    assert portfolio["margin"]["revenue_basis"] == "mixed"
+    assert Decimal(portfolio["margin"]["revenue"]) == Decimal("2000.00")
+    assert Decimal(portfolio["quoted_revenue"]) == Decimal("800.00")
+
+
+@pytest.mark.asyncio
+async def test_attention_list_tier_ordering(tenant_a_client, seed_two_tenants):
+    """D-08 order: overrun (worst % first), then warning (worst % first), then incomplete."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_cost_categories(company_id)
+    materials_id = await _category_id(company_id, "materials")
+
+    scope_overrun_name = "Scope Overrun Project"
+    scope_overrun_id = await _create_project(tenant_a_client, name=scope_overrun_name)
+    overrun_scope_id = await _create_trade_scope(
+        tenant_a_client, scope_overrun_id, trade_name="Plumbing"
+    )
+    await _create_budget(
+        tenant_a_client, headers, trade_scope_id=overrun_scope_id, total=_TIER_BUDGET_TOTAL
+    )
+    await _add_cost_entry(
+        tenant_a_client,
+        headers,
+        trade_scope_id=overrun_scope_id,
+        category_id=materials_id,
+        amount=_OVERRUN_SCOPE_SPEND,
+    )
+
+    for name, spend in (
+        ("Project Overrun Project", _OVERRUN_PROJECT_SPEND),
+        ("Warning High Project", _WARNING_HIGH_SPEND),
+        ("Warning Low Project", _WARNING_LOW_SPEND),
+    ):
+        project_id = await _create_project(tenant_a_client, name=name)
+        scope_id = await _create_trade_scope(tenant_a_client, project_id)
+        await _create_budget(
+            tenant_a_client, headers, project_id=project_id, total=_TIER_BUDGET_TOTAL
+        )
+        await _add_cost_entry(
+            tenant_a_client,
+            headers,
+            trade_scope_id=scope_id,
+            category_id=materials_id,
+            amount=spend,
+        )
+
+    incomplete_project_id = await _create_project(tenant_a_client, name="Incomplete Project")
+    incomplete_job_id = await _create_job(tenant_a_client, incomplete_project_id)
+    await _create_invoice(
+        tenant_a_client,
+        company_id,
+        job_id=incomplete_job_id,
+        amount="600.00",
+        issued_at=_seed_datetime(0),
+    )
+
+    body = await _company_financials(tenant_a_client, headers)
+
+    assert [row["tier"] for row in body["attention"]] == [
+        "overrun",
+        "overrun",
+        "warning",
+        "warning",
+        "incomplete",
+    ]
+    overrun_percents = _tier_percents(body, "overrun")
+    warning_percents = _tier_percents(body, "warning")
+    assert overrun_percents == [Decimal("140.0"), Decimal("115.0")]
+    assert warning_percents == [Decimal("92.0"), Decimal("85.0")]
+    assert body["attention"][0]["project_id"] == scope_overrun_id
+    assert body["attention"][0]["anchor_label"] == f"{scope_overrun_name} — Plumbing scope"
+    assert body["attention"][-1]["project_id"] == incomplete_project_id
+    assert body["attention"][-1]["percent_used"] is None
+
+
+@pytest.mark.asyncio
+async def test_attention_tiers_use_live_threshold_state(tenant_a_client, seed_two_tenants):
+    """Pitfall 5 / D-11: tiers read live spend-vs-total, never the fired claim columns.
+
+    Both directions are asserted, because each one alone still passes under a
+    fired-column implementation:
+
+    - `live_over` is over budget with `overrun_fired_at IS NULL` (the budget was
+      created after the spend, and POST /budgets/ does not evaluate) and MUST be
+      listed. The plan's original route to this state — raising a budget to a
+      total still below spend — cannot produce it: 34-06 shipped inline
+      evaluation on PATCH (D-10), so the raise re-arms and then immediately
+      re-claims the crossing in the same request.
+    - `stale_claim` carries a real `overrun_fired_at` from a crossing that has
+      since been undone by a soft-delete, and MUST NOT be listed.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_cost_categories(company_id)
+    materials_id = await _category_id(company_id, "materials")
+
+    live_over_id = await _create_project(tenant_a_client, name="Live Over Project")
+    live_over_scope_id = await _create_trade_scope(tenant_a_client, live_over_id)
+    await _add_cost_entry(
+        tenant_a_client,
+        headers,
+        trade_scope_id=live_over_scope_id,
+        category_id=materials_id,
+        amount=_OVERRUN_SCOPE_SPEND,
+    )
+    live_over_budget = await _create_budget(
+        tenant_a_client, headers, project_id=live_over_id, total=_TIER_BUDGET_TOTAL
+    )
+
+    stale_claim_id = await _create_project(tenant_a_client, name="Stale Claim Project")
+    stale_claim_scope_id = await _create_trade_scope(tenant_a_client, stale_claim_id)
+    stale_claim_budget = await _create_budget(
+        tenant_a_client, headers, project_id=stale_claim_id, total=_TIER_BUDGET_TOTAL
+    )
+    crossing_entry_id = await _add_cost_entry(
+        tenant_a_client,
+        headers,
+        trade_scope_id=stale_claim_scope_id,
+        category_id=materials_id,
+        amount=_OVERRUN_SCOPE_SPEND,
+    )
+    assert await _overrun_fired_at(company_id, stale_claim_budget["id"]) is not None
+    await _delete_cost_entry(tenant_a_client, headers, crossing_entry_id)
+
+    assert await _overrun_fired_at(company_id, live_over_budget["id"]) is None
+    assert await _overrun_fired_at(company_id, stale_claim_budget["id"]) is not None
+
+    body = await _company_financials(tenant_a_client, headers)
+
+    live_over_rows = _attention_rows_for(body, live_over_id)
+    assert [row["tier"] for row in live_over_rows] == ["overrun"]
+    assert Decimal(live_over_rows[0]["percent_used"]) == Decimal("140.0")
+    assert _attention_rows_for(body, stale_claim_id) == []
