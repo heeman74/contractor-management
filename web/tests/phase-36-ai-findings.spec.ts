@@ -10,6 +10,7 @@ import { test, expect, type Page, type Route } from "@playwright/test";
 // stale sentence asserted somewhere else in this file.
 
 const FINANCE_PERMISSIONS = ["projects.view", "finance.view"];
+const NON_FINANCE_PERMISSIONS = ["projects.view", "jobs.view"];
 
 const PROJECT_ID = "proj-f-1";
 const PROJECT_NAME = "Downtown Remodel";
@@ -194,7 +195,9 @@ const COMPANY_FINANCIALS_PATH = "/api/v1/financials/company";
 const PERMISSIONS_PATH_MARKER = "/me/permissions";
 const PROJECTS_PATH_SUFFIX = "/projects/";
 
+const PROJECT_FINANCIALS_ROUTE = `/financials/${PROJECT_ID}`;
 const FINANCIALS_NAV_LABEL = "Financials";
+const REPORTS_NAV_LABEL = "Reports";
 
 const CARD_TEST_ID = "profitability-finding";
 const SEVERITY_TEST_ID = "profitability-finding-severity";
@@ -205,8 +208,18 @@ const BASIS_NOTE_TEST_ID = "profitability-finding-basis-note";
 const LABOR_NOTE_TEST_ID = "profitability-finding-labor-note";
 const DISCLOSURE_TEST_ID = "profitability-finding-disclosure";
 const EMPTY_TEST_ID = "profitability-finding-empty";
+const ERROR_TEST_ID = "profitability-finding-error";
+const DENY_PANEL_TEST_ID = "financials-deny-panel";
 
+/** The surfaces a findings outage must leave standing — the three money tiles
+ *  and all three charts of the drill-down. */
+const SURVIVING_TILE_TEST_IDS = ["project-revenue", "project-cost", "project-margin"];
 const TREND_CARD_LABEL = "Margin Trend chart";
+const SURVIVING_CHART_CARD_LABELS = [
+  TREND_CARD_LABEL,
+  "Budget vs Actual by Trade Scope chart",
+  "Cost Category Mix chart",
+];
 
 // Verbatim copy from the 36-UI-SPEC copywriting contract. The frame is locked
 // byte-for-byte; the AI-authored prose inside it is only ever read back off the
@@ -226,6 +239,9 @@ const EMPTY_BODY =
 const INCOMPLETE_EMPTY_HEADING = "Not analyzed — incomplete cost data";
 const INCOMPLETE_EMPTY_BODY =
   "AI skips projects with missing or unrated costs, so a finding can never rest on understated numbers.";
+const FINDING_ERROR_MESSAGE =
+  "Couldn't load the profitability finding. Refresh to try again.";
+const DENY_MESSAGE = "You do not have permission to view financials.";
 
 /** The card chrome is band-independent: neither red token may reach the root. */
 const FORBIDDEN_SEVERITY_CHROME = ["border-red", "bg-red"];
@@ -466,4 +482,78 @@ test("no open finding on a complete-cost project reads as no erosion flagged", a
   await openDrillDownAsFinanceUser(page);
 
   await expectEmptyState(page, EMPTY_HEADING, EMPTY_BODY);
+});
+
+// ─── The SC2 keystone. Read this before changing either assertion below. ───
+//
+// Both halves are load-bearing, and each one alone is a false green:
+//
+//   1. `toBeVisible()` on the deny panel. On its own this proves nothing about
+//      permissions: a hard `page.goto` resets Redux `isAuthenticated`, so
+//      `usePermissions` is disabled and the deny panel renders for a PERMITTED
+//      user too. This half would keep passing with `FinanceGate` deleted only
+//      because the panel is what a cold load shows either way — which is exactly
+//      why it may never be the only assertion here.
+//
+//   2. `toHaveLength(0)` on the captured requests to /financials/finding. This
+//      is the fetch-side gate: `FinanceGate` stops the render, the hook's
+//      `enabled: can(FINANCE_VIEW_PERMISSION)` stops the request. Without both,
+//      money-adjacent AI prose crosses the wire before permissions are known.
+//
+// Break-it-once (verified, 36-06): deleting `FinanceGate` from
+// financials/layout.tsx fails the deny-panel half; with the gate gone, also
+// reducing the hook's `enabled` to `!!projectId` fires a request to
+// /financials/finding and fails the zero-request half. The gate short-circuits
+// the mount, so the request half can only be observed once the render half is
+// already broken — that is what makes it a second, independent lock rather than
+// a restatement of the first. The unit-level proof that `enabled` alone holds
+// lives in the 36-02 hook test.
+//
+// Do NOT "fix" this into a permitted-user goto test, and do NOT drop either
+// half. Either edit turns a real gate assertion into a green that proves nothing.
+test("non-finance user sees the deny panel and issues zero finding requests", async ({
+  page,
+}) => {
+  const financialRequests = captureFinancialRequests(page);
+  await mockFinanceRoutes(page, { permissions: NON_FINANCE_PERMISSIONS });
+
+  // Logged in through the UI, so permissions are genuinely RESOLVED and simply
+  // lack finance.view. Reports proves the sidebar rendered, so the missing
+  // Financials item is the permission gate and not a nav that failed to mount —
+  // and there is no SPA route into the drill-down for this user at all.
+  await loginThroughUi(page);
+  await expect(page.getByRole("link", { name: REPORTS_NAV_LABEL })).toBeVisible();
+  await expect(page.getByRole("link", { name: FINANCIALS_NAV_LABEL })).toHaveCount(
+    NO_ELEMENTS
+  );
+  expect(findingRequestsIn(financialRequests)).toHaveLength(NO_REQUESTS);
+
+  await page.goto(PROJECT_FINANCIALS_ROUTE);
+
+  const denyPanel = page.getByTestId(DENY_PANEL_TEST_ID);
+  await expect(denyPanel).toBeVisible();
+  await expect(denyPanel).toHaveText(DENY_MESSAGE);
+  await expect(page.getByTestId(CARD_TEST_ID)).toHaveCount(NO_ELEMENTS);
+  expect(findingRequestsIn(financialRequests)).toHaveLength(NO_REQUESTS);
+  expect(financialRequests).toHaveLength(NO_REQUESTS);
+});
+
+test("a findings outage never blanks the money dashboard", async ({ page }) => {
+  await mockFinanceRoutes(page, {
+    permissions: FINANCE_PERMISSIONS,
+    findingFails: true,
+  });
+
+  await openDrillDownAsFinanceUser(page);
+
+  await expect(page.getByTestId(ERROR_TEST_ID)).toHaveText(FINDING_ERROR_MESSAGE);
+
+  // The UI half of the keystone: the finding owns its own query key and its own
+  // failure surface, so a 500 on that one path costs exactly one card.
+  for (const testId of SURVIVING_TILE_TEST_IDS) {
+    await expect(page.getByTestId(testId)).toBeVisible();
+  }
+  for (const cardLabel of SURVIVING_CHART_CARD_LABELS) {
+    await expect(page.locator(`[aria-label="${cardLabel}"]`)).toBeVisible();
+  }
 });
