@@ -43,6 +43,7 @@ _COMPANY_FINANCIALS_URL = "/api/v1/financials/company"
 _PROJECTS_URL = "/api/v1/projects/"
 _BUDGETS_URL = "/api/v1/budgets/"
 _COST_ENTRIES_URL = "/api/v1/cost-entries/"
+_TRADE_SCOPES_URL = "/api/v1/trade-scopes/"
 _INVOICES_URL = "/api/v1/invoices/"
 _QUOTES_URL = "/api/v1/quotes/"
 
@@ -152,7 +153,7 @@ async def _create_trade_scope(
 ) -> str:
     """Create a trade scope on a project through the API and return its id."""
     resp = await client.post(
-        "/api/v1/trade-scopes/",
+        _TRADE_SCOPES_URL,
         json={"project_id": project_id, "trade_name": trade_name, "trade_color": "#2196F3"},
     )
     assert resp.status_code == 201, resp.text
@@ -1307,3 +1308,236 @@ async def test_attention_tiers_use_live_threshold_state(tenant_a_client, seed_tw
     assert [row["tier"] for row in live_over_rows] == ["overrun"]
     assert Decimal(live_over_rows[0]["percent_used"]) == Decimal("140.0")
     assert _attention_rows_for(body, stale_claim_id) == []
+
+
+# ---------------------------------------------------------------------------
+# GET /projects/{id}/financials — the drill-down aggregate (MARG-04, plan 35-06)
+# ---------------------------------------------------------------------------
+
+_DRILL_DOWN_PROJECT_NAME = "Drill Down Project"
+_DRILL_DOWN_TRADE_NAMES = ("Plumbing", "Electrical", "Framing")
+_DRILL_DOWN_BUDGET_TOTAL = "1000.00"
+_BUDGETED_SCOPE_SPEND = "400.00"
+_UNBUDGETED_SCOPE_SPEND = "175.00"
+_REMOVED_SCOPE_SPEND = "999.00"
+_DRILL_DOWN_JOB_SPEND = "220.00"
+_DRILL_DOWN_INVOICE_AMOUNT = "3500.00"
+_DRILL_DOWN_TRACKED_HOURS = 6
+_PROJECT_NOT_FOUND_DETAIL = "Project not found"
+
+
+async def _project_financials(client: AsyncClient, headers: dict, project_id: str) -> dict:
+    """GET one project's drill-down aggregate as a finance.view holder."""
+    resp = await client.get(_project_financials_url(project_id), headers=headers)
+    assert resp.status_code == 200, resp.text
+    return resp.json()
+
+
+async def _trade_scope_breakdown(client: AsyncClient, headers: dict, scope_id: str) -> dict:
+    """GET the SHIPPED per-scope cost breakdown the drill-down must agree with."""
+    resp = await client.get(f"{_TRADE_SCOPES_URL}{scope_id}/cost-breakdown", headers=headers)
+    assert resp.status_code == 200, resp.text
+    return resp.json()
+
+
+def _scope_row(body: dict, trade_scope_id: str) -> dict | None:
+    """One trade scope's row from a drill-down body, or None when it is absent."""
+    return next((row for row in body["scopes"] if row["trade_scope_id"] == trade_scope_id), None)
+
+
+def _appears_anywhere(payload: object, key: str) -> bool:
+    """True when `key` is present at any depth of a decoded JSON body."""
+    if isinstance(payload, dict):
+        return key in payload or any(_appears_anywhere(value, key) for value in payload.values())
+    if isinstance(payload, list):
+        return any(_appears_anywhere(item, key) for item in payload)
+    return False
+
+
+async def _shipped_scope_spends(company_id: str, scope_ids: list[str]) -> list[Decimal]:
+    """The SHIPPED per-scope spend definition, called directly once per scope.
+
+    Deliberately the N+1 the endpoint replaces: it is the reference the batched
+    grouped query is pinned to (Pitfall 6), never a production access pattern.
+    """
+    async with async_session_factory() as db:
+        set_current_tenant_id(UUID(company_id))
+        service = FinanceService(db)
+        return [await service.trade_scope_spend(UUID(scope_id)) for scope_id in scope_ids]
+
+
+async def _seed_drill_down_scopes(
+    client: AsyncClient, headers: dict, project_id: str, materials_id: str
+) -> list[str]:
+    """Three scopes in sort_order: budgeted with a soft-deleted entry, unbudgeted, empty."""
+    scope_ids = [
+        await _create_trade_scope(client, project_id, trade_name=trade_name)
+        for trade_name in _DRILL_DOWN_TRADE_NAMES
+    ]
+    budgeted_scope_id, unbudgeted_scope_id, _empty_scope_id = scope_ids
+
+    await _create_budget(
+        client, headers, trade_scope_id=budgeted_scope_id, total=_DRILL_DOWN_BUDGET_TOTAL
+    )
+    await _add_cost_entry(
+        client,
+        headers,
+        trade_scope_id=budgeted_scope_id,
+        category_id=materials_id,
+        amount=_BUDGETED_SCOPE_SPEND,
+    )
+    removed_entry_id = await _add_cost_entry(
+        client,
+        headers,
+        trade_scope_id=budgeted_scope_id,
+        category_id=materials_id,
+        amount=_REMOVED_SCOPE_SPEND,
+    )
+    await _delete_cost_entry(client, headers, removed_entry_id)
+    await _add_cost_entry(
+        client,
+        headers,
+        trade_scope_id=unbudgeted_scope_id,
+        category_id=materials_id,
+        amount=_UNBUDGETED_SCOPE_SPEND,
+    )
+    return scope_ids
+
+
+async def _seed_drill_down_job(
+    client: AsyncClient, headers: dict, company_id: str, project_id: str, materials_id: str
+) -> str:
+    """A job carrying cost, rated tracked time and an invoice — the labor/margin half."""
+    job_id = await _create_job(client, project_id)
+    await _add_cost_entry(
+        client, headers, job_id=job_id, category_id=materials_id, amount=_DRILL_DOWN_JOB_SPEND
+    )
+    contractor_id = await _create_user(
+        client, f"drilldown-{uuid4().hex}@{_CONTRACTOR_EMAIL_DOMAIN}"
+    )
+    await _post_rate(client, headers, contractor_id, _SEED_HOURLY_COST, _RATE_EFFECTIVE_FROM)
+    await _seed_time_entry(
+        company_id,
+        job_id,
+        contractor_id,
+        _DRILL_DOWN_TRACKED_HOURS,
+        clocked_in_at=_seed_datetime(0),
+    )
+    await _create_invoice(
+        client,
+        company_id,
+        job_id=job_id,
+        amount=_DRILL_DOWN_INVOICE_AMOUNT,
+        issued_at=_seed_datetime(1),
+    )
+    return job_id
+
+
+async def _seed_drill_down_project(
+    client: AsyncClient, headers: dict, company_id: str
+) -> _ProjectStructure:
+    """One project covering every drill-down state the response must report honestly.
+
+    Budgeted, unbudgeted and empty scopes; a soft-deleted scope entry both spend
+    definitions must exclude; and a job with rated time so derived labor is real.
+    """
+    materials_id = await _category_id(company_id, "materials")
+    project_id = await _create_project(client, name=_DRILL_DOWN_PROJECT_NAME)
+    scope_ids = await _seed_drill_down_scopes(client, headers, project_id, materials_id)
+    job_id = await _seed_drill_down_job(client, headers, company_id, project_id, materials_id)
+    return _ProjectStructure(project_id=project_id, scope_ids=scope_ids, job_ids=[job_id])
+
+
+@pytest.mark.asyncio
+async def test_project_financials_scope_budgets_match_scope_spend(
+    tenant_a_client, seed_two_tenants
+):
+    """Every scope's `spent` IS the shipped trade_scope_spend, and an empty scope still appears.
+
+    One grouped query and the shipped per-scope definition are two traversals of
+    the same soft-delete and category rules; comparing them as Decimal keeps a
+    cent of quantization drift from hiding behind equal text.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_cost_categories(company_id)
+    structure = await _seed_drill_down_project(tenant_a_client, headers, company_id)
+    budgeted_scope_id, unbudgeted_scope_id, empty_scope_id = structure.scope_ids
+
+    body = await _project_financials(tenant_a_client, headers, structure.project_id)
+    shipped_spends = await _shipped_scope_spends(company_id, structure.scope_ids)
+
+    assert [row["trade_scope_id"] for row in body["scopes"]] == structure.scope_ids
+    for scope_id, shipped_spend in zip(structure.scope_ids, shipped_spends, strict=True):
+        assert Decimal(_scope_row(body, scope_id)["spent"]) == shipped_spend
+
+    shipped_breakdown = await _trade_scope_breakdown(tenant_a_client, headers, budgeted_scope_id)
+    budgeted_row = _scope_row(body, budgeted_scope_id)
+    assert Decimal(budgeted_row["spent"]) == Decimal(_BUDGETED_SCOPE_SPEND)
+    assert Decimal(budgeted_row["budget"]["percent_used"]) == Decimal(
+        shipped_breakdown["budget"]["percent_used"]
+    )
+    assert _scope_row(body, unbudgeted_scope_id)["budget"] is None
+
+    empty_row = _scope_row(body, empty_scope_id)
+    assert empty_row["spent"] == "0.00"
+    assert Decimal(empty_row["spent"]) == Decimal("0.00")
+    assert empty_row["budget"] is None
+
+
+@pytest.mark.asyncio
+async def test_project_financials_returns_aggregates_without_entries(
+    tenant_a_client, seed_two_tenants
+):
+    """The drill-down reuses the shipped rollup's aggregates and ships no itemized rows."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_cost_categories(company_id)
+    structure = await _seed_drill_down_project(tenant_a_client, headers, company_id)
+
+    body = await _project_financials(tenant_a_client, headers, structure.project_id)
+    async with async_session_factory() as db:
+        set_current_tenant_id(UUID(company_id))
+        rollup = await FinanceService(db).rollup_for_project(UUID(structure.project_id))
+
+    assert "entries" not in body
+    assert not _appears_anywhere(body, "entries")
+    assert body["name"] == _DRILL_DOWN_PROJECT_NAME
+
+    breakdown = body["breakdown"]
+    assert Decimal(breakdown["grand_total"]) == rollup.grand_total
+    assert Decimal(breakdown["labor"]["total"]) > Decimal("0.00")
+    assert breakdown["labor"]["basis"] == "unburdened"
+
+    margin, shipped_margin = breakdown["margin"], rollup.margin
+    assert Decimal(margin["revenue"]) == shipped_margin.revenue
+    assert margin["revenue_basis"] == shipped_margin.revenue_basis
+    assert Decimal(margin["margin"]) == shipped_margin.margin
+    assert Decimal(margin["margin_percent"]) == shipped_margin.margin_percent
+    assert margin["incomplete"] == shipped_margin.incomplete
+    assert sorted(margin["incomplete_reasons"]) == sorted(shipped_margin.incomplete_reasons)
+
+
+@pytest.mark.asyncio
+async def test_project_financials_rls_isolation(tenant_a_client, tenant_b_client, seed_two_tenants):
+    """Another tenant's project id and a soft-deleted one both read as absent, not as data."""
+    tenant_a_id = seed_two_tenants["tenant_a_id"]
+    tenant_b_id = seed_two_tenants["tenant_b_id"]
+    await _seed_cost_categories(tenant_a_id)
+    structure = await _seed_drill_down_project(
+        tenant_a_client, _pm_headers(tenant_a_id), tenant_a_id
+    )
+
+    foreign_resp = await tenant_b_client.get(
+        _project_financials_url(structure.project_id), headers=_pm_headers(tenant_b_id)
+    )
+    assert foreign_resp.status_code == 404, foreign_resp.text
+    assert foreign_resp.json()["detail"] == _PROJECT_NOT_FOUND_DETAIL
+
+    await _delete_project(tenant_a_client, structure.project_id)
+
+    removed_resp = await tenant_a_client.get(
+        _project_financials_url(structure.project_id), headers=_pm_headers(tenant_a_id)
+    )
+    assert removed_resp.status_code == 404, removed_resp.text
+    assert removed_resp.json()["detail"] == _PROJECT_NOT_FOUND_DETAIL
