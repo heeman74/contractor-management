@@ -92,8 +92,7 @@ from app.features.rbac.repository import RbacRepository
 _SECONDS_PER_HOUR = 3600
 _ALERT_TYPE_CHECK_NAME = "dashboard_alerts_alert_type_check"
 
-# Phase 36 endpoint URLs. The finding endpoint lands in a later Phase 36 plan;
-# the constant is declared here so no call site carries a bare path literal.
+# Phase 36 endpoint URLs — declared once so no call site carries a bare path literal.
 _PROJECTS_URL = "/api/v1/projects/"
 _BUDGETS_URL = "/api/v1/budgets/"
 _COST_ENTRIES_URL = "/api/v1/cost-entries/"
@@ -242,7 +241,7 @@ def _admin_headers(company_id: str) -> dict:
 
 
 def _finding_url(project_id: str) -> str:
-    """URL of one project's latest AI finding (endpoint lands in a later Phase 36 plan)."""
+    """URL of one project's latest open AI finding (finance.view, FINAI-02)."""
     return f"/api/v1/projects/{project_id}/financials/finding"
 
 
@@ -2369,3 +2368,164 @@ async def test_profitability_job_registered_delegates_to_analyze_company() -> No
     assert kwargs["service_class"] is ProfitabilityService
     assert kwargs["method_name"] == "analyze_company"
     assert kwargs["target_date"] == datetime.now(UTC).date()
+
+
+# ---------------------------------------------------------------------------
+# FINAI-02: GET /projects/{id}/financials/finding (36-10)
+#
+# The nine fields the shipped web mapper reads, and nothing else: alert_summary
+# is deliberately absent because the card does not render it. Every negative
+# assertion here is paired with the same request from a permitted caller, so a
+# 403 or a null can never pass because the URL was wrong.
+# ---------------------------------------------------------------------------
+
+_FINDING_RESPONSE_FIELDS = frozenset(
+    {
+        "id",
+        "project_id",
+        "severity",
+        "narrative",
+        "corrective_action",
+        "revenue_basis",
+        "labor_included",
+        "found_on",
+        "last_confirmed_on",
+    }
+)
+
+_WARNING_FINGERPRINT = "quote_gap:warning"
+_WARNING_NARRATIVE = "Billed margin on this project trails what the approved quote implies."
+
+_FINDING_BACKDATE_SQL = (
+    "UPDATE ai_profitability_findings SET created_at = :created_at "
+    "WHERE id = CAST(:finding_id AS uuid)"
+)
+
+
+async def _backdate_finding(company_id: str, finding_id: UUID, created_at: datetime) -> None:
+    """Age one finding row so "newest open wins" is a decided comparison.
+
+    Two rows inserted milliseconds apart order correctly in practice but leave the
+    assertion resting on clock resolution; an explicit hour of separation makes it
+    a real proof.
+    """
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        await session.execute(
+            text(_FINDING_BACKDATE_SQL),
+            {"finding_id": str(finding_id), "created_at": created_at},
+        )
+        await session.commit()
+
+
+async def test_latest_finding_endpoint(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """Null when there is none, the nine-field body when there is, newest open wins.
+
+    A resolved finding is not a finding: the card must go quiet the night the
+    condition clears, which is the same open-row predicate the nightly upsert
+    arbitrates on.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    project_id = await _create_project(tenant_a_client)
+    headers = _pm_headers(company_id)
+
+    empty = await tenant_a_client.get(_finding_url(project_id), headers=headers)
+    assert empty.status_code == 200, empty.text
+    assert empty.json() is None
+
+    critical = _finding_upsert(company_id, project_id)
+    async with _tenant_repository(company_id) as repository:
+        critical_id = (await repository.upsert_finding(critical)).id
+
+    present = await tenant_a_client.get(_finding_url(project_id), headers=headers)
+    assert present.status_code == 200, present.text
+    body = present.json()
+    assert set(body) == _FINDING_RESPONSE_FIELDS
+    assert body["id"] == str(critical_id)
+    assert body["project_id"] == project_id
+    assert body["severity"] == critical.severity_band
+    assert body["narrative"] == critical.narrative
+    assert body["corrective_action"] == critical.corrective_action
+    assert body["revenue_basis"] == critical.revenue_basis
+    assert body["labor_included"] is critical.labor_included
+    assert body["found_on"] == _FIRST_NIGHT.isoformat()
+    assert body["last_confirmed_on"] == _FIRST_NIGHT.isoformat()
+
+    warning = _finding_upsert(
+        company_id,
+        project_id,
+        fingerprint=_WARNING_FINGERPRINT,
+        narrative=_WARNING_NARRATIVE,
+        severity_band=SEVERITY_BAND_WARNING,
+        analyzed_on=_SECOND_NIGHT,
+    )
+    async with _tenant_repository(company_id) as repository:
+        warning_id = (await repository.upsert_finding(warning)).id
+    await _backdate_finding(company_id, critical_id, _days_ago(1))
+
+    newest = await tenant_a_client.get(_finding_url(project_id), headers=headers)
+    assert newest.status_code == 200, newest.text
+    assert newest.json()["id"] == str(warning_id)
+    assert newest.json()["severity"] == SEVERITY_BAND_WARNING
+    assert newest.json()["narrative"] == _WARNING_NARRATIVE
+
+    async with _tenant_repository(company_id) as repository:
+        assert await repository.resolve_absent_fingerprints(keep=[]) == 2
+
+    resolved = await tenant_a_client.get(_finding_url(project_id), headers=headers)
+    assert resolved.status_code == 200, resolved.text
+    assert resolved.json() is None
+
+
+async def test_finding_endpoint_requires_finance_view(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """A caller without finance.view is refused and reads none of the AI text.
+
+    The paired permitted request is what makes the 403 mean something: without it
+    the denial would also pass against a misspelled URL or an empty table.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    project_id = await _create_project(tenant_a_client)
+    finding = _finding_upsert(company_id, project_id)
+    async with _tenant_repository(company_id) as repository:
+        await repository.upsert_finding(finding)
+
+    denied = await tenant_a_client.get(_finding_url(project_id), headers=_admin_headers(company_id))
+    assert denied.status_code == 403, denied.text
+    assert finding.narrative not in denied.text
+    assert finding.corrective_action not in denied.text
+
+    permitted = await tenant_a_client.get(_finding_url(project_id), headers=_pm_headers(company_id))
+    assert permitted.status_code == 200, permitted.text
+    assert permitted.json()["narrative"] == finding.narrative
+
+
+async def test_finding_endpoint_rls_isolation(
+    tenant_a_client: AsyncClient, tenant_b_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """Tenant B's finance user never receives tenant A's finding.
+
+    B is answered with the same null a project of its own with no finding would
+    get, not a 404: the row is invisible to B's RLS context, so the honest answer
+    is "no finding visible to you". Distinguishing the two nulls would take an
+    existence probe on every card load to serve a difference nothing renders,
+    while the sibling drill-down route already 404s a foreign project id.
+    """
+    company_a_id = seed_two_tenants["tenant_a_id"]
+    company_b_id = seed_two_tenants["tenant_b_id"]
+    project_id = await _create_project(tenant_a_client)
+    finding = _finding_upsert(company_a_id, project_id)
+    async with _tenant_repository(company_a_id) as repository:
+        await repository.upsert_finding(finding)
+
+    crossed = await tenant_b_client.get(_finding_url(project_id), headers=_pm_headers(company_b_id))
+    assert crossed.status_code == 200, crossed.text
+    assert crossed.json() is None
+    assert finding.narrative not in crossed.text
+
+    owner = await tenant_a_client.get(_finding_url(project_id), headers=_pm_headers(company_a_id))
+    assert owner.status_code == 200, owner.text
+    assert owner.json()["narrative"] == finding.narrative
