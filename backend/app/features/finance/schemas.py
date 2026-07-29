@@ -18,6 +18,7 @@ from decimal import Decimal
 from pydantic import BaseModel, Field, model_validator
 
 from app.core.base_schemas import BaseResponseSchema
+from app.features.finance.labor_derivation import LaborTotals
 from app.features.finance.margin_math import MarginFigures
 
 # ---------------------------------------------------------------------------
@@ -124,6 +125,15 @@ class LaborCostSummary(BaseModel):
     rated_seconds: int
     unrated_seconds: int
     basis: str = "unburdened"
+
+
+def to_labor_cost_summary(labor: LaborTotals) -> LaborCostSummary:
+    """Map derived labor totals onto the wire schema, keeping the D-06 default basis."""
+    return LaborCostSummary(
+        total=labor.total,
+        rated_seconds=labor.rated_seconds,
+        unrated_seconds=labor.unrated_seconds,
+    )
 
 
 class MarginSummary(BaseModel):

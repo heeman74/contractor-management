@@ -26,7 +26,7 @@ from decimal import Decimal
 
 from sqlalchemy import Row
 
-from app.core.base_service import TenantScopedService
+from app.core.base_service import TenantScopedService, active_entity_or_404
 from app.features.finance.budget_repository import BudgetRepository
 from app.features.finance.budget_service import _to_budget_vs_actual
 from app.features.finance.labor_derivation import (
@@ -63,11 +63,17 @@ from app.features.finance.repository import LaborRateRepository
 from app.features.finance.schemas import (
     AttentionRow,
     CompanyFinancialsResponse,
+    CostBreakdownResponse,
     PortfolioTotals,
+    ProjectFinancialsResponse,
     ProjectFinancialsRow,
+    ProjectScopeBudgetRow,
+    to_labor_cost_summary,
     to_margin_summary,
 )
 from app.features.finance.service import (
+    FinanceService,
+    ProjectCostRollup,
     ProjectMarginContext,
     _any_anchor_missing_cost_data,
     _build_breakdown,
@@ -80,6 +86,7 @@ type _AnchoredDocument = tuple[RevenueAnchor, DocumentAmounts]
 type _ScopeLabels = dict[uuid.UUID, tuple[uuid.UUID, str]]
 
 _ABSENT_REVENUE = ResolvedRevenue(total=None, basis=REVENUE_BASIS_NONE)
+_PROJECT_NOT_FOUND = "Project not found"
 
 
 @dataclass(frozen=True)
@@ -338,6 +345,48 @@ def _to_attention_row(entry: AttentionEntry) -> AttentionRow:
     )
 
 
+def _rollup_breakdown(rollup: ProjectCostRollup) -> CostBreakdownResponse:
+    """The shipped project rollup's aggregate half, verbatim.
+
+    Nothing is re-derived here: a second definition of the category mix, the
+    folded labor row, the margin or the project budget is exactly the Pitfall-1
+    drift the equivalence tests exist to prevent.
+    """
+    return CostBreakdownResponse(
+        categories=rollup.categories,
+        labor=to_labor_cost_summary(rollup.labor),
+        labor_tracked_at_job_level=False,
+        grand_total=rollup.grand_total,
+        margin=rollup.margin,
+        budget=rollup.budget,
+    )
+
+
+def _budgets_by_scope(
+    budgets: Iterable[Budget], scope_ids: Iterable[uuid.UUID]
+) -> dict[uuid.UUID, Budget]:
+    """This project's scope budgets indexed by scope, filtered from the fetched tenant list."""
+    wanted = set(scope_ids)
+    return {budget.trade_scope_id: budget for budget in budgets if budget.trade_scope_id in wanted}
+
+
+def _scope_budget_row(scope: Row, budget: Budget | None, spent: Decimal) -> ProjectScopeBudgetRow:
+    """One scope's drill-down row; `budget` is None when the scope has no active budget."""
+    return ProjectScopeBudgetRow(
+        trade_scope_id=scope.id,
+        trade_name=scope.trade_name,
+        spent=spent,
+        budget=None if budget is None else _to_budget_vs_actual(budget, spent),
+    )
+
+
+def _scope_budget_rows(
+    scopes: Sequence[Row], budgets: dict[uuid.UUID, Budget], spends: dict[uuid.UUID, Decimal]
+) -> list[ProjectScopeBudgetRow]:
+    """Every live scope in sort_order — one with no money still gets a row, spent 0.00."""
+    return [_scope_budget_row(scope, budgets.get(scope.id), spends[scope.id]) for scope in scopes]
+
+
 class PortfolioService(TenantScopedService[Project]):
     """Company-wide financial rollup for the web dashboard overview (MARG-04)."""
 
@@ -352,6 +401,34 @@ class PortfolioService(TenantScopedService[Project]):
             portfolio=_to_portfolio_totals(portfolio_totals(figures)),
             projects=[_to_project_row(project, inputs.budgets) for project in figures],
             attention=[_to_attention_row(entry) for entry in attention_entries(figures)],
+        )
+
+    async def project_financials(self, project_id: uuid.UUID) -> ProjectFinancialsResponse:
+        """Category mix + derived labor + margin + budgets for one project (MARG-04).
+
+        The shipped rollup supplies the project half, so no second definition of
+        spend exists; the scope half costs three queries — scopes, active
+        budgets, and ONE grouped BudgetRepository.scope_spends — never a per-scope
+        spend call in a loop (Pitfall 6 / CLAUDE.md's no-query-in-a-loop rule).
+
+        D-10: these figures deliberately do NOT come from the trend's final
+        bucket, so switching the trend window never restates the headline numbers.
+        """
+        header = active_entity_or_404(
+            await self.repository.project_header(project_id), _PROJECT_NOT_FOUND
+        )
+        rollup = await FinanceService(self.db).rollup_for_project(project_id)
+        scopes = await self.repository.trade_scopes_for_project(project_id)
+        scope_ids = [scope.id for scope in scopes]
+        budget_repository = BudgetRepository(self.db)
+        budgets = _budgets_by_scope(await budget_repository.list_active(), scope_ids)
+        spends = await budget_repository.scope_spends(scope_ids)
+        return ProjectFinancialsResponse(
+            project_id=header.id,
+            name=header.name,
+            status=header.status,
+            breakdown=_rollup_breakdown(rollup),
+            scopes=_scope_budget_rows(scopes, budgets, spends),
         )
 
     async def _fetch_portfolio_inputs(self) -> PortfolioInputs:

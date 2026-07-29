@@ -11,6 +11,7 @@ billing_milestones/router.py exactly:
   PATCH  /cost-entries/{entry_id}                 — finance.manage
   DELETE /cost-entries/{entry_id}                 — finance.manage (soft delete)
   GET    /projects/{project_id}/cost-entries      — finance.view (rollup)
+  GET    /projects/{project_id}/financials        — finance.view (drill-down, MARG-04)
   GET    /jobs/{job_id}/cost-breakdown            — finance.view
   GET    /trade-scopes/{trade_scope_id}/cost-breakdown — finance.view
   GET    /financials/company                      — finance.view (MARG-04)
@@ -51,10 +52,11 @@ from app.features.finance.schemas import (
     CostEntryResponse,
     CostEntryUpdate,
     CostReceiptResponse,
-    LaborCostSummary,
     LaborRateCreate,
     LaborRateResponse,
     ProjectCostRollupResponse,
+    ProjectFinancialsResponse,
+    to_labor_cost_summary,
 )
 from app.features.finance.service import FinanceService, LaborRateService
 
@@ -160,15 +162,22 @@ async def get_project_cost_rollup(
         total=rollup.total,
         entries=[_to_response(entry) for entry in rollup.entries],
         categories=rollup.categories,
-        labor=LaborCostSummary(
-            total=rollup.labor.total,
-            rated_seconds=rollup.labor.rated_seconds,
-            unrated_seconds=rollup.labor.unrated_seconds,
-        ),
+        labor=to_labor_cost_summary(rollup.labor),
         grand_total=rollup.grand_total,
         margin=rollup.margin,
         budget=rollup.budget,
     )
+
+
+@router.get("/projects/{project_id}/financials", response_model=ProjectFinancialsResponse)
+async def get_project_financials(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> ProjectFinancialsResponse:
+    """Project drill-down aggregate: category mix, labor, margin, budgets (MARG-04)."""
+    await require_permission("finance.view")(current_user, db)
+    return await PortfolioService(db).project_financials(project_id)
 
 
 # ---------------------------------------------------------------------------
