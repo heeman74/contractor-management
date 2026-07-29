@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 35-06-PLAN.md
-last_updated: "2026-07-29T03:56:54.339Z"
+stopped_at: Completed 35-09-PLAN.md
+last_updated: "2026-07-29T04:04:08.847Z"
 last_activity: 2026-07-29
 progress:
   total_phases: 22
   completed_phases: 17
   total_plans: 105
-  completed_plans: 97
+  completed_plans: 98
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 35 (web-financial-dashboard) — EXECUTING
-Plan: 7 of 11
+Plan: 8 of 11
 Status: Ready to execute
 Last activity: 2026-07-29
 
@@ -76,6 +76,7 @@ Last activity: 2026-07-29
 | Phase 35 P03 | 27min | 3 tasks tasks | 10 files files |
 | Phase 35 P05 | 79min | 3 tasks tasks | 6 files files |
 | Phase 35 P06 | 11min | 3 tasks | 5 files |
+| Phase 35 P09 | 25min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -266,6 +267,9 @@ Last activity: 2026-07-29
 - [Phase 35-web-financial-dashboard]: 35-06: The scope half is exactly three queries (scopes, active budgets, one grouped scope_spends); the per-scope trade_scope_spend call survives only inside the equivalence test as the reference
 - [Phase 35-web-financial-dashboard]: 35-06: project_header runs BEFORE the rollup so missing, soft-deleted and cross-tenant ids share one 404 path without paying for an aggregate
 - [Phase 35-web-financial-dashboard]: 35-06: to_labor_cost_summary extracted into schemas.py so the shipped project-rollup route and the drill-down cannot drift on the D-06 basis field
+- [Phase 35-web-financial-dashboard]: 35-09: BulletBarRow carries remaining so the shipped budgetTierFill owns the band rule — the chart never re-derives a tier — budgetTierFill is typed on Pick<BudgetVsActual, percentUsed | remaining>; the plan's own fill={budgetTierFill(row)} would not compile otherwise, and a precomputed fill would move the exactly-100%-is-not-amber nuance out of the one shipped helper.
+- [Phase 35-web-financial-dashboard]: 35-09: Bullet bars render isAnimationActive={false} and jest mocks ResponsiveContainer to a fixed box exposing the plot height — Recharts renders no rectangle path until its animation starts, so tier fills are untestable in jsdom; the mock's data-height turns the 28px-per-row geometry contract into a real assertion (40 rows equals 1156px) instead of an untested claim.
+- [Phase 35-web-financial-dashboard]: 35-09: NEARING_BUDGET_CHIP_LABEL exported from BudgetSummarySection and the incomplete chip is itself the #attention-list anchor — The UI-SPEC forbids one condition carrying two names, so the Phase 34 label is imported rather than retyped; making the anchor carry FINANCE_FLAG_CHIP_CLASS gives the badge exactly one testid and one accessible name.
 
 ### Pending Todos
 
@@ -285,6 +289,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-29T03:56:28.553Z
-Stopped at: Completed 35-06-PLAN.md
+Last session: 2026-07-29T04:03:56.771Z
+Stopped at: Completed 35-09-PLAN.md
 Resume file: None
