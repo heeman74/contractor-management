@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 35-07-PLAN.md
-last_updated: "2026-07-29T04:25:25.710Z"
+stopped_at: Completed 35-11-PLAN.md
+last_updated: "2026-07-29T04:52:02.463Z"
 last_activity: 2026-07-29
 progress:
   total_phases: 22
-  completed_phases: 17
+  completed_phases: 18
   total_plans: 105
-  completed_plans: 100
+  completed_plans: 102
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 35 (web-financial-dashboard) — EXECUTING
-Plan: 10 of 11
+Plan: 11 of 11
 Status: Ready to execute
 Last activity: 2026-07-29
 
@@ -79,6 +79,7 @@ Last activity: 2026-07-29
 | Phase 35 P09 | 25min | 3 tasks | 10 files |
 | Phase 35 P10 | 11min | 3 tasks tasks | 8 files files |
 | Phase 35 P07 | 24min | 3 tasks tasks | 6 files files |
+| Phase 35 P11 | 23min | 3 tasks tasks | 1 file files |
 
 ## Accumulated Context
 
@@ -280,6 +281,8 @@ Last activity: 2026-07-29
 - [Phase 35-web-financial-dashboard]: 35-07: The dated-quote query keeps ORDER BY Quote.created_at DESC rather than ordering by the new approved_on — The first row per anchor is what D-01 resolves against; reordering would make the trend resolve a different quote than rollup_for_project does and break the final-bucket reconciliation that is the trend's only self-check
 - [Phase 35-web-financial-dashboard]: 35-07: test_trend_quote_without_approved_at_uses_created_at backdates created_at via SQL instead of relying on insert time — An undated approval created 'now' lands only in the final bucket where every quote lands anyway, so the test would pass vacuously; backdating proves the COALESCE fallback actually dates the quote at an earlier bucket
 - [Phase 35-web-financial-dashboard]: 35-07: Margin-trend test fixtures are dated relative to the current UTC month, never to a fixed calendar year like _seed_date — The endpoint's last bucket is always the current UTC month, so hard-coded dates drift out of every window as time passes and the tests quietly stop asserting anything
+- [Phase 35-web-financial-dashboard]: 35-11: The SC3 denial test pairs the deny panel with a captured zero-financial-request counter, and an in-file comment says why -- a hard page.goto resets Redux, so the panel alone renders for permitted users too and would keep passing with FinanceGate deleted — Break-it-once verified: removing FinanceGate fails the deny-panel half, removing the hooks enabled gate fails the zero-request half
+- [Phase 35-web-financial-dashboard]: 35-11: The margin-trend shared-month proof reads the last-month tooltip (plot located as .recharts-wrapper > svg, raw mouse moves) rather than the CSV export -- ChartCard revokes its blob URL immediately after click, so a download capture would race — The legend icons are svgs too and overlay the plot, so locator("svg").first() and locator.hover both fail
 
 ### Pending Todos
 
@@ -299,6 +302,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-29T04:25:01.733Z
-Stopped at: Completed 35-07-PLAN.md
+Last session: 2026-07-29T04:51:33.397Z
+Stopped at: Completed 35-11-PLAN.md
 Resume file: None
