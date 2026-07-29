@@ -277,6 +277,73 @@ class BudgetVsActual(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Company financial dashboard schemas (MARG-04)
+# ---------------------------------------------------------------------------
+
+
+class PortfolioTotals(BaseModel):
+    """Company-wide cost, revenue and margin across every project.
+
+    D-09/D-12: flagged (incomplete-data) and inactive projects are INCLUDED —
+    excluding one would misstate the portfolio. `incomplete_project_count` is the
+    badge that ties these totals to the attention list, and `quoted_revenue` is
+    the estimated (quote-basis) share of revenue, None when nothing is quoted.
+    """
+
+    cost: Decimal
+    quoted_revenue: Decimal | None = None
+    incomplete_project_count: int
+    margin: MarginSummary
+
+
+class ProjectFinancialsRow(BaseModel):
+    """One project's line on the company overview.
+
+    `budget` is the PROJECT-anchored budget only, and its `spent` equals this
+    row's `cost` by construction. Scope budgets surface through `attention` and
+    through the project drill-down, never here.
+    """
+
+    project_id: uuid.UUID
+    name: str
+    status: str
+    cost: Decimal
+    margin: MarginSummary
+    budget: BudgetVsActual | None = None
+
+
+class AttentionRow(BaseModel):
+    """One row of the D-08 attention list (overrun, then warning, then incomplete).
+
+    D-11: `tier` comes from LIVE spent-vs-total state via
+    `budget_math.crossed_thresholds`, never from the `warning_fired_at` /
+    `overrun_fired_at` columns. Those are an exactly-once alert claim — they null
+    on a budget raise and persist after spend drops — so reading them here would
+    let this list contradict the budget bars rendered beside it.
+
+    The three budget fields are None on the incomplete tier: that tier has no
+    percent, and fabricating one would be a lie.
+    """
+
+    project_id: uuid.UUID
+    project_name: str
+    project_status: str
+    tier: str
+    anchor_label: str
+    spent: Decimal | None = None
+    budget_total: Decimal | None = None
+    percent_used: Decimal | None = None
+
+
+class CompanyFinancialsResponse(BaseModel):
+    """GET /financials/company — the company overview's only data source (MARG-04)."""
+
+    portfolio: PortfolioTotals
+    projects: list[ProjectFinancialsRow] = Field(default_factory=list)
+    attention: list[AttentionRow] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
 # Labor rate schemas
 # ---------------------------------------------------------------------------
 

@@ -13,6 +13,7 @@ billing_milestones/router.py exactly:
   GET    /projects/{project_id}/cost-entries      — finance.view (rollup)
   GET    /jobs/{job_id}/cost-breakdown            — finance.view
   GET    /trade-scopes/{trade_scope_id}/cost-breakdown — finance.view
+  GET    /financials/company                      — finance.view (MARG-04)
   GET    /cost-categories/                        — finance.view
   POST   /labor-rates/                            — finance.rates.manage (append-only)
   GET    /labor-rates/?user_id=X                  — finance.rates.manage (full history)
@@ -38,10 +39,12 @@ from app.core.database import get_db
 from app.core.security import CurrentUser, get_current_user, require_permission
 from app.features.finance.budget_service import BudgetService
 from app.features.finance.models import CostEntry
+from app.features.finance.portfolio_service import PortfolioService
 from app.features.finance.schemas import (
     BudgetCreate,
     BudgetResponse,
     BudgetUpdate,
+    CompanyFinancialsResponse,
     CostBreakdownResponse,
     CostCategoryResponse,
     CostEntryCreate,
@@ -193,6 +196,21 @@ async def get_trade_scope_cost_breakdown(
     """Itemized category totals for a trade scope; labor is tracked at job level (D-08)."""
     await require_permission("finance.view")(current_user, db)
     return await FinanceService(db).trade_scope_cost_breakdown(trade_scope_id)
+
+
+# ---------------------------------------------------------------------------
+# Company financial dashboard (MARG-04)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/financials/company", response_model=CompanyFinancialsResponse)
+async def get_company_financials(
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> CompanyFinancialsResponse:
+    """Company-wide portfolio totals, per-project figures and the attention list (MARG-04)."""
+    await require_permission("finance.view")(current_user, db)
+    return await PortfolioService(db).company_financials()
 
 
 @router.get("/cost-categories/", response_model=list[CostCategoryResponse])
