@@ -1,9 +1,15 @@
 """Phase 36 — AI Profitability Analysis.
 
 Covers FINAI-01/FINAI-02: the findings persistence floor (idempotent nightly
-upsert, claim-first alerting, resolve-then-recur lifecycle) and the schema
+upsert, claim-first alerting, resolve-then-recur lifecycle), the schema
 contracts that guard it (the ai_profitability alert type, tenant isolation, and
-the DB half of the UI-SPEC text-length contract).
+the DB half of the UI-SPEC text-length contract), the nightly scan's D-01
+eligibility gate, and the publish path's D-05 grounding contract.
+
+Claude is never called for real: `app.core.ai_utils.get_anthropic_client` is
+patched (the Phase 26 precedent) so the retry, dismissal, length and cap
+behaviors are all offline and deterministic. No assertion here compares AI prose
+byte-for-byte — bounds and grounding only, per the UI-SPEC.
 
 Per the self-contained-test-file convention the helper set is COPIED from
 test_phase_35_e2e.py (and _make_mock_anthropic_response from
@@ -22,7 +28,7 @@ from collections.abc import AsyncIterator, Iterator, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -32,6 +38,7 @@ from sqlalchemy import event, select, text
 from sqlalchemy.exc import IntegrityError
 
 from app.core.ai_grounding import collect_allowed_values
+from app.core.ai_utils import gather_with_concurrency
 from app.core.database import async_session_factory, engine
 from app.core.security import create_access_token
 from app.features.dashboard.alert_types import AI_PROFITABILITY_ALERT_TYPE, FINANCIAL_ALERT_TYPES
@@ -44,10 +51,15 @@ from app.features.finance.profitability_models import (
 )
 from app.features.finance.profitability_repository import FindingUpsert, ProfitabilityRepository
 from app.features.finance.profitability_service import (
+    DISMISSAL_LOG_TEMPLATE,
+    EMPTY_DRAFT_LOG_TEMPLATE,
     LABOR_BASIS_UNBURDENED,
+    PROFITABILITY_MAX_OUTPUT_TOKENS,
     SCAN_SUMMARY_LOG_TEMPLATE,
     SKIP_LOG_TEMPLATE,
     TREND_PAYLOAD_BUCKETS,
+    UNGROUNDED_DROP_LOG_TEMPLATE,
+    FindingDraft,
     ProfitabilityCandidate,
     ProfitabilityService,
 )
@@ -105,6 +117,10 @@ _OPEN_FINDINGS_SQL = (
 )
 
 _ALL_FINDINGS_COUNT_SQL = "SELECT count(*) FROM ai_profitability_findings WHERE deleted_at IS NULL"
+
+_AI_PROFITABILITY_ALERT_COUNT_SQL = (
+    "SELECT count(*) FROM dashboard_alerts WHERE alert_type = :alert_type AND deleted_at IS NULL"
+)
 
 # ---------------------------------------------------------------------------
 # Nightly-scan fixture amounts (FINAI-01)
@@ -1119,3 +1135,311 @@ async def test_candidate_scan_query_count_is_bounded_by_eligible_projects(
         await _scan_candidates(company_b_id)
 
     assert len(few_eligible_statements) < len(many_eligible_statements)
+
+
+# ---------------------------------------------------------------------------
+# FINAI-01: the publish path — D-05 grounding, dismissal, per-candidate isolation
+#
+# Patch target is app.core.ai_utils.get_anthropic_client (the Phase 26
+# precedent), so the first call and its one D-05 retry both land on a single
+# recorded mock.
+# ---------------------------------------------------------------------------
+
+_CLAUDE_CLIENT_PATH = "app.core.ai_utils.get_anthropic_client"
+
+# _ANALYZABLE_COST_AMOUNT as format_alert_money would render it — present in
+# every seeded payload, so citing it is grounded by construction.
+_GROUNDED_LITERAL = "$5,000"
+# Absent from every seeded payload, so citing it is fabrication by construction.
+_FABRICATED_LITERAL = "$9,999"
+
+_GROUNDED_NARRATIVE = (
+    "Billed revenue trails the approved quote at this job anchor while recorded cost has "
+    f"reached {_GROUNDED_LITERAL}."
+)
+_GROUNDED_CORRECTIVE_ACTION = (
+    "Rebill the plumbing change order or renegotiate supplier pricing — recorded cost is "
+    f"already {_GROUNDED_LITERAL}."
+)
+_GROUNDED_ALERT_SUMMARY = (
+    f"Billed margin trails the approved quote on recorded cost of {_GROUNDED_LITERAL}."
+)
+_AI_STRING_FIELDS = ("narrative", "corrective_action", "alert_summary")
+_DISMISSAL_REASON = "The gap is already explained by a pending change order."
+
+_GROUNDED_DRAFT = FindingDraft(
+    narrative=_GROUNDED_NARRATIVE,
+    corrective_action=_GROUNDED_CORRECTIVE_ACTION,
+    alert_summary=_GROUNDED_ALERT_SUMMARY,
+)
+
+
+def _finding_reply_data(**overrides: object) -> dict:
+    """One Claude JSON turn — confirmed and fully grounded unless overridden."""
+    return {
+        "confirmed": True,
+        "dismissal_reason": None,
+        "narrative": _GROUNDED_NARRATIVE,
+        "corrective_action": _GROUNDED_CORRECTIVE_ACTION,
+        "alert_summary": _GROUNDED_ALERT_SUMMARY,
+        **overrides,
+    }
+
+
+def _grounded_reply() -> MagicMock:
+    """A reply whose three AI strings cite only payload figures."""
+    return _make_mock_anthropic_response(_finding_reply_data())
+
+
+def _fabricating_reply(field: str = "narrative") -> MagicMock:
+    """A reply whose named AI string cites a figure no payload contains."""
+    fabricated = _finding_reply_data()[field].replace(_GROUNDED_LITERAL, _FABRICATED_LITERAL)
+    return _make_mock_anthropic_response(_finding_reply_data(**{field: fabricated}))
+
+
+def _dismissal_reply() -> MagicMock:
+    """The prompt's dismissal contract: confirmed false, a reason, empty text fields."""
+    return _make_mock_anthropic_response(
+        _finding_reply_data(
+            confirmed=False,
+            dismissal_reason=_DISMISSAL_REASON,
+            narrative="",
+            corrective_action="",
+            alert_summary="",
+        )
+    )
+
+
+def _textless_confirmation_reply() -> MagicMock:
+    """Malformed: a confirmed finding with no text at all behind it."""
+    return _make_mock_anthropic_response(
+        _finding_reply_data(narrative="", corrective_action="", alert_summary="")
+    )
+
+
+@contextlib.contextmanager
+def _patched_claude(*, side_effect: object) -> Iterator[AsyncMock]:
+    """Patch the Anthropic client and hand back the recorded messages.create mock."""
+    with patch(_CLAUDE_CLIENT_PATH) as mock_client:
+        create = AsyncMock(side_effect=side_effect)
+        mock_client.return_value.messages.create = create
+        yield create
+
+
+async def _draft_findings(company_id: str) -> list[FindingDraft | None]:
+    """Scan, then draft every candidate — the publish path minus persistence.
+
+    Drives the private _draft_for through the same gather_with_concurrency
+    wrapper publish_findings uses, which is what makes a per-candidate Claude
+    failure observable as one None rather than a raised run.
+    """
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        service = ProfitabilityService(session)
+        candidates = await service.scan_candidates(UUID(company_id))
+        return await gather_with_concurrency(candidates, service._draft_for)
+
+
+async def _ai_profitability_alert_count(company_id: str) -> int:
+    """Count this company's ai_profitability dashboard alerts."""
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        result = await session.execute(
+            text(_AI_PROFITABILITY_ALERT_COUNT_SQL),
+            {"alert_type": AI_PROFITABILITY_ALERT_TYPE},
+        )
+        return result.scalar_one()
+
+
+async def _seed_one_candidate_project(
+    client: AsyncClient, company_id: str, *, name: str
+) -> _AnalyzableProject:
+    """Seed exactly one quote-gap candidate: cost and revenue below an approved quote."""
+    await _seed_cost_categories(company_id)
+    return await _seed_analyzable_project(
+        client, company_id, name=name, quote_amount=_UNDER_BILLED_QUOTE_AMOUNT
+    )
+
+
+def _retry_turn_roles(create: AsyncMock) -> list[str]:
+    """The role sequence of the message list the retry call was made with."""
+    return [turn["role"] for turn in create.call_args_list[1].kwargs["messages"]]
+
+
+async def test_grounded_finding_publishes_without_retry(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """A first reply citing only payload figures is accepted with no retry consumed."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_one_candidate_project(tenant_a_client, company_id, name="Grounded Project 36")
+
+    with _patched_claude(side_effect=[_grounded_reply()]) as create:
+        drafts = await _draft_findings(company_id)
+
+    assert create.call_count == 1
+    assert drafts == [_GROUNDED_DRAFT]
+    assert create.call_args.kwargs["max_tokens"] == PROFITABILITY_MAX_OUTPUT_TOKENS
+
+
+async def test_grounding_retry_succeeds_on_second_attempt(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """The retry turn names the fabricated literal back and the rewrite is accepted."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_one_candidate_project(tenant_a_client, company_id, name="Retried Project 36")
+
+    with _patched_claude(side_effect=[_fabricating_reply(), _grounded_reply()]) as create:
+        drafts = await _draft_findings(company_id)
+
+    assert create.call_count == 2
+    assert drafts == [_GROUNDED_DRAFT]
+
+    retry_messages = create.call_args_list[1].kwargs["messages"]
+    assert _retry_turn_roles(create) == ["user", "assistant", "user"]
+    assert _FABRICATED_LITERAL in retry_messages[1]["content"]
+    assert _FABRICATED_LITERAL in retry_messages[2]["content"]
+
+
+async def test_unmatched_figure_blocked_after_one_retry(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """KEYSTONE: a still-fabricated rewrite is dropped — nothing persisted, nothing alerted.
+
+    Exactly two calls: GROUNDING_RETRY_LIMIT is 1, so there is no third attempt
+    and no truncated-but-published middle ground.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    project = await _seed_one_candidate_project(
+        tenant_a_client, company_id, name="Ungrounded Project 36"
+    )
+
+    with (
+        structlog.testing.capture_logs() as logs,
+        _patched_claude(side_effect=[_fabricating_reply(), _fabricating_reply()]) as create,
+    ):
+        drafts = await _draft_findings(company_id)
+
+    assert create.call_count == 2
+    assert drafts == [None]
+    assert await _finding_count(company_id) == 0
+    assert await _ai_profitability_alert_count(company_id) == 0
+    assert UNGROUNDED_DROP_LOG_TEMPLATE % (
+        project.project_id,
+        _FABRICATED_LITERAL,
+    ) in _logged_events(logs)
+
+
+@pytest.mark.parametrize("fabricating_field", _AI_STRING_FIELDS)
+async def test_every_ai_string_is_grounded_not_only_the_narrative(
+    fabricating_field: str, tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """A fabricated figure in ANY of the three AI strings blocks the finding."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_one_candidate_project(
+        tenant_a_client, company_id, name=f"Fabricated {fabricating_field} 36"
+    )
+
+    replies = [_fabricating_reply(fabricating_field), _fabricating_reply(fabricating_field)]
+    with _patched_claude(side_effect=replies) as create:
+        drafts = await _draft_findings(company_id)
+
+    assert create.call_count == 2
+    assert drafts == [None]
+    assert await _finding_count(company_id) == 0
+
+
+async def test_ai_dismissal_publishes_nothing(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """A dismissal ends the candidate on the first call: no validation, no retry, no row."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    project = await _seed_one_candidate_project(
+        tenant_a_client, company_id, name="Dismissed Project 36"
+    )
+
+    with (
+        structlog.testing.capture_logs() as logs,
+        _patched_claude(side_effect=[_dismissal_reply()]) as create,
+    ):
+        drafts = await _draft_findings(company_id)
+
+    assert create.call_count == 1
+    assert drafts == [None]
+    assert await _finding_count(company_id) == 0
+    assert DISMISSAL_LOG_TEMPLATE % (project.project_id, _DISMISSAL_REASON) in _logged_events(logs)
+
+
+async def test_confirmed_finding_without_text_is_dropped(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """A confirmed reply with empty strings is malformed, not a finding — the prompt
+    reserves empty text for a dismissal, so publishing it would ship a blank card."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    project = await _seed_one_candidate_project(
+        tenant_a_client, company_id, name="Textless Project 36"
+    )
+
+    with (
+        structlog.testing.capture_logs() as logs,
+        _patched_claude(side_effect=[_textless_confirmation_reply()]) as create,
+    ):
+        drafts = await _draft_findings(company_id)
+
+    assert create.call_count == 1
+    assert drafts == [None]
+    assert await _finding_count(company_id) == 0
+    assert EMPTY_DRAFT_LOG_TEMPLATE % (project.project_id,) in _logged_events(logs)
+
+
+async def test_only_candidates_reach_claude(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """Eligible non-candidates never reach the API (D-02).
+
+    Five eligible projects, two of them under-billed against an approved quote:
+    only those two are candidates, so only two Claude calls may happen. Detection
+    stays deterministic and the AI adds judgment and phrasing, not detection.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    for index in range(3):
+        await _seed_analyzable_project(
+            tenant_a_client, company_id, name=f"Eligible non-candidate {index}"
+        )
+    for index in range(2):
+        await _seed_analyzable_project(
+            tenant_a_client,
+            company_id,
+            name=f"Under-billed candidate {index}",
+            quote_amount=_UNDER_BILLED_QUOTE_AMOUNT,
+        )
+
+    with _patched_claude(side_effect=[_grounded_reply(), _grounded_reply()]) as create:
+        drafts = await _draft_findings(company_id)
+
+    assert create.call_count == 2
+    assert drafts == [_GROUNDED_DRAFT, _GROUNDED_DRAFT]
+
+
+async def test_claude_failure_isolated_per_candidate(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """One candidate's Claude failure does not abort the rest of the company's run."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    for index in range(2):
+        await _seed_analyzable_project(
+            tenant_a_client,
+            company_id,
+            name=f"Isolation candidate {index}",
+            quote_amount=_UNDER_BILLED_QUOTE_AMOUNT,
+        )
+
+    failure = ValueError("Empty response from Claude")
+    with _patched_claude(side_effect=[failure, _grounded_reply()]) as create:
+        drafts = await _draft_findings(company_id)
+
+    assert create.call_count == 2
+    assert len(drafts) == 2
+    assert drafts.count(None) == 1
+    assert _GROUNDED_DRAFT in drafts
