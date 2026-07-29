@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 35-09-PLAN.md
-last_updated: "2026-07-29T04:04:08.847Z"
+stopped_at: Completed 35-10-PLAN.md
+last_updated: "2026-07-29T04:21:27.262Z"
 last_activity: 2026-07-29
 progress:
   total_phases: 22
   completed_phases: 17
   total_plans: 105
-  completed_plans: 98
+  completed_plans: 99
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 35 (web-financial-dashboard) — EXECUTING
-Plan: 8 of 11
+Plan: 9 of 11
 Status: Ready to execute
 Last activity: 2026-07-29
 
@@ -77,6 +77,7 @@ Last activity: 2026-07-29
 | Phase 35 P05 | 79min | 3 tasks tasks | 6 files files |
 | Phase 35 P06 | 11min | 3 tasks | 5 files |
 | Phase 35 P09 | 25min | 3 tasks | 10 files |
+| Phase 35 P10 | 11min | 3 tasks tasks | 8 files files |
 
 ## Accumulated Context
 
@@ -270,6 +271,10 @@ Last activity: 2026-07-29
 - [Phase 35-web-financial-dashboard]: 35-09: BulletBarRow carries remaining so the shipped budgetTierFill owns the band rule — the chart never re-derives a tier — budgetTierFill is typed on Pick<BudgetVsActual, percentUsed | remaining>; the plan's own fill={budgetTierFill(row)} would not compile otherwise, and a precomputed fill would move the exactly-100%-is-not-amber nuance out of the one shipped helper.
 - [Phase 35-web-financial-dashboard]: 35-09: Bullet bars render isAnimationActive={false} and jest mocks ResponsiveContainer to a fixed box exposing the plot height — Recharts renders no rectangle path until its animation starts, so tier fills are untestable in jsdom; the mock's data-height turns the 28px-per-row geometry contract into a real assertion (40 rows equals 1156px) instead of an untested claim.
 - [Phase 35-web-financial-dashboard]: 35-09: NEARING_BUDGET_CHIP_LABEL exported from BudgetSummarySection and the incomplete chip is itself the #attention-list anchor — The UI-SPEC forbids one condition carrying two names, so the Phase 34 label is imported rather than retyped; making the anchor carry FINANCE_FLAG_CHIP_CLASS gives the badge exactly one testid and one accessible name.
+- [Phase 35-web-financial-dashboard]: 35-10: formatFullMonthLabel added beside formatMonthLabel in financials-format.ts (shared monthParts splitter) rather than a second month table in the chart — the never-new-Date() rule stays in one module
+- [Phase 35-web-financial-dashboard]: 35-10: isNotFoundError reads ApiError.status, never the message text, so wrong-tenant / soft-deleted / bad-id all take one 404 path with no bare cast
+- [Phase 35-web-financial-dashboard]: 35-10: Custom category pie fills draw from a pool (two reserved custom hues plus any unclaimed system hue) so the six-slice cap can never exhaust or repeat the ramp
+- [Phase 35-web-financial-dashboard]: 35-10: A failing trend query degrades to its own empty state instead of blanking the drill-down — two queries, two keys, two failure surfaces
 
 ### Pending Todos
 
@@ -289,6 +294,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-29T04:03:56.771Z
-Stopped at: Completed 35-09-PLAN.md
+Last session: 2026-07-29T04:21:08.053Z
+Stopped at: Completed 35-10-PLAN.md
 Resume file: None
