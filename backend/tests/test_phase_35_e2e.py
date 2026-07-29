@@ -17,6 +17,7 @@ so later Phase 35 plans reuse them as-is. Two deliberate exceptions:
 """
 
 import contextlib
+import itertools
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -31,6 +32,7 @@ from app.core.database import async_session_factory, engine
 from app.core.security import create_access_token
 from app.core.tenant import set_current_tenant_id
 from app.features.finance.models import CostCategory
+from app.features.finance.schemas import MarginSummary
 from app.features.finance.service import FinanceService
 
 _SECONDS_PER_HOUR = 3600
@@ -72,6 +74,10 @@ _QUOTE_APPROVE_SQL = (
 _QUOTE_APPROVE_WITH_PROJECT_SQL = (
     "UPDATE quotes SET status = 'approved', approved_at = :approved_at, "
     "project_id = CAST(:project_id AS uuid) WHERE id = CAST(:quote_id AS uuid)"
+)
+
+_QUOTE_BACKDATE_SQL = (
+    "UPDATE quotes SET created_at = :created_at WHERE id = CAST(:quote_id AS uuid)"
 )
 
 
@@ -189,6 +195,9 @@ async def _create_budget(
     return resp.json()
 
 
+_DEFAULT_INCURRED_DATE = date(2026, 6, 1)
+
+
 async def _add_cost_entry(
     client: AsyncClient,
     headers: dict,
@@ -197,12 +206,17 @@ async def _add_cost_entry(
     trade_scope_id: str | None = None,
     category_id: str,
     amount: str,
+    incurred_date: date = _DEFAULT_INCURRED_DATE,
 ) -> str:
-    """Create a cost entry through the API at one anchor and return its id."""
+    """Create a cost entry through the API at one anchor and return its id.
+
+    incurred_date is caller-controlled so the margin-trend fixtures can spread
+    spend across real months; every other caller keeps the shipped default.
+    """
     payload: dict = {
         "category_id": category_id,
         "amount": amount,
-        "incurred_date": date(2026, 6, 1).isoformat(),
+        "incurred_date": incurred_date.isoformat(),
     }
     if job_id is not None:
         payload["job_id"] = job_id
@@ -316,6 +330,20 @@ async def _approve_quote(
     async with async_session_factory() as session:
         await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
         await session.execute(text(statement), params)
+        await session.commit()
+
+
+async def _backdate_quote(company_id: str, quote_id: str, created_at: datetime) -> None:
+    """Move a quote's created_at into the past.
+
+    For an approved quote whose approved_at is NULL, created_at is the ONLY date
+    it has — the trend's COALESCE fallback has nothing else to bucket it by.
+    """
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        await session.execute(
+            text(_QUOTE_BACKDATE_SQL), {"quote_id": quote_id, "created_at": created_at}
+        )
         await session.commit()
 
 
@@ -1541,3 +1569,382 @@ async def test_project_financials_rls_isolation(tenant_a_client, tenant_b_client
     )
     assert removed_resp.status_code == 404, removed_resp.text
     assert removed_resp.json()["detail"] == _PROJECT_NOT_FOUND_DETAIL
+
+
+# ---------------------------------------------------------------------------
+# Margin trend (MARG-04 / D-01 / D-02) — dense buckets and the reconciliation
+# ---------------------------------------------------------------------------
+
+_TREND_PROJECT_NAME = "Trend Project"
+_UNDATED_QUOTE_PROJECT_NAME = "Undated Quote Project"
+_DENSE_PROJECT_NAME = "Dense Buckets Project"
+_LATE_REVENUE_PROJECT_NAME = "Late Revenue Project"
+_TREND_TRADE_NAME = "Plumbing"
+
+_TREND_FIRST_COST = "500.00"
+_TREND_LATE_COST = "250.00"
+_TREND_INVOICE_AMOUNT = "4000.00"
+_TREND_QUOTE_AMOUNT = "1500.00"
+_TREND_TRACKED_HOURS = 4
+
+# Month offsets, counted back from the current UTC month. The first record sits
+# five months back, so every fixture spans six dense buckets.
+_TREND_FIRST_MONTHS_BACK = 5
+_TREND_LABOR_MONTHS_BACK = 3
+_TREND_REVENUE_MONTHS_BACK = 2
+_TREND_LATE_COST_MONTHS_BACK = 1
+_TREND_SPAN_BUCKETS = _TREND_FIRST_MONTHS_BACK + 1
+_QUIET_MONTH_OFFSETS = (4, 3)
+
+_ALL_WINDOW = "all"
+_DEFAULT_WINDOW = "12m"
+_SHORT_WINDOW = "3m"
+_SHORT_WINDOW_BUCKETS = 3
+_UNKNOWN_WINDOW = "7m"
+
+_NO_REVENUE_BASIS = "none"
+_QUOTED_REVENUE_BASIS = "quoted"
+_NULL_REVENUE_JSON = '"revenue":null'
+_ZERO_REVENUE_JSON = '"revenue":"0.00"'
+
+_MONTHS_PER_YEAR = 12
+_DECEMBER = 12
+
+
+def _months_before_today(months: int) -> date:
+    """The _SEED_DAY_OF_MONTH of the month `months` before the current UTC month.
+
+    Trend fixtures are dated relative to today, never to a fixed year: the
+    endpoint's last bucket is always the current UTC month, so a hard-coded
+    calendar would silently drift out of every window as time passes.
+    """
+    today = datetime.now(UTC).date()
+    sequence = today.year * _MONTHS_PER_YEAR + today.month - 1 - months
+    year, month_index = divmod(sequence, _MONTHS_PER_YEAR)
+    return date(year, month_index + 1, _SEED_DAY_OF_MONTH)
+
+
+def _utc_moment(day: date) -> datetime:
+    """A timezone-aware UTC instant well inside `day`'s calendar date."""
+    return datetime(day.year, day.month, day.day, _SEED_HOUR_OF_DAY, tzinfo=UTC)
+
+
+def _month_key(day: date) -> str:
+    """The "YYYY-MM" bucket a calendar day belongs to."""
+    return f"{day.year}-{day.month:02d}"
+
+
+def _next_month_key(month: str) -> str:
+    """The bucket key following a "YYYY-MM" key — the density contract, stated once."""
+    year, month_number = (int(part) for part in month.split("-"))
+    if month_number == _DECEMBER:
+        return f"{year + 1}-01"
+    return f"{year}-{month_number + 1:02d}"
+
+
+async def _trend_response(
+    client: AsyncClient, headers: dict, project_id: str, *, window: str | None = None
+):
+    """Raw GET of one project's margin trend, so callers can assert on the JSON text."""
+    params = {} if window is None else {"window": window}
+    return await client.get(_project_trend_url(project_id), headers=headers, params=params)
+
+
+async def _margin_trend(
+    client: AsyncClient, headers: dict, project_id: str, *, window: str | None = None
+) -> dict:
+    """GET one project's margin trend as a finance.view holder."""
+    resp = await _trend_response(client, headers, project_id, window=window)
+    assert resp.status_code == 200, resp.text
+    return resp.json()
+
+
+def _bucket_for_month(body: dict, month: str) -> dict | None:
+    """One month's bucket from a trend body, or None when the window excludes it."""
+    return next((bucket for bucket in body["buckets"] if bucket["month"] == month), None)
+
+
+def _assert_margin_matches(bucket_margin: dict, shipped: MarginSummary) -> None:
+    """Compare a bucket's margin block with the shipped rollup's, field for field.
+
+    Money is compared as Decimal so a cent of quantization drift cannot hide
+    behind equal text; incomplete_reasons is sorted because it is a set of flags.
+    """
+    assert Decimal(bucket_margin["revenue"]) == shipped.revenue
+    assert bucket_margin["revenue_basis"] == shipped.revenue_basis
+    assert Decimal(bucket_margin["margin"]) == shipped.margin
+    assert Decimal(bucket_margin["margin_percent"]) == shipped.margin_percent
+    assert bucket_margin["incomplete"] == shipped.incomplete
+    assert sorted(bucket_margin["incomplete_reasons"]) == sorted(shipped.incomplete_reasons)
+
+
+async def _seed_rated_time(
+    client: AsyncClient, headers: dict, company_id: str, job_id: str, *, clocked_in_at: datetime
+) -> None:
+    """A contractor with a live rate plus one completed session — real derived labor."""
+    contractor_id = await _create_user(client, f"trend-{uuid4().hex}@{_CONTRACTOR_EMAIL_DOMAIN}")
+    await _post_rate(client, headers, contractor_id, _SEED_HOURLY_COST, _RATE_EFFECTIVE_FROM)
+    await _seed_time_entry(
+        company_id, job_id, contractor_id, _TREND_TRACKED_HOURS, clocked_in_at=clocked_in_at
+    )
+
+
+async def _seed_trend_project(
+    client: AsyncClient, headers: dict, company_id: str
+) -> _ProjectStructure:
+    """A project whose money spans six months: costs, rated time, an invoice and a quote.
+
+    Both revenue anchors carry cost, so the D-12 missing-cost flag is False on
+    each side of the reconciliation and the final bucket can be compared with the
+    all-time rollup field for field. Invoice and quote sit on DIFFERENT anchors,
+    making the resolved basis `mixed` — both legs of D-01 are exercised.
+    """
+    materials_id = await _category_id(company_id, "materials")
+    project_id = await _create_project(client, name=_TREND_PROJECT_NAME)
+    scope_id = await _create_trade_scope(client, project_id, trade_name=_TREND_TRADE_NAME)
+    job_id = await _create_job(client, project_id)
+
+    await _add_cost_entry(
+        client,
+        headers,
+        job_id=job_id,
+        category_id=materials_id,
+        amount=_TREND_FIRST_COST,
+        incurred_date=_months_before_today(_TREND_FIRST_MONTHS_BACK),
+    )
+    await _add_cost_entry(
+        client,
+        headers,
+        trade_scope_id=scope_id,
+        category_id=materials_id,
+        amount=_TREND_LATE_COST,
+        incurred_date=_months_before_today(_TREND_LATE_COST_MONTHS_BACK),
+    )
+    await _seed_rated_time(
+        client,
+        headers,
+        company_id,
+        job_id,
+        clocked_in_at=_utc_moment(_months_before_today(_TREND_LABOR_MONTHS_BACK)),
+    )
+    await _create_invoice(
+        client,
+        company_id,
+        job_id=job_id,
+        amount=_TREND_INVOICE_AMOUNT,
+        issued_at=_utc_moment(_months_before_today(_TREND_REVENUE_MONTHS_BACK)),
+    )
+    await _create_approved_quote(
+        client,
+        company_id,
+        trade_scope_id=scope_id,
+        amount=_TREND_QUOTE_AMOUNT,
+        approved_at=_utc_moment(_months_before_today(_TREND_REVENUE_MONTHS_BACK)),
+    )
+    return _ProjectStructure(project_id=project_id, scope_ids=[scope_id], job_ids=[job_id])
+
+
+@pytest.mark.asyncio
+async def test_trend_final_bucket_reconciles_with_project_rollup(tenant_a_client, seed_two_tenants):
+    """The last bucket IS the shipped all-time rollup — the trend's only self-check.
+
+    This is why the trend replays the D-01 resolution at each month edge instead
+    of accumulating deltas: an anchor quoted then invoiced would double-count and
+    this equality would fail. Treat a failure here as a correctness bug, never as
+    a test to relax.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_cost_categories(company_id)
+    structure = await _seed_trend_project(tenant_a_client, headers, company_id)
+
+    body = await _margin_trend(tenant_a_client, headers, structure.project_id, window=_ALL_WINDOW)
+    async with async_session_factory() as db:
+        set_current_tenant_id(UUID(company_id))
+        rollup = await FinanceService(db).rollup_for_project(UUID(structure.project_id))
+
+    final_bucket = body["buckets"][-1]
+    assert body["project_id"] == structure.project_id
+    assert final_bucket["month"] == _month_key(datetime.now(UTC).date())
+    assert Decimal(final_bucket["cost"]) == rollup.grand_total
+    assert rollup.margin.revenue_basis == "mixed"
+    _assert_margin_matches(final_bucket["margin"], rollup.margin)
+
+
+@pytest.mark.asyncio
+async def test_trend_window_slices_buckets_not_records(tenant_a_client, seed_two_tenants):
+    """A month shared by two windows is identical in both (RESEARCH Pitfall 2).
+
+    The window selects which buckets are RETURNED; cumulative figures always run
+    from project inception, so the narrow window's earliest bucket is nowhere
+    near zero — that is the warning sign of a window that filtered records.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_cost_categories(company_id)
+    structure = await _seed_trend_project(tenant_a_client, headers, company_id)
+
+    bodies = {
+        window: await _margin_trend(tenant_a_client, headers, structure.project_id, window=window)
+        for window in (_ALL_WINDOW, _DEFAULT_WINDOW, _SHORT_WINDOW)
+    }
+    assert len(bodies[_ALL_WINDOW]["buckets"]) == _TREND_SPAN_BUCKETS
+    assert len(bodies[_SHORT_WINDOW]["buckets"]) == _SHORT_WINDOW_BUCKETS
+
+    for bucket in bodies[_SHORT_WINDOW]["buckets"]:
+        for window in (_ALL_WINDOW, _DEFAULT_WINDOW):
+            assert _bucket_for_month(bodies[window], bucket["month"]) == bucket
+
+    earliest_short_bucket = bodies[_SHORT_WINDOW]["buckets"][0]
+    assert Decimal(earliest_short_bucket["cost"]) >= Decimal(_TREND_FIRST_COST)
+
+    default_body = await _margin_trend(tenant_a_client, headers, structure.project_id)
+    assert default_body["window"] == _DEFAULT_WINDOW
+    assert default_body["buckets"] == bodies[_DEFAULT_WINDOW]["buckets"]
+
+
+@pytest.mark.asyncio
+async def test_trend_quote_without_approved_at_uses_created_at(tenant_a_client, seed_two_tenants):
+    """An approved quote with approved_at NULL buckets by created_at and still reconciles.
+
+    RESEARCH Pitfall 4: excluding such a quote would leave the final bucket short
+    by exactly its amount while the tiles on the same page still counted it.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_cost_categories(company_id)
+    materials_id = await _category_id(company_id, "materials")
+    project_id = await _create_project(tenant_a_client, name=_UNDATED_QUOTE_PROJECT_NAME)
+    scope_id = await _create_trade_scope(tenant_a_client, project_id, trade_name=_TREND_TRADE_NAME)
+    await _add_cost_entry(
+        tenant_a_client,
+        headers,
+        trade_scope_id=scope_id,
+        category_id=materials_id,
+        amount=_TREND_FIRST_COST,
+        incurred_date=_months_before_today(_TREND_FIRST_MONTHS_BACK),
+    )
+    quote_id = await _create_approved_quote(
+        tenant_a_client,
+        company_id,
+        trade_scope_id=scope_id,
+        amount=_TREND_QUOTE_AMOUNT,
+        approved_at=None,
+    )
+    creation_day = _months_before_today(_TREND_REVENUE_MONTHS_BACK)
+    await _backdate_quote(company_id, quote_id, _utc_moment(creation_day))
+
+    body = await _margin_trend(tenant_a_client, headers, project_id, window=_ALL_WINDOW)
+    async with async_session_factory() as db:
+        set_current_tenant_id(UUID(company_id))
+        rollup = await FinanceService(db).rollup_for_project(UUID(project_id))
+
+    month_before = _month_key(_months_before_today(_TREND_REVENUE_MONTHS_BACK + 1))
+    assert _bucket_for_month(body, month_before)["margin"]["revenue"] is None
+    assert _bucket_for_month(body, month_before)["margin"]["revenue_basis"] == _NO_REVENUE_BASIS
+
+    for offset in range(_TREND_REVENUE_MONTHS_BACK + 1):
+        bucket = _bucket_for_month(body, _month_key(_months_before_today(offset)))
+        assert Decimal(bucket["margin"]["revenue"]) == Decimal(_TREND_QUOTE_AMOUNT)
+        assert bucket["margin"]["revenue_basis"] == _QUOTED_REVENUE_BASIS
+
+    _assert_margin_matches(body["buckets"][-1]["margin"], rollup.margin)
+
+
+@pytest.mark.asyncio
+async def test_trend_buckets_are_dense(tenant_a_client, seed_two_tenants):
+    """Quiet months still get a bucket, carrying the previous cumulative cost forward."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_cost_categories(company_id)
+    materials_id = await _category_id(company_id, "materials")
+    project_id = await _create_project(tenant_a_client, name=_DENSE_PROJECT_NAME)
+    scope_id = await _create_trade_scope(tenant_a_client, project_id, trade_name=_TREND_TRADE_NAME)
+    for amount, months_back in (
+        (_TREND_FIRST_COST, _TREND_FIRST_MONTHS_BACK),
+        (_TREND_LATE_COST, _TREND_REVENUE_MONTHS_BACK),
+    ):
+        await _add_cost_entry(
+            tenant_a_client,
+            headers,
+            trade_scope_id=scope_id,
+            category_id=materials_id,
+            amount=amount,
+            incurred_date=_months_before_today(months_back),
+        )
+
+    body = await _margin_trend(tenant_a_client, headers, project_id, window=_ALL_WINDOW)
+
+    months = [bucket["month"] for bucket in body["buckets"]]
+    assert months[0] == _month_key(_months_before_today(_TREND_FIRST_MONTHS_BACK))
+    assert months[-1] == _month_key(datetime.now(UTC).date())
+    assert len(months) == _TREND_SPAN_BUCKETS
+    for earlier, later in itertools.pairwise(months):
+        assert later == _next_month_key(earlier)
+
+    for quiet_offset in _QUIET_MONTH_OFFSETS:
+        quiet_bucket = _bucket_for_month(body, _month_key(_months_before_today(quiet_offset)))
+        assert Decimal(quiet_bucket["cost"]) == Decimal(_TREND_FIRST_COST)
+    assert Decimal(body["buckets"][-1]["cost"]) == Decimal(_TREND_FIRST_COST) + Decimal(
+        _TREND_LATE_COST
+    )
+
+
+@pytest.mark.asyncio
+async def test_trend_absent_revenue_is_null_not_zero(tenant_a_client, seed_two_tenants):
+    """Months before the first invoice report no revenue, never a fabricated $0.
+
+    RESEARCH Pitfall 3: a $0 margin point reads as "we broke even" instead of
+    "nothing is recorded yet", so the wire value has to be literal JSON null.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_cost_categories(company_id)
+    materials_id = await _category_id(company_id, "materials")
+    project_id = await _create_project(tenant_a_client, name=_LATE_REVENUE_PROJECT_NAME)
+    job_id = await _create_job(tenant_a_client, project_id)
+    await _add_cost_entry(
+        tenant_a_client,
+        headers,
+        job_id=job_id,
+        category_id=materials_id,
+        amount=_TREND_FIRST_COST,
+        incurred_date=_months_before_today(_TREND_FIRST_MONTHS_BACK),
+    )
+    invoice_month = _months_before_today(_TREND_LATE_COST_MONTHS_BACK)
+    await _create_invoice(
+        tenant_a_client,
+        company_id,
+        job_id=job_id,
+        amount=_TREND_INVOICE_AMOUNT,
+        issued_at=_utc_moment(invoice_month),
+    )
+
+    resp = await _trend_response(tenant_a_client, headers, project_id, window=_ALL_WINDOW)
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    pre_revenue_buckets = [
+        bucket for bucket in body["buckets"] if bucket["month"] < _month_key(invoice_month)
+    ]
+    assert len(pre_revenue_buckets) == _TREND_FIRST_MONTHS_BACK - _TREND_LATE_COST_MONTHS_BACK
+    for bucket in pre_revenue_buckets:
+        assert bucket["margin"]["revenue"] is None
+        assert bucket["margin"]["margin"] is None
+        assert bucket["margin"]["revenue_basis"] == _NO_REVENUE_BASIS
+        assert Decimal(bucket["cost"]) == Decimal(_TREND_FIRST_COST)
+
+    assert _NULL_REVENUE_JSON in resp.text
+    assert _ZERO_REVENUE_JSON not in resp.text
+
+
+@pytest.mark.asyncio
+async def test_trend_rejects_unknown_window(tenant_a_client, seed_two_tenants):
+    """An unrecognised window is a 422, never a silent fallback to the default."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    project_id = await _create_project(tenant_a_client, name=_TREND_PROJECT_NAME)
+
+    resp = await _trend_response(tenant_a_client, headers, project_id, window=_UNKNOWN_WINDOW)
+
+    assert resp.status_code == 422, resp.text
