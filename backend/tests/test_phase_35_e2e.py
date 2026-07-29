@@ -1948,3 +1948,69 @@ async def test_trend_rejects_unknown_window(tenant_a_client, seed_two_tenants):
     resp = await _trend_response(tenant_a_client, headers, project_id, window=_UNKNOWN_WINDOW)
 
     assert resp.status_code == 422, resp.text
+
+
+# ---------------------------------------------------------------------------
+# D-03 performance evidence — the company rollup's cost at portfolio scale
+# ---------------------------------------------------------------------------
+
+_SMALL_PORTFOLIO_PROJECTS = 5
+_LARGE_PORTFOLIO_PROJECTS = 25
+
+# Pinned to the count the first run observed, plus two statements of headroom.
+# Observed 2026-07-28: 13 statements at both portfolio sizes — the two RLS
+# SET LOCALs and the permission lookup on top of the rollup's own aggregates.
+_MAX_COMPANY_ROLLUP_STATEMENTS = 15
+
+
+async def _statements_for_company_rollup(client: AsyncClient, headers: dict) -> list[str]:
+    """Statements one company rollup issues, after a warm-up request outside the counter.
+
+    The warm-up absorbs the one-off costs that would otherwise be attributed to
+    the measured request — connection checkout, the RLS SET LOCAL on a fresh
+    connection, and the permission-matrix lookup — so the recorded count is the
+    rollup's own steady-state traversal and nothing else.
+    """
+    await _company_financials(client, headers)
+    with _count_sql_statements() as statements:
+        await _company_financials(client, headers)
+    return statements
+
+
+@pytest.mark.asyncio
+async def test_company_rollup_query_count_is_constant_in_project_count(
+    tenant_a_client, tenant_b_client, seed_two_tenants
+):
+    """D-03's primary guard: the rollup costs the same at 25 projects as at 5.
+
+    The statement count, not the wall clock, is what actually enforces the
+    batching. A latency ceiling generous enough never to flake on shared CI
+    hardware is also generous enough to hide a reintroduced per-project loop,
+    and a tight one would flake instead. This count is deterministic: a single
+    query moved inside a loop changes it by twenty, whatever the machine is
+    doing.
+    """
+    small_company_id = seed_two_tenants["tenant_a_id"]
+    large_company_id = seed_two_tenants["tenant_b_id"]
+    small_headers = _pm_headers(small_company_id)
+    large_headers = _pm_headers(large_company_id)
+
+    await _seed_company_portfolio(
+        tenant_a_client, small_headers, small_company_id, project_count=_SMALL_PORTFOLIO_PROJECTS
+    )
+    await _seed_company_portfolio(
+        tenant_b_client, large_headers, large_company_id, project_count=_LARGE_PORTFOLIO_PROJECTS
+    )
+
+    small_statements = await _statements_for_company_rollup(tenant_a_client, small_headers)
+    large_statements = await _statements_for_company_rollup(tenant_b_client, large_headers)
+
+    assert len(large_statements) == len(small_statements), (
+        f"company rollup issued {len(large_statements) - len(small_statements)} more statements "
+        f"at {_LARGE_PORTFOLIO_PROJECTS} projects than at {_SMALL_PORTFOLIO_PROJECTS} — "
+        "a per-project query has been reintroduced (CLAUDE.md N+1 rule)"
+    )
+    assert len(small_statements) <= _MAX_COMPANY_ROLLUP_STATEMENTS, (
+        f"company rollup issued {len(small_statements)} statements, above the pinned ceiling of "
+        f"{_MAX_COMPANY_ROLLUP_STATEMENTS} — the batching has grown while staying equal"
+    )
