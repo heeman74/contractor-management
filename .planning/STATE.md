@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 35-05-PLAN.md
-last_updated: "2026-07-29T03:42:56.182Z"
+stopped_at: Completed 35-06-PLAN.md
+last_updated: "2026-07-29T03:56:54.339Z"
 last_activity: 2026-07-29
 progress:
   total_phases: 22
   completed_phases: 17
   total_plans: 105
-  completed_plans: 96
+  completed_plans: 97
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 35 (web-financial-dashboard) — EXECUTING
-Plan: 6 of 11
+Plan: 7 of 11
 Status: Ready to execute
 Last activity: 2026-07-29
 
@@ -75,6 +75,7 @@ Last activity: 2026-07-29
 | Phase 35 P01 | 96min | 3 tasks | 7 files |
 | Phase 35 P03 | 27min | 3 tasks tasks | 10 files files |
 | Phase 35 P05 | 79min | 3 tasks tasks | 6 files files |
+| Phase 35 P06 | 11min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -261,6 +262,10 @@ Last activity: 2026-07-29
 - [Phase 35-web-financial-dashboard]: 35-05: PROJECT_KEY is a raw COALESCE expression in WHERE/GROUP BY and a labelled column in SELECT — PostgreSQL groups on the full expression, never an output alias; rows are read by label so 35-07 can append date columns safely
 - [Phase 35-web-financial-dashboard]: 35-05: PortfolioService reuses service.py's _build_breakdown/_labor_by_job/_any_anchor_missing_cost_data/ProjectMarginContext directly — restating the labor folding or D-12 anchor flag is exactly the Pitfall-1 drift the equivalence test guards
 - [Phase 35-web-financial-dashboard]: 35-05: The D-11 live-threshold test asserts BOTH directions (never-alerted overrun must be listed; stale claim after a soft-delete must not) because the plan's raise-below-spend route is unreachable under 34-06's inline PATCH evaluation
+- [Phase 35-web-financial-dashboard]: 35-06: Drill-down reuses FinanceService.rollup_for_project verbatim for the project half — no second definition of spend, margin or the project budget
+- [Phase 35-web-financial-dashboard]: 35-06: The scope half is exactly three queries (scopes, active budgets, one grouped scope_spends); the per-scope trade_scope_spend call survives only inside the equivalence test as the reference
+- [Phase 35-web-financial-dashboard]: 35-06: project_header runs BEFORE the rollup so missing, soft-deleted and cross-tenant ids share one 404 path without paying for an aggregate
+- [Phase 35-web-financial-dashboard]: 35-06: to_labor_cost_summary extracted into schemas.py so the shipped project-rollup route and the drill-down cannot drift on the D-06 basis field
 
 ### Pending Todos
 
@@ -280,6 +285,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-29T03:42:37.779Z
-Stopped at: Completed 35-05-PLAN.md
+Last session: 2026-07-29T03:56:28.553Z
+Stopped at: Completed 35-06-PLAN.md
 Resume file: None
