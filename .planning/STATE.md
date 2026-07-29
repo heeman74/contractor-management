@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
-status: executing
-stopped_at: Completed 35-11-PLAN.md
-last_updated: "2026-07-29T04:52:02.463Z"
+status: verifying
+stopped_at: Completed 35-08-PLAN.md
+last_updated: "2026-07-29T05:00:55.180Z"
 last_activity: 2026-07-29
 progress:
   total_phases: 22
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 
 Phase: 35 (web-financial-dashboard) — EXECUTING
 Plan: 11 of 11
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-29
 
 ## Performance Metrics
@@ -80,6 +80,7 @@ Last activity: 2026-07-29
 | Phase 35 P10 | 11min | 3 tasks tasks | 8 files files |
 | Phase 35 P07 | 24min | 3 tasks tasks | 6 files files |
 | Phase 35 P11 | 23min | 3 tasks tasks | 1 file files |
+| Phase 35 P08 | 52 min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -283,6 +284,9 @@ Last activity: 2026-07-29
 - [Phase 35-web-financial-dashboard]: 35-07: Margin-trend test fixtures are dated relative to the current UTC month, never to a fixed calendar year like _seed_date — The endpoint's last bucket is always the current UTC month, so hard-coded dates drift out of every window as time passes and the tests quietly stop asserting anything
 - [Phase 35-web-financial-dashboard]: 35-11: The SC3 denial test pairs the deny panel with a captured zero-financial-request counter, and an in-file comment says why -- a hard page.goto resets Redux, so the panel alone renders for permitted users too and would keep passing with FinanceGate deleted — Break-it-once verified: removing FinanceGate fails the deny-panel half, removing the hooks enabled gate fails the zero-request half
 - [Phase 35-web-financial-dashboard]: 35-11: The margin-trend shared-month proof reads the last-month tooltip (plot located as .recharts-wrapper > svg, raw mouse moves) rather than the CSV export -- ChartCard revokes its blob URL immediately after click, so a download capture would race — The legend icons are svgs too and overlay the plot, so locator("svg").first() and locator.hover both fail
+- [Phase 35-web-financial-dashboard]: 35-08: _MAX_COMPANY_ROLLUP_STATEMENTS pinned to the first observed run (13) + 2 headroom = 15, not the plan's estimated ~9-11 — The equality of the 5-project and 25-project counts is the D-03 contract; the absolute is whatever the first run measures. 13 includes the two RLS SET LOCALs and the permission lookup, which run per request and a warm-up cannot exclude.
+- [Phase 35-web-financial-dashboard]: 35-08: company rollup latency ceiling committed at 400ms (~2x the middle of three measured medians 127/199/252ms), tightened from the initial 1500ms; no cache or snapshot table added — 1500ms would pass even if the rollup got 6x slower. 2x the idle-best (250ms) reddens under ordinary load; 2x the worst (500ms) gives away the teeth. In-process ASGI + local Postgres is evidence, not a production SLO.
+- [Phase 35-web-financial-dashboard]: 35-08: the query-count invariance test is the primary N+1 guard and the wall clock is secondary — verified by mutation (a per-project rollup_for_project loop moved the count 43 -> 163) — A latency ceiling generous enough never to flake on shared CI is also generous enough to hide a reintroduced per-project loop; the statement count is deterministic regardless of machine load.
 
 ### Pending Todos
 
@@ -302,6 +306,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-29T04:51:33.397Z
-Stopped at: Completed 35-11-PLAN.md
+Last session: 2026-07-29T05:00:46.768Z
+Stopped at: Completed 35-08-PLAN.md
 Resume file: None
