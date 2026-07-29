@@ -1,0 +1,148 @@
+/**
+ * Pure display and geometry helpers for the financial dashboard. React-free and
+ * unit-tested: every rendered figure still formats from its backend string, so
+ * the only arithmetic here is chart geometry and the pie's category rollup.
+ */
+
+import {
+  BUDGET_TIER_FILL,
+  BUDGET_WARNING_PERCENT,
+  BULLET_CHART_AXIS_PADDING,
+  BULLET_ROW_HEIGHT,
+  CHART_HEIGHT,
+  LABEL_TRUNCATE_LENGTH,
+  MAX_PIE_SLICES,
+  OTHER_CATEGORY_NAME,
+  PERCENT_AXIS_CLAMP,
+  PERCENT_AXIS_FLOOR,
+} from "@/components/shared/chart-theme";
+import type { BudgetVsActual } from "./types";
+
+const MONTH_ABBREVIATIONS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+const YEAR_SUFFIX_START = 2;
+const DOLLARS_PER_THOUSAND = 1000;
+const AXIS_STEP = 10;
+const ELLIPSIS = "…";
+const NO_MONEY = 0;
+
+/** "2026-03" -> "Mar 26", by splitting the string. A Date is never constructed:
+ *  a date-only string shifts a day — and therefore a month — across timezones. */
+export function formatMonthLabel(month: string): string {
+  const [year, monthNumber] = month.split("-");
+  const abbreviation = MONTH_ABBREVIATIONS[Number(monthNumber) - 1];
+  if (!year || !abbreviation) return month;
+  return `${abbreviation} ${year.slice(YEAR_SUFFIX_START)}`;
+}
+
+/** 12000 -> "$12k", -4000 -> "-$4k". The sign leads the symbol, matching
+ *  formatSignedCurrency — a value axis reading "$-4k" is wrong on a finance surface. */
+export function formatAxisThousands(value: number): string {
+  const sign = value < NO_MONEY ? "-" : "";
+  const thousands = Math.abs(value) / DOLLARS_PER_THOUSAND;
+  return `${sign}$${thousands.toFixed(0)}k`;
+}
+
+/** Caps a category-axis label at the axis width. The full name stays recoverable
+ *  from the tooltip and the CSV. */
+export function truncateLabel(name: string): string {
+  if (name.length <= LABEL_TRUNCATE_LENGTH) return name;
+  return name.slice(0, LABEL_TRUNCATE_LENGTH - ELLIPSIS.length) + ELLIPSIS;
+}
+
+/** Bar geometry only — the true percent still renders in the overflow label,
+ *  tooltip, attention list, table and CSV. */
+export function clampPercentForAxis(percentUsed: string): number {
+  return Math.min(PERCENT_AXIS_CLAMP, parseFloat(percentUsed));
+}
+
+/** Floor keeps the 100% reference line on screen; clamp stops one extreme
+ *  overrun from collapsing every other bar into a stub. */
+export function axisMaxDomain(highestPercentUsed: number): number {
+  const roundedUp = Math.ceil(highestPercentUsed / AXIS_STEP) * AXIS_STEP;
+  return Math.min(PERCENT_AXIS_CLAMP, Math.max(PERCENT_AXIS_FLOOR, roundedUp));
+}
+
+/** The warning band needs money left over, not just a high percent: a budget
+ *  spent to exactly 100% is at its boundary, not "nearing" it. */
+export function budgetTierFill(
+  budget: Pick<BudgetVsActual, "percentUsed" | "remaining">
+): string {
+  const remaining = parseFloat(budget.remaining);
+  if (remaining < NO_MONEY) return BUDGET_TIER_FILL.over;
+  const percentUsed = parseFloat(budget.percentUsed);
+  if (percentUsed >= BUDGET_WARNING_PERCENT && remaining > NO_MONEY) {
+    return BUDGET_TIER_FILL.warning;
+  }
+  return BUDGET_TIER_FILL.normal;
+}
+
+/** Plot height grows linearly with the row count and has deliberately no ceiling:
+ *  a cap would compress rows below the legible floor. The viewport scrolls instead. */
+export function bulletChartHeight(rowCount: number): number {
+  return Math.max(CHART_HEIGHT, rowCount * BULLET_ROW_HEIGHT + BULLET_CHART_AXIS_PADDING);
+}
+
+export interface CategoryAmount {
+  name: string;
+  amount: number;
+}
+
+export interface CategorySlice extends CategoryAmount {
+  /** Names folded into this slice. Empty except on the rollup bucket. */
+  rolledUpNames: string[];
+}
+
+/** Caps the pie at MAX_PIE_SLICES by folding the smallest categories into Other,
+ *  which keeps the nominal ramp free of repeated hues. The CSV stays unrolled. */
+export function rollUpCategories(rows: CategoryAmount[]): CategorySlice[] {
+  const named = rows
+    .filter((row) => row.name !== OTHER_CATEGORY_NAME)
+    .sort(byAmountDescending);
+  const existingOther = rows.find((row) => row.name === OTHER_CATEGORY_NAME);
+  const sliceCount = named.length + (existingOther ? 1 : 0);
+
+  if (sliceCount <= MAX_PIE_SLICES) {
+    const withinCap = existingOther ? [...named, existingOther] : named;
+    return withinCap.map(toSlice);
+  }
+
+  const keptCount = MAX_PIE_SLICES - 1;
+  const rolled = named.slice(keptCount);
+  return [...named.slice(0, keptCount).map(toSlice), buildOtherSlice(rolled, existingOther)];
+}
+
+function byAmountDescending(left: CategoryAmount, right: CategoryAmount): number {
+  return right.amount - left.amount;
+}
+
+function toSlice(row: CategoryAmount): CategorySlice {
+  return { ...row, rolledUpNames: [] };
+}
+
+/** Other always sorts last, however large it grows — the rollup bucket must never
+ *  read as a first-class category. */
+function buildOtherSlice(
+  rolled: CategoryAmount[],
+  existingOther: CategoryAmount | undefined
+): CategorySlice {
+  const rolledTotal = rolled.reduce((sum, row) => sum + row.amount, NO_MONEY);
+  return {
+    name: OTHER_CATEGORY_NAME,
+    amount: (existingOther?.amount ?? NO_MONEY) + rolledTotal,
+    rolledUpNames: rolled.map((row) => row.name),
+  };
+}
