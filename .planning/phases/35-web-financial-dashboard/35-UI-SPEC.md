@@ -1,7 +1,8 @@
 ---
 phase: 35
 slug: web-financial-dashboard
-status: draft
+status: approved
+reviewed_at: 2026-07-28
 shadcn_initialized: true
 preset: base-nova (detected via existing web/components.json — not re-run this phase)
 created: 2026-07-28
@@ -21,6 +22,8 @@ created: 2026-07-28
 Everything inherits the **"Job Ticket"** design system unchanged from the Phase 30/32/33/34 contracts, and the **Reports dashboard** composition conventions (ChartCard, skeleton, grid rhythm, Recharts 3.8) unchanged. This document pins page layout, every chart's exact form/marks/scales/colors, verbatim copy (test-asserted), and the state matrix.
 
 **Pre-populated from:** 35-CONTEXT.md (D-01..D-12 + specifics), 35-RESEARCH.md (Patterns 1–6, Pitfalls 1–10, quoted component APIs, Open Question 5), 34/33/32-UI-SPEC.md (tokens, chip recipe, figure/caption conventions), ROADMAP Phase 35 SC1–SC3, and direct reads of `chart-card.tsx`, `revenue-chart.tsx`, `jobs-by-status-chart.tsx`, `quote-conversion-chart.tsx`, `date-range-filter.tsx`, `reports-skeleton.tsx`, `reports-dashboard.tsx`, `reports/page.tsx`, `sidebar.tsx`, `contracts/page.tsx`, `FinanceFlagChip.tsx`, `MarginSummarySection.tsx`, `status-badge.tsx`, `lib/format.ts`, `globals.css`, `components.json` (2026-07-28). **User input required: none** — every contract question was answered upstream or by a shipped convention.
+
+**Checker corrections applied 2026-07-28** (7 items, all non-blocking): bullet-bar height ceiling removed; percent-axis clamp declared; `red-800` contrast figure corrected; 14px negative numerals moved to the `red-800` family under an explicit size-based rule; category ramp fallback de-duplicated with an `Other` rollup; typography wording corrected; the `py-0.5` inherited spacing exception documented.
 
 > **Dataviz skill note (transparency):** the `dataviz` skill named in the task brief is **not present** in this session — verified absent from `~/.agents/skills/`, `~/.claude/skills/`, `.claude/skills/`, and every installed plugin marketplace. Rather than block the phase, the Chart Contract below states an **explicit rationale for every form, mark, scale, and color choice** (Cleveland–McGill channel accuracy, Tufte data-ink, Few's rules for part-to-whole and bullet displays, WCAG 1.4.1 redundant encoding), so each decision can be re-checked against the skill later without re-deriving it. Where a shipped Reports/Job-Ticket convention already answered a question, **the shipped convention wins** and the note records that it was checked rather than overridden.
 
@@ -46,7 +49,7 @@ Declared values (all multiples of 4) — unchanged from the Phase 32/33/34 contr
 
 | Token | Value | Usage |
 |-------|-------|-------|
-| xs | 4px | Tile title→figure gap (`mt-1`), attention-row label→sub-line gap, chip vertical padding (`py-0.5`) |
+| xs | 4px | Tile title→figure gap (`mt-1`), attention-row label→sub-line gap |
 | sm | 8px | Chip horizontal padding (`px-2`), chip↔figure gap (`gap-2`), window-selector button gap (`gap-2`), table cell vertical rhythm (`space-y-2`) |
 | md | 16px | Card interior top padding (`pt-4`, ChartCard), chart top offset (`mt-4`, ChartCard), tile interior padding |
 | lg | 24px | Page section rhythm (`space-y-6`), deny-panel horizontal padding (`px-6`) |
@@ -60,19 +63,18 @@ Declared values (all multiples of 4) — unchanged from the Phase 32/33/34 contr
 |-------|-------|
 | 280px | Standard `ResponsiveContainer height` — shipped Reports convention (trend, category mix) |
 | 300px | `ChartCard` body `min-h-[300px]` — inherited, unchanged |
-| 28px | Bullet-bar row height (one project / one trade scope) |
+| 28px | Bullet-bar row height (one project / one trade scope) — **a floor, never compressed** |
 | 12px | `barSize` for bullet bars — 12/28 leaves a legible gutter without stripe moiré |
 | 160px | `YAxis width` for the categorical (project / trade name) axis |
-| 420px | `max-h-[420px]` scroll ceiling for the project bullet-bar container |
-| 736px | Hard ceiling on computed bullet-bar chart height (25 rows × 28 + 36) |
+| 420px | `max-h-[420px]` scroll ceiling for the bullet-bar **viewport** (the plot itself grows past it and scrolls) |
 
-Exceptions: **none.** Every value above is a multiple of 4.
+**Exceptions (one, inherited):** `py-0.5` — **2px** vertical padding inside `FINANCE_FLAG_CHIP_CLASS`, the shipped Phase 33 chip recipe (`rounded-full bg-brand/15 px-2 py-0.5 text-xs text-amber-900`). This phase reuses that class byte-for-byte for the incomplete-data badge and the "Nearing budget" tier badge rather than forking the one chip recipe every finance surface shares. No new sub-4px value is authored.
 
 ---
 
 ## Typography
 
-**No new sizes and no new weights are introduced.** The set is the Phase 32/33/34 declared scale plus the Reports KPI display size this phase adopts wholesale.
+**No new *weights* are introduced, and Phase 35 uses no size the system has not already shipped.** The 30px KPI display size is inherited from the shipped `ChartCard` `kpiValue` (`text-3xl font-bold text-gray-900`), but it **is new to the declared scale** — the Phase 32/33/34 contracts declared 12/14/20/24, so the project-wide set becomes **five** sizes (12/14/20/24/30). Phase 35 itself uses **four** of them (12/14/20/30); 24px does not appear on these routes (it belongs to the dialog headline figure, and this phase ships no dialog).
 
 | Role | Size | Weight | Line Height | Phase-35 usage |
 |------|------|--------|-------------|----------------|
@@ -81,7 +83,7 @@ Exceptions: **none.** Every value above is a multiple of 4.
 | Page heading | 20px (`text-xl`) | 400 | 1.2 | `<h1>` on both routes — exact Reports convention (`text-xl font-normal text-gray-900`) |
 | KPI display | 30px (`text-3xl`) | **700 (inherited)** | 1.2 | Summary-tile figures and `ChartCard` `kpiValue`. See the weight note below. |
 
-**Weight declaration:** the authored set is **2 weights — 400 (regular) and 600 (semibold)**. **700 is a single inherited display weight**, used only for the 30px KPI figure so the new summary tiles are byte-identical in treatment to the shipped `ChartCard` `kpiValue` (`text-3xl font-bold text-gray-900`) rendering on the same page. Authoring the tiles at 600 would put two different "big number" treatments side by side in one grid — a visible inconsistency. This mirrors the Phase 34 precedent (700 sanctioned only for the inherited punchline figure).
+**Weight declaration:** the authored set is **2 weights — 400 (regular) and 600 (semibold)**. **700 is a single inherited display weight**, used only for the 30px KPI figure so the new summary tiles are byte-identical in treatment to the shipped `ChartCard` `kpiValue` rendering on the same page. Authoring the tiles at 600 would put two different "big number" treatments side by side in one grid — a visible inconsistency. This mirrors the Phase 34 precedent (700 sanctioned only for the inherited punchline figure).
 
 **Chart tick exception:** Recharts axis ticks and legend render at **11px** (`tick={{ fontSize: 11 }}`, `wrapperStyle={{ fontSize: 11 }}`) — inherited verbatim from all four shipped Reports charts. This is chart chrome, not UI text; it is not part of the authored type scale and must not leak outside SVG.
 
@@ -106,11 +108,23 @@ Exceptions: **none.** Every value above is a multiple of 4.
 | Dominant (60%) | `--background` `#f7f6f2`, `--foreground` `#0e1726` | Page background, body text, table text (inherited) |
 | Secondary (30%) | `--card` `#ffffff`, `--secondary`/`--muted` `#ece9e1`, `--border` `#e4e1d8` | Card surfaces, skeleton fills, separators, table hairlines (inherited) |
 | Accent (10%) | `--brand` `#f5a623` | Reserved list below. This phase adds exactly **two** usages: the **warning-band bullet-bar fill** and the **active window-selector button** (the shipped `DateRangeFilter` preset recipe, `bg-brand/10 text-foreground border-brand font-semibold`). |
-| Destructive | `--destructive` `#d64545` | Negative money numerals (inherited Phase 33/34 sanction) + the **over-budget bullet-bar fill** + the **break-even reference line** |
+| Destructive | `--destructive` `#d64545` | **30px** negative money numerals (inherited Phase 33/34 sanction) + the **over-budget bullet-bar fill** + the **break-even reference line**. See the size rule below. |
 
 **Accent reserved for:** checked permission toggles, active nav item + its 4px rail, focus rings, links, primary CTAs, the unrated-hours chip (Phase 32), the incomplete-data chip (Phase 33), the "Nearing budget" chip (Phase 34), and — new this phase — the **warning-band (80–100%) bullet-bar fill** and the **active trend-window button**. Nothing else. There are **no** amber page backgrounds, borders, or headings on these routes.
 
-### Chart color formula (the only color decision this phase actually makes)
+### The red rule (size-based — locked, because two reds coexist by design)
+
+`#d64545` on `#ffffff` measures **≈4.4:1**. That clears AA for *large* text (≥24px, or ≥18.7px bold) and for non-text marks (3:1), but **fails AA at 14px**. So:
+
+| Red | Value | Applies to | Contrast |
+|-----|-------|------------|----------|
+| `text-destructive` | `#d64545` | **Money numerals at 30px only** — the summary-tile negative margin figure. The inherited Phase 33/34 sanction, carried forward unchanged at the size where it passes. | ≈4.4:1 vs the 3:1 large-text threshold ✓ |
+| `text-red-800` | `#991b1b` | **Everything red at 14px or smaller** — the attention list's "Over budget" tier badge, its percent figure, the clamp overflow label, **and the All-Projects table's negative-margin numerals**. Matches the `status-badge.tsx` red family already used app-wide. | ≈6.8:1 on `bg-red-100`; ≈8.9:1 on white ✓ |
+| `#d64545` (mark) | `--destructive` | **Chart marks only** — over-budget bar fill, break-even reference line. Large areas / lines, judged against the 3:1 non-text threshold. | ✓ |
+
+**The rule in one line: red money numerals are `text-destructive` at 30px and `text-red-800` at 14px.** This is a deliberate, documented split — not drift — and it is why the table and the tile render the same negative margin in two different reds.
+
+### Chart color formula
 
 Two families, kept strictly apart so a reader never has to ask what a hue means:
 
@@ -122,21 +136,24 @@ Two families, kept strictly apart so a reader never has to ask what a hue means:
 | Warning | `80 ≤ percentUsed` and `remaining > 0` | `#f5a623` (`--brand`) | Amber already means "caution, nothing lost yet" across every shipped finance surface (Phase 34 "Nearing budget" chip). Same band, same hue, same meaning. |
 | Over | `remaining < 0` (i.e. `percentUsed > 100`) | `#d64545` (`--destructive`) | Money is actually overspent. Same red as the negative numerals it sits beside. |
 
-Colour is **never the sole signal**: every bar's position on a shared 0→max scale crosses (or does not cross) a labelled 100% reference line, the tooltip states the dollars, and the CSV carries the numbers (WCAG 1.4.1). Fills are large areas, so the 3:1 non-text contrast threshold applies and all three pass on `#ffffff`.
+Colour is **never the sole signal**: every bar's position crosses (or does not cross) a labelled 100% reference line, the tooltip states the dollars, and the CSV carries the numbers (WCAG 1.4.1). Fills are large areas, so the 3:1 non-text threshold applies and all three pass on `#ffffff`.
 
 The band boundary uses **`remaining > 0`, not a bare `percentUsed >= 80`** — the shipped 34-04/34-05 nuance, so a budget spent to exactly 100% renders as *over*-boundary-neutral rather than amber. Bands come from the backend's `percentUsed`/`remaining` strings; the client never re-derives them by float division.
 
-**2. Nominal (cost category) — used only by the category-mix pie.** Categories carry no ordering and no valence, so they get a warm-neutral ramp derived from the Job Ticket ink/slate tokens rather than a rainbow. Stable hue per category (so mix is comparable across two projects opened back to back):
+**2. Nominal (cost category) — used only by the category-mix pie.** Categories carry no ordering and no valence, so they get a warm-neutral ramp derived from the Job Ticket ink/slate tokens rather than a rainbow. Stable hue per category (so mix is comparable across two projects opened back to back), and **every hue in the ramp is used exactly once** — a repeated fill inside one pie would make two slices indistinguishable:
 
-| Category | Fill |
-|----------|------|
+| Slice | Fill |
+|-------|------|
 | Labor | `#0e1726` (`--foreground`, ink) |
 | Materials | `#59637a` (`--muted-foreground`) |
 | Subcontractor | `#8a93a6` |
 | Other | `#b6bcc9` |
-| Any company-custom category | next unused step of `["#3d4a63", "#d9dce3", "#0e1726", "#59637a", …]`, assigned by **alphabetical category name** so the same category always gets the same hue |
+| First company-custom category (alphabetical) | `#3d4a63` |
+| Second company-custom category (alphabetical) | `#d9dce3` |
 
-Category identity is carried by the on-slice label and the legend, never by hue alone.
+**Beyond six slices: roll up into `Other`.** Any custom category past the second is summed into the existing `Other` slice rather than assigned a seventh (necessarily repeated) hue. This caps the pie at six slices — which is exactly the condition under which the pie form is defensible at all (see Chart 6) — and it guarantees the ramp never repeats.
+
+**Honesty requirement for the rollup:** the rolled-up categories are still real money the user may need to see. The `Other` slice's tooltip lists the rolled-up category names, and the **CSV carries every category as its own row, unrolled** — the chart simplifies, the exported data never does.
 
 **3. Trend line series — monochrome with an emphasis hierarchy.** Three series on one axis, so hue is spent on *importance*, not identity:
 
@@ -148,12 +165,6 @@ Category identity is carried by the on-slice label and the legend, never by hue 
 | Break-even reference | `#d64545` | 1 | `3 3` | `ReferenceLine y={0}`, labelled. The margin line dipping below a red break-even line is the honest way to render a loss without splitting a line by value. |
 
 **Grays:** `text-gray-900` primary figures, `text-gray-700` labels, `text-gray-500` card titles and captions, `text-muted-foreground` page subtitles — matching shipped conventions exactly.
-
-**Two reds, deliberately, each in its established context — documented so it does not read as drift:**
-
-- `text-destructive` (`#d64545`) — **standalone money numerals only** (negative margin figure on a tile). This is the shipped Phase 33/34 sanction, carried forward unchanged.
-- `bg-red-100 text-red-800` (`#991b1b` on `#fee2e2`) — **badges and list text**, matching the `status-badge.tsx` red family already used across the app. The attention list's "Over budget" tier badge and its percent figure use this. At 14px/600 this clears 4.5:1 comfortably (~7.9:1), whereas `#d64545` on white measures ~4.4:1 and would sit just under AA for that size.
-- `#d64545` — **chart marks** (over-budget fill, break-even line), where the 3:1 large-area threshold applies.
 
 ---
 
@@ -261,7 +272,7 @@ export const CHART_TOOLTIP_STYLE = {
 } as const;
 ```
 
-Also exported from that module: `BUDGET_TIER_FILL` (the three-band map), `CATEGORY_FILL` (the nominal map + ramp fallback), `TREND_SERIES` (stroke/width/dash per series), `CHART_TICK` (`{ fontSize: 11 }`). All are named constants — no magic hex literals at call sites.
+Also exported from that module: `BUDGET_TIER_FILL` (the three-band map), `CATEGORY_FILL` (the nominal map + the two-step custom fallback), `TREND_SERIES` (stroke/width/dash per series), `CHART_TICK` (`{ fontSize: 11 }`), `BULLET_ROW_HEIGHT` (28), `BULLET_BAR_SIZE` (12), `PERCENT_AXIS_CLAMP` (200), `MAX_PIE_SLICES` (6). All are named constants — no magic hex or numeric literals at call sites.
 
 `CartesianGrid strokeDasharray="3 3" className="stroke-border"` and `tickLine={false}` / `axisLine={false}` on value axes are inherited verbatim from the shipped charts.
 
@@ -277,21 +288,36 @@ All cartesian charts pass **`accessibilityLayer`** (Recharts 3.x) so the plot ar
 | **Encoded variable** | `percentUsed` (position on a common scale — the most accurately-decoded visual channel), **not dollars** |
 | **Why not dollars** | A $2k scope budget and a $2M project budget cannot share a linear dollar axis; the small project becomes an invisible sliver and the chart answers nothing. Percent-of-budget normalizes every project onto one comparable scale and directly answers the question the page exists to ask ("who is running out of budget?"). Magnitude is not lost: dollars are in the tooltip, the CSV and the all-projects table. |
 | **Why not grouped budget+spent bars** | Two marks per project doubles the ink and forces the reader to compute a ratio by eye — the exact judgement a bullet display replaces with a single reference line. |
-| **Marks** | `<Bar dataKey="percentUsed" barSize={12}>` with one `<Cell>` per project |
-| **Value axis** | `<XAxis type="number" domain={[0, maxDomain]} tickFormatter={(v) => `${v}%`} tick={CHART_TICK} tickLine={false} axisLine={false} />` where `maxDomain = Math.max(120, Math.ceil(highestPercentUsed / 10) * 10)` — the 100% line is always on-screen with headroom, even when nothing is near budget |
+| **Marks** | `<Bar dataKey="percentUsedClamped" barSize={12}>` with one `<Cell>` per project |
+| **Value axis** | `<XAxis type="number" domain={[0, maxDomain]} tickFormatter={(v) => `${v}%`} tick={CHART_TICK} tickLine={false} axisLine={false} />` — see the clamp rule below |
 | **Category axis** | `<YAxis type="category" dataKey="projectName" width={160} interval={0} tick={CHART_TICK} tickLine={false} axisLine={false} tickFormatter={truncateLabel} />` |
 | **Reference** | `<ReferenceLine x={100} stroke="#0e1726" strokeDasharray="3 3" label={{ value: "Budget", position: "top", fontSize: 11 }} />` |
 | **Color** | `BUDGET_TIER_FILL` three-band rule (see Color section). Inactive-status projects (`draft`, `complete`, `archived`) render the same tier fill at **`fillOpacity={0.45}`** — D-12 de-emphasis without exclusion |
 | **Sort** | **Descending by `percentUsed`** (worst at top). Server-ordered. Sorting a categorical bar chart by value rather than by name is the single largest readability win available here, and it makes the chart agree with the attention list beside it at a glance. |
-| **Interaction** | `cursor="pointer"`; `onClick` → `router.push(\`/financials/${projectId}\`)`. Tooltip: full untruncated project name via `labelFormatter`, then `{spent} of {budget} · {percent}%` and the status |
+| **Interaction** | `cursor="pointer"`; `onClick` → `router.push(\`/financials/${projectId}\`)`. Tooltip: full untruncated project name via `labelFormatter`, then `{spent} of {budget} · {percent}%` (the **true** percent, never the clamped one) and the status |
 | **Empty when** | No project in the company has a budget |
-| **CSV** | `["Project", "Status", "Budget", "Spent", "Percent used"]` — full names, unformatted backend strings |
+| **CSV** | `["Project", "Status", "Budget", "Spent", "Percent used"]` — full names, unformatted backend strings, **true** percent |
+
+**Axis domain and the extreme-overrun clamp (locked):**
+
+```
+maxDomain = Math.min(200, Math.max(120, Math.ceil(highestPercentUsed / 10) * 10))
+```
+
+- The `Math.max(120, …)` floor keeps the 100% reference line on screen with headroom even when nothing is near budget.
+- The **`Math.min(200, …)` clamp** is the important half. A single 900%-over project (a $500 budget with $4,500 spent — entirely realistic on a small scope) would otherwise stretch the axis so far that every other bar collapses into a 2px stub and the chart stops answering anything. Capping the axis at 200% keeps the *comparison* readable.
+- **Bars beyond the clamp are marked, never silently truncated.** Any project with `percentUsed > 200` renders its bar to the 200% edge with an **overflow label** immediately after the bar end: `▸ {percent}%` (e.g. `▸ 340%`) at 11px in `#991b1b` (`text-red-800`), `data-testid="budget-bar-overflow-{projectId}"`. The glyph plus the real number make the truncation self-declaring — a clamped bar can never be misread as "exactly 200%".
+- The **true, unclamped figure** appears in the overflow label, the tooltip, the attention list, the all-projects table and the CSV. Only the bar *geometry* is clamped.
 
 **Open Question 5 resolved concretely (25-row label truncation):**
 
 - `interval={0}` on the `YAxis` — **without this, Recharts silently drops labels when the plot area is crowded**, which is the actual failure mode at 25 rows. This is the fix.
 - `width={160}` at 11px fits ~26 characters; `truncateLabel` caps at **22 characters + `…`** (`name.length > 22 ? name.slice(0, 21) + "…" : name`) with margin to spare.
-- Fixed **28px per row** instead of compressing rows to fit: `chartHeight = Math.min(736, Math.max(280, rowCount * 28 + 36))`.
+- **Fixed 28px per row, with no upper bound on the plot height:**
+  ```
+  chartHeight = Math.max(280, rowCount * 28 + 36)
+  ```
+  There is deliberately **no `Math.min` ceiling.** A cap would silently compress rows below 28px once the project count passed it — breaking the 28px floor this contract guarantees and re-introducing exactly the label collisions `interval={0}` exists to prevent. The plot grows linearly with the data; the **viewport** is what is bounded.
 - When `chartHeight > 420`, the `ResponsiveContainer` is wrapped in `<div className="max-h-[420px] overflow-y-auto pr-2">` and still receives the **full computed height** — the container scrolls, bars never compress below legibility, and there is no cap on rows (D-08: show all qualifying projects).
 - The full name is always recoverable: tooltip `labelFormatter` and the CSV both carry it untruncated.
 
@@ -309,7 +335,7 @@ Not a chart — an **ordered list**, rendered inside a `ChartCard` (icon `AlertT
 | **Row anatomy** | `[tier badge] {project name}{ — anchor}` at 14/600, `[StatusBadge]` only for inactive statuses, right-aligned `{percent}%` at 14/600; sub-line at 12/400 `text-gray-500` |
 | **Tier badges** | `Over budget` → `bg-red-100 text-red-800`; `Nearing budget` → `FinanceFlagChip` recipe (`bg-brand/15 text-amber-900`); `Incomplete cost data` → `FinanceFlagChip` recipe |
 | **Anchor naming** | The offending budget is named the way `budget_repository.alert_context` already names it in alert copy: the project itself → no suffix; a scope budget → `{project name} — {trade name} scope` |
-| **Percent color** | Overrun rows `text-red-800`; warning rows `text-gray-900`; incomplete rows render **no percent** (the tier has no percent — never fabricate one) |
+| **Percent color** | Overrun rows `text-red-800`; warning rows `text-gray-900`; incomplete rows render **no percent** (the tier has no percent — never fabricate one). This list always shows the **true** percent, including beyond the chart's 200% clamp |
 | **De-emphasis** | Rows for `draft` / `complete` / `archived` projects render at `opacity-60` and show the `StatusBadge` (D-12) |
 | **Tier source** | **Live threshold state** from `budget_math.crossed_thresholds(spent, total)` — never `warning_fired_at` / `overrun_fired_at` (D-11, Pitfall 5). The list and the bars above it read the same `spent`, so they can never contradict each other on the same screen. |
 | **Interaction** | Whole row is a `<Link href={\`/financials/${projectId}\`}>`; visible focus ring; keyboard reachable |
@@ -329,7 +355,7 @@ Not a chart — an **ordered list**, rendered inside a `ChartCard` (icon `AlertT
 | **Why it exists** | The bullet chart covers only budgeted projects; the table is the complete, deep-linkable inventory — and the drill-down's navigation affordance |
 | **Grouping (D-12)** | **Active group** = `planning` \| `active` \| `on_hold` — normal rendering, listed first. **Inactive group** = `draft` \| `complete` \| `archived` — rendered below a full-width separator row reading `Inactive projects — still included in portfolio totals`, with row text at `text-muted-foreground`. `on_hold` counts as active: a paused project is still an open financial commitment. |
 | **Sort** | Within each group, descending by cost (the largest exposure first); ties by project name |
-| **Cell rules** | Money via `formatCurrency` / `formatSignedCurrency` from the backend strings; negative margin numerals in `text-destructive`; `null` renders `—`; `Budget used` renders `{percent}%` or `No budget` |
+| **Cell rules** | Money via `formatCurrency` / `formatSignedCurrency` from the backend strings. **Negative margin numerals render `text-red-800`, not `text-destructive`** — these are 14px cells and `#d64545` is sub-AA at that size (see the red rule). `null` renders `—`; `Budget used` renders the **true** `{percent}%` (unclamped) or `No budget` |
 | **Empty when** | The company has no projects |
 
 ---
@@ -359,10 +385,10 @@ Not a chart — an **ordered list**, rendered inside a `ChartCard` (icon `AlertT
 
 ### Chart 5 — Budget vs Actual by Trade Scope (`/financials/[projectId]`)
 
-Identical form, marks, scales, color rule, sort and geometry to **Chart 1**, keyed by `tradeName` instead of `projectName`, and with two differences:
+Identical form, marks, scales, color rule, sort, clamp and geometry to **Chart 1**, keyed by `tradeName` instead of `projectName`, and with two differences:
 
 - **No click-through** — there is no per-scope financial route. `cursor` stays default.
-- **Always shows the labor caption**: `Scope spend excludes labor — labor is tracked at job level.` Row counts here are small (typically 3–8), so the scroll container is effectively never engaged, but the same computed-height rule applies unchanged.
+- **Always shows the labor caption**: `Scope spend excludes labor — labor is tracked at job level.` Row counts here are small (typically 3–8), so the scroll container is effectively never engaged, but the same unbounded `Math.max(280, rowCount * 28 + 36)` height rule applies unchanged.
 
 ---
 
@@ -371,15 +397,16 @@ Identical form, marks, scales, color rule, sort and geometry to **Chart 1**, key
 | Property | Value |
 |----------|-------|
 | **Form** | `<PieChart><Pie><Cell/></Pie><Tooltip/><Legend/></PieChart>` — the shipped `quote-conversion-chart.tsx` composition, copied |
-| **Why a pie survives dataviz scrutiny here** | Angle/area is the weakest channel and a pie is usually the wrong answer — but this is a genuine part-to-whole with **≤6 slices summing to a meaningful 100%**, which is the narrow case where a pie is defensible, and it is the codebase's established form for exactly this question. Precision is recovered by the on-slice percent labels, the legend and the tooltip; the total lives in `kpiValue`. Overriding the shipped convention here would buy accuracy the reader does not need and cost family consistency the page does need. |
-| **Marks** | `outerRadius={90}`, `cx="50%"`, `cy="50%"`, one `<Cell>` per category, no donut hole (the total is already the card's `kpiValue`) |
-| **Color** | `CATEGORY_FILL` nominal map (see Color section) — stable hue per category name |
+| **Why a pie survives dataviz scrutiny here** | Angle/area is the weakest channel and a pie is usually the wrong answer — but this is a genuine part-to-whole with **at most 6 slices** (guaranteed by the `Other` rollup) summing to a meaningful 100%, which is the narrow case where a pie is defensible, and it is the codebase's established form for exactly this question. Precision is recovered by the on-slice percent labels, the legend and the tooltip; the total lives in `kpiValue`. Overriding the shipped convention here would buy accuracy the reader does not need and cost family consistency the page does need. |
+| **Slice cap** | **`MAX_PIE_SLICES` = 6.** Four system categories + up to two custom categories; everything further rolls into `Other` (see the Color section). This is what keeps the pie inside its defensible range and keeps the ramp free of repeated hues. |
+| **Marks** | `outerRadius={90}`, `cx="50%"`, `cy="50%"`, one `<Cell>` per slice, no donut hole (the total is already the card's `kpiValue`) |
+| **Color** | `CATEGORY_FILL` nominal map — stable hue per category name, every hue used exactly once |
 | **Labels** | External leader labels `` `${name} ${(percent*100).toFixed(0)}%` `` — **suppressed (`""`) for any slice under 5%** so small slices cannot collide into unreadable text. Suppressed slices remain fully identified by the legend and tooltip. |
-| **Slice order** | Descending by amount, so the mix reads clockwise from largest |
-| **Tooltip** | `{formatted amount} ({percent}%)` formatted from the backend string |
+| **Slice order** | Descending by amount, so the mix reads clockwise from largest. `Other` always sorts last regardless of size, so the rollup bucket never reads as a first-class category. |
+| **Tooltip** | `{formatted amount} ({percent}%)` formatted from the backend string. The `Other` slice additionally lists the category names rolled into it. |
 | **Interaction** | Hover only — no click-through |
 | **Empty when** | No cost entries and no tracked labor for the project |
-| **CSV** | `["Category", "Amount", "Percent of total"]` |
+| **CSV** | `["Category", "Amount", "Percent of total"]` — **one row per real category, never rolled up.** The chart simplifies; the export does not. |
 
 ---
 
@@ -430,7 +457,7 @@ A tile is a number, not a chart — so it deliberately carries **no icon box and
 ```
 Card > CardContent pt-4
   <p  text-sm text-gray-500>{title}</p>                    e.g. "Portfolio margin"
-  <p  mt-1 text-3xl font-bold text-gray-900>{figure}</p>   e.g. "$124300.00"  (text-destructive if negative)
+  <p  mt-1 text-3xl font-bold text-gray-900>{figure}</p>   e.g. "$124300.00"  (text-destructive if negative — 30px, passes AA as large text)
   <p  mt-1 text-sm text-gray-500>{subline}</p>             e.g. "21% margin"
   [FinanceFlagChip]  + <p text-xs text-gray-500>{caption}</p>
 ```
@@ -460,10 +487,10 @@ Both pages use the Reports page shell verbatim: `dynamic(() => import("./_compon
 ### Implementation shape (clean-code / SRP)
 
 - **Display components never fetch.** `PortfolioSummaryTiles`, `ProjectBudgetBars`, `AttentionList`, `ProjectsTable`, `MarginTrendChart`, `ScopeBudgetBars`, `CategoryMixChart` are pure and take already-parsed props. The two `*-dashboard.tsx` components own the hooks. This is what makes the jest null-handling tests trivial to write.
-- **No client-side money math.** Portfolio totals, percents, tiers and ordering all arrive computed. The client never sums, never divides, never re-derives a band.
-- **Named constants, no magic values.** Every copy string, hex, tier name, row height, truncation length, window value and query-key segment is a named constant — the shipped `INCOMPLETE_CHIP_LABEL` / `FINANCE_FLAG_CHIP_CLASS` pattern.
-- **Intention-revealing names** (clean-code skill): `AttentionList`, `formatMonthLabel`, `formatAxisThousands`, `truncateLabel`, `useCompanyFinancials`, `useProjectFinancials`, `useProjectMarginTrend`, `budgetTierFill`. No `data`, `info`, `temp`, `chartData2`.
-- **Functions under ~20 lines.** CSV builders, tier→fill mapping, month labelling and label truncation are each their own small pure function in a `financials-format.ts` module, unit-tested without React.
+- **No client-side money math.** Portfolio totals, percents, tiers and ordering all arrive computed. The client never sums, never divides, never re-derives a band. The only client-side arithmetic in the whole phase is chart *geometry* (`parseFloat` for bar length, the axis clamp, the row-height formula) and the pie's `Other` rollup.
+- **Named constants, no magic values.** Every copy string, hex, tier name, row height, bar size, axis clamp, slice cap, truncation length, window value and query-key segment is a named constant — the shipped `INCOMPLETE_CHIP_LABEL` / `FINANCE_FLAG_CHIP_CLASS` pattern.
+- **Intention-revealing names** (clean-code skill): `AttentionList`, `formatMonthLabel`, `formatAxisThousands`, `truncateLabel`, `clampPercentForAxis`, `rollUpCategories`, `useCompanyFinancials`, `useProjectFinancials`, `useProjectMarginTrend`, `budgetTierFill`. No `data`, `info`, `temp`, `chartData2`.
+- **Functions under ~20 lines.** CSV builders, tier→fill mapping, category rollup, month labelling, axis clamping and label truncation are each their own small pure function in a `financials-format.ts` module, unit-tested without React.
 - **Lint traps** (both fail `--max-warnings 0`): no reset-on-open `useEffect` (`react-hooks/set-state-in-effect`); Recharts `Tooltip`/`Bar`/`Pie` handler params need the codebase's `// eslint-disable-next-line @typescript-eslint/no-explicit-any` convention.
 - **Query keys** live under the existing `["cost-entries", …]` prefix so `invalidateAllCostEntries` refreshes the dashboard after any cost/budget/rate write for free: `["cost-entries","financials","company"]`, `["cost-entries","financials","project",projectId]`, `["cost-entries","financials","trend",projectId,window]`.
 
@@ -495,30 +522,32 @@ Test-asserted; the executor implements exactly these.
 | 11 | Revenue basis `mixed` | portfolio `revenueBasis === "mixed"` | Revenue tile caption `Includes {amount} from approved quotes — not yet invoiced.` (the D-09 estimated share) |
 | 12 | Revenue basis `quoted` | all revenue from approved quotes | Revenue tile caption `Based on approved quotes — not yet invoiced.` |
 | 13 | Revenue basis `none` | no invoice, no approved quote anywhere | Revenue tile figure `—`, caption `No revenue recorded yet.`; margin tile figure `—`, no percent sub-line |
-| 14 | Negative portfolio margin | `margin` starts with `-` | Figure `-$3500.00` in `text-destructive`, sub-line `-8% margin`. Numerals only — the title never changes color |
+| 14 | Negative portfolio margin | `margin` starts with `-` | **Tile** figure `-$3500.00` in `text-destructive` (30px — large text), sub-line `-8% margin`. The same project's **table** cell renders `text-red-800` (14px). Numerals only — titles and labels never change color |
 | 15 | Nothing needs attention | all three tiers empty | Attention card: `kpiValue` `All clear` + the `Nothing needs attention` empty state |
 | 16 | Attention rows present | any tier non-empty | Rows in D-08 tier order; each row links to its drill-down |
 | 17 | Over-budget after a budget raise | `overrun_fired_at IS NULL` but `spent > total` | Project **still appears** in the overrun tier and its bar is still red — live threshold state, D-11 / Pitfall 5 |
 | 18 | Inactive projects | status `draft` \| `complete` \| `archived` | Bars at `fillOpacity 0.45`; attention rows at `opacity-60` with a `StatusBadge`; table rows below the `Inactive projects — still included in portfolio totals` separator. **Never excluded from any total** (D-12) |
-| 19 | 25+ budgeted projects | `rowCount * 28 + 36 > 420` | Bars keep 28px rows inside a `max-h-[420px]` scroll container; every project keeps a tick (`interval={0}`); names truncate at 22 chars with the full name in tooltip and CSV |
+| 19 | Many budgeted projects | `rowCount * 28 + 36 > 420` | **Every row keeps its full 28px** — the plot height grows without bound (`Math.max(280, rowCount * 28 + 36)`, no ceiling) and the `max-h-[420px]` wrapper scrolls. Every project keeps a tick (`interval={0}`); names truncate at 22 chars with the full name in tooltip and CSV. Asserted at 25 **and at 40** projects: measured row height is **28px in both cases** |
+| 20 | Extreme overrun | any `percentUsed > 200` | Axis domain clamps at 200%; that bar reaches the axis edge and carries the `▸ {percent}%` overflow label (e.g. `▸ 340%`) at 11px `text-red-800`. Every other bar stays legible. The **true** percent appears in the label, tooltip, attention list, table and CSV — only the geometry is clamped |
 
 ### `/financials/[projectId]` — content
 
 | # | State | Condition | Rendering |
 |---|-------|-----------|-----------|
-| 20 | Loading | project query in flight | `FinancialsSkeleton` (drill-down layout) |
-| 21 | Not found / wrong tenant | endpoint 404 | Inline panel `Project not found.` + `Back to Financials` link. No toast, no crash |
-| 22 | Error | query `isError` | `Couldn't load financials. Refresh to try again.` |
-| 23 | Trend has buckets | `buckets.length > 0` | Three lines render; `kpiValue` = `{N} months` |
-| 24 | Trend empty | `buckets.length === 0` | `No dated financial records yet` empty state |
-| 25 | Null margin months | any bucket `margin === null` | Line renders a **gap** at that month — no point, no `$0`. `connectNulls` stays `false` (Pitfall 3) |
-| 26 | No revenue ever | every bucket `revenueBasis === "none"` | Revenue and Margin lines render no points; Cost line renders; caption `No revenue recorded — margin will appear once an invoice or approved quote exists.` |
-| 27 | Window switch | user clicks `Last 3m` / `6m` / `12m` / `All time` | Only the trend refetches (its own query key). Previous chart stays visible at `opacity-60` + `aria-busy="true"`. **Any month present in two windows renders identical values** — the window slices buckets, never records (Pitfall 2) |
-| 28 | Basis change mid-trend | a bucket's `revenueBasis` differs from the previous | Rendered honestly, never smoothed; the tooltip names the basis on `quoted` / `mixed` buckets (the accepted quote→invoice step-down artifact) |
-| 29 | Scope budgets present | ≥1 scope has a budget | Bars + `kpiValue` `{N} of {M} scopes budgeted` + the labor caption |
-| 30 | No scope budgets | no scope has a budget | `No scope budgets set` empty state — the labor caption is not shown (nothing to qualify) |
-| 31 | Categories present | project has costs or labor | Pie with slices ≥5% labelled, legend always complete |
-| 32 | No categories | no cost entries, no tracked labor | `No costs recorded` empty state |
+| 21 | Loading | project query in flight | `FinancialsSkeleton` (drill-down layout) |
+| 22 | Not found / wrong tenant | endpoint 404 | Inline panel `Project not found.` + `Back to Financials` link. No toast, no crash |
+| 23 | Error | query `isError` | `Couldn't load financials. Refresh to try again.` |
+| 24 | Trend has buckets | `buckets.length > 0` | Three lines render; `kpiValue` = `{N} months` |
+| 25 | Trend empty | `buckets.length === 0` | `No dated financial records yet` empty state |
+| 26 | Null margin months | any bucket `margin === null` | Line renders a **gap** at that month — no point, no `$0`. `connectNulls` stays `false` (Pitfall 3) |
+| 27 | No revenue ever | every bucket `revenueBasis === "none"` | Revenue and Margin lines render no points; Cost line renders; caption `No revenue recorded — margin will appear once an invoice or approved quote exists.` |
+| 28 | Window switch | user clicks `Last 3m` / `6m` / `12m` / `All time` | Only the trend refetches (its own query key). Previous chart stays visible at `opacity-60` + `aria-busy="true"`. **Any month present in two windows renders identical values** — the window slices buckets, never records (Pitfall 2) |
+| 29 | Basis change mid-trend | a bucket's `revenueBasis` differs from the previous | Rendered honestly, never smoothed; the tooltip names the basis on `quoted` / `mixed` buckets (the accepted quote→invoice step-down artifact) |
+| 30 | Scope budgets present | ≥1 scope has a budget | Bars + `kpiValue` `{N} of {M} scopes budgeted` + the labor caption |
+| 31 | No scope budgets | no scope has a budget | `No scope budgets set` empty state — the labor caption is not shown (nothing to qualify) |
+| 32 | Categories ≤ 6 | project has costs or labor, ≤6 distinct categories | Pie with slices ≥5% labelled, legend always complete |
+| 33 | Categories > 6 | ≥7 distinct categories | Slices 7+ roll into `Other`; `Other` sorts last; its tooltip lists the rolled-up names; the **CSV still carries every category as its own row** |
+| 34 | No categories | no cost entries, no tracked labor | `No costs recorded` empty state |
 
 ---
 
@@ -536,6 +565,7 @@ Test-asserted; the executor implements exactly these.
 | `portfolio-incomplete-caption` | `Margin may overstate profit…` caption |
 | `project-budget-bars` | Budget-vs-actual chart wrapper |
 | `project-budget-bars-unbudgeted-note` | `{N} projects have no budget set.` |
+| `budget-bar-overflow-{projectId}` | `▸ {percent}%` clamp overflow label |
 | `attention-list` | List wrapper (also `id="attention-list"`) |
 | `attention-row-{projectId}` | One attention row |
 | `attention-empty` | Attention empty state |
@@ -556,9 +586,9 @@ Cards are additionally reachable by `aria-label` (`ChartCard`'s handle) — the 
 
 ## Accessibility Notes
 
-- **Meaning is never carried by color alone** (WCAG 1.4.1). Every bar's tier is redundantly encoded by its position against a labelled 100% reference line, its tooltip dollars and its CSV row. Every negative figure carries a leading minus sign. The trend's loss condition is a labelled `Break-even` line, not a hue. The Cost series is distinguished from Revenue by **dash pattern**, so the trend chart is fully readable in greyscale.
-- **Contrast:** `text-gray-500` (#6b7280) on white ≈ 4.83:1 ✓; `text-red-800` on `bg-red-100` ≈ 7.9:1 ✓; `text-amber-900` on `bg-brand/15` ✓ (shipped, unchanged); chart fills are large areas judged against the 3:1 non-text threshold ✓. `text-destructive` is used only where Phase 33/34 already sanctioned it (standalone money numerals), and badge/list red uses the higher-contrast `red-800` family instead.
-- **Charts are keyboard-navigable** via Recharts `accessibilityLayer` on both cartesian families. Every chart card additionally exposes its full underlying data through `ChartCard`'s built-in **Export CSV** button (`aria-label="Download {title} as CSV"`) — the accessible data alternative to the SVG.
+- **Meaning is never carried by color alone** (WCAG 1.4.1). Every bar's tier is redundantly encoded by its position against a labelled 100% reference line, its tooltip dollars and its CSV row. Every negative figure carries a leading minus sign. A clamped bar carries a `▸` glyph and its true number, so truncation is never inferred from bar length alone. The trend's loss condition is a labelled `Break-even` line, not a hue. The Cost series is distinguished from Revenue by **dash pattern**, so the trend chart is fully readable in greyscale.
+- **Contrast:** `text-gray-500` (#6b7280) on white ≈ 4.83:1 ✓; `text-red-800` (#991b1b) on `bg-red-100` ≈ 6.8:1 and on white ≈ 8.9:1 ✓; `text-amber-900` on `bg-brand/15` ✓ (shipped, unchanged); chart fills and reference lines are large marks judged against the 3:1 non-text threshold ✓. `text-destructive` (#d64545, ≈4.4:1) is used for text **only at 30px**, where the 3:1 large-text threshold applies; every red figure at 14px or smaller uses the `red-800` family instead.
+- **Charts are keyboard-navigable** via Recharts `accessibilityLayer` on both cartesian families. Every chart card additionally exposes its full underlying data through `ChartCard`'s built-in **Export CSV** button (`aria-label="Download {title} as CSV"`) — the accessible data alternative to the SVG, and the reason the CSV is never allowed to inherit the chart's clamping or rollup simplifications.
 - **Reading order matches visual order** on both pages: heading → tiles (revenue, cost, margin) → charts → table. The attention list is a list of real links, not a canvas.
 - **The incomplete-data chip is a real anchor** to `#attention-list`, keyboard-activatable, with `aria-label="Show the {N} projects with incomplete data"`.
 - **Window-selector buttons** are real `button`s carrying `aria-pressed`, exactly like the shipped `DateRangeFilter` presets.
@@ -580,11 +610,11 @@ No `npx shadcn add`, no `--registry` flag, and no new npm dependency is introduc
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** approved 2026-07-28 — 6/6, with seven non-blocking checker corrections applied the same day.
