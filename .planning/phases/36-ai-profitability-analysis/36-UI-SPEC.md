@@ -21,6 +21,8 @@ Everything inherits the **"Job Ticket"** design system unchanged from the Phase 
 
 **Pre-populated from:** 36-CONTEXT.md (D-01..D-10), 36-RESEARCH.md (Patterns 6, 8, 9; Pitfalls 2, 6, 7, 8, 9; Open Question 1), 35-UI-SPEC.md (palette, red rule, chip recipes, empty-state component, caption voice), 34-UI-SPEC.md (alert-copy + FCM template conventions), 33-UI-SPEC.md via shipped constants, ROADMAP Phase 36 SC1–SC3, and direct reads of `project-financials-dashboard.tsx`, `finance-summary-tiles.tsx`, `attention-list.tsx`, `financials-skeleton.tsx`, `financials-format.ts`, `chart-card.tsx`, `chart-empty-state.tsx`, `FinanceFlagChip.tsx`, `MarginSummarySection.tsx`, `CostBreakdownSummary.tsx`, `AlertPanel.tsx`, `hooks.ts`, `types.ts`, `lib/format.ts`, `budget_math.py`, `budget_service.py`, `components.json` (2026-07-29). **User input required: none** — every contract question was answered by a locked decision, a research recommendation this document adopts, or a shipped convention.
 
+**Checker corrections applied 2026-07-29** (1 blocker + 5 recommendations): the `SUGGESTED ACTION` eyebrow moved from `text-gray-500` (3.98:1 on `bg-secondary`, sub-AA at 12px/600 — WCAG's bold exemption starts at 18.66px) to `text-gray-700` (8.50:1); `text-red-800`-on-white corrected to 8.31:1; the `FINANCE_ALERT_CHIP_CLASS` extraction re-described as a class-**set** equivalence with the orphaned `BADGE_BASE_CLASS` deleted in the same edit; the 500/600 weight split annotated; the empty-state honesty variant's coverage bound stated.
+
 **The one thing this contract cannot lock:** the narrative, the corrective action and the alert summary are **AI-written**. Phase 34's alert copy is byte-for-byte template-locked and tested byte-for-byte; **that is impossible here** (36-RESEARCH Pattern 6). This document therefore locks the **frame** — card title, severity labels, eyebrow, date line, captions, disclosure, empty/error copy, alert prefixes, push titles — byte-for-byte, and bounds the AI text by **length and grounding only**. No plan task may assert byte-identity on AI-authored strings.
 
 ---
@@ -31,7 +33,7 @@ Everything inherits the **"Job Ticket"** design system unchanged from the Phase 
 |----------|-------|
 | Tool | shadcn (already initialized — `web/components.json` present; **no gate action, no new blocks installed**) |
 | Preset | `style: base-nova`, `baseColor: neutral`, `iconLibrary: lucide`, `cssVariables: true`, `registries: {}` — read verbatim from `web/components.json` 2026-07-29 |
-| Component library | base-ui (`@base-ui/react`) via existing wrappers — this phase uses only `card.tsx`. No new primitives, no dialog, no popover, no button. |
+| Component library | base-ui (`@base-ui/react`) via existing wrappers — this phase uses only `card.tsx` and `skeleton.tsx`. No new primitives, no dialog, no popover, no button. |
 | Chart library | **none this phase** — a finding is prose, not a plot |
 | Icon library | lucide-react — **`Bot`**, the codebase's established AI-provenance glyph (`ChatBubble.tsx`, `TypingIndicator.tsx`, the AI intake affordances on `projects/page.tsx` and `quotes/page.tsx`). Reusing it means "this text came from the AI" already reads as itself. `Sparkles` is deliberately **not** introduced — a second AI icon would give one meaning two glyphs. |
 | Font | Geist Sans (body) per `globals.css`. No display face, no mono — matching every shipped finance surface. |
@@ -58,14 +60,18 @@ Declared values (all multiples of 4) — unchanged from the Phase 32/33/34/35 co
 
 ## Typography
 
-**No new size and no new weight.** The project-wide declared set stays **12 / 14 / 20 / 24 / 30** at weights **400 and 600** (700 remains the single inherited display weight for the 30px KPI figure). Phase 36 uses **two** sizes — 12 and 14 — and **both** weights.
+**No new size and no new weight.** The project-wide declared set stays **12 / 14 / 20 / 24 / 30** at authored weights **400 and 600** (500 and 700 are inherited — see the weight declaration below). Phase 36 uses **two** sizes — 12 and 14.
 
 | Role | Size | Weight | Line Height | Phase-36 usage |
 |------|------|--------|-------------|----------------|
-| Caption / meta | 12px (`text-xs`) | 400 · 600 for the eyebrow | 1.5 | Date line, revenue-basis caption, unburdened-labor caption, AI disclosure line, severity chip label. The **`SUGGESTED ACTION` eyebrow** is the 600 + `uppercase tracking-wide` exception (the shipped `CURRENT RATE` / `CURRENT BUDGET` / table-header convention). |
-| Body | 14px (`text-sm`) | 400 | 1.5 | Card title (`text-sm text-gray-500`), narrative paragraph (`text-gray-700`), corrective action (`text-gray-900`), empty-state body, error line (600 — see below) |
-| Body / emphasis | 14px (`text-sm`) | 600 | 1.5 | Empty-state heading (the shipped `ChartEmptyState` recipe), error line (`font-medium`, the shipped inline-finance-error weight) |
+| Caption / meta | 12px (`text-xs`) | 400 · **600 for the eyebrow** | 1.5 | Date line, revenue-basis caption, unburdened-labor caption, AI disclosure line, severity chip label — all 400, all `text-gray-500` on the white card surface. The **`SUGGESTED ACTION` eyebrow** is the **600 (`font-semibold`) + `uppercase tracking-wide` + `text-gray-700`** exception (the shipped `CURRENT RATE` / `CURRENT BUDGET` / table-header convention). It is `text-gray-700`, **not** `text-gray-500`, because it sits on the `bg-secondary` action block — see the contrast note below. |
+| Body | 14px (`text-sm`) | 400 | 1.5 | Card title (`text-sm text-gray-500`), narrative paragraph (`text-gray-700`), corrective action (`text-gray-900`), empty-state body |
+| Body / emphasis | 14px (`text-sm`) | **500 (`font-medium`)** | 1.5 | Empty-state heading (`text-sm font-medium text-muted-foreground` — the shipped `ChartEmptyState` recipe, reused byte-for-byte) and the in-card error line (`text-sm font-medium text-red-800` — the shipped inline-finance-error weight) |
 | Page heading | 20px (`text-xl`) | 400 | 1.2 | **Inherited, not authored here** — the drill-down `<h1>` already exists |
+
+**Weight declaration — read this before writing a jest weight assertion.** The **authored** set is still **400 and 600**: 600 appears exactly once, on the `SUGGESTED ACTION` eyebrow (`font-semibold`). **500 (`font-medium`) is an inherited weight, not a new one** — it arrives with the shipped `ChartEmptyState` and inline-finance-error recipes, which this phase reuses byte-for-byte rather than forking. 700 remains the inherited display weight and appears nowhere on this card. In short: **eyebrow → `font-semibold`; empty-state heading and error line → `font-medium`; everything else → default 400.**
+
+**Eyebrow contrast (locked).** `text-gray-500` (#6b7280) on `bg-secondary` (#ece9e1) measures **3.98:1** — below AA. WCAG's large-text exemption for bold type starts at **18.66px**, so a 12px/600 eyebrow is held to the full **4.5:1** and `text-gray-500` fails there. The eyebrow is therefore **`text-gray-700` (#374151) on `bg-secondary` = 8.50:1 ✓**. This applies to the **eyebrow only**: every other caption on this card sits on the white card surface, where `text-gray-500` measures 4.83:1 and is unchanged.
 
 **Deliberately absent: the 30px KPI figure.** Every other card on this page opens with a big number. The finding card does not, because a finding has no single headline figure — inventing one (a margin percent, a dollar gap) would place an *un-grounded* number in the most prominent slot on the card, which is exactly what SC3 exists to prevent. The severity chip carries the at-a-glance signal instead. This is the same rationale that gave `FinanceSummaryTiles` no icon box and no export button: **borrow the family's typography, not its furniture.**
 
@@ -95,7 +101,7 @@ Declared values (all multiples of 4) — unchanged from the Phase 32/33/34/35 co
 | Red | Value | Applies to | Contrast |
 |-----|-------|------------|----------|
 | `text-red-800` on `bg-red-100` | `#991b1b` / `#fee2e2` | The **`Margin critical` severity chip** (12px) | ≈6.8:1 ✓ |
-| `text-red-800` on white | `#991b1b` | The in-card error line (14px, 600) | ≈8.9:1 ✓ |
+| `text-red-800` on white | `#991b1b` | The in-card error line (14px, 500) | **8.31:1** ✓ |
 | `text-destructive` | `#d64545` | **Nothing this phase** — no 30px money numeral is authored here | n/a |
 
 ### Severity band → visual treatment (locked)
@@ -105,7 +111,7 @@ Two bands, adopted from 36-RESEARCH Open Question 1. **The band name is inside t
 | Band | `DashboardAlert.severity` | Chip label | Chip class | Rationale |
 |------|---------------------------|------------|------------|-----------|
 | `warning` | `warning` | **`Margin warning`** | `FINANCE_FLAG_CHIP_CLASS` — `rounded-full bg-brand/15 px-2 py-0.5 text-xs text-amber-900` | Amber already means "caution, nothing lost yet" on every shipped finance surface. Same hue, same meaning, same class string. |
-| `critical` | `critical` | **`Margin critical`** | `FINANCE_ALERT_CHIP_CLASS` — `rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-800` | The `Over budget` tier badge's exact recipe. Money is being lost, or the erosion is severe. |
+| `critical` | `critical` | **`Margin critical`** | `FINANCE_ALERT_CHIP_CLASS` — `rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-800` | The `Over budget` tier badge's exact class set. Money is being lost, or the erosion is severe. |
 
 **Band name = severity value = push title, one name per band.** The 35 rule ("the same condition must never have two names") applies across all four surfaces: the chip, the `aria-label`, the FCM title and the `DashboardAlert.severity` all read from one map.
 
@@ -115,7 +121,7 @@ Two bands, adopted from 36-RESEARCH Open Question 1. **The band name is inside t
 
 **Card chrome never changes with severity.** No red left border, no tinted card background, no severity-colored title. Only the chip changes. A finding card must never be mistakable for the page-level error panel — and a warning finding must not read as "the page is broken".
 
-**Grays:** `text-gray-900` for the corrective action, `text-gray-700` for the narrative, `text-gray-500` for the card title and every caption, `text-muted-foreground` for the empty state — matching shipped conventions exactly.
+**Grays:** `text-gray-900` for the corrective action, `text-gray-700` for the narrative and the eyebrow, `text-gray-500` for the card title and every card-surface caption, `text-muted-foreground` for the empty state — matching shipped conventions exactly.
 
 ---
 
@@ -139,7 +145,7 @@ Two bands, adopted from 36-RESEARCH Open Question 1. **The band name is inside t
 | `Margin warning` / `Margin critical` | Severity chip label — one per band, per the map above |
 | `Found {date}` | Date line when `lastConfirmedOn === foundOn` (e.g. `Found Jul 29, 2026`) |
 | `Found {date} · Last confirmed {date}` | Date line when the finding has been re-confirmed on a later night (e.g. `Found Jul 22, 2026 · Last confirmed Jul 29, 2026`). Separator is space–middle-dot–space, the Phase 33 figure convention. **Both dates render** — a finding silently restated for a week is a *different fact* from one found last night, and the D-06 upsert makes that distinction available for free. |
-| `SUGGESTED ACTION` | Eyebrow above the corrective action (12/600 `uppercase tracking-wide text-gray-500`) — the literal-uppercase eyebrow convention of `CURRENT RATE` / `CURRENT BUDGET` |
+| `SUGGESTED ACTION` | Eyebrow above the corrective action (12/600 `uppercase tracking-wide text-gray-700` — the `text-gray-700` is load-bearing, see the eyebrow contrast note) — the literal-uppercase eyebrow convention of `CURRENT RATE` / `CURRENT BUDGET` |
 | `AI-written from this project's recorded figures — every number is from your data, never an AI estimate.` | Disclosure line, **always rendered**, last in the caption stack (12/400 `text-gray-500`). This is SC3 stated to the user; the D-05 validator is what makes it true rather than a claim. |
 | `Unburdened labor: Wage cost only — excludes payroll tax, insurance, overhead.` | Labor caveat caption. **Composed from the two shipped constants** — `` `${UNBURDENED_TITLE}: ${UNBURDENED_BODY}` `` from `CostBreakdownSummary.tsx` (both promoted to `export`, values unchanged) — so PITFALLS #2's caveat can never carry two texts. |
 | `Based on approved quotes — not yet invoiced.` | Revenue-basis caption when the finding's `revenueBasis === "quoted"` — **byte-identical to the shipped Phase 33 string**, reached through `finance-summary-tiles.tsx`'s `QUOTED_BASIS_CAPTION` (promoted to `export`, value unchanged) |
@@ -149,6 +155,8 @@ Two bands, adopted from 36-RESEARCH Open Question 1. **The band name is inside t
 | `Couldn't load the profitability finding. Refresh to try again.` | In-card error line — the shipped `Couldn't load … Refresh to try again.` voice, scoped to the card |
 
 **Why the empty state has two variants:** a single "nothing flagged" line would read as an all-clear on a project the AI never looked at — the exact false comfort D-01 exists to avoid. The variant reads **one shipped boolean field** (`breakdown.margin.incomplete`, already on the page) and states a rule that is unconditionally true (D-01 skips incomplete-data projects). It **re-derives nothing**: it never claims the converse, so it cannot drift from the backend eligibility gate if the other three D-01 clauses change.
+
+**The bound on that variant (stated so a later phase does not mistake it for full D-01 coverage):** only the **incomplete-data** skip clause gets the honesty variant. A project skipped for being **non-active**, having **no revenue source**, or having **no cost data** falls into the plain empty state. That is an accepted bound, not an oversight — each of those three conditions is already legible from the tiles directly above the card (the `StatusBadge` beside the `<h1>`, the `No revenue recorded yet.` caption, a zero cost figure), whereas an incomplete-data skip is invisible without being said. Widening the variant would mean re-deriving the full D-01 gate client-side, which is the drift this contract forbids; if a later phase wants exact skip reasons on screen, the honest route is a skip-reason field on the endpoint, not more client-side inference.
 
 ### Fixed strings — the `AlertPanel` entry (`alert_type: "ai_profitability"`)
 
@@ -232,7 +240,7 @@ Card  aria-label="Profitability Finding card"  data-testid="profitability-findin
     <p mt-4 text-sm text-gray-700>            {narrative — verbatim, wraps, never truncated}
 
     ── action block ────────────────────────  mt-4 rounded-lg bg-secondary p-4
-       <p text-xs font-semibold uppercase tracking-wide text-gray-500>SUGGESTED ACTION
+       <p text-xs font-semibold uppercase tracking-wide text-gray-700>SUGGESTED ACTION
        <p mt-1 text-sm text-gray-900>         {correctiveAction — verbatim}
 
     ── caption stack ───────────────────────  mt-4 space-y-1 text-xs text-gray-500
@@ -243,7 +251,7 @@ Card  aria-label="Profitability Finding card"  data-testid="profitability-findin
 
 **Why not `ChartCard`:** `ChartCard` mandates a `kpiValue` and an Export-CSV button. A finding has no headline figure (see Typography) and nothing tabular to export — the narrative *is* the artifact. The card therefore borrows `ChartCard`'s **icon-box recipe and title typography verbatim** so it reads as a member of the same family, and nothing else. This is exactly the `FinanceSummaryTiles` precedent.
 
-**Why the action sits in a `bg-secondary` block:** the corrective action is the only actionable sentence on the page and must survive a skim. Weight is bought with the 30% surface token, not with accent color — amber here would collide with the warning band's meaning, and a colored action block would make every critical finding's action look like a second severity signal.
+**Why the action sits in a `bg-secondary` block:** the corrective action is the only actionable sentence on the page and must survive a skim. Weight is bought with the 30% surface token, not with accent color — amber here would collide with the warning band's meaning, and a colored action block would make every critical finding's action look like a second severity signal. The block's darker surface is also why its eyebrow steps to `text-gray-700`.
 
 ### Response contract (what the card renders)
 
@@ -294,7 +302,7 @@ export function useProjectProfitabilityFinding(projectId: string) {
 | `features/finance/hooks.ts`, `api.ts`, `types.ts` | edit | Hook, fetcher, `ProfitabilityFinding` type |
 | `features/finance/financials-format.ts` | edit | `formatFindingDate` beside the shipped month formatters — the never-`new Date()` rule stays in one module |
 | `features/finance/components/FinanceFlagChip.tsx` | edit | Export **`FINANCE_ALERT_CHIP_CLASS = "rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-800"`** beside the amber recipe |
-| `financials/_components/attention-list.tsx` | edit | Import `FINANCE_ALERT_CHIP_CLASS` in place of its private `OVER_BUDGET_BADGE_CLASS`. **The class string is byte-identical**, so every shipped Phase 35 assertion stays green. Two red tier chips in one feature must not be authored twice (the 33-04 precedent that created `FinanceFlagChip` in the first place). |
+| `financials/_components/attention-list.tsx` | edit | Import `FINANCE_ALERT_CHIP_CLASS` in place of the private `OVER_BUDGET_BADGE_CLASS`, **and delete the now-orphaned `BADGE_BASE_CLASS` in the same edit** — it has no other consumer, and an unused constant fails `npm run lint --max-warnings 0`. The shipped constant is *composed* (`` `${BADGE_BASE_CLASS} bg-red-100 text-red-800` ``), so the new literal is the same class **set** in a different token order, not a byte-identical string. Phase 35's assertions stay green because they are per-token `toHaveClass` checks, not string identity — the planner should confirm that by running the shipped suite, not by assuming byte equality. Two red tier chips in one feature must not be authored twice (the 33-04 precedent that created `FinanceFlagChip` in the first place). |
 | `financials/_components/finance-summary-tiles.tsx` | edit | Promote `QUOTED_BASIS_CAPTION` to `export` — value unchanged |
 | `features/finance/components/CostBreakdownSummary.tsx` | edit | Promote `UNBURDENED_TITLE` / `UNBURDENED_BODY` to `export` — values unchanged |
 | `financials/_components/financials-skeleton.tsx` | **no change** | The card is not part of the page skeleton — it mounts with its own loading state after the page renders |
@@ -302,13 +310,13 @@ export function useProjectProfitabilityFinding(projectId: string) {
 
 ### Implementation shape (clean-code / SRP)
 
-- **The card never fetches**, never branches on permissions, and holds no state. Loading / empty / error / present is decided by the dashboard and passed as props — which is what makes the six-state jest matrix below trivial to write.
+- **The card never fetches**, never branches on permissions, and holds no state. Loading / empty / error / present is decided by the dashboard and passed as props — which is what makes the state matrix below trivial to test.
 - **Intention-revealing names:** `ProfitabilityFindingCard`, `useProjectProfitabilityFinding`, `formatFindingDate`, `findingDateLine`, `severityChip`, `revenueBasisCaption`, `emptyStateCopy`. No `data`, `info`, `temp`, `card2`.
 - **One map per concept.** `SEVERITY_CHIP: Record<FindingSeverity, {label, className}>` mirrors `attention-list.tsx`'s `TIER_BADGE` — a band's copy and its color can never drift apart. The backend holds the same map once for `severity` + push title.
 - **Functions under ~20 lines**, 0–2 args. `findingDateLine`, `revenueBasisCaption` and `emptyStateCopy` are pure, exported, and unit-tested without React.
 - **Named constants, no magic values.** Every copy string, class string, prefix, length bound and query-key segment is a named constant — the shipped `INCOMPLETE_CHIP_LABEL` / `FINANCE_FLAG_CHIP_CLASS` pattern.
 - **No client-side money math.** `parseFloat` appears nowhere in this phase; there is no geometry to compute.
-- **Lint traps:** no reset-on-open `useEffect` (`react-hooks/set-state-in-effect`); both gates run at `--max-warnings 0`.
+- **Lint traps:** no reset-on-open `useEffect` (`react-hooks/set-state-in-effect`); no orphaned constant left behind by the chip extraction; both gates run at `--max-warnings 0`.
 
 ---
 
@@ -323,7 +331,7 @@ Test-asserted; the executor implements exactly these.
 | 3 | Finding loading | page rendered, finding query in flight | Card shell renders (icon, title) with two `Skeleton` bars (`h-4 w-full`, `mt-2 h-4 w-2/3`) in the body. **The page does not wait for it** |
 | 4 | Finding present — warning band | `severity === "warning"` | `Margin warning` chip in `FINANCE_FLAG_CHIP_CLASS`; card chrome unchanged |
 | 5 | Finding present — critical band | `severity === "critical"` | `Margin critical` chip in `FINANCE_ALERT_CHIP_CLASS`; card chrome unchanged — no red border, no tinted card |
-| 6 | Narrative + action | any finding | Narrative rendered **verbatim and in full** (wraps, no truncation, no clamp); `SUGGESTED ACTION` eyebrow + action in the `bg-secondary` block |
+| 6 | Narrative + action | any finding | Narrative rendered **verbatim and in full** (wraps, no truncation, no clamp); `SUGGESTED ACTION` eyebrow (`font-semibold text-gray-700`) + action in the `bg-secondary` block |
 | 7 | First night | `lastConfirmedOn === foundOn` | Date line `Found {date}` |
 | 8 | Re-confirmed on a later night | `lastConfirmedOn > foundOn` | Date line `Found {date} · Last confirmed {date}` — both dates, never just the newer one |
 | 9 | Revenue basis `quoted` | finding's `revenueBasis === "quoted"` | Caption `Based on approved quotes — not yet invoiced.` (shipped string) |
@@ -332,7 +340,7 @@ Test-asserted; the executor implements exactly these.
 | 12 | Labor in the analysis | `laborIncluded === true` | Caption `Unburdened labor: Wage cost only — excludes payroll tax, insurance, overhead.` (PITFALLS #2) |
 | 13 | No labor in the analysis | `laborIncluded === false` | No labor caption |
 | 14 | Disclosure | every finding | `AI-written from this project's recorded figures — every number is from your data, never an AI estimate.` — **always last, never conditional** |
-| 15 | No finding, data complete | response `null`, `breakdown.margin.incomplete === false` | `ChartEmptyState`: `No margin erosion flagged` / `A nightly AI review posts a finding here when this project's margin starts to slip.` |
+| 15 | No finding, data complete | response `null`, `breakdown.margin.incomplete === false` | `ChartEmptyState`: `No margin erosion flagged` / `A nightly AI review posts a finding here when this project's margin starts to slip.` Also the rendering for a project skipped as non-active, revenue-less or cost-less — see the variant bound above |
 | 16 | No finding, incomplete data | response `null`, `breakdown.margin.incomplete === true` | `ChartEmptyState`: `Not analyzed — incomplete cost data` / `AI skips projects with missing or unrated costs, so a finding can never rest on understated numbers.` — never an all-clear (Pitfall 9) |
 | 17 | AI dismissed the candidate | nothing persisted (D-02) | Indistinguishable from state 15 — a dismissal is not a finding and has no UI |
 | 18 | Finding resolved overnight | the condition cleared (D-06) | Endpoint returns `null` → state 15. **No "resolved" presentation, no history list, no dismiss control** — the card shows the current truth, and resolution is automatic, so a manual affordance would imply a power the user does not have |
@@ -368,7 +376,7 @@ Test-asserted; the executor implements exactly these.
 ## Accessibility Notes
 
 - **Meaning is never carried by color alone** (WCAG 1.4.1). The severity band is a **text label** (`Margin warning` / `Margin critical`), not a hue; the chip's color is redundant reinforcement. The finding's actual claim is prose. Nothing on this card requires color perception to read.
-- **Contrast:** `text-amber-900` on `bg-brand/15` ✓ (shipped, unchanged); `text-red-800` on `bg-red-100` ≈6.8:1 ✓ and on white ≈8.9:1 ✓; `text-gray-500` (#6b7280) on white ≈4.83:1 ✓; `text-gray-700`/`text-gray-900` ✓; the `bg-secondary` (#ece9e1) action block carries `text-gray-900` ✓ and `text-gray-500` for its eyebrow (≈4.4:1 on #ece9e1 — the eyebrow is 12px **600**, and the block's own text is `gray-900`; if the checker prefers, `text-gray-700` on the eyebrow clears 7:1 with no visual cost).
+- **Contrast:** `text-amber-900` on `bg-brand/15` ✓ (shipped, unchanged); `text-red-800` on `bg-red-100` ≈6.8:1 ✓ and on white **8.31:1** ✓; `text-gray-500` (#6b7280) on the white card surface 4.83:1 ✓; `text-gray-700` / `text-gray-900` ✓; the `bg-secondary` (#ece9e1) action block carries `text-gray-900` ✓ and **`text-gray-700` on its `SUGGESTED ACTION` eyebrow ≈8.50:1 ✓** — `text-gray-500` measures only 3.98:1 there and is not used on that surface.
 - **Reading order matches visual order**: title → severity → dates → narrative → suggested action → caveats → disclosure. The disclosure is last because it qualifies everything above it.
 - **The card is a landmarkless region with an `aria-label`**, reachable by accessible name exactly like the `ChartCard` family that Playwright already targets on this page. The empty state uses the shipped `ChartEmptyState`'s `role="status"`, so an overnight change announces itself to a screen reader on reload.
 - **No focus traps, no interactive elements**: the card contains no button, link, popover or dialog. There is nothing to tab to and nothing to dismiss.
