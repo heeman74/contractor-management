@@ -46,6 +46,7 @@ from app.features.dashboard.models import DashboardAlert
 from app.features.finance.models import CostCategory
 from app.features.finance.profitability_math import (
     SEVERITY_BAND_CRITICAL,
+    SEVERITY_BAND_WARNING,
     SIGNAL_NEGATIVE_MARGIN,
     SIGNAL_QUOTE_GAP,
     CandidateSignal,
@@ -59,6 +60,7 @@ from app.features.finance.profitability_models import (
 )
 from app.features.finance.profitability_repository import FindingUpsert, ProfitabilityRepository
 from app.features.finance.profitability_service import (
+    AI_FINDING_PREFIX,
     CAP_DROP_LOG_TEMPLATE,
     DISMISSAL_LOG_TEMPLATE,
     EMPTY_DRAFT_LOG_TEMPLATE,
@@ -67,8 +69,10 @@ from app.features.finance.profitability_service import (
     MAX_FINDINGS_PER_COMPANY_PER_NIGHT,
     OVER_LENGTH_DROP_LOG_TEMPLATE,
     PROFITABILITY_MAX_OUTPUT_TOKENS,
+    PUSH_TITLE_BY_BAND,
     SCAN_SUMMARY_LOG_TEMPLATE,
     SKIP_LOG_TEMPLATE,
+    SUGGESTED_ACTION_PREFIX,
     TREND_PAYLOAD_BUCKETS,
     UNGROUNDED_DROP_LOG_TEMPLATE,
     FindingDraft,
@@ -1726,3 +1730,346 @@ async def test_persisted_payload_matches_the_grounded_payload(
     assert Decimal(stored_payload["cost"]) == Decimal(_ANALYZABLE_COST_AMOUNT)
     assert Decimal(stored_payload["quote_gap_points"]) > 0
     assert stored_payload["labor_basis"] == LABOR_BASIS_UNBURDENED
+
+
+# ---------------------------------------------------------------------------
+# FINAI-02: the alert lifecycle — resolve stale fingerprints, claim once, alert
+#
+# One condition alerts ONCE for as long as it stays true. A second alert is only
+# allowed when it worsens into a different band (the band is inside the
+# fingerprint, so that is a different fingerprint) or when it clears and later
+# recurs (D-06).
+#
+# These fixtures start in the WARNING band with room to worsen: the default
+# analyzable project is already critical on its first night, which leaves nowhere
+# to escalate to.
+# ---------------------------------------------------------------------------
+
+_FOURTH_NIGHT = date(2026, 7, 4)
+_IDENTICAL_NIGHTS = (_FIRST_NIGHT, _SECOND_NIGHT, _THIRD_NIGHT)
+
+_PAUSED_PROJECT_STATUS = "on_hold"
+
+# 1,200 of cost against 10,000 invoiced under a 20,000 approved quote at the same
+# job anchor: billed margin 88.0% against a quote-implied 94.0% is a 6.0-point
+# gap — over QUOTE_IMPLIED_GAP_POINTS, under CRITICAL_QUOTE_GAP_POINTS. Adding
+# 1,800 more cost takes the gap to 15.0 points (70.0% against 85.0%): the
+# critical band, the SAME signal, and a margin still comfortably positive so the
+# negative-margin signal cannot pre-empt the comparison.
+_LIFECYCLE_INVOICE_AMOUNT = "10000.00"
+_LIFECYCLE_QUOTE_AMOUNT = "20000.00"
+_LIFECYCLE_WARNING_COST = "1200.00"
+_LIFECYCLE_WORSENING_COST = "1800.00"
+
+# The invoiced revenue — present in every lifecycle payload at BOTH cost levels,
+# so one reply stays grounded across a worsening band.
+_LIFECYCLE_LITERAL = "$10,000"
+_LIFECYCLE_NARRATIVE = (
+    f"Billed revenue of {_LIFECYCLE_LITERAL} at this job anchor sits below what the approved "
+    "quote implies for the same work."
+)
+_LIFECYCLE_CORRECTIVE_ACTION = (
+    f"Rebill the approved scope still outstanding — only {_LIFECYCLE_LITERAL} is invoiced."
+)
+_LIFECYCLE_ALERT_SUMMARY = (
+    f"Billed margin trails the approved quote on {_LIFECYCLE_LITERAL} billed."
+)
+
+_ALL_FINDINGS_SQL = (
+    "SELECT id, project_id, severity_band, fingerprint, alert_summary, corrective_action, "
+    "dashboard_alert_id, alerted_at, resolved_at, found_on, last_confirmed_on "
+    "FROM ai_profitability_findings WHERE deleted_at IS NULL ORDER BY created_at"
+)
+
+_AI_PROFITABILITY_ALERTS_SQL = (
+    "SELECT id, project_id, severity, alert_type, days_behind, impact_text, remediation_text, "
+    "affected_scope_ids, rescheduling_payload, rescheduling_accepted "
+    "FROM dashboard_alerts WHERE alert_type = :alert_type AND deleted_at IS NULL "
+    "ORDER BY created_at"
+)
+
+
+async def _all_findings(company_id: str) -> list[dict]:
+    """Every live finding row for a company, resolved ones included, oldest first."""
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        result = await session.execute(text(_ALL_FINDINGS_SQL))
+        return [dict(row) for row in result.mappings()]
+
+
+async def _ai_profitability_alerts(company_id: str) -> list[dict]:
+    """Every ai_profitability dashboard alert for a company, oldest first."""
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        result = await session.execute(
+            text(_AI_PROFITABILITY_ALERTS_SQL), {"alert_type": AI_PROFITABILITY_ALERT_TYPE}
+        )
+        return [dict(row) for row in result.mappings()]
+
+
+async def _analyze_company(company_id: str, target_date: date) -> None:
+    """Drive one whole nightly run for one company under its own RLS context.
+
+    The scheduler-path convention: the service never commits, its caller does.
+    PostgreSQL rejects a parameterized SET LOCAL, hence the f-string.
+    """
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        await ProfitabilityService(session).analyze_company(
+            company_id=UUID(company_id), target_date=target_date
+        )
+        await session.commit()
+
+
+def _lifecycle_reply() -> MagicMock:
+    """A grounded reply citing only the invoiced revenue, which survives a cost change."""
+    return _make_mock_anthropic_response(
+        _finding_reply_data(
+            narrative=_LIFECYCLE_NARRATIVE,
+            corrective_action=_LIFECYCLE_CORRECTIVE_ACTION,
+            alert_summary=_LIFECYCLE_ALERT_SUMMARY,
+        )
+    )
+
+
+async def _seed_lifecycle_project(
+    client: AsyncClient, company_id: str, *, name: str
+) -> _AnalyzableProject:
+    """Seed one quote-gap candidate sitting in the WARNING band with room to worsen."""
+    await _seed_cost_categories(company_id)
+    return await _seed_analyzable_project(
+        client,
+        company_id,
+        name=name,
+        cost_amount=_LIFECYCLE_WARNING_COST,
+        invoice_amount=_LIFECYCLE_INVOICE_AMOUNT,
+        quote_amount=_LIFECYCLE_QUOTE_AMOUNT,
+    )
+
+
+async def _worsen_into_critical_band(client: AsyncClient, company_id: str, job_id: str) -> None:
+    """Add cost at the same anchor until the quote-implied gap reaches the critical band.
+
+    Cost, never a second quote: the invoice moved this job out of 'quote' status,
+    so the quote endpoint would reject one with a 409.
+    """
+    await _add_cost_entry(
+        client,
+        _pm_headers(company_id),
+        job_id=job_id,
+        category_id=await _category_id(company_id, _MATERIALS_CATEGORY),
+        amount=_LIFECYCLE_WORSENING_COST,
+        incurred_date=_days_ago(_MONEY_SEED_DAYS_AGO).date(),
+    )
+
+
+async def _pause_project(client: AsyncClient, project_id: str) -> None:
+    """Move a project out of 'active' so D-01 stops analyzing it — the condition clears."""
+    resp = await client.patch(
+        f"{_PROJECTS_URL}{project_id}", json={"status": _PAUSED_PROJECT_STATUS}
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == _PAUSED_PROJECT_STATUS
+
+
+async def test_fingerprint_alerts_exactly_once_across_three_runs(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """KEYSTONE 2: one alert across three identical nights; a worsened band re-fires.
+
+    Nights 1-3 restate the same fingerprint, so the row's text and
+    last_confirmed_on move while alerted_at and found_on do not, and exactly one
+    DashboardAlert exists. Night 4 worsens the gap into the critical band — a
+    different fingerprint — so the warning row resolves in the SAME run and the
+    critical row inserts fresh, claims its own alert and fires.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    project = await _seed_lifecycle_project(tenant_a_client, company_id, name="Eroding Project 36")
+
+    for night in _IDENTICAL_NIGHTS:
+        with _patched_claude(side_effect=[_lifecycle_reply()]):
+            await _analyze_company(company_id, night)
+
+    findings = await _all_findings(company_id)
+    assert len(findings) == 1
+    warning = findings[0]
+    assert warning["severity_band"] == SEVERITY_BAND_WARNING
+    assert warning["found_on"] == _FIRST_NIGHT
+    assert warning["last_confirmed_on"] == _THIRD_NIGHT
+    assert warning["resolved_at"] is None
+    assert warning["alerted_at"] is not None
+
+    alerts = await _ai_profitability_alerts(company_id)
+    assert len(alerts) == 1
+    assert warning["dashboard_alert_id"] == alerts[0]["id"]
+    assert alerts[0]["severity"] == SEVERITY_BAND_WARNING
+
+    await _worsen_into_critical_band(tenant_a_client, company_id, project.job_id)
+    with _patched_claude(side_effect=[_lifecycle_reply()]):
+        await _analyze_company(company_id, _FOURTH_NIGHT)
+
+    findings = await _all_findings(company_id)
+    assert len(findings) == 2
+    resolved, escalated = findings
+    assert resolved["id"] == warning["id"]
+    assert resolved["resolved_at"] is not None
+    assert escalated["severity_band"] == SEVERITY_BAND_CRITICAL
+    assert escalated["fingerprint"] != resolved["fingerprint"]
+    assert escalated["resolved_at"] is None
+    assert escalated["alerted_at"] is not None
+    assert escalated["found_on"] == _FOURTH_NIGHT
+
+    alerts = await _ai_profitability_alerts(company_id)
+    assert len(alerts) == 2
+    assert alerts[1]["severity"] == SEVERITY_BAND_CRITICAL
+    assert escalated["dashboard_alert_id"] == alerts[1]["id"]
+
+
+async def test_cleared_then_recurring_condition_realerts(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """A condition that clears and later recurs fires a SECOND alert (D-06).
+
+    The recurrence carries the SAME fingerprint as the original, which is exactly
+    why it needs the resolve-then-reinsert lifecycle rather than the upsert: the
+    resolved row is invisible to the open-row unique index, so a fresh row lands
+    with alerted_at NULL and earns its own claim.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    project = await _seed_lifecycle_project(
+        tenant_a_client, company_id, name="Recurring Project 36"
+    )
+
+    with _patched_claude(side_effect=[_lifecycle_reply()]):
+        await _analyze_company(company_id, _FIRST_NIGHT)
+    original = (await _all_findings(company_id))[0]
+    assert await _ai_profitability_alert_count(company_id) == 1
+
+    await _pause_project(tenant_a_client, project.project_id)
+    with _patched_claude(side_effect=[]) as create:
+        await _analyze_company(company_id, _SECOND_NIGHT)
+
+    assert create.call_count == 0
+    cleared = await _all_findings(company_id)
+    assert len(cleared) == 1
+    assert cleared[0]["resolved_at"] is not None
+    assert await _ai_profitability_alert_count(company_id) == 1
+
+    await _activate_project(tenant_a_client, project.project_id)
+    with _patched_claude(side_effect=[_lifecycle_reply()]):
+        await _analyze_company(company_id, _THIRD_NIGHT)
+
+    recurred = await _all_findings(company_id)
+    assert len(recurred) == 2
+    assert recurred[1]["fingerprint"] == original["fingerprint"]
+    assert recurred[1]["id"] != original["id"]
+    assert recurred[1]["found_on"] == _THIRD_NIGHT
+    assert recurred[1]["alerted_at"] is not None
+    assert await _ai_profitability_alert_count(company_id) == 2
+
+
+async def test_same_day_rerun_is_idempotent(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """Two runs on the same target_date leave one finding and one alert."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_lifecycle_project(tenant_a_client, company_id, name="Re-run Project 36")
+
+    for _ in range(2):
+        with _patched_claude(side_effect=[_lifecycle_reply()]):
+            await _analyze_company(company_id, _FIRST_NIGHT)
+
+    findings = await _all_findings(company_id)
+    assert len(findings) == 1
+    assert findings[0]["resolved_at"] is None
+    assert findings[0]["found_on"] == _FIRST_NIGHT
+    assert findings[0]["last_confirmed_on"] == _FIRST_NIGHT
+    assert await _ai_profitability_alert_count(company_id) == 1
+
+
+async def test_transient_claude_failure_does_not_resolve_or_realert(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """The D-06 keep-set guard: a failed API call must never resolve a live finding.
+
+    Night 2's Claude call raises against unchanged data, so the candidate still
+    QUALIFIES but publishes nothing. Built from `published` instead of
+    `qualifying_fingerprints`, the keep-set would be empty, the still-true finding
+    would resolve, and night 3 would insert a fresh unalerted row and fire a
+    SECOND alert for a condition that never cleared.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_lifecycle_project(tenant_a_client, company_id, name="Transient Project 36")
+
+    with _patched_claude(side_effect=[_lifecycle_reply()]):
+        await _analyze_company(company_id, _FIRST_NIGHT)
+    original = (await _all_findings(company_id))[0]
+
+    with _patched_claude(side_effect=RuntimeError("Anthropic API unavailable")) as create:
+        await _analyze_company(company_id, _SECOND_NIGHT)
+
+    assert create.call_count == GROUNDING_RETRY_LIMIT + 1
+    after_failure = await _all_findings(company_id)
+    assert len(after_failure) == 1
+    assert after_failure[0]["id"] == original["id"]
+    assert after_failure[0]["resolved_at"] is None
+    assert after_failure[0]["last_confirmed_on"] == _FIRST_NIGHT
+    assert await _ai_profitability_alert_count(company_id) == 1
+
+    with _patched_claude(side_effect=[_lifecycle_reply()]):
+        await _analyze_company(company_id, _THIRD_NIGHT)
+
+    recovered = await _all_findings(company_id)
+    assert len(recovered) == 1
+    assert recovered[0]["id"] == original["id"]
+    assert recovered[0]["resolved_at"] is None
+    assert recovered[0]["last_confirmed_on"] == _THIRD_NIGHT
+    assert await _ai_profitability_alert_count(company_id) == 1
+
+
+async def test_alert_frame_strings_are_exact(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """The two locked frame prefixes are byte-exact and the AI prose is asserted by
+    reference, never retyped — the UI-SPEC's one testable half of an AI string.
+
+    The suppression fields are asserted too: with days_behind, affected_scope_ids
+    and both rescheduling columns empty, AlertPanel renders the finding without a
+    schedule line and without the Accept/Dismiss controls, which is why it needs
+    no code change for this alert type.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    project = await _seed_lifecycle_project(tenant_a_client, company_id, name="Framed Project 36")
+
+    with _patched_claude(side_effect=[_lifecycle_reply()]):
+        await _analyze_company(company_id, _FIRST_NIGHT)
+
+    alerts = await _ai_profitability_alerts(company_id)
+    assert len(alerts) == 1
+    alert = alerts[0]
+    assert alert["impact_text"].startswith(AI_FINDING_PREFIX)
+    assert alert["impact_text"].removeprefix(AI_FINDING_PREFIX) == _LIFECYCLE_ALERT_SUMMARY
+    assert alert["remediation_text"].startswith(SUGGESTED_ACTION_PREFIX)
+    assert (
+        alert["remediation_text"].removeprefix(SUGGESTED_ACTION_PREFIX)
+        == _LIFECYCLE_CORRECTIVE_ACTION
+    )
+    assert alert["alert_type"] == AI_PROFITABILITY_ALERT_TYPE
+    assert alert["severity"] == SEVERITY_BAND_WARNING
+    assert alert["project_id"] == UUID(project.project_id)
+    assert alert["days_behind"] is None
+    assert alert["affected_scope_ids"] == []
+    assert alert["rescheduling_payload"] is None
+    assert alert["rescheduling_accepted"] is None
+
+
+def test_push_title_map_covers_both_bands() -> None:
+    """One map per concept: the band's push title is not spelled a second time.
+
+    The UI-SPEC rule is that a condition never carries two names, so the chip
+    label, the push title and the DashboardAlert severity all read from here.
+    """
+    assert PUSH_TITLE_BY_BAND == {
+        SEVERITY_BAND_WARNING: "Margin warning",
+        SEVERITY_BAND_CRITICAL: "Margin critical",
+    }
