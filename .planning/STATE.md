@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 35-04-PLAN.md
-last_updated: "2026-07-29T02:06:34.870Z"
+stopped_at: Completed 35-02-PLAN.md
+last_updated: "2026-07-29T02:57:12.333Z"
 last_activity: 2026-07-29
 progress:
   total_phases: 22
   completed_phases: 17
   total_plans: 105
-  completed_plans: 92
+  completed_plans: 93
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 35 (web-financial-dashboard) — EXECUTING
-Plan: 2 of 11
+Plan: 3 of 11
 Status: Ready to execute
 Last activity: 2026-07-29
 
@@ -71,6 +71,7 @@ Last activity: 2026-07-29
 | Phase 34 P06 | 27min | 3 tasks | 5 files |
 | Phase 34 P08 | 34min | 3 tasks | 6 files |
 | Phase 35 P04 | 9min | 3 tasks | 5 files |
+| Phase 35-web-financial-dashboard P02 | 54min | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -247,6 +248,9 @@ Last activity: 2026-07-29
 - [Phase 34]: 34-06: PATCH /budgets/{id} evaluates inline after set_total so a below-spend edit fires in the same request (D-10); scheduler add_job calls extracted to _register_jobs for testability
 - [Phase 34]: 34-08: quoted_revenue reached from budget_service via lazy in-method import (34-02 cycle convention); apply_quote_delta resolves job anchors with a column-only jobs.project_id lookup, never the ORM-loaded quote.job
 - [Phase 34]: 34-08: MINIMUM_BUDGET_TOTAL (0.01) clamp applies ONLY to quote deltas — user budget edits keep the no-floor D-10 behavior; phase test contract is the six VALIDATION selectors incl. mutation, not the plan text's five
+- [Phase 35-web-financial-dashboard]: 35-02: Query counter listens on engine.sync_engine before_cursor_execute, not on sessions — SQLAlchemy event API is synchronous by design (same reason tenant.py after_begin is sync); conftest monkey-patches db_module.engine before test modules import, so the import binds the NullPool test engine the ASGI app actually uses
+- [Phase 35-web-financial-dashboard]: 35-02: _seed_company_portfolio excludes the labor cost category — A labor-categorised cost entry folds into the derived labor row (Phase 32), which would make grand_total greater than total ambiguous; seeding only materials/subcontractor/other keeps that a clean proof that time entries and rates seeded
+- [Phase 35-web-financial-dashboard]: 35-02: Seeded invoices and approved quotes sit on different anchors within a project — Invoices on job[0]/scope[0] and quotes on job[1]/scope[1] make every seeded project resolve revenue_basis mixed, exercising both legs of the D-12 dual traversal instead of letting invoices win everywhere
 
 ### Pending Todos
 
@@ -262,9 +266,10 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 - Phase 32 (v4.0): Mobile scope for trade-scope/task time tracking is an open decision flagged by research — confirm during Phase 32 planning whether v4.0 labor-cost-from-time-entries is job-only or also covers trade-scope/task-level time entries on mobile
 - Phase 34 (v4.0): Overrun-alert projection algorithm (trend/velocity-based vs. static threshold) needs a short design pass during Phase 34 planning — research flags this as unspecified
 - Phase 36 (v4.0): AI cost-data completeness threshold (minimum cost entries / days elapsed before AI analysis runs) needs a product decision during Phase 34/36 planning
+- Phase 35 (v4.0): backend suites run red under parallel agent execution -- conftest.py TRUNCATEs all tables per test, which deadlocks when two pytest processes share contractorhub_test. A deadlock inside seed_two_tenants is contention, not a regression. Consider per-worker test databases if parallel execution stays routine.
 
 ## Session Continuity
 
-Last session: 2026-07-29T02:06:34.723Z
-Stopped at: Completed 35-04-PLAN.md
+Last session: 2026-07-29T02:57:05.102Z
+Stopped at: Completed 35-02-PLAN.md
 Resume file: None
