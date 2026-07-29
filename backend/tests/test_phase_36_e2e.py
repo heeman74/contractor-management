@@ -18,26 +18,39 @@ convention, where the repository never commits and its caller does.
 
 import contextlib
 import json
-from collections.abc import AsyncIterator
-from datetime import date, datetime
+from collections.abc import AsyncIterator, Iterator, Sequence
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from unittest.mock import MagicMock
 from uuid import UUID, uuid4
 
 import pytest
+import structlog
 from httpx import AsyncClient
-from sqlalchemy import select, text
+from sqlalchemy import event, select, text
 from sqlalchemy.exc import IntegrityError
 
-from app.core.database import async_session_factory
+from app.core.ai_grounding import collect_allowed_values
+from app.core.database import async_session_factory, engine
 from app.core.security import create_access_token
 from app.features.dashboard.alert_types import AI_PROFITABILITY_ALERT_TYPE, FINANCIAL_ALERT_TYPES
 from app.features.dashboard.models import DashboardAlert
 from app.features.finance.models import CostCategory
+from app.features.finance.profitability_math import SIGNAL_QUOTE_GAP, SkipReason
 from app.features.finance.profitability_models import (
     MAX_ALERT_SUMMARY_LENGTH,
     MAX_NARRATIVE_LENGTH,
 )
 from app.features.finance.profitability_repository import FindingUpsert, ProfitabilityRepository
+from app.features.finance.profitability_service import (
+    LABOR_BASIS_UNBURDENED,
+    SCAN_SUMMARY_LOG_TEMPLATE,
+    SKIP_LOG_TEMPLATE,
+    TREND_PAYLOAD_BUCKETS,
+    ProfitabilityCandidate,
+    ProfitabilityService,
+)
 
 _SECONDS_PER_HOUR = 3600
 _ALERT_TYPE_CHECK_NAME = "dashboard_alerts_alert_type_check"
@@ -92,6 +105,79 @@ _OPEN_FINDINGS_SQL = (
 )
 
 _ALL_FINDINGS_COUNT_SQL = "SELECT count(*) FROM ai_profitability_findings WHERE deleted_at IS NULL"
+
+# ---------------------------------------------------------------------------
+# Nightly-scan fixture amounts (FINAI-01)
+#
+# The analyzable project bills 6,000 against a 10,000 approved quote at the same
+# job anchor with 5,000 of cost: billed margin 16.7% against a quote-implied
+# 50.0% is a 33.3-point gap, comfortably over QUOTE_IMPLIED_GAP_POINTS, while the
+# margin itself stays positive so the negative-margin signal cannot pre-empt it.
+# ---------------------------------------------------------------------------
+
+_ACTIVE_PROJECT_STATUS = "active"
+_INVOICED_REVENUE_BASIS = "invoiced"
+_MATERIALS_CATEGORY = "materials"
+_ANALYZABLE_COST_AMOUNT = "5000.00"
+_ANALYZABLE_INVOICE_AMOUNT = "6000.00"
+_UNDER_BILLED_QUOTE_AMOUNT = "10000.00"
+_ANALYZABLE_BUDGET_TOTAL = "8000.00"
+_UNRATED_LABOR_HOURS = 8
+_MONEY_SEED_DAYS_AGO = 20
+_LABOR_SEED_DAYS_AGO = 10
+
+# Both companies in the query-count test carry the SAME number of projects, so
+# only how many of them are ELIGIBLE can move the statement count.
+_FEW_ELIGIBLE_COUNT = 2
+_INELIGIBLE_COUNT = 6
+_MANY_ELIGIBLE_COUNT = _FEW_ELIGIBLE_COUNT + _INELIGIBLE_COUNT
+
+_EXPECTED_PAYLOAD_FIELDS = frozenset(
+    {
+        "project_name",
+        "project_status",
+        "cost",
+        "revenue",
+        "revenue_basis",
+        "quoted_revenue_share",
+        "margin",
+        "margin_percent",
+        "labor_basis",
+        "labor_cost",
+        "categories",
+        "budgets",
+        "trend",
+        "signal",
+        "severity_band",
+        "negative_margin_dollars",
+        "margin_decline_points",
+        "quote_gap_points",
+        "billed_margin_percent",
+        "quote_implied_margin_percent",
+        "over_quote_dollars",
+    }
+)
+
+_PAYLOAD_AGGREGATE_MONEY_FIELDS = (
+    "cost",
+    "revenue",
+    "quoted_revenue_share",
+    "margin",
+    "margin_percent",
+    "labor_cost",
+)
+
+_PAYLOAD_BUDGET_MONEY_FIELDS = ("spent", "total", "percent_used", "remaining")
+
+_PAYLOAD_QUOTE_GAP_FIELDS = (
+    "quote_gap_points",
+    "billed_margin_percent",
+    "quote_implied_margin_percent",
+    "over_quote_dollars",
+)
+
+# Fields a raw-row payload would carry; their ABSENCE is the aggregates-only proof.
+_FORBIDDEN_PAYLOAD_FIELDS = ("unrated_seconds", "incomplete_reasons", "entries", "cost_entries")
 
 
 # ---------------------------------------------------------------------------
@@ -157,10 +243,22 @@ async def _category_id(company_id: str, name: str) -> str:
 
 
 async def _create_project(client: AsyncClient, name: str = "Profitability Project 36") -> str:
-    """Create a project through the API and return its id."""
-    resp = await client.post(_PROJECTS_URL, json={"name": name, "status": "active"})
+    """Create a project through the API and return its id.
+
+    The project lands in 'draft': ProjectCreate declares no status field, so a
+    status in the POST body is silently ignored. D-01 analyzes 'active' projects
+    only, so every analysis fixture must patch the transition (_activate_project).
+    """
+    resp = await client.post(_PROJECTS_URL, json={"name": name})
     assert resp.status_code == 201, resp.text
     return resp.json()["id"]
+
+
+async def _activate_project(client: AsyncClient, project_id: str) -> None:
+    """Transition a project to 'active' — the only status D-01 admits for analysis."""
+    resp = await client.patch(f"{_PROJECTS_URL}{project_id}", json={"status": "active"})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == _ACTIVE_PROJECT_STATUS
 
 
 async def _create_trade_scope(
@@ -386,6 +484,146 @@ async def _create_invoice(
     resp = await client.post(_INVOICES_URL, json=payload)
     assert resp.status_code == 201, resp.text
     return resp.json()["id"]
+
+
+# ---------------------------------------------------------------------------
+# Nightly-scan helpers — seeding, driving, and observing scan_candidates
+# ---------------------------------------------------------------------------
+
+
+@contextlib.contextmanager
+def _count_sql_statements() -> Iterator[list[str]]:
+    """Record every SQL statement issued while the block runs.
+
+    COPIED from test_phase_35_e2e.py per the self-contained-test-file convention.
+    Listens on engine.sync_engine because SQLAlchemy's event API is synchronous by
+    design (the same reason app/core/tenant.py's after_begin listener is sync).
+    """
+    statements: list[str] = []
+
+    def _record(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    event.listen(engine.sync_engine, "before_cursor_execute", _record)
+    try:
+        yield statements
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", _record)
+
+
+def _days_ago(days: int) -> datetime:
+    """A UTC timestamp `days` in the past.
+
+    Money and labor fixtures are dated RELATIVE to now, never to a fixed calendar
+    month: the margin trend's last bucket is always the current UTC month, so
+    hard-coded dates quietly drift out of the buckets as time passes (35-07 lesson).
+    """
+    return datetime.now(UTC) - timedelta(days=days)
+
+
+@dataclass(frozen=True)
+class _AnalyzableProject:
+    """One seeded project and the job anchor its cost and revenue both sit on."""
+
+    project_id: str
+    job_id: str
+
+
+async def _seed_analyzable_project(
+    client: AsyncClient,
+    company_id: str,
+    *,
+    name: str,
+    activate: bool = True,
+    cost_amount: str | None = _ANALYZABLE_COST_AMOUNT,
+    invoice_amount: str | None = _ANALYZABLE_INVOICE_AMOUNT,
+    quote_amount: str | None = None,
+    budget_total: str | None = None,
+) -> _AnalyzableProject:
+    """Seed one project whose cost and revenue share a single job anchor.
+
+    Every D-01 skip fixture is this seeder with one leg withheld: `activate=False`
+    is NOT_ACTIVE, `invoice_amount=None` is NO_REVENUE_SOURCE, and
+    `cost_amount=None` is the revenue-bearing zero-cost project. The approved
+    quote rides the SAME anchor as the invoice, which is the only shape the
+    quote-implied gap can compare.
+    """
+    headers = _pm_headers(company_id)
+    project_id = await _create_project(client, name)
+    if activate:
+        await _activate_project(client, project_id)
+    job_id = await _create_job(client, project_id)
+    if cost_amount is not None:
+        await _add_cost_entry(
+            client,
+            headers,
+            job_id=job_id,
+            category_id=await _category_id(company_id, _MATERIALS_CATEGORY),
+            amount=cost_amount,
+            incurred_date=_days_ago(_MONEY_SEED_DAYS_AGO).date(),
+        )
+    if budget_total is not None:
+        await _create_budget(client, headers, project_id=project_id, total=budget_total)
+    if quote_amount is not None:
+        await _create_approved_quote(
+            client,
+            company_id,
+            job_id=job_id,
+            amount=quote_amount,
+            approved_at=_days_ago(_MONEY_SEED_DAYS_AGO),
+        )
+    if invoice_amount is not None:
+        await _create_invoice(
+            client,
+            company_id,
+            job_id=job_id,
+            amount=invoice_amount,
+            issued_at=_days_ago(_MONEY_SEED_DAYS_AGO),
+        )
+    return _AnalyzableProject(project_id=project_id, job_id=job_id)
+
+
+async def _seed_unrated_labor(client: AsyncClient, company_id: str, job_id: str) -> None:
+    """Add tracked time for a worker with no labor rate — the unrated-labor flag."""
+    contractor_id = await _create_user(client, f"unrated-{uuid4().hex[:8]}@example.com")
+    await _seed_time_entry(
+        company_id,
+        job_id,
+        contractor_id,
+        _UNRATED_LABOR_HOURS,
+        clocked_in_at=_days_ago(_LABOR_SEED_DAYS_AGO),
+    )
+
+
+async def _scan_candidates(company_id: str) -> list[ProfitabilityCandidate]:
+    """Drive the nightly scan for one company under its own RLS context.
+
+    No Claude patching is needed: scan_candidates never calls the API. PostgreSQL
+    rejects a parameterized SET LOCAL, hence the f-string.
+    """
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        return await ProfitabilityService(session).scan_candidates(UUID(company_id))
+
+
+def _logged_events(logs: Sequence[dict]) -> list[str]:
+    """Every rendered log line the scan emitted, in order.
+
+    structlog.testing.capture_logs, not pytest's caplog: this app configures
+    structlog with the stdlib bridge and caplog captures NOTHING from it (verified
+    empirically), so an assertion built on caplog would pass vacuously.
+    """
+    return [entry["event"] for entry in logs]
+
+
+def _expected_skip_line(project_id: str, reason: SkipReason) -> str:
+    """The exact line the scan must log for one skipped project."""
+    return SKIP_LOG_TEMPLATE % (project_id, reason.value)
+
+
+def _expected_summary_line(company_id: str, analyzed: int, candidates: int, skipped: int) -> str:
+    """The exact per-company summary line that closes one scan."""
+    return SCAN_SUMMARY_LOG_TEMPLATE % (company_id, analyzed, candidates, skipped)
 
 
 # ---------------------------------------------------------------------------
@@ -672,3 +910,212 @@ async def test_alert_summary_db_length_check(
             )
         )
         assert len(accepted.alert_summary) == MAX_ALERT_SUMMARY_LENGTH
+
+
+# ---------------------------------------------------------------------------
+# FINAI-01: the nightly scan — D-01 eligibility, D-03 detection, payload closure
+# ---------------------------------------------------------------------------
+
+
+async def test_skips_non_active_project(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """A draft project with full cost and revenue is never analyzed (D-01)."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    project = await _seed_analyzable_project(
+        tenant_a_client, company_id, name="Draft Project 36", activate=False
+    )
+
+    with structlog.testing.capture_logs() as logs:
+        candidates = await _scan_candidates(company_id)
+
+    assert candidates == []
+    events = _logged_events(logs)
+    assert _expected_skip_line(project.project_id, SkipReason.NOT_ACTIVE) in events
+    assert _expected_summary_line(company_id, analyzed=0, candidates=0, skipped=1) in events
+
+
+async def test_skips_project_without_revenue_source(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """Cost with no invoice and no approved quote has no margin to analyze (D-01)."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    project = await _seed_analyzable_project(
+        tenant_a_client, company_id, name="Revenue-less Project 36", invoice_amount=None
+    )
+
+    with structlog.testing.capture_logs() as logs:
+        candidates = await _scan_candidates(company_id)
+
+    assert candidates == []
+    assert _expected_skip_line(project.project_id, SkipReason.NO_REVENUE_SOURCE) in _logged_events(
+        logs
+    )
+
+
+async def test_skips_incomplete_cost_data_project(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """A revenue-bearing project with zero cost never reaches the AI (Pitfall 9).
+
+    This is the fabricated-100%-margin case: revenue with no cost recorded yet.
+    The D-01 ladder names it NO_COST_DATA — the zero-cost rung is checked before
+    the margin's incomplete flag, so that reason (not INCOMPLETE_DATA) is the
+    shipped verdict. What matters for Pitfall 9 is that it is skipped, with a name.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    project = await _seed_analyzable_project(
+        tenant_a_client, company_id, name="Zero-cost Project 36", cost_amount=None
+    )
+
+    with structlog.testing.capture_logs() as logs:
+        candidates = await _scan_candidates(company_id)
+
+    assert candidates == []
+    assert _expected_skip_line(project.project_id, SkipReason.NO_COST_DATA) in _logged_events(logs)
+
+
+async def test_skips_unrated_labor_project(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """Tracked time with no effective rate makes the margin incomplete — no analysis."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    project = await _seed_analyzable_project(
+        tenant_a_client, company_id, name="Unrated Labor Project 36"
+    )
+    await _seed_unrated_labor(tenant_a_client, company_id, project.job_id)
+
+    with structlog.testing.capture_logs() as logs:
+        candidates = await _scan_candidates(company_id)
+
+    assert candidates == []
+    assert _expected_skip_line(project.project_id, SkipReason.INCOMPLETE_DATA) in _logged_events(
+        logs
+    )
+
+
+async def test_quote_implied_gap_produces_candidate(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """Invoicing below an approved quote at the same anchor surfaces one quote_gap candidate."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    project = await _seed_analyzable_project(
+        tenant_a_client,
+        company_id,
+        name="Under-billed Project 36",
+        quote_amount=_UNDER_BILLED_QUOTE_AMOUNT,
+    )
+
+    with structlog.testing.capture_logs() as logs:
+        candidates = await _scan_candidates(company_id)
+
+    assert len(candidates) == 1
+    found = candidates[0]
+    assert found.candidate.project_id == UUID(project.project_id)
+    assert found.candidate.signal == SIGNAL_QUOTE_GAP
+    assert found.project_name == "Under-billed Project 36"
+    assert found.revenue_basis == _INVOICED_REVENUE_BASIS
+    assert found.labor_included is False
+    assert _expected_summary_line(
+        company_id, analyzed=1, candidates=1, skipped=0
+    ) in _logged_events(logs)
+
+
+async def test_payload_carries_only_aggregates_and_named_deltas(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """The payload is aggregates plus one named field per citable delta — nothing else.
+
+    Asserting the field set EXACTLY is the closed-set guard: an unnamed delta the
+    prompt permits would let the model cite a figure the validator cannot match,
+    and a stray raw-row field would ship cost entries to the API.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    await _seed_cost_categories(company_id)
+    await _seed_analyzable_project(
+        tenant_a_client,
+        company_id,
+        name="Payload Project 36",
+        quote_amount=_UNDER_BILLED_QUOTE_AMOUNT,
+        budget_total=_ANALYZABLE_BUDGET_TOTAL,
+    )
+
+    candidates = await _scan_candidates(company_id)
+
+    assert len(candidates) == 1
+    payload = candidates[0].payload
+    assert set(payload) == _EXPECTED_PAYLOAD_FIELDS
+    for forbidden in _FORBIDDEN_PAYLOAD_FIELDS:
+        assert forbidden not in payload
+
+    assert payload["project_status"] == _ACTIVE_PROJECT_STATUS
+    assert payload["revenue_basis"] == _INVOICED_REVENUE_BASIS
+    assert payload["labor_basis"] == LABOR_BASIS_UNBURDENED
+    assert payload["signal"] == SIGNAL_QUOTE_GAP
+
+    for field in _PAYLOAD_AGGREGATE_MONEY_FIELDS:
+        assert isinstance(payload[field], Decimal), field
+    for field in _PAYLOAD_QUOTE_GAP_FIELDS:
+        assert isinstance(payload[field], Decimal), field
+    assert payload["negative_margin_dollars"] is None
+
+    categories = payload["categories"]
+    assert categories
+    assert all(isinstance(row["cost"], Decimal) for row in categories)
+
+    budgets = payload["budgets"]
+    assert budgets
+    assert all(
+        isinstance(row[field], Decimal) for row in budgets for field in _PAYLOAD_BUDGET_MONEY_FIELDS
+    )
+
+    trend = payload["trend"]
+    assert trend
+    assert len(trend) <= TREND_PAYLOAD_BUCKETS
+    assert all(isinstance(bucket["cost"], Decimal) for bucket in trend)
+
+    allowed = collect_allowed_values(payload)
+    assert payload["cost"] in allowed
+    assert payload["quote_gap_points"] in allowed
+    assert payload["over_quote_dollars"] in allowed
+
+
+async def test_candidate_scan_query_count_is_bounded_by_eligible_projects(
+    tenant_a_client: AsyncClient, tenant_b_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """Ineligible projects cost no trend replay — the D-01 gate provably runs first.
+
+    Both companies carry the same number of projects, so only how many are
+    ELIGIBLE can move the statement count. This is the Open-Question-3 evidence:
+    the scan is O(eligible), not O(all projects).
+    """
+    company_a_id = seed_two_tenants["tenant_a_id"]
+    company_b_id = seed_two_tenants["tenant_b_id"]
+    await _seed_cost_categories(company_a_id)
+    await _seed_cost_categories(company_b_id)
+
+    for index in range(_FEW_ELIGIBLE_COUNT):
+        await _seed_analyzable_project(tenant_a_client, company_a_id, name=f"A eligible {index}")
+    for index in range(_INELIGIBLE_COUNT):
+        await _seed_analyzable_project(
+            tenant_a_client,
+            company_a_id,
+            name=f"A draft {index}",
+            activate=False,
+            cost_amount=None,
+            invoice_amount=None,
+        )
+    for index in range(_MANY_ELIGIBLE_COUNT):
+        await _seed_analyzable_project(tenant_b_client, company_b_id, name=f"B eligible {index}")
+
+    with _count_sql_statements() as few_eligible_statements:
+        await _scan_candidates(company_a_id)
+    with _count_sql_statements() as many_eligible_statements:
+        await _scan_candidates(company_b_id)
+
+    assert len(few_eligible_statements) < len(many_eligible_statements)
