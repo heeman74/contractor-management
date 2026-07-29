@@ -8,7 +8,11 @@ import { ChartCard } from "@/app/(dashboard)/reports/_components/chart-card";
 import { FinanceSummaryTiles } from "@/app/(dashboard)/financials/_components/finance-summary-tiles";
 import { FinancialsSkeleton } from "@/app/(dashboard)/financials/_components/financials-skeleton";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { useProjectFinancials, useProjectMarginTrend } from "@/features/finance/hooks";
+import {
+  useProjectFinancials,
+  useProjectMarginTrend,
+  useProjectProfitabilityFinding,
+} from "@/features/finance/hooks";
 import { DEFAULT_TREND_WINDOW, type TrendWindow } from "@/features/finance/types";
 import { ApiError } from "@/lib/api-client";
 import {
@@ -32,6 +36,7 @@ import {
   budgetedScopesKpi,
   scopeBarsCsvRows,
 } from "./scope-budget-bars";
+import { ProfitabilityFindingCard } from "./profitability-finding-card";
 import { TREND_WINDOW_NOTE, TrendWindowFilter } from "./trend-window-filter";
 
 const NOT_FOUND_STATUS = 404;
@@ -62,8 +67,11 @@ export function isNotFoundError(error: unknown): boolean {
 /**
  * The only hook-owning component on `/financials/[projectId]`.
  *
- * Two queries, two keys: the trend window belongs to the trend alone, so
- * switching it can never restate the lifetime tiles beside it (D-10).
+ * Three queries, three keys, three failure surfaces: the trend window belongs to
+ * the trend alone, so switching it can never restate the lifetime tiles beside it
+ * (D-10), and the profitability finding is deliberately excluded from the page
+ * loading gate so a slow or failing findings query never delays or blanks the
+ * money dashboard.
  */
 export default function ProjectFinancialsDashboard({
   projectId,
@@ -73,6 +81,7 @@ export default function ProjectFinancialsDashboard({
   const [trendWindow, setTrendWindow] = useState<TrendWindow>(DEFAULT_TREND_WINDOW);
   const financials = useProjectFinancials(projectId);
   const trend = useProjectMarginTrend(projectId, trendWindow);
+  const finding = useProjectProfitabilityFinding(projectId);
 
   if (financials.isLoading || trend.isLoading) {
     return <FinancialsSkeleton variant="project" />;
@@ -94,6 +103,13 @@ export default function ProjectFinancialsDashboard({
         cost={breakdown.grandTotal}
         margin={breakdown.margin}
         testIdPrefix={PROJECT_TEST_ID_PREFIX}
+      />
+
+      <ProfitabilityFindingCard
+        finding={finding.data ?? null}
+        isLoading={finding.isLoading}
+        isError={finding.isError}
+        incompleteCostData={breakdown.margin?.incomplete ?? false}
       />
 
       <ChartCard

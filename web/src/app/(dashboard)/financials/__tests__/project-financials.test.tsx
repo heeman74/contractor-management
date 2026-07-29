@@ -22,7 +22,11 @@ import {
   categoryTooltipDetail,
   toCategorySlices,
 } from "../[projectId]/_components/category-mix-chart";
-import { useProjectFinancials, useProjectMarginTrend } from "@/features/finance/hooks";
+import {
+  useProjectFinancials,
+  useProjectMarginTrend,
+  useProjectProfitabilityFinding,
+} from "@/features/finance/hooks";
 import { NO_REVENUE_NOTE } from "@/features/finance/components/MarginSummarySection";
 import { CATEGORY_FILL } from "@/components/shared/chart-theme";
 import { ApiError } from "@/lib/api-client";
@@ -41,6 +45,7 @@ import type {
 jest.mock("@/features/finance/hooks", () => ({
   useProjectFinancials: jest.fn(),
   useProjectMarginTrend: jest.fn(),
+  useProjectProfitabilityFinding: jest.fn(),
 }));
 jest.mock("sonner", () => ({ toast: { error: jest.fn(), success: jest.fn() } }));
 jest.mock("next/navigation", () => ({ useRouter: () => ({ push: jest.fn() }) }));
@@ -72,6 +77,7 @@ jest.mock("recharts", () => {
 
 const mockUseProjectFinancials = useProjectFinancials as jest.Mock;
 const mockUseProjectMarginTrend = useProjectMarginTrend as jest.Mock;
+const mockUseProjectProfitabilityFinding = useProjectProfitabilityFinding as jest.Mock;
 
 const PROJECT_ID = "p-1";
 
@@ -137,6 +143,13 @@ function mockQueries(
     isFetching: false,
     ...trend,
   });
+  // The finding query has its own key and its own failure surface — these tests
+  // assert the money dashboard, so it stays quiet and empty here.
+  mockUseProjectProfitabilityFinding.mockReturnValue({
+    data: undefined,
+    isLoading: false,
+    isError: false,
+  });
 }
 
 function renderDashboard() {
@@ -146,6 +159,7 @@ function renderDashboard() {
 beforeEach(() => {
   mockUseProjectFinancials.mockReset();
   mockUseProjectMarginTrend.mockReset();
+  mockUseProjectProfitabilityFinding.mockReset();
 });
 
 // --- Task 1: drill-down shell, container and header states ---
