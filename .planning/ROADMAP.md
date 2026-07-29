@@ -422,8 +422,21 @@ Plans:
   1. Owner/PM can view a web financial dashboard showing margin trend and budget-vs-actual charts for any project
   2. Owner/PM can view a company-wide financial rollup alongside the existing v2.0 reporting dashboard, using the same navigation and visual conventions
   3. A user without finance.* permission does not see the Financials nav item or any financial dashboard route at all
-**Plans**: TBD
+**Plans:** 11 plans
 **UI hint**: yes
+
+Plans:
+- [ ] 35-01-PLAN.md — Shared finance math: promote D-01 revenue resolution into margin_math; new DB-free trend_math + portfolio_math with unit tests
+- [ ] 35-02-PLAN.md — Backend E2E harness: reused helper set, multi-project portfolio seeder, SQL statement-counting context manager
+- [ ] 35-03-PLAN.md — Web foundation: FinanceGate + /financials layout, chart theme, shared empty state, pure formatters, gated sidebar item
+- [ ] 35-04-PLAN.md — Web data layer: financial response types, snake_case mappers, permission-gated TanStack hooks
+- [ ] 35-05-PLAN.md — GET /financials/company: batched PortfolioRepository/Service, portfolio totals, attention tiers, equivalence pin
+- [ ] 35-06-PLAN.md — GET /projects/{id}/financials: aggregate-only drill-down with per-scope budget-vs-actual
+- [ ] 35-07-PLAN.md — GET /projects/{id}/financials/trend: dense monthly buckets by as-of replay, reconciled to the shipped rollup
+- [ ] 35-08-PLAN.md — D-03 evidence (query-count invariance + measured latency ceiling) and SC3 backend gating/RLS tests
+- [ ] 35-09-PLAN.md — /financials company overview: summary tiles, bullet-bar chart, attention list, All Projects table
+- [ ] 35-10-PLAN.md — /financials/[projectId] drill-down: margin trend + window selector, scope budget bars, category mix
+- [ ] 35-11-PLAN.md — Playwright SC3 keystone: nav absence, deny panel with zero financial requests, render specs for both routes
 
 ### Phase 36: AI Profitability Analysis
 **Goal**: AI proactively watches every project's financial health so Owner/PM catches margin erosion before it compounds, with every claim grounded in real data
