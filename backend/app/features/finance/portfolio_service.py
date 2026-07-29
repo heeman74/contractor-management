@@ -131,6 +131,20 @@ class PortfolioInputs:
 
 
 @dataclass(frozen=True)
+class ProjectCostBlocks:
+    """One project's cost side: the shipped breakdown plus the margin context built from it.
+
+    Both come out of one assembly pass, so the labor fold is applied exactly once:
+    the margin needs the anchor costs and the grand total, while the profitability
+    payload needs the category mix and the derived labor row — and a second pass
+    could disagree with the first.
+    """
+
+    breakdown: CostBreakdownResponse
+    context: ProjectMarginContext
+
+
+@dataclass(frozen=True)
 class ProjectRevenue:
     """A project's resolved revenue, its quote-basis share, and the D-12 honesty flag."""
 
@@ -213,18 +227,26 @@ def _anchor_costs(rows: Sequence[Row]) -> dict[RevenueAnchor, Decimal]:
     return costs
 
 
-def margin_context(project_id: uuid.UUID, inputs: PortfolioInputs) -> ProjectMarginContext:
-    """The cost half of one project's figures, through the shipped breakdown assembly."""
+def project_cost_blocks(project_id: uuid.UUID, inputs: PortfolioInputs) -> ProjectCostBlocks:
+    """One project's whole cost side in ONE assembly pass, from already-fetched rows."""
     rows = inputs.category_rows.get(project_id, [])
     sessions = inputs.sessions.get(project_id, [])
     labor = summarize_labor(sessions, inputs.rates)
     breakdown = _build_breakdown(_category_rows(rows), labor, tracked_at_job_level=False)
-    return ProjectMarginContext(
-        anchor_costs=_anchor_costs(rows),
-        labor_by_job=_labor_by_job(sessions, inputs.rates),
-        grand_total=breakdown.grand_total,
-        unrated_seconds=labor.unrated_seconds,
+    return ProjectCostBlocks(
+        breakdown=breakdown,
+        context=ProjectMarginContext(
+            anchor_costs=_anchor_costs(rows),
+            labor_by_job=_labor_by_job(sessions, inputs.rates),
+            grand_total=breakdown.grand_total,
+            unrated_seconds=labor.unrated_seconds,
+        ),
     )
+
+
+def margin_context(project_id: uuid.UUID, inputs: PortfolioInputs) -> ProjectMarginContext:
+    """The cost half of one project's figures, through the shipped breakdown assembly."""
+    return project_cost_blocks(project_id, inputs).context
 
 
 def _project_level_quote_revenue(
