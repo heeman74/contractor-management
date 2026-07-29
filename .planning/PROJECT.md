@@ -52,7 +52,7 @@ AI eliminates the chaos of multi-trade coordination — GCs always know exactly 
 - [ ] Online-first architecture — AI requires connectivity, offline cache for field execution
 - [x] Profit margin tracking — actual costs (labor, materials, subcontractor) vs revenue per project and per job — Validated in Phase 33: Profit Margin Tracking (cost capture Phase 31, labor rates/derivation Phase 32)
 - [x] Budgeting — project/trade budgets with spend tracking and overrun-risk alerts — Validated in Phase 34: Budgeting and Overrun Alerts (80/100 thresholds, exactly-once alerts, quote-revision delta sync)
-- [ ] AI profitability management — AI analyzes project financial health, flags margin erosion, suggests corrective actions
+- [x] AI profitability management — AI analyzes project financial health, flags margin erosion, suggests corrective actions — Validated in Phase 36: AI Profitability Analysis (nightly, deterministic candidates + grounded findings, finance-gated alerts)
 - [ ] AI quote planning — AI builds labor + materials line items priced from company history
 - [x] Financial access control — finance.* permissions granted to owner and project_manager only by default — Validated in Phase 30: Financial Schema Foundation and RBAC Audit
 
@@ -143,4 +143,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-29 — Phase 35 complete: finance-gated web Financials dashboard (company rollup with attention tiers, monthly margin trend via as-of replay, budget-vs-actual charts) matching Reports conventions; D-03 closed with measured evidence (13 queries constant in project count, 150-252ms medians vs 400ms ceiling). Backend suite 885 green.*
+*Last updated: 2026-07-29 — Phase 36 complete: nightly AI profitability analysis (eligibility gate on shipped honesty signals, deterministic erosion candidates, validate-and-block grounding so every cited figure traces to real data, fingerprint-deduped finance-gated alerts + FCM, finding card on the project financials page). Backend suite 1006 green.*
