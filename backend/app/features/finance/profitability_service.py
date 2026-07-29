@@ -1,8 +1,12 @@
-"""ProfitabilityService — the read half of the nightly AI profitability analysis (FINAI-01).
+"""ProfitabilityService — the nightly AI profitability analysis (FINAI-01).
 
-This service fetches and gates; it decides nothing about margin. Detection is
-deterministic and lives entirely in `profitability_math` (D-02), so no threshold,
-band rule or signal comparison is restated here.
+Two halves live here. The read half fetches and gates; it decides nothing about
+margin, because detection is deterministic and lives entirely in
+`profitability_math` (D-02), so no threshold, band rule or signal comparison is
+restated here. The publish half calls Claude once per candidate and lets nothing
+reach the database until `validate_grounding` accepts every figure the model wrote
+(D-05, SC3): a finding still citing an unmatched figure after its single retry is
+dropped and logged.
 
 Two orderings in `scan_candidates` are load-bearing:
 
@@ -20,11 +24,14 @@ No method here commits — on the scheduler path only `_run_for_all_companies` d
 
 from __future__ import annotations
 
+import json
 import uuid
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 
+from app.core.ai_grounding import collect_allowed_values, validate_grounding
+from app.core.ai_utils import ClaudeJsonResponse, call_claude_json_strict
 from app.core.base_service import TenantScopedService
 from app.core.logging_config import get_logger
 from app.features.finance.budget_math import percent_used
@@ -48,6 +55,10 @@ from app.features.finance.profitability_math import (
 )
 from app.features.finance.profitability_models import AIProfitabilityFinding
 from app.features.finance.profitability_repository import ProfitabilityRepository
+from app.features.finance.prompts.profitability_system import (
+    GROUNDING_RETRY_TEMPLATE,
+    PROFITABILITY_SYSTEM_PROMPT,
+)
 from app.features.finance.schemas import CategoryTotal
 from app.features.finance.service import contributing_anchor_cost
 from app.features.finance.trend_math import TrendBucket
@@ -60,6 +71,22 @@ logger = get_logger(__name__)
 # unassertable.
 SKIP_LOG_TEMPLATE = "ai_profitability: skipped project=%s reason=%s"
 SCAN_SUMMARY_LOG_TEMPLATE = "ai_profitability: company=%s analyzed=%d candidates=%d skipped=%d"
+TOKEN_USAGE_LOG_TEMPLATE = "ai_profitability: tokens project=%s input=%s output=%s"
+DISMISSAL_LOG_TEMPLATE = "ai_profitability: dismissed project=%s reason=%s"
+EMPTY_DRAFT_LOG_TEMPLATE = "ai_profitability: dropped textless finding project=%s"
+UNGROUNDED_DROP_LOG_TEMPLATE = "ai_profitability: dropped ungrounded finding project=%s figures=%s"
+
+GROUNDING_RETRY_LIMIT = 1
+"""D-05: one VALIDATION retry, and only one.
+
+There is no transport retry on this path — the exponential-backoff envelope is
+streaming-only (ai/service.py), so a transient API error surfaces as a raised
+candidate that gather_with_concurrency isolates.
+"""
+
+PROFITABILITY_MAX_OUTPUT_TOKENS = 1024
+"""D-10 per-project ceiling. max_tokens caps OUTPUT only; the input side is bounded
+by the aggregates-only payload rule, not by this number."""
 
 LABOR_BASIS_UNBURDENED = "unburdened"
 """D-06: v4.0 labor cost is wage-only, so the basis travels with the payload and
@@ -86,6 +113,20 @@ class ProfitabilityCandidate:
     revenue_basis: str
     labor_included: bool
     payload: dict[str, object]
+
+    @property
+    def project_id(self) -> uuid.UUID:
+        """The project this candidate speaks for — the detection signal owns the id."""
+        return self.candidate.project_id
+
+
+@dataclass(frozen=True)
+class FindingDraft:
+    """A validated, publishable finding before it touches the database."""
+
+    narrative: str
+    corrective_action: str
+    alert_summary: str
 
 
 @dataclass(frozen=True)
@@ -187,6 +228,35 @@ class ProfitabilityService(TenantScopedService[AIProfitabilityFinding]):
             PayloadInputs(figures=figures, candidate=candidate, blocks=blocks, buckets=buckets)
         )
 
+    async def _draft_for(self, candidate: ProfitabilityCandidate) -> FindingDraft | None:
+        """One candidate's grounded finding, or None when it is dismissed or ungrounded.
+
+        Validate-and-block with exactly one retry (D-05). A finding still citing a
+        figure the payload does not contain on the second attempt is DROPPED and
+        logged: never published, never clipped to fit, never partially saved.
+        """
+        allowed = collect_allowed_values(candidate.payload)
+        messages = [_payload_turn(candidate.payload)]
+        ungrounded: tuple[str, ...] = ()
+        for _attempt in range(GROUNDING_RETRY_LIMIT + 1):
+            response = await call_claude_json_strict(
+                PROFITABILITY_SYSTEM_PROMPT, messages, max_tokens=PROFITABILITY_MAX_OUTPUT_TOKENS
+            )
+            _log_token_usage(candidate, response)
+            if not response.data.get("confirmed"):
+                _log_dismissal(candidate, response.data)
+                return None
+            draft = _to_draft(response.data)
+            if draft is None:
+                logger.warning(EMPTY_DRAFT_LOG_TEMPLATE % (candidate.project_id,))
+                return None
+            ungrounded = _ungrounded_literals(draft, allowed)
+            if not ungrounded:
+                return draft
+            messages = [*messages, *_retry_turns(response.raw_text, ungrounded)]
+        logger.warning(UNGROUNDED_DROP_LOG_TEMPLATE % (candidate.project_id, ", ".join(ungrounded)))
+        return None
+
     @staticmethod
     def _quote_gap_inputs(
         figures: ProjectFinancialFigures, blocks: ProjectCostBlocks, inputs: PortfolioInputs
@@ -208,6 +278,77 @@ class ProfitabilityService(TenantScopedService[AIProfitabilityFinding]):
                 anchor: contributing_anchor_cost(anchor, blocks.context) for anchor in anchors
             },
         )
+
+
+def _payload_turn(payload: Mapping[str, object]) -> dict[str, str]:
+    """The candidate's payload as the opening user turn.
+
+    default=str renders Decimals as exact strings for the model to read; the
+    validator still compares against the original Decimal objects, so no figure
+    changes representation on the way to the API.
+    """
+    return {"role": "user", "content": json.dumps(payload, default=str)}
+
+
+def _retry_turns(raw_text: str, ungrounded: tuple[str, ...]) -> list[dict[str, str]]:
+    """The two turns that continue the conversation into its one retry: the model's
+    own reply, then the literals it is not allowed to use."""
+    return [
+        {"role": "assistant", "content": raw_text},
+        {
+            "role": "user",
+            "content": GROUNDING_RETRY_TEMPLATE.format(unmatched=", ".join(ungrounded)),
+        },
+    ]
+
+
+def _to_draft(data: Mapping[str, object]) -> FindingDraft | None:
+    """The three AI strings, or None when the model confirmed a finding without writing one.
+
+    The prompt reserves empty strings for a dismissal, so a confirmed reply with
+    empty text is malformed — publishing it would ship a blank card and a blank alert.
+    """
+    draft = FindingDraft(
+        narrative=_ai_string(data, "narrative"),
+        corrective_action=_ai_string(data, "corrective_action"),
+        alert_summary=_ai_string(data, "alert_summary"),
+    )
+    if not (draft.narrative and draft.corrective_action and draft.alert_summary):
+        return None
+    return draft
+
+
+def _ai_string(data: Mapping[str, object], field: str) -> str:
+    """One AI text field, read defensively so a null can never reach a NOT NULL column."""
+    value = data.get(field)
+    return value if isinstance(value, str) else ""
+
+
+def _ungrounded_literals(draft: FindingDraft, allowed: frozenset[Decimal]) -> tuple[str, ...]:
+    """Every figure the draft cites that the payload does not contain, across ALL
+    three AI strings — validating only the narrative would let a fabricated figure
+    reach the dashboard alert and the push body.
+
+    Deduplicated in first-seen order so the retry turn names each literal once.
+    """
+    verdicts = (
+        validate_grounding(text, allowed)
+        for text in (draft.narrative, draft.corrective_action, draft.alert_summary)
+    )
+    return tuple(dict.fromkeys(literal for verdict in verdicts for literal in verdict.unmatched))
+
+
+def _log_token_usage(candidate: ProfitabilityCandidate, response: ClaudeJsonResponse) -> None:
+    """The run log's cost line — one per Claude turn, the D-05 retry included."""
+    logger.info(
+        TOKEN_USAGE_LOG_TEMPLATE
+        % (candidate.project_id, response.input_tokens, response.output_tokens)
+    )
+
+
+def _log_dismissal(candidate: ProfitabilityCandidate, data: Mapping[str, object]) -> None:
+    """An AI dismissal is a normal outcome (D-02), so it is logged with its reason."""
+    logger.info(DISMISSAL_LOG_TEMPLATE % (candidate.project_id, data.get("dismissal_reason")))
 
 
 def _to_profitability_candidate(inputs: PayloadInputs) -> ProfitabilityCandidate:
