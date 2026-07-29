@@ -2,6 +2,7 @@ import React from "react";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { usePermissions } from "@/lib/hooks/usePermissions";
+import { apiGet } from "@/lib/api-client";
 import {
   fetchCompanyFinancials,
   fetchProjectFinancials,
@@ -11,7 +12,9 @@ import {
   useCompanyFinancials,
   useProjectFinancials,
   useProjectMarginTrend,
+  useProjectProfitabilityFinding,
 } from "../hooks";
+import { formatFindingDate } from "../financials-format";
 import type { TrendWindow } from "../types";
 
 /**
@@ -30,13 +33,34 @@ jest.mock("@/features/finance/api", () => ({
   fetchProjectFinancials: jest.fn(),
   fetchProjectMarginTrend: jest.fn(),
 }));
+/** fetchProjectProfitabilityFinding is deliberately left REAL above: the finding
+ *  tests below mock the HTTP layer instead, so one test covers the gate, the
+ *  request path and the snake_case mapping together. */
+jest.mock("@/lib/api-client", () => ({
+  ...jest.requireActual("@/lib/api-client"),
+  apiGet: jest.fn(),
+}));
 
 const mockUsePermissions = usePermissions as jest.Mock;
 const mockFetchCompany = fetchCompanyFinancials as jest.Mock;
 const mockFetchProject = fetchProjectFinancials as jest.Mock;
 const mockFetchTrend = fetchProjectMarginTrend as jest.Mock;
+const mockApiGet = apiGet as jest.Mock;
 
 const PROJECT_ID = "11111111-1111-1111-1111-111111111111";
+const FINDING_PATH = `/api/v1/projects/${PROJECT_ID}/financials/finding`;
+
+const FINDING_RESPONSE = {
+  id: "22222222-2222-2222-2222-222222222222",
+  project_id: PROJECT_ID,
+  severity: "critical",
+  narrative: "Margin fell 12 points after the framing scope overran its budget.",
+  corrective_action: "Re-price the remaining framing work before the next invoice.",
+  revenue_basis: "quoted",
+  labor_included: true,
+  found_on: "2026-07-22",
+  last_confirmed_on: "2026-07-29",
+};
 
 type TrendWindowProps = { window: TrendWindow };
 
@@ -158,5 +182,86 @@ describe("financial dashboard hooks", () => {
     for (const key of keys) {
       expect(key.slice(0, 2)).toEqual(["cost-entries", "financials"]);
     }
+  });
+});
+
+/**
+ * These assert on the HTTP layer, not on a render flag, because the SC2 keystone
+ * is that a denied user puts NOTHING money-adjacent on the wire. Deleting
+ * `enabled` from the hook makes the zero-request test fail — which is the only
+ * thing that stops the Playwright zero-request assertion from passing for the
+ * wrong reason.
+ */
+describe("useProjectProfitabilityFinding", () => {
+  beforeEach(() => {
+    mockUsePermissions.mockReset();
+    mockApiGet.mockReset().mockResolvedValue(FINDING_RESPONSE);
+  });
+
+  test("issues exactly one request to the finding path and maps it to camelCase", async () => {
+    grantPermission(true);
+    const { wrapper } = createWrapper();
+
+    const { result } = renderHook(
+      () => useProjectProfitabilityFinding(PROJECT_ID),
+      { wrapper }
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(mockApiGet).toHaveBeenCalledTimes(1);
+    expect(mockApiGet).toHaveBeenCalledWith(FINDING_PATH);
+    expect(result.current.data).toEqual({
+      id: FINDING_RESPONSE.id,
+      projectId: PROJECT_ID,
+      severity: "critical",
+      narrative: FINDING_RESPONSE.narrative,
+      correctiveAction: FINDING_RESPONSE.corrective_action,
+      revenueBasis: "quoted",
+      laborIncluded: true,
+      foundOn: "2026-07-22",
+      lastConfirmedOn: "2026-07-29",
+    });
+  });
+
+  test("issues zero finding requests when the user lacks finance.view", async () => {
+    grantPermission(false);
+    const { wrapper } = createWrapper();
+
+    const { result } = renderHook(
+      () => useProjectProfitabilityFinding(PROJECT_ID),
+      { wrapper }
+    );
+
+    expect(mockApiGet).not.toHaveBeenCalled();
+    expect(result.current.fetchStatus).toBe("idle");
+  });
+
+  test("resolves a null body to no finding rather than an error", async () => {
+    grantPermission(true);
+    mockApiGet.mockResolvedValue(null);
+    const { wrapper } = createWrapper();
+
+    const { result } = renderHook(
+      () => useProjectProfitabilityFinding(PROJECT_ID),
+      { wrapper }
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(result.current.data).toBeNull();
+    expect(result.current.isError).toBe(false);
+  });
+});
+
+describe("formatFindingDate", () => {
+  test("renders a date-only string in the locked Jul 29, 2026 shape", () => {
+    expect(formatFindingDate("2026-07-29")).toBe("Jul 29, 2026");
+  });
+
+  test("never zero-pads the day", () => {
+    expect(formatFindingDate("2026-01-01")).toBe("Jan 1, 2026");
+  });
+
+  test("returns an unparseable string unchanged rather than a wrong date", () => {
+    expect(formatFindingDate("not-a-date")).toBe("not-a-date");
   });
 });
