@@ -109,7 +109,7 @@ created: 2026-07-28
 - [ ] **35-02 T3** `_seed_company_portfolio(project_count, …)` multi-project seeding helper — the phase's largest test scaffolding
 - [ ] **35-02 T2** `_count_sql_statements()` query-counting context manager via `sqlalchemy.event.listen(engine.sync_engine, "before_cursor_execute", …)` — **no precedent in this repo**; write in Wave 0
 - [ ] **35-11 T1-T3** `web/tests/phase-35-financials.spec.ts` — SC3 keystone + render specs (template: `phase-34-budgets.spec.ts`; login through UI + SPA-navigate)
-- [ ] **35-03 T1-T2 / 35-04 T2 / 35-09 / 35-10** Web Jest specs under `src/app/(dashboard)/financials` + `src/features/finance/__tests__/` additions
+- [ ] **35-03 T1-T2 / 35-04 T2-T3 (incl. `financials-hooks.test.tsx`) / 35-09 / 35-10** Web Jest specs under `src/app/(dashboard)/financials` + `src/features/finance/__tests__/` additions
 - [ ] **35-01 T2-T3** Backend pure-math unit tests (`tests/unit/test_trend_math.py`, `tests/unit/test_portfolio_math.py`)
 - Framework install: none — all harnesses configured and in use.
 
@@ -125,7 +125,7 @@ None — visual chart polish falls to the UI-SPEC checker/UAT pass.
 
 - [x] All tasks have `<automated>` verify or Wave 0 dependencies
 - [x] Sampling continuity: no 3 consecutive tasks without automated verify (33 tasks, every one carries an `<automated>` command)
-- [x] Wave 0 covers all MISSING references (plans 35-01/35-02/35-03 land in wave 1)
+- [x] Wave 0 covers all MISSING references (plans 35-01/35-02/35-04 land in wave 1)
 - [x] No watch-mode flags
 - [x] Feedback latency < 30s (phase-gate full suites and the 25-project D-03 seed sanctioned)
 - [x] `nyquist_compliant: true` set in frontmatter
