@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 36-02-PLAN.md
-last_updated: "2026-07-29T18:47:10.374Z"
+stopped_at: Completed 36-01-PLAN.md
+last_updated: "2026-07-29T18:50:31.203Z"
 last_activity: 2026-07-29
 progress:
   total_phases: 22
   completed_phases: 18
   total_plans: 115
-  completed_plans: 103
+  completed_plans: 104
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 36 (ai-profitability-analysis) — EXECUTING
-Plan: 2 of 10
+Plan: 3 of 10
 Status: Ready to execute
 Last activity: 2026-07-29
 
@@ -82,6 +82,7 @@ Last activity: 2026-07-29
 | Phase 35 P11 | 23min | 3 tasks tasks | 1 file files |
 | Phase 35 P08 | 52 min | 3 tasks | 2 files |
 | Phase 36 P02 | 15min | 3 tasks tasks | 9 files files |
+| Phase 36 P01 | 20min | 3 tasks tasks | 7 files files |
 
 ## Accumulated Context
 
@@ -291,6 +292,10 @@ Last activity: 2026-07-29
 - [Phase 36]: 36-02: Finding hook tests mock apiGet (the HTTP layer), not the api-module fetcher -- the plan behaviors "exactly one fetch to the finding path" and the snake_case mapping both live inside that fetcher and are unobservable through a module-boundary mock — Driving the real fetcher against a mocked HTTP layer proves the gate, the path and the mapper in one test; the zero-request assertion also becomes stronger (nothing reaches the wire, not merely that a wrapper went uncalled)
 - [Phase 36]: 36-02: The finding hook zero-request test is mutation-verified, not merely written -- reducing enabled to !!projectId fails it with one request to the finding path, and restoring the gate returns 140/140 green — A zero-request assertion that was never observed failing can pass for the wrong reason, which is exactly the SC2 trap the UI-SPEC warns about
 - [Phase 36]: 36-02: FINANCE_ALERT_CHIP_CLASS extraction confirmed safe by running the shipped Phase 35 suite (134 green), not by assuming byte equality -- the new literal is the same class set in a different token order — The shipped assertions are per-token toHaveClass checks; the composed OVER_BUDGET_BADGE_CLASS and the flat literal differ as strings but not as class sets
+- [Phase 36]: 36-01: severity_band is excluded from the upsert set_ alongside alerted_at and found_on — the band is part of the fingerprint, so a band change is a different finding that must resolve-and-reinsert (D-06), never mutate in place
+- [Phase 36]: 36-01: the Pitfall 3 alert-type drift guard reads the CheckConstraint expression off DashboardAlert.__table__, not just an ORM insert — a SQLAlchemy CheckConstraint is DDL-only and never runs on flush, and conftest builds the schema via alembic, so an insert proves the migration value list and nothing about models.py (verified by mutation)
+- [Phase 36]: 36-01: claim_alert keeps the Phase 34 post-claim ORM expire so a caller that upserts then claims in one session cannot read a stale alerted_at NULL and publish a second alert
+- [Phase 36]: 36-01: docker compose up migrate can silently no-op — the migrate service builds from ./backend, so a cached image without the new migration exits 0 at the old revision; use --build after adding a migration
 
 ### Pending Todos
 
@@ -310,6 +315,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-29T18:47:10.367Z
-Stopped at: Completed 36-02-PLAN.md
+Last session: 2026-07-29T18:49:36.885Z
+Stopped at: Completed 36-01-PLAN.md
 Resume file: None
