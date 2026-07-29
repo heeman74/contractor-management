@@ -22,6 +22,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy import Row
@@ -59,15 +60,17 @@ from app.features.finance.portfolio_math import (
     portfolio_totals,
 )
 from app.features.finance.portfolio_repository import PortfolioRepository
-from app.features.finance.repository import LaborRateRepository
+from app.features.finance.repository import FinanceRepository, LaborRateRepository
 from app.features.finance.schemas import (
     AttentionRow,
     CompanyFinancialsResponse,
     CostBreakdownResponse,
+    MarginTrendResponse,
     PortfolioTotals,
     ProjectFinancialsResponse,
     ProjectFinancialsRow,
     ProjectScopeBudgetRow,
+    TrendBucketResponse,
     to_labor_cost_summary,
     to_margin_summary,
 )
@@ -79,6 +82,13 @@ from app.features.finance.service import (
     _build_breakdown,
     _group_rates_by_user,
     _labor_by_job,
+)
+from app.features.finance.trend_math import (
+    DatedCost,
+    TrendBucket,
+    TrendInputs,
+    trend_buckets,
+    window_slice,
 )
 from app.features.projects.models import Project
 
@@ -387,6 +397,22 @@ def _scope_budget_rows(
     return [_scope_budget_row(scope, budgets.get(scope.id), spends[scope.id]) for scope in scopes]
 
 
+def _to_trend_response(
+    project_id: uuid.UUID, window: str, buckets: Sequence[TrendBucket]
+) -> MarginTrendResponse:
+    """Map the pure trend buckets onto the wire block, margins through the shipped mapper."""
+    return MarginTrendResponse(
+        project_id=project_id,
+        window=window,
+        buckets=[
+            TrendBucketResponse(
+                month=bucket.month, cost=bucket.cost, margin=to_margin_summary(bucket.margin)
+            )
+            for bucket in buckets
+        ],
+    )
+
+
 class PortfolioService(TenantScopedService[Project]):
     """Company-wide financial rollup for the web dashboard overview (MARG-04)."""
 
@@ -429,6 +455,44 @@ class PortfolioService(TenantScopedService[Project]):
             status=header.status,
             breakdown=_rollup_breakdown(rollup),
             scopes=_scope_budget_rows(scopes, budgets, spends),
+        )
+
+    async def margin_trend(self, project_id: uuid.UUID, window: str) -> MarginTrendResponse:
+        """Monthly cumulative margin for one project (MARG-04, D-01/D-02).
+
+        Six bounded queries — the same profile as the shipped project rollup —
+        then a pure Python replay in trend_math. Nothing is bucketed in SQL
+        because the effective-dated rate rule lives in exactly one place
+        (labor_derivation) and must never be duplicated in a query (Phase 32).
+
+        The window slices the produced BUCKETS; every record is always read, so
+        a month shared by two windows carries identical figures (Pitfall 2).
+        """
+        active_entity_or_404(await self.repository.project_header(project_id), _PROJECT_NOT_FOUND)
+        buckets = trend_buckets(await self._trend_inputs(project_id))
+        return _to_trend_response(project_id, window, window_slice(buckets, window))
+
+    async def _trend_inputs(self, project_id: uuid.UUID) -> TrendInputs:
+        """Every database read the replay performs — all here, none inside a loop.
+
+        The cost and session legs come from the SHIPPED FinanceRepository methods
+        the project rollup uses, so the trend cannot drift from the figure its
+        final bucket must reconcile with.
+        """
+        finance_repository = FinanceRepository(self.db)
+        entries = await finance_repository.rollup_for_project(project_id)
+        sessions = await finance_repository.completed_work_sessions_for_project(project_id)
+        return TrendInputs(
+            costs=[
+                DatedCost(amount=entry.amount, incurred_date=entry.incurred_date)
+                for entry in entries
+            ],
+            sessions=sessions,
+            rates_by_contractor=await FinanceService(self.db).rates_by_contractor(sessions),
+            invoices=await self.repository.dated_invoices_for_project(project_id),
+            quotes=await self.repository.dated_quotes_for_project(project_id),
+            fallback_quote=await self.repository.dated_project_level_quote(project_id),
+            today=datetime.now(UTC).date(),
         )
 
     async def _fetch_portfolio_inputs(self) -> PortfolioInputs:

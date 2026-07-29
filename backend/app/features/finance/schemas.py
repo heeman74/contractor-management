@@ -383,6 +383,33 @@ class ProjectFinancialsResponse(BaseModel):
     scopes: list[ProjectScopeBudgetRow] = Field(default_factory=list)
 
 
+class TrendBucketResponse(BaseModel):
+    """One month of the cumulative margin trend (D-01/D-02).
+
+    `cost` and the margin block are cumulative from project inception through
+    this month's last day, inclusive. Revenue is RESOLVED at that edge by the
+    shipped D-01 rule, not accumulated — an anchor quoted then invoiced counts
+    once, so the final bucket reconciles exactly with the project rollup.
+    """
+
+    month: str
+    cost: Decimal
+    margin: MarginSummary
+
+
+class MarginTrendResponse(BaseModel):
+    """Dense monthly buckets for one project, sliced by the requested window.
+
+    The window selects which buckets are RETURNED; it never filters which
+    records are INCLUDED (RESEARCH Pitfall 2). Cumulative always runs from
+    project inception, so a month appearing in two windows is identical in both.
+    """
+
+    project_id: uuid.UUID
+    window: str
+    buckets: list[TrendBucketResponse] = Field(default_factory=list)
+
+
 # ---------------------------------------------------------------------------
 # Labor rate schemas
 # ---------------------------------------------------------------------------

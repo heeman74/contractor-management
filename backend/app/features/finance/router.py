@@ -12,6 +12,7 @@ billing_milestones/router.py exactly:
   DELETE /cost-entries/{entry_id}                 — finance.manage (soft delete)
   GET    /projects/{project_id}/cost-entries      — finance.view (rollup)
   GET    /projects/{project_id}/financials        — finance.view (drill-down, MARG-04)
+  GET    /projects/{project_id}/financials/trend  — finance.view (margin trend, MARG-04)
   GET    /jobs/{job_id}/cost-breakdown            — finance.view
   GET    /trade-scopes/{trade_scope_id}/cost-breakdown — finance.view
   GET    /financials/company                      — finance.view (MARG-04)
@@ -30,7 +31,7 @@ from __future__ import annotations
 
 import uuid
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 import aiofiles
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Response, UploadFile, status
@@ -54,11 +55,13 @@ from app.features.finance.schemas import (
     CostReceiptResponse,
     LaborRateCreate,
     LaborRateResponse,
+    MarginTrendResponse,
     ProjectCostRollupResponse,
     ProjectFinancialsResponse,
     to_labor_cost_summary,
 )
 from app.features.finance.service import FinanceService, LaborRateService
+from app.features.finance.trend_math import DEFAULT_TREND_WINDOW
 
 router = APIRouter(tags=["finance"])
 
@@ -178,6 +181,18 @@ async def get_project_financials(
     """Project drill-down aggregate: category mix, labor, margin, budgets (MARG-04)."""
     await require_permission("finance.view")(current_user, db)
     return await PortfolioService(db).project_financials(project_id)
+
+
+@router.get("/projects/{project_id}/financials/trend", response_model=MarginTrendResponse)
+async def get_project_margin_trend(
+    project_id: uuid.UUID,
+    window: Literal["3m", "6m", "12m", "all"] = Query(default=DEFAULT_TREND_WINDOW),
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> MarginTrendResponse:
+    """Monthly cumulative margin trend for one project (MARG-04, D-10 window)."""
+    await require_permission("finance.view")(current_user, db)
+    return await PortfolioService(db).margin_trend(project_id, window)
 
 
 # ---------------------------------------------------------------------------
