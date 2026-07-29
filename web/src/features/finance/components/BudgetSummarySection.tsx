@@ -10,7 +10,9 @@ import type { BudgetVsActual } from "../types";
 const BUDGET_LABEL = "Budget";
 const SPENT_LABEL = "Spent";
 const REMAINING_LABEL = "Remaining";
-const NEARING_BUDGET_CHIP_LABEL = "Nearing budget";
+// exported: the Phase 35 attention list reuses this label byte-for-byte, so the
+// warning band can never carry two names across finance surfaces
+export const NEARING_BUDGET_CHIP_LABEL = "Nearing budget";
 const SET_BUDGET_LABEL = "Set budget";
 const EDIT_BUDGET_LABEL = "Edit";
 const EDIT_BUDGET_ARIA_LABEL = "Edit budget";

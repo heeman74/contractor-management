@@ -1,6 +1,6 @@
 "use client";
 
-import { Gauge } from "lucide-react";
+import { AlertTriangle, Gauge } from "lucide-react";
 
 import { ChartCard } from "@/app/(dashboard)/reports/_components/chart-card";
 import { useCompanyFinancials } from "@/features/finance/hooks";
@@ -13,6 +13,14 @@ import {
   budgetBarsCsvRows,
   budgetedProjectsKpi,
 } from "./project-budget-bars";
+import {
+  ATTENTION_CSV_FILENAME,
+  ATTENTION_TITLE,
+  AttentionList,
+  attentionCsvRows,
+  attentionKpi,
+} from "./attention-list";
+import { ProjectsTable } from "./projects-table";
 
 const LOAD_ERROR_MESSAGE = "Couldn't load financials. Refresh to try again.";
 const ERROR_PANEL_CLASS =
@@ -44,7 +52,7 @@ export default function CompanyFinancialsDashboard() {
     );
   }
 
-  const { portfolio, projects } = data;
+  const { portfolio, projects, attention } = data;
 
   return (
     <div className="space-y-6">
@@ -70,7 +78,20 @@ export default function CompanyFinancialsDashboard() {
         >
           <ProjectBudgetBars projects={projects} />
         </ChartCard>
+
+        <ChartCard
+          title={ATTENTION_TITLE}
+          kpiValue={attentionKpi(attention)}
+          icon={AlertTriangle}
+          csvFilename={ATTENTION_CSV_FILENAME}
+          csvRows={attentionCsvRows(attention)}
+          ariaLabel={`${ATTENTION_TITLE} list`}
+        >
+          <AttentionList rows={attention} />
+        </ChartCard>
       </div>
+
+      <ProjectsTable projects={projects} />
     </div>
   );
 }
