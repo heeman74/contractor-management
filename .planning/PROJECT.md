@@ -143,4 +143,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-28 — Phase 34 complete: budgets per project/trade scope with exactly-once 80/100 alerts (dashboard + finance-gated FCM), cost-mutation + nightly-sweep evaluation, and signed quote-revision budget deltas. Backend suite 820 green.*
+*Last updated: 2026-07-29 — Phase 35 complete: finance-gated web Financials dashboard (company rollup with attention tiers, monthly margin trend via as-of replay, budget-vs-actual charts) matching Reports conventions; D-03 closed with measured evidence (13 queries constant in project count, 150-252ms medians vs 400ms ceiling). Backend suite 885 green.*
