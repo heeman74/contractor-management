@@ -35,6 +35,8 @@ const MONTH_NAMES = [
 
 const ABBREVIATION_LENGTH = 3;
 const YEAR_SUFFIX_START = 2;
+const FIRST_DAY_OF_MONTH = 1;
+const LAST_POSSIBLE_DAY_OF_MONTH = 31;
 const DOLLARS_PER_THOUSAND = 1000;
 const AXIS_STEP = 10;
 const ELLIPSIS = "…";
@@ -60,6 +62,29 @@ export function formatFullMonthLabel(month: string): string {
   const parts = monthParts(month);
   if (!parts) return month;
   return `${parts.name} ${parts.year}`;
+}
+
+/** Splits "YYYY-MM-DD" for the same reason monthParts splits "YYYY-MM": a
+ *  date-only string shifts a day across timezones once a Date is constructed. */
+function dayParts(
+  day: string
+): { name: string; dayOfMonth: number; year: string } | null {
+  const [year, monthNumber, dayNumber] = day.split("-");
+  const name = MONTH_NAMES[Number(monthNumber) - 1];
+  const dayOfMonth = Number(dayNumber);
+  const isRealDay =
+    Number.isInteger(dayOfMonth) &&
+    dayOfMonth >= FIRST_DAY_OF_MONTH &&
+    dayOfMonth <= LAST_POSSIBLE_DAY_OF_MONTH;
+  return year && name && isRealDay ? { name, dayOfMonth, year } : null;
+}
+
+/** "2026-07-29" -> "Jul 29, 2026". The day is never zero-padded, and an
+ *  unparseable string comes back unchanged rather than as a wrong date. */
+export function formatFindingDate(day: string): string {
+  const parts = dayParts(day);
+  if (!parts) return day;
+  return `${parts.name.slice(0, ABBREVIATION_LENGTH)} ${parts.dayOfMonth}, ${parts.year}`;
 }
 
 /** 12000 -> "$12k", -4000 -> "-$4k". The sign leads the symbol, matching

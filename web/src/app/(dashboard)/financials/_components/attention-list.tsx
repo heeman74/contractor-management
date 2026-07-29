@@ -4,7 +4,10 @@ import Link from "next/link";
 
 import { ChartEmptyState } from "@/components/shared/chart-empty-state";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { FINANCE_FLAG_CHIP_CLASS } from "@/features/finance/components/FinanceFlagChip";
+import {
+  FINANCE_ALERT_CHIP_CLASS,
+  FINANCE_FLAG_CHIP_CLASS,
+} from "@/features/finance/components/FinanceFlagChip";
 import { NEARING_BUDGET_CHIP_LABEL } from "@/features/finance/components/BudgetSummarySection";
 import {
   INCOMPLETE_CAPTION,
@@ -30,9 +33,6 @@ const EMPTY_CELL = "";
 const SINGLE_ROW = 1;
 const NO_ROWS = 0;
 
-const BADGE_BASE_CLASS = "rounded-full px-2 py-0.5 text-xs";
-/** The amber recipe carries its own colours, so the overrun tier states only its own. */
-const OVER_BUDGET_BADGE_CLASS = `${BADGE_BASE_CLASS} bg-red-100 text-red-800`;
 const OVERRUN_PERCENT_CLASS = "text-sm font-semibold text-red-800";
 const WARNING_PERCENT_CLASS = "text-sm font-semibold text-gray-900";
 const INACTIVE_ROW_CLASS = "opacity-60";
@@ -44,7 +44,7 @@ interface TierBadge {
 
 /** One map, so a tier's copy and its colour can never drift apart. */
 const TIER_BADGE: Record<AttentionTier, TierBadge> = {
-  overrun: { label: "Over budget", className: OVER_BUDGET_BADGE_CLASS },
+  overrun: { label: "Over budget", className: FINANCE_ALERT_CHIP_CLASS },
   warning: { label: NEARING_BUDGET_CHIP_LABEL, className: FINANCE_FLAG_CHIP_CLASS },
   incomplete: { label: INCOMPLETE_CHIP_LABEL, className: FINANCE_FLAG_CHIP_CLASS },
 };

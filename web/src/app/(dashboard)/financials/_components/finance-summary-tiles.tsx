@@ -14,7 +14,7 @@ import { formatCurrency } from "@/lib/format";
 
 /** An absent figure reads as an em dash, never as $0 — a null is honest absence. */
 const ABSENT_FIGURE = "—";
-const QUOTED_BASIS_CAPTION = "Based on approved quotes — not yet invoiced.";
+export const QUOTED_BASIS_CAPTION = "Based on approved quotes — not yet invoiced.";
 const NO_REVENUE_CAPTION = "No revenue recorded yet.";
 const NEGATIVE_PREFIX = "-";
 const NO_INCOMPLETE_PROJECTS = 0;

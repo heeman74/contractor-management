@@ -17,8 +17,8 @@ import { MarginSummarySection } from "./MarginSummarySection";
 import type { CategoryTotal, CostBreakdown, LaborCostSummary } from "../types";
 
 const SECONDS_PER_HOUR = 3600;
-const UNBURDENED_TITLE = "Unburdened labor";
-const UNBURDENED_BODY =
+export const UNBURDENED_TITLE = "Unburdened labor";
+export const UNBURDENED_BODY =
   "Wage cost only — excludes payroll tax, insurance, overhead.";
 const JOB_LEVEL_LABOR_NOTE = "Tracked at job level";
 const BREAKDOWN_ERROR = "Couldn't load cost breakdown. Refresh to try again.";
