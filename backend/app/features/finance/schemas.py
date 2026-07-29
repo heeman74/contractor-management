@@ -18,6 +18,7 @@ from decimal import Decimal
 from pydantic import BaseModel, Field, model_validator
 
 from app.core.base_schemas import BaseResponseSchema
+from app.features.finance.margin_math import MarginFigures
 
 # ---------------------------------------------------------------------------
 # Cost entry schemas
@@ -142,6 +143,18 @@ class MarginSummary(BaseModel):
     margin_percent: Decimal | None = None
     incomplete: bool = False
     incomplete_reasons: list[str] = Field(default_factory=list)
+
+
+def to_margin_summary(figures: MarginFigures) -> MarginSummary:
+    """Map pure math output onto the wire schema."""
+    return MarginSummary(
+        revenue=figures.revenue,
+        revenue_basis=figures.revenue_basis,
+        margin=figures.margin,
+        margin_percent=figures.margin_percent,
+        incomplete=figures.incomplete,
+        incomplete_reasons=list(figures.incomplete_reasons),
+    )
 
 
 class CostBreakdownResponse(BaseModel):

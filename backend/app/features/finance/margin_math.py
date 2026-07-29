@@ -17,7 +17,7 @@ and quote response schemas, and for the margin rules of Phase 33:
 from __future__ import annotations
 
 import uuid
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 
@@ -183,4 +183,48 @@ def summarize_margin(inputs: MarginInputs) -> MarginFigures:
         margin_percent=margin_percent_for(margin, revenue),
         incomplete=bool(reasons),
         incomplete_reasons=reasons,
+    )
+
+
+def quoted_revenue(quote: DocumentAmounts) -> Decimal:
+    """One quote's pre-tax revenue leg, quantized to cents like the invoice leg."""
+    return pre_tax_total(quote).quantize(CENTS)
+
+
+def anchor_revenues(
+    invoice_rows: Sequence[tuple[RevenueAnchor, DocumentAmounts]],
+    quote_rows: Sequence[tuple[RevenueAnchor, DocumentAmounts]],
+) -> dict[RevenueAnchor, ResolvedRevenue]:
+    """Per-anchor D-01 resolution: sum this anchor's invoices, else its FIRST quote row
+    (the query returns newest-first), then resolve_anchor_revenue. A quote at an anchor
+    that has invoices is discarded — never mixed, never max()ed (Pitfall 2).
+
+    It lives here rather than in the service so the Phase 35 trend can replay the same
+    resolution at a past date instead of carrying a second implementation.
+    """
+    invoices_by_anchor: dict[RevenueAnchor, list[DocumentAmounts]] = {}
+    for anchor, amounts in invoice_rows:
+        invoices_by_anchor.setdefault(anchor, []).append(amounts)
+    resolved = {
+        anchor: resolve_anchor_revenue(AnchorRevenue(invoiced_total=revenue_from(documents)))
+        for anchor, documents in invoices_by_anchor.items()
+    }
+    for anchor, quote in quote_rows:
+        if anchor not in resolved:
+            resolved[anchor] = resolve_anchor_revenue(
+                AnchorRevenue(quoted_total=quoted_revenue(quote))
+            )
+    return resolved
+
+
+def combined_anchor_revenue(
+    resolved_anchors: dict[RevenueAnchor, ResolvedRevenue],
+) -> ResolvedRevenue | None:
+    """Project revenue summed across resolved anchors, or None when no anchor resolved any."""
+    totals = [revenue.total for revenue in resolved_anchors.values() if revenue.total is not None]
+    if not totals:
+        return None
+    return ResolvedRevenue(
+        total=sum(totals, ZERO_MONEY).quantize(CENTS),
+        basis=combine_revenue_bases(revenue.basis for revenue in resolved_anchors.values()),
     )
