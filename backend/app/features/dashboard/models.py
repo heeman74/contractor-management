@@ -23,7 +23,8 @@ class DashboardAlert(TenantScopedModel):
     """AI-generated alert for schedule slips, dependency risks, and rescheduling suggestions.
 
     severity: info | warning | critical — drives visual presentation in the dashboard
-    alert_type: schedule_slip | rescheduling_suggestion | dependency_risk | budget_warning | budget_overrun
+    alert_type: schedule_slip | rescheduling_suggestion | dependency_risk | budget_warning
+        | budget_overrun | ai_profitability
     days_behind: how many calendar days the affected trade scope is behind schedule
     impact_text: plain-English AI explanation of what this slip means for the project
     remediation_text: AI-generated suggestion for how to address the issue
@@ -63,7 +64,7 @@ class DashboardAlert(TenantScopedModel):
         ),
         CheckConstraint(
             "alert_type IN ('schedule_slip','rescheduling_suggestion','dependency_risk',"
-            "'budget_warning','budget_overrun')",
+            "'budget_warning','budget_overrun','ai_profitability')",
             name="dashboard_alerts_alert_type_check",
         ),
     )
