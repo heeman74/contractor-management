@@ -181,7 +181,9 @@ def test_margin_decline_points_ignores_improvement() -> None:
 
 def test_margin_decline_points_needs_two_buckets() -> None:
     assert margin_decline_points([]) is None
-    assert margin_decline_points([_bucket("2026-01", Decimal("1000.00"), Decimal("800.00"))]) is None
+    assert (
+        margin_decline_points([_bucket("2026-01", Decimal("1000.00"), Decimal("800.00"))]) is None
+    )
 
 
 def test_margin_decline_points_never_coerces_an_absent_percent() -> None:
