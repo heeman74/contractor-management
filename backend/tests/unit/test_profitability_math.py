@@ -4,6 +4,7 @@ Pure unit tests (no DB, no async, no fixtures beyond module-level builders). Cov
 - skip_reason_for: the D-01 eligibility gate and each named skip reason
 - margin_decline_points: signal 1, read CUMULATIVELY, with the None-percent guard
 - negative_margin_dollars: signal 2, read off dollars rather than percent
+- quote_implied_gap: signal 3, built from raw quote rows with the tautology guard
 """
 
 from __future__ import annotations
@@ -14,18 +15,25 @@ from decimal import Decimal
 from app.features.finance.margin_math import (
     REVENUE_BASIS_INVOICED,
     REVENUE_BASIS_NONE,
+    REVENUE_BASIS_QUOTED,
+    DocumentAmounts,
     MarginFigures,
     MarginInputs,
     ResolvedRevenue,
+    RevenueAnchor,
     summarize_margin,
 )
 from app.features.finance.portfolio_math import ProjectFinancialFigures
 from app.features.finance.profitability_math import (
     MARGIN_DECLINE_POINTS,
     PROFITABILITY_ELIGIBLE_STATUSES,
+    QUOTE_IMPLIED_GAP_POINTS,
+    QuoteGapInputs,
     SkipReason,
+    latest_quote_per_anchor,
     margin_decline_points,
     negative_margin_dollars,
+    quote_implied_gap,
     skip_reason_for,
 )
 from app.features.finance.trend_math import TREND_WINDOW_3M, TrendBucket, window_slice
@@ -33,6 +41,10 @@ from app.features.finance.trend_math import TREND_WINDOW_3M, TrendBucket, window
 PROJECT_ID = uuid.UUID("44444444-4444-4444-4444-444444444444")
 ACTIVE_STATUS = "active"
 INELIGIBLE_STATUSES = ("planning", "on_hold", "complete", "archived", "draft")
+INVOICED_ANCHOR = RevenueAnchor(job_id=uuid.UUID("55555555-5555-5555-5555-555555555555"))
+QUOTED_ANCHOR = RevenueAnchor(trade_scope_id=uuid.UUID("66666666-6666-6666-6666-666666666666"))
+UNQUOTED_ANCHOR = RevenueAnchor(job_id=uuid.UUID("77777777-7777-7777-7777-777777777777"))
+UNBILLED_ANCHOR = RevenueAnchor(job_id=uuid.UUID("88888888-8888-8888-8888-888888888888"))
 
 
 def _margin_figures(
@@ -86,6 +98,29 @@ def _figures(
 def _bucket(month: str, revenue: Decimal | None, cost: Decimal) -> TrendBucket:
     """One cumulative as-of bucket — revenue and cost are totals since inception."""
     return TrendBucket(month=month, cost=cost, margin=_margin_figures(revenue, cost))
+
+
+def _amounts(subtotal: str) -> DocumentAmounts:
+    """An undiscounted, untaxed document so the pre-tax leg equals the subtotal."""
+    return DocumentAmounts(
+        subtotal=Decimal(subtotal),
+        discount_type=None,
+        discount_value=Decimal("0"),
+        tax_rate=Decimal("0"),
+    )
+
+
+def _invoiced(total: str) -> ResolvedRevenue:
+    return ResolvedRevenue(total=Decimal(total), basis=REVENUE_BASIS_INVOICED)
+
+
+def _gap_inputs(*, billed: str, quoted: str, cost: str) -> QuoteGapInputs:
+    """One invoiced anchor that also carries an approved quote — the signal-3 shape."""
+    return QuoteGapInputs(
+        resolved={INVOICED_ANCHOR: _invoiced(billed)},
+        latest_quotes={INVOICED_ANCHOR: _amounts(quoted)},
+        anchor_costs={INVOICED_ANCHOR: Decimal(cost)},
+    )
 
 
 def test_eligible_project_has_no_skip_reason() -> None:
@@ -238,3 +273,129 @@ def test_negative_margin_dollars_is_none_at_break_even() -> None:
 
 def test_negative_margin_dollars_is_none_without_revenue() -> None:
     assert negative_margin_dollars(_figures(revenue=None)) is None
+
+
+def test_latest_quote_per_anchor_keeps_the_newest_row_per_anchor() -> None:
+    """Rows arrive newest-first per anchor, so the first row seen is the latest quote."""
+    rows = [
+        (INVOICED_ANCHOR, _amounts("2000.00")),
+        (INVOICED_ANCHOR, _amounts("1500.00")),
+        (QUOTED_ANCHOR, _amounts("800.00")),
+    ]
+
+    latest = latest_quote_per_anchor(rows)
+
+    assert latest[INVOICED_ANCHOR].subtotal == Decimal("2000.00")
+    assert latest[QUOTED_ANCHOR].subtotal == Decimal("800.00")
+
+
+def test_latest_quote_per_anchor_is_empty_without_rows() -> None:
+    assert latest_quote_per_anchor([]) == {}
+
+
+def test_quote_implied_gap_fires_at_exactly_five_points() -> None:
+    gap = quote_implied_gap(
+        _gap_inputs(
+            billed="1000.00",
+            quoted="2000.00",
+            cost="100.00",
+        )
+    )
+
+    assert gap is not None
+    assert gap.billed_margin_percent == Decimal("90.0")
+    assert gap.quote_implied_margin_percent == Decimal("95.0")
+    assert gap.points == QUOTE_IMPLIED_GAP_POINTS
+
+
+def test_quote_implied_gap_below_the_trigger_is_not_a_candidate() -> None:
+    gap = quote_implied_gap(_gap_inputs(billed="1000.00", quoted="2000.00", cost="98.00"))
+
+    assert gap is not None
+    assert gap.points == Decimal("4.9")
+    assert gap.points < QUOTE_IMPLIED_GAP_POINTS
+
+
+def test_quote_implied_gap_over_quote_dollars_is_implied_minus_billed() -> None:
+    gap = quote_implied_gap(_gap_inputs(billed="1000.00", quoted="2000.00", cost="100.00"))
+
+    assert gap is not None
+    assert gap.over_quote_dollars == Decimal("1000.00")
+
+
+def test_quote_implied_gap_uses_the_quote_at_an_invoiced_anchor() -> None:
+    """The shipped D-01 resolution discards this quote; the signal needs exactly it.
+
+    A gap can only exist because the invoiced anchor's approved quote survived —
+    if the resolution helper had supplied the quote leg, there would be no quote
+    here at all and the comparable set would be empty.
+    """
+    inputs = _gap_inputs(billed="1000.00", quoted="2000.00", cost="100.00")
+
+    assert inputs.resolved[INVOICED_ANCHOR].basis == REVENUE_BASIS_INVOICED
+    assert INVOICED_ANCHOR in inputs.latest_quotes
+    assert quote_implied_gap(inputs) is not None
+
+
+def test_quote_implied_gap_compares_only_the_shared_anchor_set() -> None:
+    """An unquoted invoiced anchor and an uninvoiced quote both drop out."""
+    shared = _gap_inputs(billed="1000.00", quoted="2000.00", cost="100.00")
+    with_strangers = QuoteGapInputs(
+        resolved={**shared.resolved, UNQUOTED_ANCHOR: _invoiced("5000.00")},
+        latest_quotes={**shared.latest_quotes, UNBILLED_ANCHOR: _amounts("9000.00")},
+        anchor_costs={
+            **shared.anchor_costs,
+            UNQUOTED_ANCHOR: Decimal("4000.00"),
+            UNBILLED_ANCHOR: Decimal("50.00"),
+        },
+    )
+
+    assert quote_implied_gap(with_strangers) == quote_implied_gap(shared)
+
+
+def test_quote_implied_gap_is_none_for_a_quote_only_project() -> None:
+    """Pitfall 5: billed revenue IS quote revenue, so the gap is vacuously zero."""
+    quote_only = QuoteGapInputs(
+        resolved={QUOTED_ANCHOR: ResolvedRevenue(Decimal("2000.00"), REVENUE_BASIS_QUOTED)},
+        latest_quotes={QUOTED_ANCHOR: _amounts("2000.00")},
+        anchor_costs={QUOTED_ANCHOR: Decimal("100.00")},
+    )
+
+    assert quote_implied_gap(quote_only) is None
+
+
+def test_quote_implied_gap_is_none_without_a_shared_anchor() -> None:
+    disjoint = QuoteGapInputs(
+        resolved={INVOICED_ANCHOR: _invoiced("1000.00")},
+        latest_quotes={UNBILLED_ANCHOR: _amounts("2000.00")},
+        anchor_costs={INVOICED_ANCHOR: Decimal("100.00")},
+    )
+
+    assert quote_implied_gap(disjoint) is None
+
+
+def test_quote_implied_gap_is_none_at_zero_quote_revenue() -> None:
+    """margin_percent_for is None at zero revenue — never coerced into a percent."""
+    zero_quote = _gap_inputs(billed="1000.00", quoted="0.00", cost="100.00")
+
+    assert quote_implied_gap(zero_quote) is None
+
+
+def test_quote_implied_gap_is_none_at_zero_billed_revenue() -> None:
+    zero_billed = _gap_inputs(billed="0.00", quoted="2000.00", cost="100.00")
+
+    assert quote_implied_gap(zero_billed) is None
+
+
+def test_quote_implied_gap_sums_cost_through_the_supplied_anchor_costs() -> None:
+    """Anchor costs arrive from the shipped contributing_anchor_cost helper, so
+    job-anchored derived labor is already folded in exactly once."""
+    without_labor = _gap_inputs(billed="1000.00", quoted="2000.00", cost="100.00")
+    with_labor = _gap_inputs(billed="1000.00", quoted="2000.00", cost="500.00")
+
+    lean = quote_implied_gap(without_labor)
+    burdened = quote_implied_gap(with_labor)
+
+    assert lean is not None
+    assert burdened is not None
+    assert burdened.points > lean.points
