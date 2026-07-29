@@ -2284,3 +2284,88 @@ async def test_push_failure_does_not_break_analysis(
     assert len(findings) == 1
     assert findings[0]["dashboard_alert_id"] is not None
     assert await _ai_profitability_alert_count(company_id) == 1
+
+
+# ---------------------------------------------------------------------------
+# FINAI-01: the nightly cron registration (36-10)
+#
+# "On a nightly schedule" is only true once the job is on the scheduler, so the
+# registration is asserted directly off _register_jobs rather than inferred from
+# the lifespan. The three shipped jobs are re-asserted here because a fourth
+# add_job is exactly the edit that can perturb them.
+# ---------------------------------------------------------------------------
+
+_AI_PROFITABILITY_JOB_ID = "ai_profitability_analysis"
+
+# Every shipped job id with the cron fields it must still carry afterwards.
+_SHIPPED_JOB_SCHEDULES = {
+    "morning_checklists": {"hour": "6", "minute": "0"},
+    "alert_detection": {"hour": "7-19", "minute": "0"},
+    "budget_sweep": {"hour": "5", "minute": "0"},
+}
+
+_EXPECTED_PROFITABILITY_SCHEDULE = {"hour": "6", "minute": "30"}
+
+_RUN_FOR_ALL_COMPANIES_TARGET = "app.core.scheduler._run_for_all_companies"
+
+
+def _cron_fields(job: object) -> dict[str, str]:
+    """The job's cron trigger fields as plain strings, keyed by field name."""
+    return {field.name: str(field) for field in job.trigger.fields}  # type: ignore[attr-defined]
+
+
+def _registered_jobs() -> dict[str, object]:
+    """Every job _register_jobs puts on a bare scheduler, keyed by id."""
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+    from app.core.scheduler import _register_jobs
+
+    fresh_scheduler = AsyncIOScheduler(timezone="UTC")
+    _register_jobs(fresh_scheduler)
+    return {job.id: job for job in fresh_scheduler.get_jobs()}
+
+
+def test_profitability_job_registered() -> None:
+    """The nightly analysis is on the scheduler at 06:30 UTC with a stable id.
+
+    06:30 sits after the 05:00 budget sweep (so the budget figures in the payload
+    are current), off the 06:00 checklist burst (the two AI jobs each hold their
+    own concurrency budget and must not stack), and before the 07:00 alert tick.
+    """
+    from app.core.scheduler import AI_PROFITABILITY_MISFIRE_GRACE_SECONDS
+
+    jobs_by_id = _registered_jobs()
+
+    assert _AI_PROFITABILITY_JOB_ID in jobs_by_id
+    nightly = jobs_by_id[_AI_PROFITABILITY_JOB_ID]
+    fields = _cron_fields(nightly)
+    assert fields["hour"] == _EXPECTED_PROFITABILITY_SCHEDULE["hour"]
+    assert fields["minute"] == _EXPECTED_PROFITABILITY_SCHEDULE["minute"]
+    assert nightly.misfire_grace_time == AI_PROFITABILITY_MISFIRE_GRACE_SECONDS
+    assert AI_PROFITABILITY_MISFIRE_GRACE_SECONDS == _SECONDS_PER_HOUR
+
+    for job_id, schedule in _SHIPPED_JOB_SCHEDULES.items():
+        assert job_id in jobs_by_id, job_id
+        shipped_fields = _cron_fields(jobs_by_id[job_id])
+        assert shipped_fields["hour"] == schedule["hour"], job_id
+        assert shipped_fields["minute"] == schedule["minute"], job_id
+
+
+async def test_profitability_job_registered_delegates_to_analyze_company() -> None:
+    """The job wrapper hands analyze_company to the shipped per-company harness.
+
+    That harness owns the per-company session, the RLS scoping, the explicit
+    commit and the log-and-continue error boundary, so the wrapper adds nothing
+    but the service, the method name and today's date.
+    """
+    from app.core.scheduler import run_ai_profitability_analysis
+    from app.features.finance.profitability_service import ProfitabilityService
+
+    with patch(_RUN_FOR_ALL_COMPANIES_TARGET, new_callable=AsyncMock) as harness:
+        await run_ai_profitability_analysis()
+
+    harness.assert_awaited_once()
+    kwargs = harness.await_args.kwargs
+    assert kwargs["service_class"] is ProfitabilityService
+    assert kwargs["method_name"] == "analyze_company"
+    assert kwargs["target_date"] == datetime.now(UTC).date()
