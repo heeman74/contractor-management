@@ -44,16 +44,28 @@ from app.core.security import create_access_token
 from app.features.dashboard.alert_types import AI_PROFITABILITY_ALERT_TYPE, FINANCIAL_ALERT_TYPES
 from app.features.dashboard.models import DashboardAlert
 from app.features.finance.models import CostCategory
-from app.features.finance.profitability_math import SIGNAL_QUOTE_GAP, SkipReason
+from app.features.finance.profitability_math import (
+    SEVERITY_BAND_CRITICAL,
+    SIGNAL_NEGATIVE_MARGIN,
+    SIGNAL_QUOTE_GAP,
+    CandidateSignal,
+    SkipReason,
+)
 from app.features.finance.profitability_models import (
     MAX_ALERT_SUMMARY_LENGTH,
+    MAX_CORRECTIVE_ACTION_LENGTH,
     MAX_NARRATIVE_LENGTH,
+    AIProfitabilityFinding,
 )
 from app.features.finance.profitability_repository import FindingUpsert, ProfitabilityRepository
 from app.features.finance.profitability_service import (
+    CAP_DROP_LOG_TEMPLATE,
     DISMISSAL_LOG_TEMPLATE,
     EMPTY_DRAFT_LOG_TEMPLATE,
+    GROUNDING_RETRY_LIMIT,
     LABOR_BASIS_UNBURDENED,
+    MAX_FINDINGS_PER_COMPANY_PER_NIGHT,
+    OVER_LENGTH_DROP_LOG_TEMPLATE,
     PROFITABILITY_MAX_OUTPUT_TOKENS,
     SCAN_SUMMARY_LOG_TEMPLATE,
     SKIP_LOG_TEMPLATE,
@@ -62,6 +74,12 @@ from app.features.finance.profitability_service import (
     FindingDraft,
     ProfitabilityCandidate,
     ProfitabilityService,
+    PublishResult,
+)
+from app.features.finance.prompts.profitability_system import (
+    ALERT_SUMMARY_MAX_CHARS,
+    CORRECTIVE_ACTION_MAX_CHARS,
+    NARRATIVE_MAX_CHARS,
 )
 
 _SECONDS_PER_HOUR = 3600
@@ -1240,6 +1258,42 @@ async def _draft_findings(company_id: str) -> list[FindingDraft | None]:
         return await gather_with_concurrency(candidates, service._draft_for)
 
 
+def _patched_scan(
+    service: ProfitabilityService, candidates: Sequence[ProfitabilityCandidate] | None
+) -> contextlib.AbstractContextManager:
+    """Patch scan_candidates when a test supplies its own candidates, else do nothing."""
+    if candidates is None:
+        return contextlib.nullcontext()
+    return patch.object(service, "scan_candidates", AsyncMock(return_value=list(candidates)))
+
+
+async def _publish_findings(
+    company_id: str, candidates: Sequence[ProfitabilityCandidate] | None = None
+) -> PublishResult:
+    """Drive publish_findings for one company under its own RLS context, committing on exit.
+
+    The scheduler-path convention: the service never commits, its caller does.
+    Supplying `candidates` patches the scan, which is how a cap or length behavior
+    is proven against a dozen candidates without seeding a dozen projects.
+    """
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        service = ProfitabilityService(session)
+        with _patched_scan(service, candidates):
+            result = await service.publish_findings(UUID(company_id), _FIRST_NIGHT)
+        await session.commit()
+        return result
+
+
+async def _stored_payload(company_id: str, finding_id: UUID) -> dict:
+    """The payload JSONB exactly as one persisted finding carries it."""
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        finding = await session.get(AIProfitabilityFinding, finding_id)
+        assert finding is not None
+        return finding.payload
+
+
 async def _ai_profitability_alert_count(company_id: str) -> int:
     """Count this company's ai_profitability dashboard alerts."""
     async with async_session_factory() as session:
@@ -1305,8 +1359,14 @@ async def test_unmatched_figure_blocked_after_one_retry(
 ) -> None:
     """KEYSTONE: a still-fabricated rewrite is dropped — nothing persisted, nothing alerted.
 
-    Exactly two calls: GROUNDING_RETRY_LIMIT is 1, so there is no third attempt
-    and no truncated-but-published middle ground.
+    Driven through the whole publish path, not just the drafting half, so the
+    zero-rows and zero-alerts assertions run against the code that could actually
+    have written them. Exactly two calls: GROUNDING_RETRY_LIMIT is 1, so there is
+    no third attempt and no clipped-but-published middle ground.
+
+    The dropped candidate still qualifies tonight, so its fingerprint MUST stay in
+    the D-06 keep-set — otherwise plan 36-09 would resolve a live finding and
+    re-alert the same condition on the next successful night.
     """
     company_id = seed_two_tenants["tenant_a_id"]
     project = await _seed_one_candidate_project(
@@ -1317,10 +1377,11 @@ async def test_unmatched_figure_blocked_after_one_retry(
         structlog.testing.capture_logs() as logs,
         _patched_claude(side_effect=[_fabricating_reply(), _fabricating_reply()]) as create,
     ):
-        drafts = await _draft_findings(company_id)
+        result = await _publish_findings(company_id)
 
     assert create.call_count == 2
-    assert drafts == [None]
+    assert result.published == []
+    assert len(result.qualifying_fingerprints) == 1
     assert await _finding_count(company_id) == 0
     assert await _ai_profitability_alert_count(company_id) == 0
     assert UNGROUNDED_DROP_LOG_TEMPLATE % (
@@ -1443,3 +1504,225 @@ async def test_claude_failure_isolated_per_candidate(
     assert len(drafts) == 2
     assert drafts.count(None) == 1
     assert _GROUNDED_DRAFT in drafts
+
+
+# ---------------------------------------------------------------------------
+# FINAI-01: the length contract, the D-10 nightly cap, and persistence
+#
+# The cap and the length rule are properties of the publish ORCHESTRATION, not of
+# detection, so these fixtures hand publish_findings synthetic candidates against
+# one seeded project instead of seeding a dozen slow ones. Each synthetic
+# candidate carries a DISTINCT fingerprint: identical ones would upsert onto a
+# single open row and make a cap assertion meaningless.
+# ---------------------------------------------------------------------------
+
+_SYNTHETIC_GROUNDED_PREFIX = "Synthetic candidate"
+_SYNTHETIC_UNGROUNDED_PREFIX = "Ungrounded candidate"
+_SYNTHETIC_COST = Decimal(_ANALYZABLE_COST_AMOUNT)
+_SYNTHETIC_MARGIN = Decimal("-500.00")
+_LENGTH_FILLER_CHARACTER = "x"
+
+_CAPPED_CANDIDATE_COUNT = MAX_FINDINGS_PER_COMPANY_PER_NIGHT + 2
+_UNGROUNDED_LEAD_COUNT = 3
+
+
+def _synthetic_candidate(
+    project_id: str, index: int, *, grounded: bool = True
+) -> ProfitabilityCandidate:
+    """One candidate the publish path can process without its own seeded project.
+
+    The payload carries the same cost figure the grounded replies cite, and the
+    project name tells the content-driven mock which reply this candidate earns.
+    """
+    prefix = _SYNTHETIC_GROUNDED_PREFIX if grounded else _SYNTHETIC_UNGROUNDED_PREFIX
+    name = f"{prefix} {index}"
+    signal = CandidateSignal(
+        project_id=UUID(project_id),
+        signal=SIGNAL_NEGATIVE_MARGIN,
+        band=SEVERITY_BAND_CRITICAL,
+        fingerprint=f"{project_id}:{SIGNAL_NEGATIVE_MARGIN}:{SEVERITY_BAND_CRITICAL}:{index}",
+        negative_margin_dollars=_SYNTHETIC_MARGIN,
+        margin_decline_points=None,
+        quote_gap=None,
+    )
+    return ProfitabilityCandidate(
+        candidate=signal,
+        project_name=name,
+        revenue_basis=_INVOICED_REVENUE_BASIS,
+        labor_included=False,
+        payload={"project_name": name, "cost": _SYNTHETIC_COST, "margin": _SYNTHETIC_MARGIN},
+    )
+
+
+def _reply_for_payload(*, messages: list[dict], **_kwargs: object) -> MagicMock:
+    """Answer each candidate from its own payload rather than from call order.
+
+    gather_with_concurrency interleaves calls under its semaphore, so a positional
+    side_effect list could not say which candidate a reply belongs to.
+    """
+    if _SYNTHETIC_UNGROUNDED_PREFIX in messages[0]["content"]:
+        return _fabricating_reply()
+    return _grounded_reply()
+
+
+def _sized_reply(field: str, length: int) -> MagicMock:
+    """A grounded reply whose named AI string is exactly `length` characters.
+
+    The filler carries no figures, so length is the only thing under test.
+    """
+    return _make_mock_anthropic_response(
+        _finding_reply_data(**{field: _LENGTH_FILLER_CHARACTER * length})
+    )
+
+
+def test_prompt_and_database_state_the_same_length_bounds() -> None:
+    """The bounds the model is told are the bounds the row is checked against.
+
+    The service rejects against the DB constants, so a prompt that advertised a
+    looser bound would turn every long finding into a silent drop.
+    """
+    assert NARRATIVE_MAX_CHARS == MAX_NARRATIVE_LENGTH
+    assert CORRECTIVE_ACTION_MAX_CHARS == MAX_CORRECTIVE_ACTION_LENGTH
+    assert ALERT_SUMMARY_MAX_CHARS == MAX_ALERT_SUMMARY_LENGTH
+
+
+async def test_over_length_draft_is_rejected_not_truncated(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """The SERVICE half of the length contract: over-length text is dropped whole.
+
+    Plan 36-01 owns the DATABASE half under test_alert_summary_db_length_check —
+    two functions of one name in one module would trip ruff F811 and shadow one.
+    A clipped grounded sentence can lose the very figure that justifies it, so
+    there is no shortening anywhere on this path.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    project_id = await _create_project(tenant_a_client)
+    candidates = [_synthetic_candidate(project_id, 0)]
+
+    over_length_replies = (
+        _sized_reply("alert_summary", MAX_ALERT_SUMMARY_LENGTH + 1),
+        _sized_reply("corrective_action", MAX_CORRECTIVE_ACTION_LENGTH + 1),
+        _sized_reply("narrative", MAX_NARRATIVE_LENGTH + 1),
+    )
+    for reply in over_length_replies:
+        with structlog.testing.capture_logs() as logs, _patched_claude(side_effect=[reply]):
+            result = await _publish_findings(company_id, candidates)
+
+        assert result.published == []
+        assert await _finding_count(company_id) == 0
+        assert OVER_LENGTH_DROP_LOG_TEMPLATE % (project_id,) in _logged_events(logs)
+
+    with _patched_claude(side_effect=[_sized_reply("alert_summary", MAX_ALERT_SUMMARY_LENGTH)]):
+        at_the_bound = await _publish_findings(company_id, candidates)
+
+    assert len(at_the_bound.published) == 1
+    rows = await _open_findings(company_id)
+    assert len(rows) == 1
+    assert len(rows[0]["alert_summary"]) == MAX_ALERT_SUMMARY_LENGTH
+
+
+async def test_per_company_findings_cap(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """Twelve grounded candidates publish exactly ten findings, and both drops are logged.
+
+    The two capped candidates still qualify tonight, so all twelve fingerprints
+    stay in the D-06 keep-set.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    project_id = await _create_project(tenant_a_client)
+    candidates = [
+        _synthetic_candidate(project_id, index) for index in range(_CAPPED_CANDIDATE_COUNT)
+    ]
+
+    with (
+        structlog.testing.capture_logs() as logs,
+        _patched_claude(side_effect=_reply_for_payload) as create,
+    ):
+        result = await _publish_findings(company_id, candidates)
+
+    assert create.call_count == _CAPPED_CANDIDATE_COUNT
+    assert len(result.published) == MAX_FINDINGS_PER_COMPANY_PER_NIGHT
+    assert await _finding_count(company_id) == MAX_FINDINGS_PER_COMPANY_PER_NIGHT
+    assert len(result.qualifying_fingerprints) == _CAPPED_CANDIDATE_COUNT
+
+    cap_line = CAP_DROP_LOG_TEMPLATE % (project_id, MAX_FINDINGS_PER_COMPANY_PER_NIGHT)
+    expected_drops = _CAPPED_CANDIDATE_COUNT - MAX_FINDINGS_PER_COMPANY_PER_NIGHT
+    assert _logged_events(logs).count(cap_line) == expected_drops
+
+
+async def test_findings_cap_counted_after_validation(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """Three ungrounded candidates ahead of ten grounded ones still publish ten findings.
+
+    Counting the cap before validation would spend three of its ten slots on
+    findings that were never published, leaving seven.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    project_id = await _create_project(tenant_a_client)
+    ungrounded = [
+        _synthetic_candidate(project_id, index, grounded=False)
+        for index in range(_UNGROUNDED_LEAD_COUNT)
+    ]
+    grounded = [
+        _synthetic_candidate(project_id, _UNGROUNDED_LEAD_COUNT + index)
+        for index in range(MAX_FINDINGS_PER_COMPANY_PER_NIGHT)
+    ]
+
+    with (
+        structlog.testing.capture_logs() as logs,
+        _patched_claude(side_effect=_reply_for_payload) as create,
+    ):
+        result = await _publish_findings(company_id, [*ungrounded, *grounded])
+
+    assert len(result.published) == MAX_FINDINGS_PER_COMPANY_PER_NIGHT
+    assert await _finding_count(company_id) == MAX_FINDINGS_PER_COMPANY_PER_NIGHT
+    assert len(result.qualifying_fingerprints) == len(ungrounded) + len(grounded)
+
+    ungrounded_calls = _UNGROUNDED_LEAD_COUNT * (GROUNDING_RETRY_LIMIT + 1)
+    assert create.call_count == MAX_FINDINGS_PER_COMPANY_PER_NIGHT + ungrounded_calls
+
+    drop_line = UNGROUNDED_DROP_LOG_TEMPLATE % (project_id, _FABRICATED_LITERAL)
+    assert _logged_events(logs).count(drop_line) == _UNGROUNDED_LEAD_COUNT
+
+
+async def test_persisted_payload_matches_the_grounded_payload(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """The row stores the exact payload the finding was validated against.
+
+    Also pins the six PublishedFinding fields plan 36-09 reads, resolved here in
+    the request session so the alerting step never re-reads the ORM.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    project = await _seed_one_candidate_project(
+        tenant_a_client, company_id, name="Published Project 36"
+    )
+
+    with _patched_claude(side_effect=[_grounded_reply()]):
+        result = await _publish_findings(company_id)
+
+    assert len(result.published) == 1
+    published = result.published[0]
+    assert published.project_id == UUID(project.project_id)
+    assert published.alert_summary == _GROUNDED_ALERT_SUMMARY
+    assert published.corrective_action == _GROUNDED_CORRECTIVE_ACTION
+    assert result.qualifying_fingerprints == [published.fingerprint]
+
+    rows = await _open_findings(company_id)
+    assert len(rows) == 1
+    assert rows[0]["id"] == published.finding_id
+    assert rows[0]["fingerprint"] == published.fingerprint
+    assert rows[0]["severity_band"] == published.severity_band
+    assert rows[0]["signal"] == SIGNAL_QUOTE_GAP
+    assert rows[0]["narrative"] == _GROUNDED_NARRATIVE
+    assert rows[0]["revenue_basis"] == _INVOICED_REVENUE_BASIS
+    assert rows[0]["alerted_at"] is None
+
+    stored_payload = await _stored_payload(company_id, published.finding_id)
+    assert set(stored_payload) == _EXPECTED_PAYLOAD_FIELDS
+    assert Decimal(stored_payload["cost"]) == Decimal(_ANALYZABLE_COST_AMOUNT)
+    assert Decimal(stored_payload["quote_gap_points"]) > 0
+    assert stored_payload["labor_basis"] == LABOR_BASIS_UNBURDENED
