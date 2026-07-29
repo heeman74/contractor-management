@@ -22,6 +22,7 @@ import {
   fetchCompanyFinancials,
   fetchProjectFinancials,
   fetchProjectMarginTrend,
+  fetchProjectProfitabilityFinding,
 } from "./api";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { FINANCE_VIEW_PERMISSION, type TrendWindow } from "./types";
@@ -133,6 +134,22 @@ export function useProjectMarginTrend(projectId: string, window: TrendWindow) {
     enabled: can(FINANCE_VIEW_PERMISSION) && !!projectId,
     // Keeps the previous window's chart on screen while the new one loads.
     placeholderData: (previous) => previous,
+  });
+}
+
+/**
+ * `enabled` is the fetch-side half of the permission gate. FinanceGate stops the
+ * render; this stops the request. Without it an unauthorized visit still issues
+ * the call and the SC2 "zero finding requests" assertion would pass for the wrong
+ * reason. The key sits under the shared "cost-entries" prefix so
+ * invalidateAllCostEntries refreshes it for free.
+ */
+export function useProjectProfitabilityFinding(projectId: string) {
+  const { can } = usePermissions();
+  return useQuery({
+    queryKey: ["cost-entries", "financials", "finding", projectId],
+    queryFn: () => fetchProjectProfitabilityFinding(projectId),
+    enabled: can(FINANCE_VIEW_PERMISSION) && !!projectId,
   });
 }
 

@@ -26,6 +26,8 @@ import type {
   TrendBucket,
   TrendWindow,
   MarginTrend,
+  FindingSeverity,
+  ProfitabilityFinding,
 } from "./types";
 import { TREND_WINDOWS } from "./types";
 
@@ -583,4 +585,43 @@ export async function fetchProjectMarginTrend(
     `${projectFinancialsPath(projectId)}/trend?window=${window}`
   );
   return mapMarginTrend(raw);
+}
+
+interface ProfitabilityFindingApiResponse {
+  id: string;
+  project_id: string;
+  severity: FindingSeverity;
+  narrative: string;
+  corrective_action: string;
+  revenue_basis: RevenueBasis;
+  labor_included: boolean;
+  found_on: string;
+  last_confirmed_on: string;
+}
+
+function mapProfitabilityFinding(
+  raw: ProfitabilityFindingApiResponse
+): ProfitabilityFinding {
+  return {
+    id: raw.id,
+    projectId: raw.project_id,
+    severity: raw.severity,
+    narrative: raw.narrative,
+    correctiveAction: raw.corrective_action,
+    revenueBasis: raw.revenue_basis,
+    laborIncluded: raw.labor_included,
+    foundOn: raw.found_on,
+    lastConfirmedOn: raw.last_confirmed_on,
+  };
+}
+
+/** null = no open finding. A findings outage is its own failure surface — this
+ *  never folds into fetchProjectFinancials (the 35-10 two-keys rule). */
+export async function fetchProjectProfitabilityFinding(
+  projectId: string
+): Promise<ProfitabilityFinding | null> {
+  const raw = await apiGet<ProfitabilityFindingApiResponse | null>(
+    `${projectFinancialsPath(projectId)}/finding`
+  );
+  return raw ? mapProfitabilityFinding(raw) : null;
 }

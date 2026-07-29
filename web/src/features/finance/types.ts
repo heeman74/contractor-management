@@ -236,3 +236,25 @@ export interface MarginTrend {
   window: TrendWindow;
   buckets: TrendBucket[];
 }
+
+// --- AI profitability findings ---
+
+/** The severity band of a finding. The band name is part of the finding
+ *  fingerprint, so renaming one silently re-alerts every open finding. */
+export type FindingSeverity = "warning" | "critical";
+
+/** The latest OPEN AI profitability finding for one project (D-08).
+ *  Money and percent never appear as bare fields: every figure the user sees is
+ *  inside the grounded prose, already formatted and validated server-side. */
+export interface ProfitabilityFinding {
+  id: string;
+  projectId: string;
+  severity: FindingSeverity;
+  narrative: string;
+  correctiveAction: string;
+  /** The basis the finding was GROUNDED against — not today's figures. */
+  revenueBasis: RevenueBasis;
+  laborIncluded: boolean;
+  foundOn: string; // "YYYY-MM-DD"
+  lastConfirmedOn: string; // "YYYY-MM-DD"
+}
