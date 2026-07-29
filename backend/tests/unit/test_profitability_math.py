@@ -5,6 +5,7 @@ Pure unit tests (no DB, no async, no fixtures beyond module-level builders). Cov
 - margin_decline_points: signal 1, read CUMULATIVELY, with the None-percent guard
 - negative_margin_dollars: signal 2, read off dollars rather than percent
 - quote_implied_gap: signal 3, built from raw quote rows with the tautology guard
+- band_for / fingerprint_for / candidate_for: bands, D-06 dedup key, one candidate
 """
 
 from __future__ import annotations
@@ -25,11 +26,24 @@ from app.features.finance.margin_math import (
 )
 from app.features.finance.portfolio_math import ProjectFinancialFigures
 from app.features.finance.profitability_math import (
+    CRITICAL_DECLINE_POINTS,
+    CRITICAL_QUOTE_GAP_POINTS,
     MARGIN_DECLINE_POINTS,
+    PRIMARY_SIGNAL_ORDER,
     PROFITABILITY_ELIGIBLE_STATUSES,
     QUOTE_IMPLIED_GAP_POINTS,
+    SEVERITY_BAND_CRITICAL,
+    SEVERITY_BAND_WARNING,
+    SIGNAL_MARGIN_DECLINE,
+    SIGNAL_NEGATIVE_MARGIN,
+    SIGNAL_QUOTE_GAP,
+    DetectionInputs,
+    QuoteGap,
     QuoteGapInputs,
     SkipReason,
+    band_for,
+    candidate_for,
+    fingerprint_for,
     latest_quote_per_anchor,
     margin_decline_points,
     negative_margin_dollars,
@@ -120,6 +134,41 @@ def _gap_inputs(*, billed: str, quoted: str, cost: str) -> QuoteGapInputs:
         resolved={INVOICED_ANCHOR: _invoiced(billed)},
         latest_quotes={INVOICED_ANCHOR: _amounts(quoted)},
         anchor_costs={INVOICED_ANCHOR: Decimal(cost)},
+    )
+
+
+NO_QUOTE_GAP_INPUTS = QuoteGapInputs(resolved={}, latest_quotes={}, anchor_costs={})
+
+
+def _quote_gap_of(points: Decimal) -> QuoteGap:
+    """A gap result at a chosen magnitude, for banding tests that skip the arithmetic."""
+    return QuoteGap(
+        points=points,
+        billed_margin_percent=Decimal("50.0"),
+        quote_implied_margin_percent=Decimal("50.0") + points,
+        over_quote_dollars=Decimal("100.00"),
+    )
+
+
+def _declining_buckets(latest_cost: Decimal) -> list[TrendBucket]:
+    """Two cumulative buckets at constant revenue, so cost alone sets the decline."""
+    return [
+        _bucket("2026-01", Decimal("1000.00"), Decimal("800.00")),
+        _bucket("2026-02", Decimal("1000.00"), latest_cost),
+    ]
+
+
+def _detection_inputs(
+    *,
+    figures: ProjectFinancialFigures | None = None,
+    buckets: list[TrendBucket] | None = None,
+    gap_inputs: QuoteGapInputs | None = None,
+) -> DetectionInputs:
+    """One project's detection pass with only the signals under test made to fire."""
+    return DetectionInputs(
+        figures=_figures() if figures is None else figures,
+        buckets=[] if buckets is None else buckets,
+        quote_gap_inputs=NO_QUOTE_GAP_INPUTS if gap_inputs is None else gap_inputs,
     )
 
 
@@ -399,3 +448,109 @@ def test_quote_implied_gap_sums_cost_through_the_supplied_anchor_costs() -> None
     assert lean is not None
     assert burdened is not None
     assert burdened.points > lean.points
+
+
+def test_band_for_negative_margin_is_critical_at_any_magnitude() -> None:
+    """Money is already lost — magnitude does not soften that."""
+    assert band_for(SIGNAL_NEGATIVE_MARGIN, None, None) == SEVERITY_BAND_CRITICAL
+    assert band_for(SIGNAL_NEGATIVE_MARGIN, Decimal("0.1"), None) == SEVERITY_BAND_CRITICAL
+
+
+def test_band_for_decline_at_the_critical_boundary() -> None:
+    assert band_for(SIGNAL_MARGIN_DECLINE, CRITICAL_DECLINE_POINTS, None) == SEVERITY_BAND_CRITICAL
+    assert band_for(SIGNAL_MARGIN_DECLINE, Decimal("9.9"), None) == SEVERITY_BAND_WARNING
+
+
+def test_band_for_quote_gap_at_the_critical_boundary() -> None:
+    critical = _quote_gap_of(CRITICAL_QUOTE_GAP_POINTS)
+    warning = _quote_gap_of(Decimal("9.9"))
+
+    assert band_for(SIGNAL_QUOTE_GAP, None, critical) == SEVERITY_BAND_CRITICAL
+    assert band_for(SIGNAL_QUOTE_GAP, None, warning) == SEVERITY_BAND_WARNING
+
+
+def test_fingerprint_for_renders_project_signal_and_band() -> None:
+    fingerprint = fingerprint_for(PROJECT_ID, SIGNAL_QUOTE_GAP, SEVERITY_BAND_WARNING)
+
+    assert fingerprint == f"{PROJECT_ID}:{SIGNAL_QUOTE_GAP}:{SEVERITY_BAND_WARNING}"
+
+
+def test_fingerprint_is_identical_across_repeated_detection_runs() -> None:
+    inputs = _detection_inputs(buckets=_declining_buckets(Decimal("851.00")))
+
+    first = candidate_for(inputs)
+    second = candidate_for(inputs)
+
+    assert first is not None
+    assert second is not None
+    assert first.fingerprint == second.fingerprint
+
+
+def test_fingerprint_changes_when_the_band_worsens() -> None:
+    """D-06 re-fires on worsening precisely because the band sits in the fingerprint."""
+    warning = candidate_for(_detection_inputs(buckets=_declining_buckets(Decimal("851.00"))))
+    critical = candidate_for(_detection_inputs(buckets=_declining_buckets(Decimal("900.00"))))
+
+    assert warning is not None
+    assert critical is not None
+    assert warning.band == SEVERITY_BAND_WARNING
+    assert critical.band == SEVERITY_BAND_CRITICAL
+    assert warning.fingerprint != critical.fingerprint
+
+
+def test_candidate_for_is_none_when_no_signal_fires() -> None:
+    assert candidate_for(_detection_inputs()) is None
+
+
+def test_candidate_for_reports_the_margin_decline_signal() -> None:
+    candidate = candidate_for(_detection_inputs(buckets=_declining_buckets(Decimal("851.00"))))
+
+    assert candidate is not None
+    assert candidate.signal == SIGNAL_MARGIN_DECLINE
+    assert candidate.project_id == PROJECT_ID
+    assert candidate.margin_decline_points == Decimal("5.1")
+    assert candidate.negative_margin_dollars is None
+    assert candidate.quote_gap is None
+
+
+def test_candidate_for_reports_the_quote_gap_signal() -> None:
+    candidate = candidate_for(
+        _detection_inputs(gap_inputs=_gap_inputs(billed="1000.00", quoted="2000.00", cost="100.00"))
+    )
+
+    assert candidate is not None
+    assert candidate.signal == SIGNAL_QUOTE_GAP
+    assert candidate.band == SEVERITY_BAND_WARNING
+    assert candidate.quote_gap is not None
+    assert candidate.quote_gap.points == QUOTE_IMPLIED_GAP_POINTS
+
+
+def test_candidate_for_drops_signal_figures_that_did_not_fire() -> None:
+    """A 2-point drift is not a finding, so the AI never sees it as one."""
+    candidate = candidate_for(
+        _detection_inputs(
+            buckets=_declining_buckets(Decimal("820.00")),
+            gap_inputs=_gap_inputs(billed="1000.00", quoted="2000.00", cost="100.00"),
+        )
+    )
+
+    assert candidate is not None
+    assert candidate.signal == SIGNAL_QUOTE_GAP
+    assert candidate.margin_decline_points is None
+
+
+def test_candidate_for_picks_the_most_severe_fact_when_all_three_fire() -> None:
+    candidate = candidate_for(
+        _detection_inputs(
+            figures=_figures(revenue=Decimal("1000.00"), cost=Decimal("1350.00")),
+            buckets=_declining_buckets(Decimal("900.00")),
+            gap_inputs=_gap_inputs(billed="1000.00", quoted="2000.00", cost="100.00"),
+        )
+    )
+
+    assert candidate is not None
+    assert candidate.signal == PRIMARY_SIGNAL_ORDER[0] == SIGNAL_NEGATIVE_MARGIN
+    assert candidate.band == SEVERITY_BAND_CRITICAL
+    assert candidate.negative_margin_dollars == Decimal("-350.00")
+    assert candidate.margin_decline_points is not None
+    assert candidate.quote_gap is not None
