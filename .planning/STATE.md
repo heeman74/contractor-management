@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 36-03-PLAN.md
-last_updated: "2026-07-29T19:10:55.872Z"
+stopped_at: Completed 36-05-PLAN.md
+last_updated: "2026-07-29T19:27:53.167Z"
 last_activity: 2026-07-29
 progress:
   total_phases: 22
   completed_phases: 18
   total_plans: 115
-  completed_plans: 106
+  completed_plans: 107
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 36 (ai-profitability-analysis) — EXECUTING
-Plan: 5 of 10
+Plan: 6 of 10
 Status: Ready to execute
 Last activity: 2026-07-29
 
@@ -85,6 +85,7 @@ Last activity: 2026-07-29
 | Phase 36 P01 | 20min | 3 tasks tasks | 7 files files |
 | Phase 36 P04 | 8min | 3 tasks tasks | 4 files files |
 | Phase 36 P03 | 15min | 3 tasks tasks | 3 files files |
+| Phase 36 P05 | 12min | 3 tasks tasks | 5 files files |
 
 ## Accumulated Context
 
@@ -306,6 +307,10 @@ Last activity: 2026-07-29
 - [Phase 36]: 36-03: profitability_math prose deliberately avoids the literal tokens ACTIVE_PROJECT_STATUSES, window_slice and anchor_revenues — The task acceptance criteria grep for the ABSENCE of all three to prove detection never reaches those code paths, so the plan's own suggested comments would have failed them; intent preserved in prose instead
 - [Phase 36]: 36-03: the Pitfall-5 tautology guard doubles as the empty-comparable-set guard, so quote_implied_gap has one early exit rather than two — any() over an empty set is already False, so a separate emptiness check would be an unreachable branch with no behavior difference
 - [Phase 36]: 36-03: candidate_for carries only FIRED signal figures -- a sub-threshold decline is stored as None — The payload is what the AI cites and D-05 validates cited figures, so carrying a 2-point drift would invite the AI to name it as a finding
+- [Phase 36]: 36-05: MONEY_PATTERN requires at least one comma group ((?:,\d{3})+, not the plan's *) — regex alternation is first-match-wins, so with * the grouped alternative matches "$320" inside "$3200" and the un-grouped alternative never runs — The plan's own behavior list requires "$3200" to extract as 3200; with + the grouped form takes "$3,200" and un-grouped digits fall through intact
+- [Phase 36]: 36-05: the whole-dollar grounding tolerance is one-directional — a cited "$3,200" matches payload Decimal("3200.41"), but a cited "$3,200.41" never matches payload Decimal("3200") — A model dropping cents is formatting (format_alert_money already does it); a model inventing cents is fabrication, which is exactly what SC3 must block
+- [Phase 36]: 36-05: two docstrings were reworded away from the plan's literal prose ("imports nothing from app.features" -> "carries no feature-package imports"; "returns a caller-supplied fallback dict" -> "degrades to a caller-supplied default dict") — Both acceptance criteria are token-ABSENCE greps and the plan's own suggested prose contained the exact tokens — same trap as the 36-03 prose decision; meaning preserved, only the greppable tokens changed
+- [Phase 36]: 36-05: collect_allowed_values admits only Decimal and non-bool int — strings, bools and floats are all skipped — Strings keep a project named "2026" from making "$2,026" citable; bool is an int subclass so True must not become Decimal("1"); a float in a money payload is a caller bug that should surface as an unmatched figure rather than be admitted under binary-float equality
 
 ### Pending Todos
 
@@ -326,6 +331,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-29T19:10:12.922Z
-Stopped at: Completed 36-03-PLAN.md
+Last session: 2026-07-29T19:27:23.156Z
+Stopped at: Completed 36-05-PLAN.md
 Resume file: None
