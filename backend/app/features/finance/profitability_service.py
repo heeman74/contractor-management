@@ -285,6 +285,14 @@ class ProfitabilityService(TenantScopedService[AIProfitabilityFinding]):
         if fired:
             self._schedule_profitability_pushes(fired, await self._recipients_for(company_id))
 
+    async def latest_finding(self, project_id: uuid.UUID) -> AIProfitabilityFinding | None:
+        """The newest open finding for one project, or None (FINAI-02).
+
+        The read half of the nightly write path: the same open-row predicate the
+        upsert arbitrates on, so the card goes quiet the night a condition clears.
+        """
+        return await self.repository.latest_open_for_project(project_id)
+
     async def _fire_findings(
         self, published: Sequence[PublishedFinding], company_id: uuid.UUID
     ) -> list[FiredFinding]:

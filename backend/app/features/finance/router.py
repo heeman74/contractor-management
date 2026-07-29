@@ -13,6 +13,7 @@ billing_milestones/router.py exactly:
   GET    /projects/{project_id}/cost-entries      — finance.view (rollup)
   GET    /projects/{project_id}/financials        — finance.view (drill-down, MARG-04)
   GET    /projects/{project_id}/financials/trend  — finance.view (margin trend, MARG-04)
+  GET    /projects/{project_id}/financials/finding — finance.view (latest AI finding, FINAI-02)
   GET    /jobs/{job_id}/cost-breakdown            — finance.view
   GET    /trade-scopes/{trade_scope_id}/cost-breakdown — finance.view
   GET    /financials/company                      — finance.view (MARG-04)
@@ -42,6 +43,7 @@ from app.core.security import CurrentUser, get_current_user, require_permission
 from app.features.finance.budget_service import BudgetService
 from app.features.finance.models import CostEntry
 from app.features.finance.portfolio_service import PortfolioService
+from app.features.finance.profitability_service import ProfitabilityService
 from app.features.finance.schemas import (
     BudgetCreate,
     BudgetResponse,
@@ -56,9 +58,11 @@ from app.features.finance.schemas import (
     LaborRateCreate,
     LaborRateResponse,
     MarginTrendResponse,
+    ProfitabilityFindingResponse,
     ProjectCostRollupResponse,
     ProjectFinancialsResponse,
     to_labor_cost_summary,
+    to_profitability_finding,
 )
 from app.features.finance.service import FinanceService, LaborRateService
 from app.features.finance.trend_math import DEFAULT_TREND_WINDOW
@@ -193,6 +197,27 @@ async def get_project_margin_trend(
     """Monthly cumulative margin trend for one project (MARG-04, D-10 window)."""
     await require_permission("finance.view")(current_user, db)
     return await PortfolioService(db).margin_trend(project_id, window)
+
+
+@router.get(
+    "/projects/{project_id}/financials/finding",
+    response_model=ProfitabilityFindingResponse | None,
+)
+async def get_project_profitability_finding(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> ProfitabilityFindingResponse | None:
+    """Latest open AI profitability finding for a project, or null (FINAI-02).
+
+    Its own route and its own key: a findings outage must never blank the money
+    dashboard (the shipped 35-10 two-queries rule). A project with no visible
+    finding — none tonight, or none in this tenant — is answered with null, since
+    RLS already makes a foreign row unreadable.
+    """
+    await require_permission("finance.view")(current_user, db)
+    finding = await ProfitabilityService(db).latest_finding(project_id)
+    return None if finding is None else to_profitability_finding(finding)
 
 
 # ---------------------------------------------------------------------------

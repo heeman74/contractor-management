@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field, model_validator
 from app.core.base_schemas import BaseResponseSchema
 from app.features.finance.labor_derivation import LaborTotals
 from app.features.finance.margin_math import MarginFigures
+from app.features.finance.profitability_models import AIProfitabilityFinding
 
 # ---------------------------------------------------------------------------
 # Cost entry schemas
@@ -408,6 +409,50 @@ class MarginTrendResponse(BaseModel):
     project_id: uuid.UUID
     window: str
     buckets: list[TrendBucketResponse] = Field(default_factory=list)
+
+
+class ProfitabilityFindingResponse(BaseModel):
+    """The latest OPEN AI profitability finding for one project (D-08).
+
+    The finding's one-line dashboard-alert text is deliberately NOT carried here:
+    nothing on the page renders it, and a field nothing reads is dead code. Money
+    and percent never appear as bare fields either — every figure the user sees is
+    inside the grounded prose, already validated against the stored payload.
+
+    `revenue_basis` and `labor_included` come from the finding's OWN payload, not
+    from today's figures: a finding written three nights ago must carry its own
+    data caveats rather than be captioned with fresh facts.
+    """
+
+    id: uuid.UUID
+    project_id: uuid.UUID
+    severity: str
+    narrative: str
+    corrective_action: str
+    revenue_basis: str
+    labor_included: bool
+    found_on: date
+    last_confirmed_on: date
+
+
+def to_profitability_finding(finding: AIProfitabilityFinding) -> ProfitabilityFindingResponse:
+    """Map one finding row onto the wire schema.
+
+    `severity` IS the stored band with no translation table in between — the same
+    reason the DashboardAlert carries the band as its severity: one condition must
+    never carry two names.
+    """
+    return ProfitabilityFindingResponse(
+        id=finding.id,
+        project_id=finding.project_id,
+        severity=finding.severity_band,
+        narrative=finding.narrative,
+        corrective_action=finding.corrective_action,
+        revenue_basis=finding.revenue_basis,
+        labor_included=finding.labor_included,
+        found_on=finding.found_on,
+        last_confirmed_on=finding.last_confirmed_on,
+    )
 
 
 # ---------------------------------------------------------------------------
