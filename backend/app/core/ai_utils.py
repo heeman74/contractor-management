@@ -6,6 +6,7 @@ Centralizes:
 - JSON fence stripping for AI responses
 - Done-status constants for task filtering
 - call_claude_json: shared pattern for Claude API calls with JSON parsing
+- call_claude_json_strict: the fail-closed sibling for grounded AI findings
 - gather_with_concurrency: bounded-concurrency asyncio.gather wrapper
 """
 
@@ -14,7 +15,8 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-from collections.abc import Callable, Coroutine
+from collections.abc import Callable, Coroutine, Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 from anthropic import AsyncAnthropic
@@ -105,6 +107,61 @@ async def call_claude_json(
             cleaned[:200],
         )
         return fallback
+
+
+@dataclass(frozen=True)
+class ClaudeJsonResponse:
+    """A strictly-parsed Claude JSON turn, plus the raw text the retry turn needs."""
+
+    data: dict[str, Any]
+    raw_text: str
+    input_tokens: int | None
+    output_tokens: int | None
+
+
+async def call_claude_json_strict(
+    system_prompt: str,
+    messages: Sequence[Mapping[str, str]],
+    max_tokens: int = CLAUDE_MAX_TOKENS,
+) -> ClaudeJsonResponse:
+    """Call Claude and parse the reply as JSON, raising on anything unparseable.
+
+    The strict sibling of call_claude_json. That function degrades to a
+    caller-supplied default dict on bad JSON, which is a harmless degradation for a
+    checklist and a silent-fabrication path for a grounded finding (SC3). Findings
+    fail closed.
+
+    There is NO transport retry on this path — the exponential-backoff envelope is
+    streaming-only (ai/service.py). Callers that want resilience add it deliberately;
+    the D-05 grounding retry is a VALIDATION retry and is a different thing entirely.
+    """
+    client = get_anthropic_client()
+    response = await client.messages.create(
+        model=CLAUDE_MODEL,
+        max_tokens=max_tokens,
+        system=system_prompt,
+        messages=list(messages),
+    )
+
+    if not response.content:
+        raise ValueError("Empty response from Claude")
+
+    raw_text = strip_fences(response.content[0].text)
+    input_tokens, output_tokens = _token_counts(response)
+    return ClaudeJsonResponse(
+        data=json.loads(raw_text),
+        raw_text=raw_text,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+    )
+
+
+def _token_counts(response: Any) -> tuple[int | None, int | None]:
+    """Read the usage block defensively — a response without one must never fail a run."""
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return None, None
+    return getattr(usage, "input_tokens", None), getattr(usage, "output_tokens", None)
 
 
 async def gather_with_concurrency[T](
