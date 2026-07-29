@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
-status: verifying
-stopped_at: Phase 36 context gathered
-last_updated: "2026-07-29T06:22:54.932Z"
+status: executing
+stopped_at: Completed 36-02-PLAN.md
+last_updated: "2026-07-29T18:47:10.374Z"
 last_activity: 2026-07-29
 progress:
   total_phases: 22
   completed_phases: 18
-  total_plans: 105
-  completed_plans: 102
+  total_plans: 115
+  completed_plans: 103
 ---
 
 # Project State
@@ -20,13 +20,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-24)
 
 **Core value:** AI eliminates the chaos of multi-trade coordination — GCs always know where every trade stands, contractors always know what to do today, projects stay on track.
-**Current focus:** Phase 35 — web-financial-dashboard
+**Current focus:** Phase 36 — ai-profitability-analysis
 
 ## Current Position
 
-Phase: 36
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 36 (ai-profitability-analysis) — EXECUTING
+Plan: 2 of 10
+Status: Ready to execute
 Last activity: 2026-07-29
 
 ## Performance Metrics
@@ -81,6 +81,7 @@ Last activity: 2026-07-29
 | Phase 35 P07 | 24min | 3 tasks tasks | 6 files files |
 | Phase 35 P11 | 23min | 3 tasks tasks | 1 file files |
 | Phase 35 P08 | 52 min | 3 tasks | 2 files |
+| Phase 36 P02 | 15min | 3 tasks tasks | 9 files files |
 
 ## Accumulated Context
 
@@ -287,6 +288,9 @@ Last activity: 2026-07-29
 - [Phase 35-web-financial-dashboard]: 35-08: _MAX_COMPANY_ROLLUP_STATEMENTS pinned to the first observed run (13) + 2 headroom = 15, not the plan's estimated ~9-11 — The equality of the 5-project and 25-project counts is the D-03 contract; the absolute is whatever the first run measures. 13 includes the two RLS SET LOCALs and the permission lookup, which run per request and a warm-up cannot exclude.
 - [Phase 35-web-financial-dashboard]: 35-08: company rollup latency ceiling committed at 400ms (~2x the middle of three measured medians 127/199/252ms), tightened from the initial 1500ms; no cache or snapshot table added — 1500ms would pass even if the rollup got 6x slower. 2x the idle-best (250ms) reddens under ordinary load; 2x the worst (500ms) gives away the teeth. In-process ASGI + local Postgres is evidence, not a production SLO.
 - [Phase 35-web-financial-dashboard]: 35-08: the query-count invariance test is the primary N+1 guard and the wall clock is secondary — verified by mutation (a per-project rollup_for_project loop moved the count 43 -> 163) — A latency ceiling generous enough never to flake on shared CI is also generous enough to hide a reintroduced per-project loop; the statement count is deterministic regardless of machine load.
+- [Phase 36]: 36-02: Finding hook tests mock apiGet (the HTTP layer), not the api-module fetcher -- the plan behaviors "exactly one fetch to the finding path" and the snake_case mapping both live inside that fetcher and are unobservable through a module-boundary mock — Driving the real fetcher against a mocked HTTP layer proves the gate, the path and the mapper in one test; the zero-request assertion also becomes stronger (nothing reaches the wire, not merely that a wrapper went uncalled)
+- [Phase 36]: 36-02: The finding hook zero-request test is mutation-verified, not merely written -- reducing enabled to !!projectId fails it with one request to the finding path, and restoring the gate returns 140/140 green — A zero-request assertion that was never observed failing can pass for the wrong reason, which is exactly the SC2 trap the UI-SPEC warns about
+- [Phase 36]: 36-02: FINANCE_ALERT_CHIP_CLASS extraction confirmed safe by running the shipped Phase 35 suite (134 green), not by assuming byte equality -- the new literal is the same class set in a different token order — The shipped assertions are per-token toHaveClass checks; the composed OVER_BUDGET_BADGE_CLASS and the flat literal differ as strings but not as class sets
 
 ### Pending Todos
 
@@ -306,6 +310,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-29T06:22:54.911Z
-Stopped at: Phase 36 context gathered
-Resume file: .planning/phases/36-ai-profitability-analysis/36-CONTEXT.md
+Last session: 2026-07-29T18:47:10.367Z
+Stopped at: Completed 36-02-PLAN.md
+Resume file: None
