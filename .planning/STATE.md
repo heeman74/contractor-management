@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 36-08-PLAN.md
-last_updated: "2026-07-29T22:28:30.671Z"
+stopped_at: Completed 36-09-PLAN.md
+last_updated: "2026-07-29T22:58:37.576Z"
 last_activity: 2026-07-29
 progress:
   total_phases: 22
   completed_phases: 18
   total_plans: 115
-  completed_plans: 110
+  completed_plans: 111
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 36 (ai-profitability-analysis) — EXECUTING
-Plan: 9 of 10
+Plan: 10 of 10
 Status: Ready to execute
 Last activity: 2026-07-29
 
@@ -89,6 +89,7 @@ Last activity: 2026-07-29
 | Phase 36 P06 | 2h 25m | 2 tasks | 5 files |
 | Phase 36 P07 | 26min | 3 tasks tasks | 3 files files |
 | Phase 36 P08 | 26min | 2 tasks tasks | 2 files files |
+| Phase 36 P09 | 26min | 2 tasks tasks | 4 files files |
 
 ## Accumulated Context
 
@@ -326,6 +327,11 @@ Last activity: 2026-07-29
 - [Phase 36]: 36-08: PublishResult.qualifying_fingerprints is built from EVERY candidate (raised calls, over-length drafts, cap drops included), never from published — D-06 keep-set correctness: built from published, a transient Claude failure would resolve a still-true finding, and the next successful night would insert a fresh unalerted row and alert a condition that never cleared (RESEARCH Pitfall 6).
 - [Phase 36]: 36-08: a confirmed Claude reply with empty text is dropped as malformed, not published -- the prompt reserves empty strings for a dismissal — Empty strings pass grounding (no figures) and pass the length bounds, so without this guard a malformed reply would persist a finding with a blank card and a blank alert body.
 - [Phase 36]: 36-08: cap/length tests hand publish_findings synthetic ProfitabilityCandidates with distinct fingerprints against one seeded project, and the Claude mock answers from payload content rather than call order — The cap and the length rule are orchestration properties, not detection ones; identical fingerprints would upsert onto one open row and make a cap assertion meaningless, and gather_with_concurrency interleaves calls so a positional side_effect list would be flaky. Cap-after-validation is mutation-verified (7 findings and 0 cap logs when the cap is counted before validation).
+- [Phase 36]: 36-09: analyze_company builds the D-06 keep-set from result.qualifying_fingerprints, never from the published list -- mutation-verified — Swapping in the published-based keep-set fails exactly test_transient_claude_failure_does_not_resolve_or_realert (1 failed, 5 passed) and restoring returns 6 passed. Under that mutation a raised Claude call empties the keep-set, resolves a still-true finding, and the next successful night inserts a fresh unalerted row and fires a SECOND alert for a condition that never cleared.
+- [Phase 36]: 36-09: the lifecycle test fixture starts in the WARNING band (1,200 cost / 10,000 invoiced / 20,000 quoted = exactly 6.0 gap points) and worsens by ADDING COST to 3,000 (15.0 points) — The shipped _seed_analyzable_project is a 33.3-point gap -- already critical on night one, so there is nowhere to escalate to. Both figures land on exact one-decimal values so no rounding boundary is straddled, and the margin stays positive at both cost levels so negative_margin cannot pre-empt the quote-gap signal. Cost is the only lever available: QuoteService.create_quote rejects a job that is not in quote status and _create_invoice marks the job complete, so a second approved quote at the same anchor would 409.
+- [Phase 36]: 36-09: the cleared-then-recurring test pauses and re-activates the project instead of billing the gap away — Billing up to the quote amount clears the condition but a later recurrence carries a DIFFERENT fingerprint, which re-alerts through the band-change path keystone 2 already covers. Pausing keeps the fingerprint byte-identical, so the second alert can only come from resolve-then-reinsert -- the D-06 mechanism actually under test.
+- [Phase 36]: 36-09: a raised Claude transport error consumes no D-05 grounding retry -- exactly one call on a failing night — The exception propagates out of _draft_for before the retry loop can iterate, and gather_with_concurrency isolates it into a None draft. The first RED assertion expected GROUNDING_RETRY_LIMIT + 1 calls and was wrong about the code, not the reverse.
+- [Phase 36]: 36-09: send_profitability_finding_notification gained its own unit tests in test_notification_service.py rather than inheriting the budget sibling's coverage gap — The e2e suite patches the method to assert WHO it addresses, so its body -- token lookup, empty-recipient guard, dispatch loop, credential-free degradation -- would have shipped with zero executed coverage. send_budget_alert_notification has exactly that gap, so copying the precedent would have propagated it.
 
 ### Pending Todos
 
@@ -347,6 +353,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-29T22:27:58.463Z
-Stopped at: Completed 36-08-PLAN.md
+Last session: 2026-07-29T22:58:06.179Z
+Stopped at: Completed 36-09-PLAN.md
 Resume file: None
