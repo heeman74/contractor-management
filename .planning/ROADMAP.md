@@ -422,7 +422,7 @@ Plans:
   1. Owner/PM can view a web financial dashboard showing margin trend and budget-vs-actual charts for any project
   2. Owner/PM can view a company-wide financial rollup alongside the existing v2.0 reporting dashboard, using the same navigation and visual conventions
   3. A user without finance.* permission does not see the Financials nav item or any financial dashboard route at all
-**Plans:** 8/11 plans executed
+**Plans:** 9/11 plans executed
 **UI hint**: yes
 
 Plans:
@@ -432,7 +432,7 @@ Plans:
 - [x] 35-04-PLAN.md — Web data layer: financial response types, snake_case mappers, permission-gated TanStack hooks
 - [x] 35-05-PLAN.md — GET /financials/company: batched PortfolioRepository/Service, portfolio totals, attention tiers, equivalence pin
 - [x] 35-06-PLAN.md — GET /projects/{id}/financials: aggregate-only drill-down with per-scope budget-vs-actual
-- [ ] 35-07-PLAN.md — GET /projects/{id}/financials/trend: dense monthly buckets by as-of replay, reconciled to the shipped rollup
+- [x] 35-07-PLAN.md — GET /projects/{id}/financials/trend: dense monthly buckets by as-of replay, reconciled to the shipped rollup
 - [ ] 35-08-PLAN.md — D-03 evidence (query-count invariance + measured latency ceiling) and SC3 backend gating/RLS tests
 - [x] 35-09-PLAN.md — /financials company overview: summary tiles, bullet-bar chart, attention list, All Projects table
 - [x] 35-10-PLAN.md — /financials/[projectId] drill-down: margin trend + window selector, scope budget bars, category mix
@@ -503,6 +503,6 @@ Note: Phase 37 (AI Quote Planning) depends only on Phase 32 and may run in paral
 | 32. Labor Rates and Cost Rollup | v4.0 | 5/5 | Complete    | 2026-07-27 |
 | 33. Profit Margin Tracking | v4.0 | 5/5 | Complete    | 2026-07-28 |
 | 34. Budgeting and Overrun Alerts | v4.0 | 8/8 | Complete    | 2026-07-28 |
-| 35. Web Financial Dashboard | v4.0 | 8/11 | In Progress|  |
+| 35. Web Financial Dashboard | v4.0 | 9/11 | In Progress|  |
 | 36. AI Profitability Analysis | v4.0 | 0/? | Not started | - |
 | 37. AI Quote Planning | v4.0 | 0/? | Not started | - |

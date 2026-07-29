@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 35-10-PLAN.md
-last_updated: "2026-07-29T04:21:27.262Z"
+stopped_at: Completed 35-07-PLAN.md
+last_updated: "2026-07-29T04:25:25.710Z"
 last_activity: 2026-07-29
 progress:
   total_phases: 22
   completed_phases: 17
   total_plans: 105
-  completed_plans: 99
+  completed_plans: 100
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 35 (web-financial-dashboard) — EXECUTING
-Plan: 9 of 11
+Plan: 10 of 11
 Status: Ready to execute
 Last activity: 2026-07-29
 
@@ -78,6 +78,7 @@ Last activity: 2026-07-29
 | Phase 35 P06 | 11min | 3 tasks | 5 files |
 | Phase 35 P09 | 25min | 3 tasks | 10 files |
 | Phase 35 P10 | 11min | 3 tasks tasks | 8 files files |
+| Phase 35 P07 | 24min | 3 tasks tasks | 6 files files |
 
 ## Accumulated Context
 
@@ -275,6 +276,10 @@ Last activity: 2026-07-29
 - [Phase 35-web-financial-dashboard]: 35-10: isNotFoundError reads ApiError.status, never the message text, so wrong-tenant / soft-deleted / bad-id all take one 404 path with no bare cast
 - [Phase 35-web-financial-dashboard]: 35-10: Custom category pie fills draw from a pool (two reserved custom hues plus any unclaimed system hue) so the six-slice cap can never exhaust or repeat the ramp
 - [Phase 35-web-financial-dashboard]: 35-10: A failing trend query degrades to its own empty state instead of blanking the drill-down — two queries, two keys, two failure surfaces
+- [Phase 35-web-financial-dashboard]: 35-07: Dated aggregate rows are read BY LABEL (row.issued_at / row.approved_on) through one _to_dated_document mapper, never by the plan's positional date_index — portfolio_repository's own row-access rule forbids positional reads past the shared six columns so an appended column cannot silently shift a value; passing the resolved timestamp as an argument also removes a getattr indirection and any column-name constants
+- [Phase 35-web-financial-dashboard]: 35-07: The dated-quote query keeps ORDER BY Quote.created_at DESC rather than ordering by the new approved_on — The first row per anchor is what D-01 resolves against; reordering would make the trend resolve a different quote than rollup_for_project does and break the final-bucket reconciliation that is the trend's only self-check
+- [Phase 35-web-financial-dashboard]: 35-07: test_trend_quote_without_approved_at_uses_created_at backdates created_at via SQL instead of relying on insert time — An undated approval created 'now' lands only in the final bucket where every quote lands anyway, so the test would pass vacuously; backdating proves the COALESCE fallback actually dates the quote at an earlier bucket
+- [Phase 35-web-financial-dashboard]: 35-07: Margin-trend test fixtures are dated relative to the current UTC month, never to a fixed calendar year like _seed_date — The endpoint's last bucket is always the current UTC month, so hard-coded dates drift out of every window as time passes and the tests quietly stop asserting anything
 
 ### Pending Todos
 
@@ -294,6 +299,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-29T04:21:08.053Z
-Stopped at: Completed 35-10-PLAN.md
+Last session: 2026-07-29T04:25:01.733Z
+Stopped at: Completed 35-07-PLAN.md
 Resume file: None
