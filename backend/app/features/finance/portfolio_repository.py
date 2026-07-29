@@ -176,6 +176,32 @@ class PortfolioRepository(TenantScopedRepository[Project]):
             latest.setdefault(row.project_id, to_anchored_amounts(row)[1])
         return latest
 
+    async def project_header(self, project_id: uuid.UUID) -> Row | None:
+        """(id, name, status) for one live project, or None — RLS scopes the tenant.
+
+        Column-only: the drill-down needs no Project relationship, and a
+        cross-tenant or soft-deleted id must read as absent, not as a row.
+        """
+        result = await self.db.execute(
+            select(Project.id, Project.name, Project.status).where(
+                Project.id == project_id, Project.deleted_at.is_(None)
+            )
+        )
+        return result.first()
+
+    async def trade_scopes_for_project(self, project_id: uuid.UUID) -> list[Row]:
+        """(id, trade_name) for a project's live trade scopes, ordered by sort_order.
+
+        Column-only: TradeScope relationships are lazy="raise" and the drill-down
+        needs none of them.
+        """
+        result = await self.db.execute(
+            select(TradeScope.id, TradeScope.trade_name)
+            .where(TradeScope.project_id == project_id, TradeScope.deleted_at.is_(None))
+            .order_by(TradeScope.sort_order)
+        )
+        return list(result.all())
+
     async def trade_scope_labels(
         self, trade_scope_ids: list[uuid.UUID]
     ) -> dict[uuid.UUID, tuple[uuid.UUID, str]]:

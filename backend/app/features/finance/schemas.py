@@ -343,6 +343,36 @@ class CompanyFinancialsResponse(BaseModel):
     attention: list[AttentionRow] = Field(default_factory=list)
 
 
+class ProjectScopeBudgetRow(BaseModel):
+    """One trade scope's budget-vs-actual on the project drill-down.
+
+    `spent` is the scope's cost-entry total (all categories, no derived labor) —
+    the same definition FinanceService.trade_scope_spend produces, batched
+    through BudgetRepository.scope_spends. Labor is job-anchored (D-08), so this
+    figure honestly excludes it and the UI says so.
+    """
+
+    trade_scope_id: uuid.UUID
+    trade_name: str
+    spent: Decimal
+    budget: BudgetVsActual | None = None
+
+
+class ProjectFinancialsResponse(BaseModel):
+    """Window-independent drill-down aggregate (MARG-04).
+
+    Carries aggregates only — never `entries[]`; a chart page must not download
+    unbounded itemized rows. `breakdown` is the shipped CostBreakdownResponse
+    verbatim, so the web's existing mapCostBreakdown parses it unchanged.
+    """
+
+    project_id: uuid.UUID
+    name: str
+    status: str
+    breakdown: CostBreakdownResponse
+    scopes: list[ProjectScopeBudgetRow] = Field(default_factory=list)
+
+
 # ---------------------------------------------------------------------------
 # Labor rate schemas
 # ---------------------------------------------------------------------------
