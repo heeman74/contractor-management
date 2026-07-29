@@ -142,8 +142,12 @@ def _labor_by_job(
     }
 
 
-def _contributing_anchor_cost(anchor: RevenueAnchor, context: ProjectMarginContext) -> Decimal:
-    """One anchor's cost-entry sum plus, for job anchors, its derived labor total."""
+def contributing_anchor_cost(anchor: RevenueAnchor, context: ProjectMarginContext) -> Decimal:
+    """One anchor's cost-entry sum plus, for job anchors, its derived labor total.
+
+    Public so the profitability detector composes this shipped predicate instead of
+    restating the job-anchor labor fold, which would drift from the margin rollup.
+    """
     cost = context.anchor_costs.get(anchor, ZERO_MONEY)
     if anchor.job_id is None:
         return cost
@@ -156,7 +160,7 @@ def _any_anchor_missing_cost_data(
 ) -> bool:
     """D-12: any revenue-bearing anchor with zero cost flags the whole project."""
     return any(
-        missing_cost_data(_contributing_anchor_cost(anchor, context), revenue.total)
+        missing_cost_data(contributing_anchor_cost(anchor, context), revenue.total)
         for anchor, revenue in resolved_anchors.items()
     )
 
