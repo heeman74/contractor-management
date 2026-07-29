@@ -446,13 +446,13 @@ Plans:
   1. Every active project is analyzed by AI on a nightly schedule, and margin erosion is flagged with a specific, suggested corrective action
   2. Owner/PM receives a finance-gated alert for each AI profitability finding — the alert is invisible to any user without finance.* permission
   3. Every dollar figure stated in an AI profitability finding traces to a real tool-sourced cost/margin/budget value, never an AI estimate
-**Plans:** 2/10 plans executed
+**Plans:** 3/10 plans executed
 
 Plans:
 - [x] 36-01-PLAN.md — Findings table + RLS + alert-type registration in all three literals + ProfitabilityRepository (upsert/claim/resolve)
 - [x] 36-02-PLAN.md — Web data layer: ProfitabilityFinding type, fetcher, permission-gated hook, formatFindingDate, chip/caption extractions
 - [ ] 36-03-PLAN.md — DB-free profitability_math: D-01 eligibility, the three D-03 signals, severity bands, fingerprint
-- [ ] 36-04-PLAN.md — ProfitabilityFindingCard + drill-down mount + jest state matrix
+- [x] 36-04-PLAN.md — ProfitabilityFindingCard + drill-down mount + jest state matrix
 - [ ] 36-05-PLAN.md — Reusable ai_grounding validator, call_claude_json_strict, the D-09 prompt contract
 - [ ] 36-06-PLAN.md — Playwright: finding render, SC2 deny + zero-request keystone, findings-outage isolation
 - [ ] 36-07-PLAN.md — Candidate scan: PortfolioService public seams, eligibility pass, aggregates-only payload with named deltas
@@ -517,5 +517,5 @@ Note: Phase 37 (AI Quote Planning) depends only on Phase 32 and may run in paral
 | 33. Profit Margin Tracking | v4.0 | 5/5 | Complete    | 2026-07-28 |
 | 34. Budgeting and Overrun Alerts | v4.0 | 8/8 | Complete    | 2026-07-28 |
 | 35. Web Financial Dashboard | v4.0 | 11/11 | Complete    | 2026-07-29 |
-| 36. AI Profitability Analysis | v4.0 | 2/10 | In Progress|  |
+| 36. AI Profitability Analysis | v4.0 | 3/10 | In Progress|  |
 | 37. AI Quote Planning | v4.0 | 0/? | Not started | - |

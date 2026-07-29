@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 36-01-PLAN.md
-last_updated: "2026-07-29T18:50:31.203Z"
+stopped_at: Completed 36-04-PLAN.md
+last_updated: "2026-07-29T19:01:27.169Z"
 last_activity: 2026-07-29
 progress:
   total_phases: 22
   completed_phases: 18
   total_plans: 115
-  completed_plans: 104
+  completed_plans: 105
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 36 (ai-profitability-analysis) — EXECUTING
-Plan: 3 of 10
+Plan: 4 of 10
 Status: Ready to execute
 Last activity: 2026-07-29
 
@@ -83,6 +83,7 @@ Last activity: 2026-07-29
 | Phase 35 P08 | 52 min | 3 tasks | 2 files |
 | Phase 36 P02 | 15min | 3 tasks tasks | 9 files files |
 | Phase 36 P01 | 20min | 3 tasks tasks | 7 files files |
+| Phase 36 P04 | 8min | 3 tasks tasks | 4 files files |
 
 ## Accumulated Context
 
@@ -296,6 +297,10 @@ Last activity: 2026-07-29
 - [Phase 36]: 36-01: the Pitfall 3 alert-type drift guard reads the CheckConstraint expression off DashboardAlert.__table__, not just an ORM insert — a SQLAlchemy CheckConstraint is DDL-only and never runs on flush, and conftest builds the schema via alembic, so an insert proves the migration value list and nothing about models.py (verified by mutation)
 - [Phase 36]: 36-01: claim_alert keeps the Phase 34 post-claim ORM expire so a caller that upserts then claims in one session cannot read a stale alerted_at NULL and publish a second alert
 - [Phase 36]: 36-01: docker compose up migrate can silently no-op — the migrate service builds from ./backend, so a cached image without the new migration exits 0 at the old revision; use --build after adding a migration
+- [Phase 36]: 36-04: incompleteCostData reads breakdown.margin?.incomplete ?? false, not the plan's non-optional access — CostBreakdown.margin is MarginSummary | null, so the literal would fail tsc --noEmit and throw on the shipped null-margin drill-down path; a revenue-less project then falls into the plain empty state, exactly the variant bound the UI-SPEC states
+- [Phase 36]: 36-04: the shipped drill-down test's jest.mock hooks factory was extended with useProjectProfitabilityFinding rather than the dashboard importing the hook defensively — jest.mock with a module factory replaces the whole module, so a newly imported hook arrives undefined and 19 shipped tests failed with 'not a function'; hiding that behind an import-time guard would put test scaffolding in production code
+- [Phase 36]: 36-04: the findings keystone needs TWO tests -- an errored query and an in-flight query -- because only the in-flight one mutation-catches a widened page loading gate — isError implies isLoading false, so adding finding.isLoading to the gate leaves the error test green; verified by mutation (exactly one test fails, then restored)
+- [Phase 36]: 36-04: jest path patterns for route-group directories must escape the parentheses -- npx jest "src/app/\(dashboard\)/financials", not the plan's unescaped form — Jest treats the pattern as a regex, so (dashboard) is a capture group and matches zero files -- the command exits 1 with 'No tests found' and reads like a real failure
 
 ### Pending Todos
 
@@ -315,6 +320,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-29T18:49:36.885Z
-Stopped at: Completed 36-01-PLAN.md
+Last session: 2026-07-29T19:00:57.767Z
+Stopped at: Completed 36-04-PLAN.md
 Resume file: None
