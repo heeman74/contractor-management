@@ -2,13 +2,23 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { TrendingUp } from "lucide-react";
 
+import { ChartCard } from "@/app/(dashboard)/reports/_components/chart-card";
 import { FinanceSummaryTiles } from "@/app/(dashboard)/financials/_components/finance-summary-tiles";
 import { FinancialsSkeleton } from "@/app/(dashboard)/financials/_components/financials-skeleton";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { useProjectFinancials, useProjectMarginTrend } from "@/features/finance/hooks";
 import { DEFAULT_TREND_WINDOW, type TrendWindow } from "@/features/finance/types";
 import { ApiError } from "@/lib/api-client";
+import {
+  MarginTrendChart,
+  TREND_CSV_FILENAME,
+  TREND_TITLE,
+  trendCsvRows,
+  trendMonthsKpi,
+} from "./margin-trend-chart";
+import { TREND_WINDOW_NOTE, TrendWindowFilter } from "./trend-window-filter";
 
 const NOT_FOUND_STATUS = 404;
 const FINANCIALS_PATH = "/financials";
@@ -57,6 +67,7 @@ export default function ProjectFinancialsDashboard({
   if (financials.isError || !financials.data) return <LoadErrorPanel />;
 
   const { name, status, breakdown } = financials.data;
+  const buckets = trend.data?.buckets ?? [];
 
   return (
     <div className="space-y-6">
@@ -70,6 +81,21 @@ export default function ProjectFinancialsDashboard({
         margin={breakdown.margin}
         testIdPrefix={PROJECT_TEST_ID_PREFIX}
       />
+
+      <ChartCard
+        title={TREND_TITLE}
+        kpiValue={trendMonthsKpi(buckets)}
+        icon={TrendingUp}
+        csvFilename={TREND_CSV_FILENAME}
+        csvRows={trendCsvRows(buckets)}
+        ariaLabel={`${TREND_TITLE} chart`}
+      >
+        <TrendWindowFilter window={trendWindow} onWindowChange={setTrendWindow} />
+        <p data-testid="trend-window-note" className="mt-2 text-xs text-gray-500">
+          {TREND_WINDOW_NOTE}
+        </p>
+        <MarginTrendChart buckets={buckets} isRefetching={trend.isFetching} />
+      </ChartCard>
     </div>
   );
 }

@@ -18,34 +18,48 @@ import {
 } from "@/components/shared/chart-theme";
 import type { BudgetVsActual } from "./types";
 
-const MONTH_ABBREVIATIONS = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
   "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
+const ABBREVIATION_LENGTH = 3;
 const YEAR_SUFFIX_START = 2;
 const DOLLARS_PER_THOUSAND = 1000;
 const AXIS_STEP = 10;
 const ELLIPSIS = "…";
 const NO_MONEY = 0;
 
-/** "2026-03" -> "Mar 26", by splitting the string. A Date is never constructed:
- *  a date-only string shifts a day — and therefore a month — across timezones. */
-export function formatMonthLabel(month: string): string {
+/** Splits "YYYY-MM" rather than constructing a Date: a date-only string shifts a
+ *  day — and therefore a month — across timezones. */
+function monthParts(month: string): { name: string; year: string } | null {
   const [year, monthNumber] = month.split("-");
-  const abbreviation = MONTH_ABBREVIATIONS[Number(monthNumber) - 1];
-  if (!year || !abbreviation) return month;
-  return `${abbreviation} ${year.slice(YEAR_SUFFIX_START)}`;
+  const name = MONTH_NAMES[Number(monthNumber) - 1];
+  return year && name ? { name, year } : null;
+}
+
+/** "2026-03" -> "Mar 26" — the dense axis tick. */
+export function formatMonthLabel(month: string): string {
+  const parts = monthParts(month);
+  if (!parts) return month;
+  return `${parts.name.slice(0, ABBREVIATION_LENGTH)} ${parts.year.slice(YEAR_SUFFIX_START)}`;
+}
+
+/** "2026-03" -> "March 2026" — the trend tooltip, where there is room to spell it. */
+export function formatFullMonthLabel(month: string): string {
+  const parts = monthParts(month);
+  if (!parts) return month;
+  return `${parts.name} ${parts.year}`;
 }
 
 /** 12000 -> "$12k", -4000 -> "-$4k". The sign leads the symbol, matching
