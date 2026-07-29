@@ -18,3 +18,18 @@ plan; each names the plan that should own it.
   36-08). The assertion should read as a superset check or explicitly include
   `ai_profitability` — the current exact-equality form re-breaks on every new
   financial alert type.
+
+## Carried from 36-VERIFICATION.md (2026-07-29)
+
+- **Two pre-existing ungated alert surfaces (Phase 30/34-owned, not introduced here):**
+  `active_alert_count` leaks an existence signal only (no figures), and
+  `POST /alerts/{id}/read|accept|dismiss` returns `impact_text` — currently unreachable
+  for a non-finance caller, who has no path to obtain the alert UUID. Worth closing if a
+  future phase ever exposes alert ids more broadly.
+- **`ai_grounding._matches_as_percent` does not distinguish percent- from money-typed
+  payload values**, and the whole-dollar loosening means a payload value of `0.30` makes
+  `"$0"` citable. These are narrow false-ACCEPTS, never fabrications. Tighten when
+  Phase 37 reuses the module.
+- **`finance_scrub.py`'s "Phase 34/36 wire this in" docstring is stale** — Phase 36 chose
+  the stronger posture of never letting finance data enter non-finance AI payloads at all,
+  so there was nothing to scrub. Reword when next touched.
