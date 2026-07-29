@@ -75,7 +75,8 @@ created: 2026-07-28
 | MARG-04 / SC3 | Tenant B cannot read tenant A's project financials (RLS) | integration | `pytest tests/test_phase_35_e2e.py::test_project_financials_rls_isolation -x` | 35-06 T3 | ❌ Wave 0 |
 | MARG-04 / SC3 | Tenant B's company rollup excludes tenant A entirely (RLS) | integration | `pytest tests/test_phase_35_e2e.py::test_company_rollup_is_tenant_isolated -x` | 35-08 T3 | ❌ Wave 0 |
 | MARG-04 / SC3 | Gate renders loading / deny / children branches | unit (jest) | `npx jest src/features/finance/__tests__/finance-gate.test.tsx` | 35-03 T2 | ❌ Wave 0 |
-| MARG-04 / SC3 | Every financial query carries `enabled: can("finance.view")` | unit (jest) + grep | `npx jest src/features/finance/__tests__/financials-api.test.ts` | 35-04 T2-T3 | ❌ Wave 0 |
+| MARG-04 / SC3 | Denied user's hooks issue **zero** fetches; permitted user's issue exactly one each (the load-bearing half of the SC3 keystone) | unit (jest) | `npx jest src/features/finance/__tests__/financials-hooks.test.tsx` | 35-04 T3 | ❌ Wave 0 |
+| MARG-04 / SC3 | Response mappers preserve nulls and hit the right paths | unit (jest) | `npx jest src/features/finance/__tests__/financials-api.test.ts` | 35-04 T2 | ❌ Wave 0 |
 | MARG-04 / SC3 | Non-finance user sees no Financials nav item | e2e | `npx playwright test tests/phase-35-financials.spec.ts -g "nav item"` | 35-11 T2 | ❌ Wave 0 |
 | MARG-04 / SC3 | Direct `/financials` + `/financials/[id]` → deny panel AND zero `/api/v1/financials/*` proxy requests | e2e | `npx playwright test tests/phase-35-financials.spec.ts -g "direct navigation"` | 35-11 T2 | ❌ Wave 0 |
 | MARG-04 / SC3 | Finance user sees nav item and reaches both routes by SPA navigation | e2e | `npx playwright test tests/phase-35-financials.spec.ts -g "finance user"` | 35-11 T2 | ❌ Wave 0 |
@@ -93,7 +94,7 @@ created: 2026-07-28
 **Seed:** one company with 25 projects × (4 scopes, 2 jobs, 20 cost entries, 50 completed time entries, 2 invoices, 2 approved quotes) + 25 project budgets + 100 scope budgets ≈ 5,000 financial records.
 
 **Two assertions, both required:**
-1. **Query-count invariant (primary, deterministic):** SQL statement count for `GET /financials/company` at 25 projects equals the count at 5 projects (expected ~8–9), measured via a `before_cursor_execute` listener.
+1. **Query-count invariant (primary, deterministic):** SQL statement count for `GET /financials/company` at 25 projects **equals** the count at 5 projects, measured via a `before_cursor_execute` listener. The equality is the contract; the absolute value (~9–11, given the scope-label and scope-spend queries on top of the 8 core aggregates) is **pinned to whatever the first run observes** and recorded in `_MAX_COMPANY_ROLLUP_STATEMENTS` — never a guessed constant.
 2. **Wall-clock ceiling:** discard one warm-up, time 5 requests, median < **1500 ms** (the initial committed value in `_COMPANY_ROLLUP_LATENCY_BUDGET_MS`, plan 35-08 T2).
 
 **Follow-up rule:** if the first measured median ≪ 1500 ms, tighten the committed ceiling to ~2× the measured median. If it exceeds 1500 ms, the cache/snapshot decision reopens as a follow-up — never silently added this phase.
