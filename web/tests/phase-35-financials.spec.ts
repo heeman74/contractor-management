@@ -321,6 +321,7 @@ const MARGIN_TREND_3M = {
 
 const PROXY_GLOB = "**/api/proxy**";
 const FINANCIALS_PATH_MARKER = "/financials";
+const FINDING_PATH_MARKER = "/financials/finding";
 const TREND_PATH_MARKER = "/financials/trend";
 const COMPANY_FINANCIALS_PATH = "/api/v1/financials/company";
 const PERMISSIONS_PATH_MARKER = "/me/permissions";
@@ -411,6 +412,14 @@ async function mockFinanceRoutes(page: Page, options: FinanceMockOptions) {
     const path = new URL(route.request().url()).searchParams.get("path") ?? "";
     if (path.includes(FINANCIALS_PATH_MARKER)) options.financialRequests.push(path);
 
+    // The drill-down's third query, added in Phase 36. It needs an explicit
+    // branch — the shell-chatter fallback would answer it with `[]`, which is
+    // not a finding shape, and the boundary validator would reject and retry it
+    // mid-test. These tests care only that the request is counted, so it gets
+    // the honest "no open finding" body.
+    if (path.includes(FINDING_PATH_MARKER)) {
+      return route.fulfill({ json: null });
+    }
     if (path.includes(TREND_PATH_MARKER)) {
       const isShortWindow = path.includes(SHORT_WINDOW_QUERY);
       return route.fulfill({ json: isShortWindow ? MARGIN_TREND_3M : MARGIN_TREND_12M });

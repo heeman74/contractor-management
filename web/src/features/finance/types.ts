@@ -243,6 +243,8 @@ export interface MarginTrend {
  *  fingerprint, so renaming one silently re-alerts every open finding. */
 export type FindingSeverity = "warning" | "critical";
 
+export const FINDING_SEVERITIES: readonly FindingSeverity[] = ["warning", "critical"];
+
 /** The latest OPEN AI profitability finding for one project (D-08).
  *  Money and percent never appear as bare fields: every figure the user sees is
  *  inside the grounded prose, already formatted and validated server-side. */

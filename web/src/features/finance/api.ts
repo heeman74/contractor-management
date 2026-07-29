@@ -29,7 +29,7 @@ import type {
   FindingSeverity,
   ProfitabilityFinding,
 } from "./types";
-import { TREND_WINDOWS } from "./types";
+import { FINDING_SEVERITIES, TREND_WINDOWS } from "./types";
 
 // --- Raw API response shapes (snake_case, mirroring backend schemas) ---
 
@@ -599,13 +599,17 @@ interface ProfitabilityFindingApiResponse {
   last_confirmed_on: string;
 }
 
+/** The band is validated rather than cast: it indexes the severity-chip map, so
+ *  an unknown value would surface as a render-time crash that takes the whole
+ *  money dashboard down with it. A bad payload fails here instead, where the
+ *  query turns into the card's own error state. */
 function mapProfitabilityFinding(
   raw: ProfitabilityFindingApiResponse
 ): ProfitabilityFinding {
   return {
     id: raw.id,
     projectId: raw.project_id,
-    severity: raw.severity,
+    severity: toKnownValue(raw.severity, FINDING_SEVERITIES, "finding severity"),
     narrative: raw.narrative,
     correctiveAction: raw.corrective_action,
     revenueBasis: raw.revenue_basis,

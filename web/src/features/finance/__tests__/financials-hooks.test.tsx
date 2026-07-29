@@ -250,6 +250,23 @@ describe("useProjectProfitabilityFinding", () => {
     expect(result.current.data).toBeNull();
     expect(result.current.isError).toBe(false);
   });
+
+  /** An unknown band would index the card's severity-chip map with `undefined`
+   *  and crash the whole drill-down at render. Validating it at the boundary
+   *  turns a malformed payload into this one card's error state instead. */
+  test("rejects an unknown severity band instead of mapping it through", async () => {
+    grantPermission(true);
+    mockApiGet.mockResolvedValue({ ...FINDING_RESPONSE, severity: "catastrophic" });
+    const { wrapper } = createWrapper();
+
+    const { result } = renderHook(
+      () => useProjectProfitabilityFinding(PROJECT_ID),
+      { wrapper }
+    );
+    await waitFor(() => expect(result.current.isError).toBe(true));
+
+    expect((result.current.error as Error).message).toMatch(/severity/i);
+  });
 });
 
 describe("formatFindingDate", () => {
