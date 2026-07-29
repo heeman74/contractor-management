@@ -337,6 +337,44 @@ const TREND_CHART_TEST_ID = "margin-trend-chart";
 const NO_ELEMENTS = 0;
 const NO_REQUESTS = 0;
 
+// Verbatim copy and card handles from the 35-UI-SPEC copywriting contract. Money
+// formats through the shipped formatCurrency, which inserts no thousands
+// separators — asserting a comma-grouped figure would contradict the shipped
+// Phase 32/33/34 finance tests (the 34-04 lesson).
+const PORTFOLIO_REVENUE_FIGURE = "$68000.00";
+const PORTFOLIO_COST_FIGURE = "$55420.00";
+const PORTFOLIO_MARGIN_FIGURE = "$12580.00";
+const PORTFOLIO_MARGIN_SUBLINE = "18.5% margin";
+const MIXED_BASIS_CAPTION =
+  "Includes $18400.00 from approved quotes — not yet invoiced.";
+const INCOMPLETE_BADGE_LABEL = "2 projects with incomplete data";
+const ATTENTION_LIST_ANCHOR = "#attention-list";
+const UNBUDGETED_NOTE = "1 project has no budget set.";
+const CLAMP_OVERFLOW_LABEL = "▸ 340%";
+const INACTIVE_SEPARATOR_TEXT =
+  "Inactive projects — still included in portfolio totals";
+const SCOPE_LABOR_NOTE = "Scope spend excludes labor — labor is tracked at job level.";
+const TREND_WINDOW_NOTE =
+  "Cumulative from project start — the window only changes how far back the chart shows.";
+
+const BUDGET_BARS_CARD_LABEL = "Budget vs Actual by Project chart";
+const ATTENTION_CARD_LABEL = "Needs Attention list";
+const TREND_CARD_LABEL = "Margin Trend chart";
+const SCOPE_BARS_CARD_LABEL = "Budget vs Actual by Trade Scope chart";
+const CATEGORY_MIX_CARD_LABEL = "Cost Category Mix chart";
+const BUDGET_BARS_CSV_LABEL = "Download Budget vs Actual by Project as CSV";
+const ATTENTION_CSV_LABEL = "Download Needs Attention as CSV";
+
+const LAST_TREND_MONTH_LABEL = "July 2026";
+const SHORT_WINDOW_KPI = "3 months";
+const TOOLTIP_SELECTOR = ".recharts-tooltip-wrapper";
+const PLOT_SURFACE_SELECTOR = ".recharts-wrapper > svg";
+const TREND_HOVER_INSET_PX = 20;
+const HOVER_APPROACH_INSET_PX = 40;
+const PLOT_UPPER_THIRD = 3;
+const ONE_REQUEST = 1;
+const FIRST_ROW_INDEX = 0;
+
 async function seedAuth(page: Page) {
   await page.context().addCookies([
     { name: "access_token", value: "mock-token", domain: "localhost", path: "/" },
@@ -411,6 +449,12 @@ async function gotoFinancialsViaSidebar(page: Page) {
   await page.waitForURL(/\/financials$/);
 }
 
+/** The drill-down is reached the way a user reaches it: from the attention list. */
+async function openProjectDrillDown(page: Page) {
+  await page.getByTestId(`attention-row-${OVERRUN_PROJECT_ID}`).click();
+  await page.waitForURL(new RegExp(`/financials/${OVERRUN_PROJECT_ID}$`));
+}
+
 test("nav item is absent without finance.view", async ({ page }) => {
   const financialRequests: string[] = [];
   await mockFinanceRoutes(page, {
@@ -476,11 +520,169 @@ test("finance user reaches both routes by SPA navigation", async ({ page }) => {
   ).toBeVisible();
   await expect(page.getByTestId(DENY_PANEL_TEST_ID)).toHaveCount(NO_ELEMENTS);
 
-  await page.getByTestId(`attention-row-${OVERRUN_PROJECT_ID}`).click();
-  await page.waitForURL(new RegExp(`/financials/${OVERRUN_PROJECT_ID}$`));
+  await openProjectDrillDown(page);
 
   await expect(page.getByTestId(TREND_CHART_TEST_ID)).toBeVisible();
   await expect(page.getByTestId(DENY_PANEL_TEST_ID)).toHaveCount(NO_ELEMENTS);
   // The mirror image of the denial test: a permitted user does fetch money data.
   expect(financialRequests.length).toBeGreaterThan(NO_REQUESTS);
+});
+
+test("renders the company overview with Reports card conventions", async ({ page }) => {
+  const financialRequests: string[] = [];
+  await mockFinanceRoutes(page, { permissions: FINANCE_PERMISSIONS, financialRequests });
+
+  await loginThroughUi(page);
+  await gotoFinancialsViaSidebar(page);
+
+  await expect(page.getByTestId("portfolio-revenue")).toHaveText(
+    PORTFOLIO_REVENUE_FIGURE
+  );
+  await expect(page.getByTestId("portfolio-cost")).toHaveText(PORTFOLIO_COST_FIGURE);
+  await expect(page.getByTestId("portfolio-margin")).toHaveText(PORTFOLIO_MARGIN_FIGURE);
+  await expect(page.getByTestId("portfolio-margin-percent")).toHaveText(
+    PORTFOLIO_MARGIN_SUBLINE
+  );
+  await expect(page.getByTestId("portfolio-revenue-basis")).toHaveText(
+    MIXED_BASIS_CAPTION
+  );
+
+  const incompleteBadge = page.getByTestId("portfolio-incomplete-badge");
+  await expect(incompleteBadge).toHaveText(INCOMPLETE_BADGE_LABEL);
+  await expect(incompleteBadge).toHaveAttribute("href", ATTENTION_LIST_ANCHOR);
+
+  const budgetBarsCard = page.locator(`[aria-label="${BUDGET_BARS_CARD_LABEL}"]`);
+  const attentionCard = page.locator(`[aria-label="${ATTENTION_CARD_LABEL}"]`);
+  await expect(budgetBarsCard).toBeVisible();
+  await expect(attentionCard).toBeVisible();
+  await expect(
+    budgetBarsCard.getByRole("button", { name: BUDGET_BARS_CSV_LABEL })
+  ).toBeVisible();
+  await expect(
+    attentionCard.getByRole("button", { name: ATTENTION_CSV_LABEL })
+  ).toBeVisible();
+
+  await expect(page.getByTestId("project-budget-bars-unbudgeted-note")).toHaveText(
+    UNBUDGETED_NOTE
+  );
+  // The clamped bar declares its own truncation: the glyph plus the true percent.
+  await expect(page.getByTestId(`budget-bar-overflow-${OVERRUN_PROJECT_ID}`)).toHaveText(
+    CLAMP_OVERFLOW_LABEL
+  );
+
+  await expectAttentionRowsInServerOrder(page);
+  await expectArchivedProjectBelowInactiveSeparator(page);
+});
+
+/** The list neither sorts nor filters: the rendered order is the server's D-08
+ *  tier order, overrun → warning → incomplete. */
+async function expectAttentionRowsInServerOrder(page: Page) {
+  const expectedOrder = ATTENTION_ROWS.map((row) => `attention-row-${row.project_id}`);
+  const rows = page.locator('[data-testid^="attention-row-"]');
+
+  await expect(rows).toHaveCount(expectedOrder.length);
+  const renderedOrder = await rows.evaluateAll((nodes) =>
+    nodes.map((node) => node.getAttribute("data-testid"))
+  );
+  expect(renderedOrder).toEqual(expectedOrder);
+}
+
+async function expectArchivedProjectBelowInactiveSeparator(page: Page) {
+  await expect(page.getByTestId("projects-table-inactive-header")).toHaveText(
+    INACTIVE_SEPARATOR_TEXT
+  );
+
+  // textContent, not innerText: the separator cell is uppercased by CSS, and
+  // innerText would return the transformed glyphs rather than the authored copy.
+  const rowTexts = await page
+    .locator('[data-testid="projects-table"] tbody tr')
+    .allTextContents();
+  const separatorIndex = rowTexts.findIndex((text) =>
+    text.includes(INACTIVE_SEPARATOR_TEXT)
+  );
+  const archivedIndex = rowTexts.findIndex((text) =>
+    text.includes(ARCHIVED_PROJECT_NAME)
+  );
+
+  expect(separatorIndex).toBeGreaterThanOrEqual(FIRST_ROW_INDEX);
+  expect(archivedIndex).toBeGreaterThan(separatorIndex);
+}
+
+test("renders the project drill-down charts", async ({ page }) => {
+  const financialRequests: string[] = [];
+  await mockFinanceRoutes(page, { permissions: FINANCE_PERMISSIONS, financialRequests });
+
+  await loginThroughUi(page);
+  await gotoFinancialsViaSidebar(page);
+  await openProjectDrillDown(page);
+
+  await expect(page.getByTestId(TREND_CHART_TEST_ID)).toBeVisible();
+  await expect(page.getByTestId("scope-budget-bars")).toBeVisible();
+  await expect(page.getByTestId("category-mix-chart")).toBeVisible();
+
+  await expect(page.getByTestId("scope-labor-note")).toHaveText(SCOPE_LABOR_NOTE);
+  await expect(page.getByTestId("trend-window-note")).toHaveText(TREND_WINDOW_NOTE);
+
+  await expect(page.locator(`[aria-label="${TREND_CARD_LABEL}"]`)).toBeVisible();
+  await expect(page.locator(`[aria-label="${SCOPE_BARS_CARD_LABEL}"]`)).toBeVisible();
+  await expect(page.locator(`[aria-label="${CATEGORY_MIX_CARD_LABEL}"]`)).toBeVisible();
+});
+
+/**
+ * Hovers the right edge of the plot, which is the last month in every window — so
+ * the same month can be read before and after a window switch.
+ */
+async function readLastMonthTooltip(page: Page): Promise<string> {
+  // The plot surface is the wrapper's own svg — the legend's series icons are
+  // svgs too, and they come first in the DOM.
+  const plot = page.getByTestId(TREND_CHART_TEST_ID).locator(PLOT_SURFACE_SELECTOR);
+  await plot.scrollIntoViewIfNeeded();
+  const box = await plot.boundingBox();
+  if (!box) throw new Error("The margin trend plot has no bounding box");
+
+  // Raw mouse moves rather than locator.hover: Recharts overlays the legend on the
+  // plot, and hover's actionability check refuses to move onto a covered point even
+  // though the chart's own mousemove handler is what activates the tooltip.
+  const plotY = box.y + box.height / PLOT_UPPER_THIRD;
+  await page.mouse.move(box.x + box.width - HOVER_APPROACH_INSET_PX, plotY);
+  await page.mouse.move(box.x + box.width - TREND_HOVER_INSET_PX, plotY);
+
+  // Scoped to the trend card: the bullet bars and the pie carry their own tooltips.
+  const tooltip = page.getByTestId(TREND_CHART_TEST_ID).locator(TOOLTIP_SELECTOR);
+  await expect(tooltip).toContainText(LAST_TREND_MONTH_LABEL);
+  return (await tooltip.innerText()).trim();
+}
+
+function isNonTrendFinancialPath(path: string): boolean {
+  return !path.includes(TREND_PATH_MARKER);
+}
+
+test("renders identical values for a month shared by two windows", async ({ page }) => {
+  const financialRequests: string[] = [];
+  await mockFinanceRoutes(page, { permissions: FINANCE_PERMISSIONS, financialRequests });
+
+  await loginThroughUi(page);
+  await gotoFinancialsViaSidebar(page);
+  await openProjectDrillDown(page);
+
+  const twelveMonthTooltip = await readLastMonthTooltip(page);
+  const requestsBeforeSwitch = financialRequests.length;
+
+  const shortWindowButton = page.getByTestId("trend-window-3m");
+  await shortWindowButton.click();
+  await expect(shortWindowButton).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page.locator(`[aria-label="${TREND_CARD_LABEL}"]`).getByText(SHORT_WINDOW_KPI)
+  ).toBeVisible();
+
+  const refetched = financialRequests.slice(requestsBeforeSwitch);
+  expect(refetched).toHaveLength(ONE_REQUEST);
+  expect(refetched[0].endsWith(SHORT_WINDOW_QUERY)).toBe(true);
+  // The window belongs to the trend alone: it must never restate the lifetime
+  // tiles or the scope bars beside it.
+  expect(refetched.filter(isNonTrendFinancialPath)).toHaveLength(NO_REQUESTS);
+
+  // Pitfall 2: the window slices buckets, never the records inside them, so a
+  // month present in both windows must render the same figures.
+  expect(await readLastMonthTooltip(page)).toBe(twelveMonthTooltip);
 });
