@@ -23,15 +23,24 @@ from datetime import date, datetime
 from unittest.mock import MagicMock
 from uuid import UUID, uuid4
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy import select, text
+from sqlalchemy.exc import IntegrityError
 
 from app.core.database import async_session_factory
 from app.core.security import create_access_token
+from app.features.dashboard.alert_types import AI_PROFITABILITY_ALERT_TYPE, FINANCIAL_ALERT_TYPES
+from app.features.dashboard.models import DashboardAlert
 from app.features.finance.models import CostCategory
+from app.features.finance.profitability_models import (
+    MAX_ALERT_SUMMARY_LENGTH,
+    MAX_NARRATIVE_LENGTH,
+)
 from app.features.finance.profitability_repository import FindingUpsert, ProfitabilityRepository
 
 _SECONDS_PER_HOUR = 3600
+_ALERT_TYPE_CHECK_NAME = "dashboard_alerts_alert_type_check"
 
 # Phase 36 endpoint URLs. The finding endpoint lands in a later Phase 36 plan;
 # the constant is declared here so no call site carries a bare path literal.
@@ -547,3 +556,119 @@ async def test_resolve_then_recur_inserts_a_fresh_unalerted_row(
         assert latest is not None
         assert latest.id == recurrence_id
         assert await repository.latest_open_for_project(uuid4()) is None
+
+
+# ---------------------------------------------------------------------------
+# FINAI-02: schema contracts — alert type, tenant isolation, DB length CHECKs
+# ---------------------------------------------------------------------------
+
+
+def _orm_alert_type_check_sql() -> str:
+    """The alert_type CHECK expression exactly as DashboardAlert declares it.
+
+    Read from the ORM table metadata rather than the database: a SQLAlchemy
+    CheckConstraint is DDL-only and is never evaluated on flush, so inserting a
+    row proves the MIGRATION's value list and nothing about models.py. The two
+    halves of this test together are the RESEARCH Pitfall 3 guard.
+    """
+    constraint = next(
+        candidate
+        for candidate in DashboardAlert.__table__.constraints
+        if candidate.name == _ALERT_TYPE_CHECK_NAME
+    )
+    return str(constraint.sqltext)
+
+
+async def test_ai_profitability_alert_type_accepted_by_orm(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """ai_profitability is spelled in all three literals that must agree on it."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    project_id = await _create_project(tenant_a_client)
+
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        alert = DashboardAlert(
+            company_id=UUID(company_id),
+            project_id=UUID(project_id),
+            severity="warning",
+            alert_type=AI_PROFITABILITY_ALERT_TYPE,
+            impact_text="Costs have overtaken revenue on this project.",
+        )
+        session.add(alert)
+        await session.flush()
+        alert_id = alert.id
+        await session.commit()
+
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        stored = await session.get(DashboardAlert, alert_id)
+        assert stored is not None
+        assert stored.alert_type == AI_PROFITABILITY_ALERT_TYPE
+
+    assert AI_PROFITABILITY_ALERT_TYPE in _orm_alert_type_check_sql()
+    assert AI_PROFITABILITY_ALERT_TYPE in FINANCIAL_ALERT_TYPES
+
+
+async def test_findings_rls_isolation(
+    tenant_a_client: AsyncClient, tenant_b_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """Tenant B reads zero rows of tenant A's findings."""
+    company_a_id = seed_two_tenants["tenant_a_id"]
+    company_b_id = seed_two_tenants["tenant_b_id"]
+    project_id = await _create_project(tenant_a_client)
+
+    async with _tenant_repository(company_a_id) as repository:
+        await repository.upsert_finding(_finding_upsert(company_a_id, project_id))
+
+    assert len(await _open_findings(company_a_id)) == 1
+    assert await _open_findings(company_b_id) == []
+
+    async with _tenant_repository(company_b_id) as repository:
+        assert await repository.latest_open_for_project(UUID(project_id)) is None
+
+
+async def test_alert_summary_db_length_check(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+) -> None:
+    """Over-length text is REJECTED by the database, never silently truncated.
+
+    The DATABASE half of the UI-SPEC length contract. Plan 36-08 owns the SERVICE
+    half under the distinct name test_over_length_draft_is_rejected_not_truncated.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    project_id = await _create_project(tenant_a_client)
+
+    with pytest.raises(IntegrityError) as over_length_summary:
+        async with _tenant_repository(company_id) as repository:
+            await repository.upsert_finding(
+                _finding_upsert(
+                    company_id,
+                    project_id,
+                    alert_summary="s" * (MAX_ALERT_SUMMARY_LENGTH + 1),
+                )
+            )
+    assert "ai_profitability_findings_alert_summary_length_check" in str(over_length_summary.value)
+
+    with pytest.raises(IntegrityError) as over_length_narrative:
+        async with _tenant_repository(company_id) as repository:
+            await repository.upsert_finding(
+                _finding_upsert(
+                    company_id,
+                    project_id,
+                    narrative="n" * (MAX_NARRATIVE_LENGTH + 1),
+                )
+            )
+    assert "ai_profitability_findings_narrative_length_check" in str(over_length_narrative.value)
+
+    assert await _finding_count(company_id) == 0
+
+    async with _tenant_repository(company_id) as repository:
+        accepted = await repository.upsert_finding(
+            _finding_upsert(
+                company_id,
+                project_id,
+                alert_summary="s" * MAX_ALERT_SUMMARY_LENGTH,
+            )
+        )
+        assert len(accepted.alert_summary) == MAX_ALERT_SUMMARY_LENGTH
