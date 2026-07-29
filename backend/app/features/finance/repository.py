@@ -10,6 +10,12 @@ un-eager-loaded access would fail loudly rather than silently N+1.
 Pitfall 3 (31-RESEARCH.md): BaseRepository.list_all() does NOT filter
 deleted_at — every custom query method here adds `.where(CostEntry.deleted_at.is_(None))`
 explicitly (D-05: soft-deleted entries drop out of lists and rollups).
+
+The public module-level query builders (costable_sessions_query,
+invoice_amounts_query, approved_quote_amounts_query) and their row mappers
+(to_work_sessions, to_anchored_amounts) are the single definition of the finance
+traversal predicates. They are public because portfolio_repository composes the
+same predicates company-wide; a second definition there would drift from this one.
 """
 
 from __future__ import annotations
@@ -41,7 +47,7 @@ _COSTABLE_SESSION_STATUSES = ("completed", "adjusted")
 QUOTE_STATUS_APPROVED = "approved"
 
 
-def _costable_sessions_query() -> Select[tuple[uuid.UUID, datetime, int, uuid.UUID | None]]:
+def costable_sessions_query() -> Select[tuple[uuid.UUID, datetime, int, uuid.UUID | None]]:
     """Column-only select of costable tracked time (Pitfall 3 predicates, stated once)."""
     return select(
         TimeEntry.contractor_id,
@@ -55,7 +61,7 @@ def _costable_sessions_query() -> Select[tuple[uuid.UUID, datetime, int, uuid.UU
     )
 
 
-def _to_work_sessions(
+def to_work_sessions(
     rows: Sequence[tuple[uuid.UUID, datetime, int, uuid.UUID | None]],
 ) -> list[WorkSession]:
     """Map column tuples to plain WorkSessions so the service never sees Row objects."""
@@ -81,17 +87,17 @@ class FinanceRepository(TenantScopedRepository[CostEntry]):
         Selects columns only (never whole ORM rows) — TimeEntry.job and
         TimeEntry.contractor are lazy="raise" and the derivation needs neither.
         """
-        result = await self.db.execute(_costable_sessions_query().where(TimeEntry.job_id == job_id))
-        return _to_work_sessions(result.tuples().all())
+        result = await self.db.execute(costable_sessions_query().where(TimeEntry.job_id == job_id))
+        return to_work_sessions(result.tuples().all())
 
     async def completed_work_sessions_for_project(self, project_id: uuid.UUID) -> list[WorkSession]:
         """Costable tracked time for every job linked to a project (jobs.project_id, D-07)."""
         result = await self.db.execute(
-            _costable_sessions_query()
+            costable_sessions_query()
             .join(Job, TimeEntry.job_id == Job.id)
             .where(Job.project_id == project_id)
         )
-        return _to_work_sessions(result.tuples().all())
+        return to_work_sessions(result.tuples().all())
 
     async def category_totals_for_job(
         self, job_id: uuid.UUID
@@ -280,7 +286,7 @@ class LaborRateRepository(TenantScopedRepository[LaborRate]):
         return result.scalar_one_or_none() is not None
 
 
-def _invoice_amounts_query() -> Select:
+def invoice_amounts_query() -> Select:
     """Per-invoice money fields at their anchor, in one GROUP BY round trip.
 
     D-02: invoices have NO draft state (status constraint is exactly
@@ -316,7 +322,7 @@ def _invoice_amounts_query() -> Select:
     )
 
 
-def _approved_quote_amounts_query() -> Select:
+def approved_quote_amounts_query() -> Select:
     """Per-approved-quote money fields at their anchor, newest first.
 
     The created_at DESC ordering lets callers take the first row per anchor as
@@ -354,7 +360,7 @@ def _approved_quote_amounts_query() -> Select:
     )
 
 
-def _to_anchored_amounts(row: Row) -> tuple[RevenueAnchor, DocumentAmounts]:
+def to_anchored_amounts(row: Row) -> tuple[RevenueAnchor, DocumentAmounts]:
     """Map one aggregate row to margin_math value objects (never ORM instances).
 
     Both document queries lead with the same six columns, so one mapper serves
@@ -395,19 +401,19 @@ class RevenueRepository(TenantScopedRepository[Invoice]):
     async def invoice_amounts_for_anchor(self, anchor: RevenueAnchor) -> list[DocumentAmounts]:
         """Money fields of every invoice at one job or trade-scope anchor."""
         result = await self.db.execute(
-            _invoice_amounts_query().where(_anchor_filter(anchor, Invoice))
+            invoice_amounts_query().where(_anchor_filter(anchor, Invoice))
         )
-        return [_to_anchored_amounts(row)[1] for row in result.all()]
+        return [to_anchored_amounts(row)[1] for row in result.all()]
 
     async def latest_approved_quote_amounts_for_anchor(
         self, anchor: RevenueAnchor
     ) -> DocumentAmounts | None:
         """Money fields of the latest approved quote at one anchor, or None."""
         result = await self.db.execute(
-            _approved_quote_amounts_query().where(_anchor_filter(anchor, Quote)).limit(1)
+            approved_quote_amounts_query().where(_anchor_filter(anchor, Quote)).limit(1)
         )
         row = result.first()
-        return None if row is None else _to_anchored_amounts(row)[1]
+        return None if row is None else to_anchored_amounts(row)[1]
 
     async def invoice_amounts_by_anchor_for_project(
         self, project_id: uuid.UUID
@@ -418,12 +424,12 @@ class RevenueRepository(TenantScopedRepository[Invoice]):
         rollup_for_project so mixed job/scope records net out with the cost side.
         """
         result = await self.db.execute(
-            _invoice_amounts_query()
+            invoice_amounts_query()
             .outerjoin(TradeScope, Invoice.trade_scope_id == TradeScope.id)
             .outerjoin(Job, Invoice.job_id == Job.id)
             .where((TradeScope.project_id == project_id) | (Job.project_id == project_id))
         )
-        return [_to_anchored_amounts(row) for row in result.all()]
+        return [to_anchored_amounts(row) for row in result.all()]
 
     async def approved_quote_amounts_by_anchor_for_project(
         self, project_id: uuid.UUID
@@ -434,12 +440,12 @@ class RevenueRepository(TenantScopedRepository[Invoice]):
         anchor as that anchor's latest approved quote.
         """
         result = await self.db.execute(
-            _approved_quote_amounts_query()
+            approved_quote_amounts_query()
             .outerjoin(TradeScope, Quote.trade_scope_id == TradeScope.id)
             .outerjoin(Job, Quote.job_id == Job.id)
             .where((TradeScope.project_id == project_id) | (Job.project_id == project_id))
         )
-        return [_to_anchored_amounts(row) for row in result.all()]
+        return [to_anchored_amounts(row) for row in result.all()]
 
     async def latest_project_level_approved_quote_amounts(
         self, project_id: uuid.UUID
@@ -451,7 +457,7 @@ class RevenueRepository(TenantScopedRepository[Invoice]):
         service enforces that rule; this method only fetches the candidate.
         """
         result = await self.db.execute(
-            _approved_quote_amounts_query()
+            approved_quote_amounts_query()
             .where(
                 Quote.project_id == project_id,
                 Quote.job_id.is_(None),
@@ -460,4 +466,4 @@ class RevenueRepository(TenantScopedRepository[Invoice]):
             .limit(1)
         )
         row = result.first()
-        return None if row is None else _to_anchored_amounts(row)[1]
+        return None if row is None else to_anchored_amounts(row)[1]
