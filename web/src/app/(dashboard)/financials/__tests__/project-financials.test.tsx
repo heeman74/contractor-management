@@ -9,14 +9,32 @@ import {
   trendMonthsKpi,
 } from "../[projectId]/_components/margin-trend-chart";
 import { TrendWindowFilter } from "../[projectId]/_components/trend-window-filter";
+import {
+  ScopeBudgetBars,
+  budgetedScopesKpi,
+  scopeBarsCsvRows,
+  toScopeBarRows,
+} from "../[projectId]/_components/scope-budget-bars";
+import {
+  CategoryMixChart,
+  categoryMixCsvRows,
+  categoryMixKpi,
+  categoryTooltipDetail,
+  toCategorySlices,
+} from "../[projectId]/_components/category-mix-chart";
 import { useProjectFinancials, useProjectMarginTrend } from "@/features/finance/hooks";
 import { NO_REVENUE_NOTE } from "@/features/finance/components/MarginSummarySection";
+import { CATEGORY_FILL } from "@/components/shared/chart-theme";
 import { ApiError } from "@/lib/api-client";
 import type {
+  BudgetVsActual,
+  CategoryTotal,
   CostBreakdown,
+  LaborCostSummary,
   MarginSummary,
   MarginTrend,
   ProjectFinancials,
+  ScopeBudgetRow,
   TrendBucket,
 } from "@/features/finance/types";
 
@@ -442,5 +460,246 @@ describe("Margin Trend card wiring", () => {
       mockUseProjectFinancials.mock.calls.slice(financialsCallsBefore)
     ).toEqual([[PROJECT_ID]]);
     expect(screen.getByTestId("trend-window-3m")).toHaveAttribute("aria-pressed", "true");
+  });
+});
+
+// --- Task 3: scope budget bars and the cost category mix ---
+
+function scopeRow(
+  tradeScopeId: string,
+  tradeName: string,
+  budget: BudgetVsActual | null
+): ScopeBudgetRow {
+  return { tradeScopeId, tradeName, spent: budget?.spent ?? "0.00", budget };
+}
+
+function budgetOf(total: string, spent: string): BudgetVsActual {
+  return {
+    budgetId: `budget-${total}-${spent}`,
+    total,
+    spent,
+    remaining: (Number(total) - Number(spent)).toFixed(2),
+    percentUsed: ((Number(spent) / Number(total)) * 100).toFixed(1),
+  };
+}
+
+function categoryOf(categoryName: string, total: string): CategoryTotal {
+  return { categoryId: `cat-${categoryName}`, categoryName, total };
+}
+
+function laborOf(total: string): LaborCostSummary {
+  return { total, ratedSeconds: 7200, unratedSeconds: 0, basis: "unburdened" };
+}
+
+const SCOPE_LABOR_NOTE = "Scope spend excludes labor — labor is tracked at job level.";
+
+function categoryAxisLabels(container: HTMLElement): string[] {
+  return axisTickLabels(container).filter((label) => !/^\d+%$/.test(label));
+}
+
+function pieSectorFills(container: HTMLElement): string[] {
+  return Array.from(container.querySelectorAll("path.recharts-sector")).map(
+    (sector) => sector.getAttribute("fill") ?? ""
+  );
+}
+
+function pieLabelTexts(container: HTMLElement): string[] {
+  return Array.from(container.querySelectorAll(".recharts-pie-label-text")).map(
+    (label) => label.textContent ?? ""
+  );
+}
+
+describe("ScopeBudgetBars", () => {
+  it("state 30: renders the shared bullet-bar form with the labor caption", () => {
+    const scopes = [
+      scopeRow("s-1", "Electrical", budgetOf("10000.00", "8500.00")),
+      scopeRow("s-2", "Plumbing", budgetOf("4000.00", "1000.00")),
+    ];
+
+    const { container } = render(<ScopeBudgetBars scopes={scopes} />);
+
+    expect(screen.getByTestId("scope-budget-bars")).toBeInTheDocument();
+    expect(categoryAxisLabels(container)).toEqual(["Electrical", "Plumbing"]);
+    expect(screen.getByTestId("scope-labor-note")).toHaveTextContent(SCOPE_LABOR_NOTE);
+    expect(budgetedScopesKpi(scopes)).toBe("2 of 2 scopes budgeted");
+  });
+
+  it("sorts scopes descending by the true percent used and keys rows by trade name", () => {
+    const rows = toScopeBarRows([
+      scopeRow("s-1", "Plumbing", budgetOf("10000.00", "1000.00")),
+      scopeRow("s-2", "Electrical", budgetOf("1000.00", "1400.00")),
+      scopeRow("s-3", "Framing", null),
+    ]);
+
+    expect(rows.map((row) => row.label)).toEqual(["Electrical", "Plumbing"]);
+    expect(rows[0].id).toBe("s-2");
+    expect(rows[0].percentUsed).toBe("140.0");
+    expect(rows[0].spentLabel).toBe("$1400.00");
+    expect(rows[0].budgetLabel).toBe("$1000.00");
+  });
+
+  it("attaches no click-through, because no per-scope financial route exists", () => {
+    const { container } = render(
+      <ScopeBudgetBars scopes={[scopeRow("s-1", "Electrical", budgetOf("1000.00", "400.00"))]} />
+    );
+
+    const bars = container.querySelectorAll("path.recharts-rectangle");
+    expect(bars.length).toBeGreaterThan(0);
+    bars.forEach((bar) => expect(bar.getAttribute("cursor")).not.toBe("pointer"));
+  });
+
+  it("state 31: no scope budget renders the empty state and hides the labor caption", () => {
+    render(<ScopeBudgetBars scopes={[scopeRow("s-1", "Framing", null)]} />);
+
+    expect(screen.getByText("No scope budgets set")).toBeInTheDocument();
+    expect(
+      screen.getByText("Set a budget on a trade scope to track its spend.")
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("scope-labor-note")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("scope-budget-bars")).not.toBeInTheDocument();
+  });
+
+  it("exports full trade names and the true percent", () => {
+    const rows = scopeBarsCsvRows([
+      scopeRow("s-1", "Electrical", budgetOf("500.00", "1700.00")),
+      scopeRow("s-2", "Framing", null),
+    ]);
+
+    expect(rows[0]).toEqual(["Trade scope", "Budget", "Spent", "Percent used"]);
+    expect(rows[1]).toEqual(["Electrical", "500.00", "1700.00", "340.0"]);
+    expect(rows).toHaveLength(2);
+    expect(budgetedScopesKpi([scopeRow("s-1", "Electrical", null)])).toBe(
+      "0 of 1 scopes budgeted"
+    );
+  });
+});
+
+describe("CategoryMixChart", () => {
+  const FOUR_CATEGORIES = [
+    categoryOf("Materials", "30000.00"),
+    categoryOf("Subcontractor", "12000.00"),
+    categoryOf("Other", "6000.00"),
+    categoryOf("Permits", "2000.00"),
+  ];
+
+  it("state 32: prepends labor, sorts descending and fills from the nominal ramp", () => {
+    const { container } = render(
+      <CategoryMixChart categories={FOUR_CATEGORIES} labor={laborOf("49000.00")} />
+    );
+
+    const slices = toCategorySlices(FOUR_CATEGORIES, laborOf("49000.00"));
+    expect(slices.map((slice) => slice.name)).toEqual([
+      "Labor",
+      "Materials",
+      "Subcontractor",
+      "Permits",
+      "Other",
+    ]);
+    const fills = pieSectorFills(container);
+    expect(fills[0]).toBe(CATEGORY_FILL.labor);
+    expect(fills[1]).toBe(CATEGORY_FILL.materials);
+    expect(new Set(fills).size).toBe(fills.length);
+    expect(screen.getByTestId("category-mix-chart")).toBeInTheDocument();
+  });
+
+  it("state 33: seven categories cap at six slices with Other last and named", () => {
+    const seven = [
+      categoryOf("Materials", "30000.00"),
+      categoryOf("Subcontractor", "12000.00"),
+      categoryOf("Equipment", "9000.00"),
+      categoryOf("Permits", "5000.00"),
+      categoryOf("Disposal", "3000.00"),
+      categoryOf("Signage", "2000.00"),
+      categoryOf("Fuel", "1000.00"),
+    ];
+
+    const { container } = render(<CategoryMixChart categories={seven} labor={null} />);
+
+    const slices = toCategorySlices(seven, null);
+    expect(slices).toHaveLength(6);
+    expect(slices.at(-1)?.name).toBe("Other");
+    expect(slices.at(-1)?.rolledUpNames).toEqual(["Signage", "Fuel"]);
+    expect(slices.at(-1)?.amount).toBe(3000);
+    expect(pieSectorFills(container)).toHaveLength(6);
+    expect(new Set(pieSectorFills(container)).size).toBe(6);
+  });
+
+  it("state 33: the Other tooltip names what was rolled up, and the CSV rolls nothing up", () => {
+    const seven = [
+      categoryOf("Materials", "30000.00"),
+      categoryOf("Subcontractor", "12000.00"),
+      categoryOf("Equipment", "9000.00"),
+      categoryOf("Permits", "5000.00"),
+      categoryOf("Disposal", "3000.00"),
+      categoryOf("Signage", "2000.00"),
+      categoryOf("Fuel", "1000.00"),
+    ];
+    const slices = toCategorySlices(seven, null);
+
+    expect(categoryTooltipDetail(slices[0], 62000)).toBe("$30000.00 (48.4%)");
+    expect(categoryTooltipDetail(slices.at(-1)!, 62000)).toContain("Signage, Fuel");
+
+    const rows = categoryMixCsvRows(seven, null);
+    expect(rows[0]).toEqual(["Category", "Amount", "Percent of total"]);
+    expect(rows).toHaveLength(8);
+    expect(rows.map((row) => row[0])).toContain("Fuel");
+    expect(rows.map((row) => row[0])).not.toContain("Other");
+  });
+
+  it("includes labor as its own CSV row using the backend string", () => {
+    const rows = categoryMixCsvRows([categoryOf("Materials", "30000.00")], laborOf("10000.00"));
+
+    expect(rows[1]).toEqual(["Labor", "10000.00", "25"]);
+    expect(rows[2]).toEqual(["Materials", "30000.00", "75"]);
+  });
+
+  it("suppresses on-slice labels below the collision threshold", () => {
+    const { container } = render(
+      <CategoryMixChart
+        categories={[categoryOf("Materials", "99000.00"), categoryOf("Permits", "1000.00")]}
+        labor={null}
+      />
+    );
+
+    const labels = pieLabelTexts(container);
+    expect(labels).toContain("Materials 99%");
+    expect(labels.filter((label) => label === "")).toHaveLength(1);
+  });
+
+  it("state 34: no costs and no labor render the no-costs empty state", () => {
+    render(<CategoryMixChart categories={[]} labor={null} />);
+
+    expect(screen.getByText("No costs recorded")).toBeInTheDocument();
+    expect(
+      screen.getByText("Add a cost entry or tracked time to see where the money goes.")
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("category-mix-chart")).not.toBeInTheDocument();
+  });
+
+  it("states the total cost in the card kpi", () => {
+    expect(categoryMixKpi("40120.00")).toBe("$40120.00 total cost");
+  });
+});
+
+describe("Scope and category card wiring", () => {
+  it("renders both half-width cards with their titles, kpis and charts", () => {
+    mockQueries({
+      data: projectWith({
+        scopes: [scopeRow("s-1", "Electrical", budgetOf("10000.00", "8500.00"))],
+      }),
+      });
+
+    renderDashboard();
+
+    const scopeCard = screen.getByLabelText("Budget vs Actual by Trade Scope chart");
+    expect(within(scopeCard).getByText("Budget vs Actual by Trade Scope")).toBeInTheDocument();
+    expect(within(scopeCard).getByText("1 of 1 scopes budgeted")).toBeInTheDocument();
+    expect(within(scopeCard).getByTestId("scope-budget-bars")).toBeInTheDocument();
+    expect(within(scopeCard).getByTestId("scope-labor-note")).toBeInTheDocument();
+
+    const mixCard = screen.getByLabelText("Cost Category Mix chart");
+    expect(within(mixCard).getByText("Cost Category Mix")).toBeInTheDocument();
+    expect(within(mixCard).getByText("$79000.00 total cost")).toBeInTheDocument();
+    expect(within(mixCard).getByTestId("category-mix-chart")).toBeInTheDocument();
   });
 });

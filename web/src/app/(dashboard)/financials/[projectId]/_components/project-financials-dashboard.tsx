@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { TrendingUp } from "lucide-react";
+import { Gauge, PieChart as PieChartIcon, TrendingUp } from "lucide-react";
 
 import { ChartCard } from "@/app/(dashboard)/reports/_components/chart-card";
 import { FinanceSummaryTiles } from "@/app/(dashboard)/financials/_components/finance-summary-tiles";
@@ -12,12 +12,26 @@ import { useProjectFinancials, useProjectMarginTrend } from "@/features/finance/
 import { DEFAULT_TREND_WINDOW, type TrendWindow } from "@/features/finance/types";
 import { ApiError } from "@/lib/api-client";
 import {
+  CATEGORY_MIX_CSV_FILENAME,
+  CATEGORY_MIX_TITLE,
+  CategoryMixChart,
+  categoryMixCsvRows,
+  categoryMixKpi,
+} from "./category-mix-chart";
+import {
   MarginTrendChart,
   TREND_CSV_FILENAME,
   TREND_TITLE,
   trendCsvRows,
   trendMonthsKpi,
 } from "./margin-trend-chart";
+import {
+  SCOPE_BARS_CSV_FILENAME,
+  SCOPE_BARS_TITLE,
+  ScopeBudgetBars,
+  budgetedScopesKpi,
+  scopeBarsCsvRows,
+} from "./scope-budget-bars";
 import { TREND_WINDOW_NOTE, TrendWindowFilter } from "./trend-window-filter";
 
 const NOT_FOUND_STATUS = 404;
@@ -66,7 +80,7 @@ export default function ProjectFinancialsDashboard({
   if (isNotFoundError(financials.error)) return <ProjectNotFoundPanel />;
   if (financials.isError || !financials.data) return <LoadErrorPanel />;
 
-  const { name, status, breakdown } = financials.data;
+  const { name, status, breakdown, scopes } = financials.data;
   const buckets = trend.data?.buckets ?? [];
 
   return (
@@ -96,6 +110,30 @@ export default function ProjectFinancialsDashboard({
         </p>
         <MarginTrendChart buckets={buckets} isRefetching={trend.isFetching} />
       </ChartCard>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <ChartCard
+          title={SCOPE_BARS_TITLE}
+          kpiValue={budgetedScopesKpi(scopes)}
+          icon={Gauge}
+          csvFilename={SCOPE_BARS_CSV_FILENAME}
+          csvRows={scopeBarsCsvRows(scopes)}
+          ariaLabel={`${SCOPE_BARS_TITLE} chart`}
+        >
+          <ScopeBudgetBars scopes={scopes} />
+        </ChartCard>
+
+        <ChartCard
+          title={CATEGORY_MIX_TITLE}
+          kpiValue={categoryMixKpi(breakdown.grandTotal)}
+          icon={PieChartIcon}
+          csvFilename={CATEGORY_MIX_CSV_FILENAME}
+          csvRows={categoryMixCsvRows(breakdown.categories, breakdown.labor)}
+          ariaLabel={`${CATEGORY_MIX_TITLE} chart`}
+        >
+          <CategoryMixChart categories={breakdown.categories} labor={breakdown.labor} />
+        </ChartCard>
+      </div>
     </div>
   );
 }
