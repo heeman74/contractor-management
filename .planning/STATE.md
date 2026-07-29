@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 36-04-PLAN.md
-last_updated: "2026-07-29T19:01:27.169Z"
+stopped_at: Completed 36-03-PLAN.md
+last_updated: "2026-07-29T19:10:55.872Z"
 last_activity: 2026-07-29
 progress:
   total_phases: 22
   completed_phases: 18
   total_plans: 115
-  completed_plans: 105
+  completed_plans: 106
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 36 (ai-profitability-analysis) — EXECUTING
-Plan: 4 of 10
+Plan: 5 of 10
 Status: Ready to execute
 Last activity: 2026-07-29
 
@@ -84,6 +84,7 @@ Last activity: 2026-07-29
 | Phase 36 P02 | 15min | 3 tasks tasks | 9 files files |
 | Phase 36 P01 | 20min | 3 tasks tasks | 7 files files |
 | Phase 36 P04 | 8min | 3 tasks tasks | 4 files files |
+| Phase 36 P03 | 15min | 3 tasks tasks | 3 files files |
 
 ## Accumulated Context
 
@@ -301,6 +302,10 @@ Last activity: 2026-07-29
 - [Phase 36]: 36-04: the shipped drill-down test's jest.mock hooks factory was extended with useProjectProfitabilityFinding rather than the dashboard importing the hook defensively — jest.mock with a module factory replaces the whole module, so a newly imported hook arrives undefined and 19 shipped tests failed with 'not a function'; hiding that behind an import-time guard would put test scaffolding in production code
 - [Phase 36]: 36-04: the findings keystone needs TWO tests -- an errored query and an in-flight query -- because only the in-flight one mutation-catches a widened page loading gate — isError implies isLoading false, so adding finding.isLoading to the gate leaves the error test green; verified by mutation (exactly one test fails, then restored)
 - [Phase 36]: 36-04: jest path patterns for route-group directories must escape the parentheses -- npx jest "src/app/\(dashboard\)/financials", not the plan's unescaped form — Jest treats the pattern as a regex, so (dashboard) is a capture group and matches zero files -- the command exits 1 with 'No tests found' and reads like a real failure
+- [Phase 36]: 36-03: margin_decline_points indexes buckets[-TREND_LOOKBACK_BUCKETS] (the last two bucket edges), not the plan docstring's third-from-last — The plan's behavior block, D-03, TREND_LOOKBACK_BUCKETS=2, its own len<2 guard and the RESEARCH reference implementation all say the last two; only one docstring line said third-from-last
+- [Phase 36]: 36-03: profitability_math prose deliberately avoids the literal tokens ACTIVE_PROJECT_STATUSES, window_slice and anchor_revenues — The task acceptance criteria grep for the ABSENCE of all three to prove detection never reaches those code paths, so the plan's own suggested comments would have failed them; intent preserved in prose instead
+- [Phase 36]: 36-03: the Pitfall-5 tautology guard doubles as the empty-comparable-set guard, so quote_implied_gap has one early exit rather than two — any() over an empty set is already False, so a separate emptiness check would be an unreachable branch with no behavior difference
+- [Phase 36]: 36-03: candidate_for carries only FIRED signal figures -- a sub-threshold decline is stored as None — The payload is what the AI cites and D-05 validates cited figures, so carrying a 2-point drift would invite the AI to name it as a finding
 
 ### Pending Todos
 
@@ -317,9 +322,10 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 - Phase 34 (v4.0): Overrun-alert projection algorithm (trend/velocity-based vs. static threshold) needs a short design pass during Phase 34 planning — research flags this as unspecified
 - Phase 36 (v4.0): AI cost-data completeness threshold (minimum cost entries / days elapsed before AI analysis runs) needs a product decision during Phase 34/36 planning
 - Phase 35 (v4.0): backend suites run red under parallel agent execution -- conftest.py TRUNCATEs all tables per test, which deadlocks when two pytest processes share contractorhub_test. A deadlock inside seed_two_tenants is contention, not a regression. Consider per-worker test databases if parallel execution stays routine.
+- Phase 36: tests/unit/test_finance_scrub.py::test_financial_alert_types_are_the_budget_types is RED since 36-01 registered ai_profitability -- the assertion is an exact frozenset equality against the two budget types. Not a 36-03 regression; see the phase deferred-items.md. Whichever plan next touches the alert-delivery path should relax it to a superset check.
 
 ## Session Continuity
 
-Last session: 2026-07-29T19:00:57.767Z
-Stopped at: Completed 36-04-PLAN.md
+Last session: 2026-07-29T19:10:12.922Z
+Stopped at: Completed 36-03-PLAN.md
 Resume file: None
