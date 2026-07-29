@@ -327,9 +327,15 @@ const PERMISSIONS_PATH_MARKER = "/me/permissions";
 const PROJECTS_PATH_SUFFIX = "/projects/";
 const SHORT_WINDOW_QUERY = "window=3m";
 
+const FINANCIALS_ROUTE = "/financials";
+const PROJECT_FINANCIALS_ROUTE = `/financials/${OVERRUN_PROJECT_ID}`;
 const FINANCIALS_NAV_LABEL = "Financials";
 const REPORTS_NAV_LABEL = "Reports";
-const NO_NAV_ITEMS = 0;
+const DENY_PANEL_TEST_ID = "financials-deny-panel";
+const DENY_MESSAGE = "You do not have permission to view financials.";
+const TREND_CHART_TEST_ID = "margin-trend-chart";
+const NO_ELEMENTS = 0;
+const NO_REQUESTS = 0;
 
 async function seedAuth(page: Page) {
   await page.context().addCookies([
@@ -418,6 +424,63 @@ test("nav item is absent without finance.view", async ({ page }) => {
   // the permission gate and not a nav that failed to mount.
   await expect(page.getByRole("link", { name: REPORTS_NAV_LABEL })).toBeVisible();
   await expect(page.getByRole("link", { name: FINANCIALS_NAV_LABEL })).toHaveCount(
-    NO_NAV_ITEMS
+    NO_ELEMENTS
   );
+});
+
+async function expectDeniedWithoutFetching(page: Page, financialRequests: string[]) {
+  const denyPanel = page.getByTestId(DENY_PANEL_TEST_ID);
+  await expect(denyPanel).toBeVisible();
+  await expect(denyPanel).toHaveText(DENY_MESSAGE);
+  expect(financialRequests).toHaveLength(NO_REQUESTS);
+}
+
+// Read this before changing the assertion below.
+//
+// A hard `page.goto` resets Redux, so `isAuthenticated` is false, `usePermissions`
+// is disabled, and the deny panel would render for a PERMITTED user too. The
+// assertion that carries weight here is therefore the ZERO captured
+// /api/v1/financials/* requests: it proves no financial data is fetched or painted
+// before permissions are known.
+//
+// Do NOT "fix" this into a permitted-user goto test. That would be a false green —
+// it still passes with FinanceGate deleted.
+test("direct navigation to /financials is denied and fetches nothing", async ({
+  page,
+}) => {
+  const financialRequests: string[] = [];
+  await mockFinanceRoutes(page, {
+    permissions: NON_FINANCE_PERMISSIONS,
+    financialRequests,
+  });
+
+  await page.goto(FINANCIALS_ROUTE);
+  await expectDeniedWithoutFetching(page, financialRequests);
+
+  await page.goto(PROJECT_FINANCIALS_ROUTE);
+  await expectDeniedWithoutFetching(page, financialRequests);
+});
+
+test("finance user reaches both routes by SPA navigation", async ({ page }) => {
+  const financialRequests: string[] = [];
+  await mockFinanceRoutes(page, {
+    permissions: FINANCE_PERMISSIONS,
+    financialRequests,
+  });
+
+  await loginThroughUi(page);
+  await gotoFinancialsViaSidebar(page);
+
+  await expect(
+    page.getByRole("heading", { level: 1, name: FINANCIALS_NAV_LABEL })
+  ).toBeVisible();
+  await expect(page.getByTestId(DENY_PANEL_TEST_ID)).toHaveCount(NO_ELEMENTS);
+
+  await page.getByTestId(`attention-row-${OVERRUN_PROJECT_ID}`).click();
+  await page.waitForURL(new RegExp(`/financials/${OVERRUN_PROJECT_ID}$`));
+
+  await expect(page.getByTestId(TREND_CHART_TEST_ID)).toBeVisible();
+  await expect(page.getByTestId(DENY_PANEL_TEST_ID)).toHaveCount(NO_ELEMENTS);
+  // The mirror image of the denial test: a permitted user does fetch money data.
+  expect(financialRequests.length).toBeGreaterThan(NO_REQUESTS);
 });
