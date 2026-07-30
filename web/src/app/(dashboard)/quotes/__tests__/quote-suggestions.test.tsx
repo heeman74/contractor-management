@@ -1,10 +1,12 @@
 import React from "react";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, fireEvent } from "@testing-library/react";
 import { renderHook, waitFor } from "@testing-library/react";
 import { useForm } from "react-hook-form";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiPost } from "@/lib/api-client";
+import { usePermissions } from "@/lib/hooks/usePermissions";
+import type { Quote, QuoteLineItem } from "@/types/api";
 import {
   DIRTY_FORM_REASON,
   SUGGEST_AGAIN_LABEL,
@@ -16,14 +18,19 @@ import {
   triggerDisabledReason,
   triggerLabel,
 } from "../[id]/edit/_lib/suggestion-copy";
-import { useQuoteSuggestions } from "../[id]/edit/_hooks/use-quote-suggestions";
+import {
+  useQuoteSuggestions,
+  type QuoteSuggestionResult,
+} from "../[id]/edit/_hooks/use-quote-suggestions";
 import { AiLineSubRow } from "../[id]/edit/_components/ai-line-sub-row";
 import { SuggestionNotice } from "../[id]/edit/_components/suggestion-notice";
 import { UnreviewedBanner } from "../[id]/edit/_components/unreviewed-banner";
 import { SortableLineItemRow } from "../[id]/edit/_components/sortable-line-item-row";
+import { LineItemsTable } from "../[id]/edit/_components/line-items-table";
 import {
   DEFAULT_FORM_VALUES,
   createEmptyLineItem,
+  mapQuoteToFormValues,
   type QuoteFormValues,
 } from "../[id]/edit/_lib/quote-form";
 
@@ -32,9 +39,19 @@ jest.mock("@/lib/api-client", () => ({
   ...jest.requireActual("@/lib/api-client"),
   apiPost: jest.fn(),
 }));
+jest.mock("@/lib/hooks/usePermissions", () => ({ usePermissions: jest.fn() }));
 
 const mockApiPost = apiPost as jest.Mock;
 const mockToastError = toast.error as jest.Mock;
+const mockUsePermissions = usePermissions as jest.Mock;
+
+function grantFinanceView(granted: boolean) {
+  mockUsePermissions.mockReturnValue({
+    can: () => granted,
+    permissions: new Set<string>(),
+    isLoading: false,
+  });
+}
 
 const QUOTE_ID = "quote-1";
 const SUGGEST_PATH = `/api/v1/quotes/${QUOTE_ID}/suggest-line-items`;
@@ -353,5 +370,275 @@ describe("line item row", () => {
     expect(screen.queryByPlaceholderText("e.g. Plumbing")).not.toBeInTheDocument();
     rerender(<TestRow defaultValues={values} showTradeColumn />);
     expect(screen.getByPlaceholderText("e.g. Plumbing")).toBeInTheDocument();
+  });
+});
+
+function makeLineItem(overrides: Partial<QuoteLineItem> = {}): QuoteLineItem {
+  return {
+    id: "line-1",
+    quote_id: "quote-1",
+    item_type: "labor",
+    description: "Rough-in plumbing",
+    quantity: "4",
+    unit: "hr",
+    unit_price: "75",
+    sort_order: 0,
+    field: "Plumbing",
+    ai_origin: false,
+    review_state: "unreviewed",
+    confidence_band: null,
+    basis: null,
+    ...overrides,
+  };
+}
+
+function makeQuote(overrides: Partial<Quote> = {}): Quote {
+  return {
+    id: "quote-1",
+    company_id: "company-1",
+    job_id: "job-1",
+    trade_scope_id: null,
+    title: "Kitchen remodel",
+    project_id: null,
+    status: "draft",
+    revision_number: 1,
+    tax_rate: "0",
+    discount_type: null,
+    discount_value: "0",
+    expiry_date: null,
+    sent_at: null,
+    viewed_at: null,
+    approved_at: null,
+    declined_at: null,
+    decline_reason: null,
+    decline_detail: null,
+    admin_notes: null,
+    line_items: [],
+    subtotal: "0",
+    total: "0",
+    created_at: "2026-07-01T00:00:00Z",
+    updated_at: "2026-07-01T00:00:00Z",
+    ...overrides,
+  } as Quote;
+}
+
+function TestLineItemsTable({
+  quote,
+  isNewQuote = false,
+  aiLineCount = 0,
+  unreviewedCount = 0,
+  suggest = jest.fn(),
+  isPending = false,
+  refusal = null,
+  onRegenerateNeeded = jest.fn(),
+}: {
+  quote: Quote | null;
+  isNewQuote?: boolean;
+  aiLineCount?: number;
+  unreviewedCount?: number;
+  suggest?: () => void;
+  isPending?: boolean;
+  refusal?: QuoteSuggestionResult | null;
+  onRegenerateNeeded?: () => void;
+}) {
+  const form = useForm<QuoteFormValues>({
+    defaultValues: quote ? mapQuoteToFormValues(quote) : DEFAULT_FORM_VALUES,
+  });
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() =>
+          form.setValue("line_items.0.description", "changed", {
+            shouldDirty: true,
+          })
+        }
+      >
+        Make dirty
+      </button>
+      <LineItemsTable
+        form={form}
+        quote={quote}
+        isNewQuote={isNewQuote}
+        aiLineCount={aiLineCount}
+        unreviewedCount={unreviewedCount}
+        suggestion={{ suggest, isPending, refusal }}
+        onRegenerateNeeded={onRegenerateNeeded}
+      />
+    </>
+  );
+}
+
+describe("line items table", () => {
+  beforeEach(() => {
+    mockApiPost.mockReset();
+  });
+
+  test("a draft quote, clean form, viewer with finance.view shows the trigger", () => {
+    grantFinanceView(true);
+    render(<TestLineItemsTable quote={makeQuote({ status: "draft" })} />);
+    expect(screen.getByTestId("suggest-line-items-trigger")).toBeInTheDocument();
+  });
+
+  test("a viewer without finance.view sees no trigger and no deny panel", () => {
+    grantFinanceView(false);
+    render(<TestLineItemsTable quote={makeQuote({ status: "draft" })} />);
+    expect(screen.queryByTestId("suggest-line-items-trigger")).not.toBeInTheDocument();
+    expect(screen.queryByText(/don't have permission/i)).not.toBeInTheDocument();
+  });
+
+  test("a non-draft quote hides the trigger but still renders existing AI lines", () => {
+    grantFinanceView(true);
+    const quote = makeQuote({
+      status: "sent",
+      line_items: [
+        makeLineItem({
+          ai_origin: true,
+          review_state: "accepted",
+          confidence_band: "high",
+          basis: "median of 7 comparable plumbing scopes",
+        }),
+      ],
+    });
+    render(<TestLineItemsTable quote={quote} aiLineCount={1} unreviewedCount={0} />);
+    expect(screen.queryByTestId("suggest-line-items-trigger")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("unreviewed-banner")).not.toBeInTheDocument();
+    expect(screen.getByTestId("confidence-chip-0")).toHaveTextContent("Strong history");
+    expect(screen.getByTestId("line-basis-0")).toHaveTextContent(
+      "median of 7 comparable plumbing scopes"
+    );
+  });
+
+  test("a dirty form disables the trigger and shows the dirty-form caption", () => {
+    grantFinanceView(true);
+    render(<TestLineItemsTable quote={makeQuote({ status: "draft" })} />);
+    fireEvent.click(screen.getByRole("button", { name: "Make dirty" }));
+    expect(screen.getByTestId("suggest-line-items-trigger")).toBeDisabled();
+    expect(screen.getByTestId("suggest-trigger-reason")).toHaveTextContent(
+      DIRTY_FORM_REASON
+    );
+  });
+
+  test("clicking Accept sets that line's review_state to accepted with zero network requests", () => {
+    grantFinanceView(true);
+    const quote = makeQuote({
+      line_items: [
+        makeLineItem({ ai_origin: true, review_state: "unreviewed", confidence_band: "high" }),
+      ],
+    });
+    render(<TestLineItemsTable quote={quote} aiLineCount={1} unreviewedCount={1} />);
+    fireEvent.click(screen.getByTestId("accept-line-0"));
+    expect(screen.getByTestId("review-marker-0")).toHaveTextContent("Accepted");
+    expect(mockApiPost).not.toHaveBeenCalled();
+  });
+
+  test("12 unreviewed AI lines render exactly 12 accept affordances and no bulk-approve control", () => {
+    grantFinanceView(true);
+    const lineItems = Array.from({ length: 12 }, (_, i) =>
+      makeLineItem({
+        id: `line-${i}`,
+        sort_order: i,
+        ai_origin: true,
+        review_state: "unreviewed",
+        confidence_band: "medium",
+      })
+    );
+    const quote = makeQuote({ line_items: lineItems });
+    render(<TestLineItemsTable quote={quote} aiLineCount={12} unreviewedCount={12} />);
+    expect(screen.getAllByTestId(/^accept-line-/)).toHaveLength(12);
+    expect(
+      screen.queryAllByRole("button", { name: /accept all|approve all|select all/i })
+    ).toHaveLength(0);
+  });
+
+  test("no element in the rendered tree carries a confidence percentage or score", () => {
+    grantFinanceView(true);
+    const quote = makeQuote({
+      line_items: [
+        makeLineItem({
+          ai_origin: true,
+          review_state: "unreviewed",
+          confidence_band: "low",
+          basis: "median of 2 comparable plumbing scopes",
+        }),
+      ],
+    });
+    const { container } = render(
+      <TestLineItemsTable quote={quote} aiLineCount={1} unreviewedCount={1} />
+    );
+    expect(container.textContent).not.toMatch(/\d+(\.\d+)?\s*%/);
+    expect(container.querySelector('[role="progressbar"]')).toBeNull();
+  });
+
+  test("a hand-built line renders no sub-row at all", () => {
+    grantFinanceView(true);
+    const quote = makeQuote({ line_items: [makeLineItem({ ai_origin: false })] });
+    render(<TestLineItemsTable quote={quote} />);
+    expect(screen.queryByTestId("ai-line-sub-row-0")).not.toBeInTheDocument();
+  });
+
+  test("the Trade column renders only for a project-level quote", () => {
+    grantFinanceView(true);
+    const projectQuote = makeQuote({
+      job_id: null,
+      trade_scope_id: null,
+      line_items: [makeLineItem()],
+    });
+    const { rerender } = render(<TestLineItemsTable quote={projectQuote} />);
+    expect(screen.getByPlaceholderText("e.g. Plumbing")).toBeInTheDocument();
+
+    const jobQuote = makeQuote({
+      job_id: "job-1",
+      trade_scope_id: null,
+      line_items: [makeLineItem()],
+    });
+    rerender(<TestLineItemsTable quote={jobQuote} />);
+    expect(screen.queryByPlaceholderText("e.g. Plumbing")).not.toBeInTheDocument();
+  });
+});
+
+describe("regenerate", () => {
+  beforeEach(() => {
+    grantFinanceView(true);
+  });
+
+  test("clicking Suggest again with unreviewedCount > 0 requests the confirmation instead of mutating", () => {
+    const suggest = jest.fn();
+    const onRegenerateNeeded = jest.fn();
+    const quote = makeQuote({
+      line_items: [makeLineItem({ ai_origin: true, review_state: "unreviewed" })],
+    });
+    render(
+      <TestLineItemsTable
+        quote={quote}
+        aiLineCount={1}
+        unreviewedCount={1}
+        suggest={suggest}
+        onRegenerateNeeded={onRegenerateNeeded}
+      />
+    );
+    fireEvent.click(screen.getByTestId("suggest-line-items-trigger"));
+    expect(onRegenerateNeeded).toHaveBeenCalledTimes(1);
+    expect(suggest).not.toHaveBeenCalled();
+  });
+
+  test("clicking Suggest again with nothing unreviewed calls the mutation directly", () => {
+    const suggest = jest.fn();
+    const onRegenerateNeeded = jest.fn();
+    const quote = makeQuote({
+      line_items: [makeLineItem({ ai_origin: true, review_state: "accepted" })],
+    });
+    render(
+      <TestLineItemsTable
+        quote={quote}
+        aiLineCount={1}
+        unreviewedCount={0}
+        suggest={suggest}
+        onRegenerateNeeded={onRegenerateNeeded}
+      />
+    );
+    fireEvent.click(screen.getByTestId("suggest-line-items-trigger"));
+    expect(suggest).toHaveBeenCalledTimes(1);
+    expect(onRegenerateNeeded).not.toHaveBeenCalled();
   });
 });

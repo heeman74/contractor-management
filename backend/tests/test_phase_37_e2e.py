@@ -17,6 +17,10 @@ can never silently change what this file asserts.
 
 from __future__ import annotations
 
+from datetime import UTC, date, datetime
+from decimal import Decimal
+from uuid import UUID, uuid4
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import CheckConstraint, text
@@ -24,10 +28,39 @@ from sqlalchemy import CheckConstraint, text
 # Side-effect: register all mappers before tests run.
 import app.features.scheduling.models  # noqa: F401
 from app.core.database import async_session_factory
+from app.core.security import create_access_token
+from app.core.tenant import set_current_tenant_id
+from app.features.finance.margin_math import RevenueAnchor
+from app.features.finance.service import FinanceService, contributing_anchor_cost
 from app.features.quotes.models import QuoteLineItem
 from app.features.quotes.service import UNREVIEWED_AI_LINES_DETAIL
+from app.features.quotes.variance_service import QuoteVarianceService
 
 _QUOTES_URL = "/api/v1/quotes/"
+_PROJECTS_URL = "/api/v1/projects/"
+_TRADE_SCOPES_URL = "/api/v1/trade-scopes/"
+_COST_ENTRIES_URL = "/api/v1/cost-entries/"
+_INVOICES_URL = "/api/v1/invoices/"
+_MISSING_VIEW_PERMISSION = "Missing permission: finance.view"
+
+_COST_CATEGORY_SEED_SQL = (
+    "INSERT INTO cost_categories (company_id, name, is_system) "
+    "SELECT CAST(:company_id AS uuid), v.name, true "
+    "FROM (VALUES ('labor'),('materials'),('subcontractor'),('other')) AS v(name) "
+    "ON CONFLICT (company_id, name) DO NOTHING"
+)
+
+_JOB_COMPLETE_SQL = "UPDATE jobs SET status = 'complete' WHERE id = CAST(:job_id AS uuid)"
+
+_QUOTE_APPROVE_SQL = (
+    "UPDATE quotes SET status = 'approved', approved_at = :approved_at "
+    "WHERE id = CAST(:quote_id AS uuid)"
+)
+
+_QUOTE_APPROVE_WITH_PROJECT_SQL = (
+    "UPDATE quotes SET status = 'approved', approved_at = :approved_at, "
+    "project_id = CAST(:project_id AS uuid) WHERE id = CAST(:quote_id AS uuid)"
+)
 
 _MARK_AI_ORIGIN_SQL = (
     "UPDATE quote_line_items SET ai_origin = true, review_state = 'unreviewed', "
@@ -61,16 +94,21 @@ def _line_item(
     return item
 
 
-async def _create_job(client: AsyncClient) -> str:
-    """Create a minimal job in 'quote' status."""
-    resp = await client.post(
-        "/api/v1/jobs/",
-        json={
-            "description": "Phase 37 E2E Test Job",
-            "trade_type": "electrical",
-            "priority": "medium",
-        },
-    )
+async def _create_job(
+    client: AsyncClient,
+    *,
+    project_id: str | None = None,
+    trade_type: str = "electrical",
+) -> str:
+    """Create a minimal job in 'quote' status, optionally linked to a project."""
+    payload: dict = {
+        "description": "Phase 37 E2E Test Job",
+        "trade_type": trade_type,
+        "priority": "medium",
+    }
+    if project_id is not None:
+        payload["project_id"] = project_id
+    resp = await client.post("/api/v1/jobs/", json=payload)
     assert resp.status_code == 201, f"Job creation failed: {resp.text}"
     return resp.json()["id"]
 
@@ -106,6 +144,169 @@ async def _create_project_quote(client: AsyncClient, line_items: list[dict]) -> 
     )
     assert resp.status_code == 201, f"Quote creation failed: {resp.text}"
     return resp.json()
+
+
+def _token(company_id: str, roles: list[str]) -> str:
+    """Mint an access token for a synthetic user with the given roles."""
+    return create_access_token(uuid4(), UUID(company_id), roles)
+
+
+def _pm_headers(company_id: str) -> dict:
+    """Authorization header for a project_manager token (finance.view + finance.manage)."""
+    return {"Authorization": f"Bearer {_token(company_id, ['project_manager'])}"}
+
+
+def _admin_headers(company_id: str) -> dict:
+    """Authorization header for an admin token (excluded from finance.* by default)."""
+    return {"Authorization": f"Bearer {_token(company_id, ['admin'])}"}
+
+
+async def _seed_cost_categories(company_id: str) -> None:
+    """Seed the 4 protected system cost categories for a company (mirrors migration 0032)."""
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        await session.execute(text(_COST_CATEGORY_SEED_SQL), {"company_id": company_id})
+        await session.commit()
+
+
+async def _category_id(company_id: str, name: str) -> str:
+    """Look up a seeded cost category's id by name."""
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        result = await session.execute(
+            text(
+                "SELECT id FROM cost_categories "
+                "WHERE company_id = CAST(:company_id AS uuid) AND name = :name"
+            ),
+            {"company_id": company_id, "name": name},
+        )
+        return str(result.scalar_one())
+
+
+async def _create_project(client: AsyncClient, name: str = "Phase 37 Variance Project") -> str:
+    """Create a project through the API and return its id."""
+    resp = await client.post(_PROJECTS_URL, json={"name": name})
+    assert resp.status_code == 201, resp.text
+    return resp.json()["id"]
+
+
+async def _create_trade_scope(client: AsyncClient, project_id: str, trade_name: str) -> str:
+    """Create a trade scope on a project through the API and return its id."""
+    resp = await client.post(
+        _TRADE_SCOPES_URL,
+        json={"project_id": project_id, "trade_name": trade_name, "trade_color": "#2196F3"},
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()["id"]
+
+
+async def _add_cost_entry(
+    client: AsyncClient,
+    headers: dict,
+    *,
+    job_id: str | None = None,
+    trade_scope_id: str | None = None,
+    category_id: str,
+    amount: str,
+    incurred_date: date = date(2026, 6, 1),
+) -> str:
+    """Create a cost entry through the API at one anchor and return its id."""
+    payload: dict = {
+        "category_id": category_id,
+        "amount": amount,
+        "incurred_date": incurred_date.isoformat(),
+    }
+    if job_id is not None:
+        payload["job_id"] = job_id
+    if trade_scope_id is not None:
+        payload["trade_scope_id"] = trade_scope_id
+    resp = await client.post(_COST_ENTRIES_URL, headers=headers, json=payload)
+    assert resp.status_code == 201, resp.text
+    return resp.json()["id"]
+
+
+async def _mark_job_complete(company_id: str, job_id: str) -> None:
+    """Force a job to 'complete' via SQL so a manual invoice can be posted on it."""
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        await session.execute(text(_JOB_COMPLETE_SQL), {"job_id": job_id})
+        await session.commit()
+
+
+def _material_line_item(amount: str) -> dict:
+    """One material line item — the only shape these revenue fixtures need."""
+    return {
+        "item_type": "material",
+        "description": "Phase 37 revenue item",
+        "quantity": "1.000",
+        "unit": "each",
+        "unit_price": amount,
+    }
+
+
+async def _create_invoice(
+    client: AsyncClient,
+    company_id: str,
+    *,
+    job_id: str | None = None,
+    trade_scope_id: str | None = None,
+    amount: str = "1.00",
+    issued_at: datetime | None = None,
+) -> str:
+    """Create an invoice at one anchor — its EXISTENCE is the D-02 comparable gate.
+
+    Job-anchored invoices require a 'complete' job (shipped generate_manual rule).
+    """
+    if job_id is not None:
+        await _mark_job_complete(company_id, job_id)
+    payload: dict = {
+        "issued_at": (issued_at or datetime.now(UTC)).isoformat(),
+        "line_items": [_material_line_item(amount)],
+    }
+    if job_id is not None:
+        payload["job_id"] = job_id
+    if trade_scope_id is not None:
+        payload["trade_scope_id"] = trade_scope_id
+    resp = await client.post(_INVOICES_URL, json=payload)
+    assert resp.status_code == 201, resp.text
+    return resp.json()["id"]
+
+
+async def _create_quote_for_scope(
+    client: AsyncClient, trade_scope_id: str, line_items: list[dict]
+) -> dict:
+    """Create a draft quote scoped to a trade scope through the API."""
+    resp = await client.post(
+        f"/api/v1/trade-scopes/{trade_scope_id}/quotes",
+        json={"tax_rate": "0", "line_items": line_items},
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+async def _approve_quote(
+    company_id: str,
+    quote_id: str,
+    *,
+    approved_at: datetime | None,
+    project_id: str | None = None,
+) -> None:
+    """Force a quote to approved via SQL — the 33-02 precedent (see module docstring)."""
+    statement = _QUOTE_APPROVE_SQL if project_id is None else _QUOTE_APPROVE_WITH_PROJECT_SQL
+    params: dict = {"quote_id": quote_id, "approved_at": approved_at}
+    if project_id is not None:
+        params["project_id"] = project_id
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        await session.execute(text(statement), params)
+        await session.commit()
+
+
+async def _quote_variance(company_id: str, quote_id: str):
+    """Call QuoteVarianceService.quote_variance directly (no endpoint exists yet in Task 2)."""
+    async with async_session_factory() as db:
+        set_current_tenant_id(UUID(company_id))
+        return await QuoteVarianceService(db).quote_variance(UUID(quote_id))
 
 
 async def _mark_ai_origin(
@@ -151,6 +352,93 @@ def test_quote_line_review_columns_exist_with_checks():
     assert "quote_line_items_confidence_band_check" in checks
     assert "quote_line_items_basis_length_check" in checks
     assert "200" in checks["quote_line_items_basis_length_check"]
+
+
+# ---------------------------------------------------------------------------
+# Plan 37-04 Task 1 — anchor_cost_context equivalence guards
+#
+# The only thing that keeps a second definition of spend from being introduced
+# by a later edit: anchor_cost_context's batched per-anchor cost must equal
+# every shipped spend definition it composes rather than restates.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_anchor_cost_context_matches_project_rollup(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_cost_categories(company_id)
+    materials_id = await _category_id(company_id, "materials")
+
+    project_id = await _create_project(tenant_a_client)
+    scope_id = await _create_trade_scope(tenant_a_client, project_id, "Plumbing")
+    job_id = await _create_job(tenant_a_client, project_id=project_id, trade_type="Electrical")
+    await _add_cost_entry(
+        tenant_a_client, headers, job_id=job_id, category_id=materials_id, amount="220.00"
+    )
+    await _add_cost_entry(
+        tenant_a_client, headers, trade_scope_id=scope_id, category_id=materials_id, amount="90.00"
+    )
+
+    async with async_session_factory() as db:
+        set_current_tenant_id(UUID(company_id))
+        service = FinanceService(db)
+        context = await service.anchor_cost_context(UUID(project_id))
+        rollup = await service.rollup_for_project(UUID(project_id))
+
+    assert context.grand_total == rollup.grand_total
+
+
+@pytest.mark.asyncio
+async def test_anchor_cost_context_matches_job_cost_breakdown(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_cost_categories(company_id)
+    materials_id = await _category_id(company_id, "materials")
+
+    project_id = await _create_project(tenant_a_client)
+    job_id = await _create_job(tenant_a_client, project_id=project_id, trade_type="Electrical")
+    await _add_cost_entry(
+        tenant_a_client, headers, job_id=job_id, category_id=materials_id, amount="340.00"
+    )
+
+    async with async_session_factory() as db:
+        set_current_tenant_id(UUID(company_id))
+        service = FinanceService(db)
+        context = await service.anchor_cost_context(UUID(project_id))
+        anchor_cost = contributing_anchor_cost(RevenueAnchor(job_id=UUID(job_id)), context)
+        breakdown = await service.job_cost_breakdown(UUID(job_id))
+
+    assert anchor_cost == breakdown.grand_total
+
+
+@pytest.mark.asyncio
+async def test_anchor_cost_context_matches_trade_scope_spend(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_cost_categories(company_id)
+    materials_id = await _category_id(company_id, "materials")
+
+    project_id = await _create_project(tenant_a_client)
+    scope_id = await _create_trade_scope(tenant_a_client, project_id, "Plumbing")
+    await _add_cost_entry(
+        tenant_a_client, headers, trade_scope_id=scope_id, category_id=materials_id, amount="175.00"
+    )
+
+    async with async_session_factory() as db:
+        set_current_tenant_id(UUID(company_id))
+        service = FinanceService(db)
+        context = await service.anchor_cost_context(UUID(project_id))
+        anchor_cost = contributing_anchor_cost(RevenueAnchor(trade_scope_id=UUID(scope_id)), context)
+        spend = await service.trade_scope_spend(UUID(scope_id))
+
+    assert anchor_cost == spend
 
 
 # ---------------------------------------------------------------------------

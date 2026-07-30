@@ -22,9 +22,19 @@ import { QuoteSettingsCard } from "./_components/quote-settings-card";
 import { QuotePreview } from "./_components/quote-preview";
 import { StickyTotalsBar } from "./_components/sticky-totals-bar";
 import { useQuoteEditor } from "./_hooks/use-quote-editor";
+import { useQuoteSuggestions } from "./_hooks/use-quote-suggestions";
 import { computeQuoteTotals } from "./_lib/quote-form";
 
 type EditorMode = "edit" | "preview";
+
+const REGENERATE_TAIL =
+  "Lines you've accepted or edited stay exactly as they are.";
+
+function regenerateBodyCopy(count: number): string {
+  return count === 1
+    ? `1 unreviewed suggestion will be replaced with a fresh one. ${REGENERATE_TAIL}`
+    : `${count} unreviewed suggestions will be replaced with fresh ones. ${REGENERATE_TAIL}`;
+}
 
 export default function QuoteEditPage({
   params,
@@ -33,10 +43,23 @@ export default function QuoteEditPage({
 }) {
   const { id } = use(params);
   const editor = useQuoteEditor(id);
+  const suggestions = useQuoteSuggestions(id);
   const [mode, setMode] = useState<EditorMode>("edit");
+  const [regenerateOpen, setRegenerateOpen] = useState(false);
 
   const { form } = editor;
   const totals = computeQuoteTotals(form.watch());
+
+  const lineItems = form.watch("line_items");
+  const aiLineCount = lineItems.filter((item) => item.ai_origin).length;
+  const unreviewedCount = lineItems.filter(
+    (item) => item.ai_origin && item.review_state === "unreviewed"
+  ).length;
+
+  function confirmRegenerate() {
+    setRegenerateOpen(false);
+    suggestions.suggest();
+  }
 
   if (editor.quoteLoading && !editor.isNew) {
     return (
@@ -87,7 +110,15 @@ export default function QuoteEditPage({
       <form onSubmit={form.handleSubmit(editor.submit)}>
         {mode === "edit" ? (
           <div className="space-y-6">
-            <LineItemsTable form={form} />
+            <LineItemsTable
+              form={form}
+              quote={editor.existingQuote ?? null}
+              isNewQuote={editor.isNew}
+              aiLineCount={aiLineCount}
+              unreviewedCount={unreviewedCount}
+              suggestion={suggestions}
+              onRegenerateNeeded={() => setRegenerateOpen(true)}
+            />
             <QuoteSettingsCard form={form} />
           </div>
         ) : (
@@ -137,6 +168,33 @@ export default function QuoteEditPage({
             </Button>
             <Button onClick={editor.confirmPendingTemplate}>
               Replace Line Items
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Regenerate confirmation — appears only when there is unreviewed
+          work to replace; with none, "Suggest again" runs the mutation
+          immediately (nothing destructive is happening). */}
+      <Dialog
+        open={regenerateOpen}
+        onOpenChange={(open) => {
+          if (!open) setRegenerateOpen(false);
+        }}
+      >
+        <DialogContent showCloseButton>
+          <DialogHeader>
+            <DialogTitle>Replace unreviewed suggestions?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-600">
+            {regenerateBodyCopy(unreviewedCount)}
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRegenerateOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="default" onClick={confirmRegenerate}>
+              Replace Suggestions
             </Button>
           </DialogFooter>
         </DialogContent>

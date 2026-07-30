@@ -142,6 +142,21 @@ def _labor_by_job(
     }
 
 
+def _build_margin_context(cost_side: ProjectCostSide) -> ProjectMarginContext:
+    """The one place ProjectMarginContext is built, from an already-fetched cost side.
+
+    Both `anchor_cost_context` and `rollup_for_project` call this — never a second
+    inline construction — so a later edit cannot drift the two apart (35-05, 35-06).
+    """
+    entries, breakdown = cost_side.entries, cost_side.breakdown
+    return ProjectMarginContext(
+        anchor_costs=_anchor_costs_from_entries(entries),
+        labor_by_job=_labor_by_job(cost_side.sessions, cost_side.rates),
+        grand_total=breakdown.grand_total,
+        unrated_seconds=cost_side.derived_labor.unrated_seconds,
+    )
+
+
 def contributing_anchor_cost(anchor: RevenueAnchor, context: ProjectMarginContext) -> Decimal:
     """One anchor's cost-entry sum plus, for job anchors, its derived labor total.
 
@@ -349,6 +364,17 @@ class FinanceService(TenantScopedService[CostEntry]):
         rows = await self.repository.category_totals_for_trade_scope(trade_scope_id)
         return _build_breakdown(rows, None, tracked_at_job_level=True).grand_total
 
+    async def anchor_cost_context(self, project_id: uuid.UUID) -> ProjectMarginContext:
+        """Every anchor's cost in one project, from ONE batched cost read.
+
+        Public for the same reason contributing_anchor_cost is: a caller that needs
+        per-anchor cost must compose this, never loop rollup_for_project. The
+        per-anchor query loop is the N+1 CLAUDE.md forbids and the drift 35-05
+        recorded an equivalence test against.
+        """
+        cost_side = await self._project_cost_side(project_id)
+        return _build_margin_context(cost_side)
+
     async def rollup_for_project(self, project_id: uuid.UUID) -> ProjectCostRollup:
         """Itemized entries + category totals + derived project labor + margin + budget.
 
@@ -357,12 +383,7 @@ class FinanceService(TenantScopedService[CostEntry]):
         """
         cost_side = await self._project_cost_side(project_id)
         entries, breakdown = cost_side.entries, cost_side.breakdown
-        margin_context = ProjectMarginContext(
-            anchor_costs=_anchor_costs_from_entries(entries),
-            labor_by_job=_labor_by_job(cost_side.sessions, cost_side.rates),
-            grand_total=breakdown.grand_total,
-            unrated_seconds=cost_side.derived_labor.unrated_seconds,
-        )
+        margin_context = _build_margin_context(cost_side)
         return ProjectCostRollup(
             entries=entries,
             total=sum((entry.amount for entry in entries), Decimal("0")),

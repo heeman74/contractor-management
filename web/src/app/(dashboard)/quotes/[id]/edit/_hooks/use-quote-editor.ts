@@ -207,6 +207,7 @@ export function useQuoteEditor(id: string) {
     templates,
     isNew,
     quoteLoading,
+    existingQuote,
     pageTitle,
     revisionNumber,
     pendingTemplate,
