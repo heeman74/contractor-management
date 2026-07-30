@@ -100,6 +100,25 @@ mobile quote AI, cross-trade or cross-company history.
   ("past plumbing quotes ran 12% under actual"). No multiplier — it would
   compound with the actual-cost basis and inflate quotes with no visible cause.
 
+### Post-research decisions (added 2026-07-30, resolving 37-RESEARCH.md open questions)
+- **D-13:** **Price from QUOTED history; cite ACTUAL in the basis.** `unit_price`
+  is derived from what the company has historically **charged** for comparable
+  work — not from its unburdened actual cost. This resolves the conflict the
+  research surfaced: v4.0 labor cost carries no burden (PITFALLS #2), so pricing
+  from the cost rate would make every suggestion at-or-below cost. The
+  actual-cost and quoted-vs-actual variance figures ride along as **separately
+  named payload fields** and appear in the basis text ("past plumbing quotes ran
+  12% under actual"), so the owner sees both numbers and decides. D-12's
+  no-multiplier prohibition still holds — nothing is silently adjusted; the
+  correction is stated, not applied. Labor figures cited from the cost leg must
+  keep the unburdened label.
+- **D-14:** **Project-level quote variance groups by `field` → the jobs approval
+  created.** Match each `field` group to the per-field job that
+  `_convert_project_quote` generated at approval. Do NOT reuse Phase 33's D-14
+  last-resort project-quote rule — that governs revenue *resolution*, a
+  different question. Per-trade variance is what feeds future suggestions, so a
+  blended whole-project number would defeat the loop.
+
 ### Claude's Discretion
 - Minimum comparable threshold value (D-09) and the band boundaries (D-05) —
   named constants, tunable.
