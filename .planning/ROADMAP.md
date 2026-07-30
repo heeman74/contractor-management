@@ -469,7 +469,21 @@ Plans:
   2. Owner/PM must explicitly review and approve AI-suggested line items before a quote can be sent — no quote is ever sent autonomously
   3. Each AI quote suggestion displays a confidence indicator reflecting how much historical data backs it
   4. Owner/PM can view quoted-vs-actual variance for any completed project or trade scope, and that variance history feeds into future AI quote suggestions
-**Plans**: TBD
+**Plans:** 12 plans in 7 waves (at most one backend plan per wave — conftest TRUNCATEs all tables per test, so two pytest processes against contractorhub_test deadlock; the web plans run in parallel with the backend chain)
+
+Plans:
+- [ ] 37-01-PLAN.md — Line-item identity (id-keyed reconcile), review-state columns + migration 0037, the D-07 send gate [wave 1]
+- [ ] 37-02-PLAN.md — Typed money/percent grounding + the DB-free confidence-band and variance math [wave 2]
+- [ ] 37-03-PLAN.md — Web contract layer: line-item type, the two new chip recipes, the band map, the form round trip [wave 2]
+- [ ] 37-04-PLAN.md — Quoted-vs-actual endpoints for one quote and one project, incl. the D-14 field grouping [wave 3]
+- [ ] 37-05-PLAN.md — Editor AI surface: trigger, refusals, per-line review, banner, regenerate dialog [wave 3]
+- [ ] 37-06-PLAN.md — Quote detail send gate: blocked alert, disabled-and-explained Send, read-only AI lines [wave 3]
+- [ ] 37-07-PLAN.md — Bounded comparable query, the rate reduction, and the closed-set payload [wave 4]
+- [ ] 37-08-PLAN.md — FinanceGate fallback + the quote-detail variance card behind the layered double lock [wave 4]
+- [ ] 37-09-PLAN.md — Prompt contract, suggestion service and the suggest endpoint behind D-10 [wave 5]
+- [ ] 37-10-PLAN.md — Quoted vs Actual by Trade on the project drill-down [wave 5]
+- [ ] 37-11-PLAN.md — Grounding and regeneration keystones, D-13 pricing proof, backend phase gate [wave 6]
+- [ ] 37-12-PLAN.md — Playwright phase E2E and the web phase gate [wave 7]
 
 ## Progress
 
