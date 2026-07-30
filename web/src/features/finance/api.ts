@@ -28,6 +28,8 @@ import type {
   MarginTrend,
   FindingSeverity,
   ProfitabilityFinding,
+  QuoteVariance,
+  QuoteVarianceTrade,
 } from "./types";
 import { FINDING_SEVERITIES, TREND_WINDOWS } from "./types";
 
@@ -628,4 +630,60 @@ export async function fetchProjectProfitabilityFinding(
     `${projectFinancialsPath(projectId)}/finding`
   );
   return raw ? mapProfitabilityFinding(raw) : null;
+}
+
+// --- Quote variance (FINAI-05) ---
+
+/** Shared by the top-level figures and every `trades` entry (below) so the two
+ *  field groups can never map their money/percent fields differently. */
+interface QuoteVarianceFieldsApiResponse {
+  quoted: string | null;
+  actual: string | null;
+  variance: string | null;
+  variance_percent: string | null;
+}
+
+interface QuoteVarianceTradeApiResponse extends QuoteVarianceFieldsApiResponse {
+  label: string;
+}
+
+interface QuoteVarianceApiResponse extends QuoteVarianceFieldsApiResponse {
+  labor_included: boolean;
+  scope_anchored: boolean;
+  trades: QuoteVarianceTradeApiResponse[];
+}
+
+/** The one row mapper for a quoted/actual/variance/variancePercent group —
+ *  serves the top-level figures and every `trades` entry so the two can never
+ *  map money/percent fields differently. */
+function mapQuoteVarianceFields(
+  raw: QuoteVarianceFieldsApiResponse
+): Omit<QuoteVarianceTrade, "label"> {
+  return {
+    quoted: raw.quoted,
+    actual: raw.actual,
+    variance: raw.variance,
+    variancePercent: raw.variance_percent,
+  };
+}
+
+function mapQuoteVarianceTrade(raw: QuoteVarianceTradeApiResponse): QuoteVarianceTrade {
+  return { label: raw.label, ...mapQuoteVarianceFields(raw) };
+}
+
+function mapQuoteVariance(raw: QuoteVarianceApiResponse): QuoteVariance {
+  return {
+    ...mapQuoteVarianceFields(raw),
+    laborIncluded: raw.labor_included,
+    scopeAnchored: raw.scope_anchored,
+    trades: raw.trades.map(mapQuoteVarianceTrade),
+  };
+}
+
+const QUOTE_VARIANCE_PATH = (quoteId: string) =>
+  `/api/v1/quotes/${encodeURIComponent(quoteId)}/variance`;
+
+export async function fetchQuoteVariance(quoteId: string): Promise<QuoteVariance> {
+  const raw = await apiGet<QuoteVarianceApiResponse>(QUOTE_VARIANCE_PATH(quoteId));
+  return mapQuoteVariance(raw);
 }

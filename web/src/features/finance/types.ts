@@ -245,6 +245,35 @@ export type FindingSeverity = "warning" | "critical";
 
 export const FINDING_SEVERITIES: readonly FindingSeverity[] = ["warning", "critical"];
 
+// --- Quote variance (FINAI-05) ---
+
+/** One field group's (or project anchor's) quoted-vs-actual row. `null` means
+ *  honest absence, never zero: a group whose matched job carries no invoice
+ *  reports `actual`/`variance`/`variancePercent` as `null` while `quoted` (always
+ *  known) still shows. Money and percent stay strings end-to-end — the backend's
+ *  Decimal, displayed verbatim, never re-summed or re-divided client-side. */
+export interface QuoteVarianceTrade {
+  label: string;
+  quoted: string | null;
+  actual: string | null;
+  variance: string | null;
+  variancePercent: string | null;
+}
+
+/** GET /quotes/{quoteId}/variance — one quote's quoted-vs-actual. `trades` is
+ *  empty for a job- or scope-anchored quote and carries one row per `field`
+ *  group for a project-level quote (D-14). `variance = actual - quoted`, so a
+ *  positive variance means the work cost more than it was quoted for. */
+export interface QuoteVariance {
+  quoted: string | null;
+  actual: string | null;
+  variance: string | null;
+  variancePercent: string | null;
+  laborIncluded: boolean;
+  scopeAnchored: boolean;
+  trades: QuoteVarianceTrade[];
+}
+
 /** The latest OPEN AI profitability finding for one project (D-08).
  *  Money and percent never appear as bare fields: every figure the user sees is
  *  inside the grounded prose, already formatted and validated server-side. */

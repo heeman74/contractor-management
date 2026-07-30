@@ -23,6 +23,7 @@ import {
   fetchProjectFinancials,
   fetchProjectMarginTrend,
   fetchProjectProfitabilityFinding,
+  fetchQuoteVariance,
 } from "./api";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { FINANCE_VIEW_PERMISSION, type TrendWindow } from "./types";
@@ -150,6 +151,31 @@ export function useProjectProfitabilityFinding(projectId: string) {
     queryKey: ["cost-entries", "financials", "finding", projectId],
     queryFn: () => fetchProjectProfitabilityFinding(projectId),
     enabled: can(FINANCE_VIEW_PERMISSION) && !!projectId,
+  });
+}
+
+/**
+ * One quote's quoted-vs-actual (FINAI-05, Trap 8 lock 2 — the fetch-side half).
+ * `FinanceGate` stops the render; this stops the request. Without `enabled` an
+ * unauthorized visit would still issue the call and the zero-request assertion
+ * would pass for the wrong reason. This is not redundant with the render gate:
+ * `FinanceGate` short-circuits BEFORE `QuoteVarianceSection` (the hook's owner)
+ * ever mounts, so the request half only becomes observable once the render half
+ * is already broken — that layering is exactly what makes `enabled` a second,
+ * independent lock rather than dead code a later reader should simplify away.
+ * The proof that `enabled` holds on its own lives in this hook's unit test,
+ * which drives it directly without the gate (the 36-02 precedent).
+ *
+ * `isApproved` is part of `enabled`, not a render-time branch: variance is
+ * meaningless before an anchor exists, so an unapproved quote issues no
+ * request at all.
+ */
+export function useQuoteVariance(quoteId: string, isApproved: boolean) {
+  const { can } = usePermissions();
+  return useQuery({
+    queryKey: ["cost-entries", "financials", "quote-variance", quoteId],
+    queryFn: () => fetchQuoteVariance(quoteId),
+    enabled: can(FINANCE_VIEW_PERMISSION) && !!quoteId && isApproved,
   });
 }
 

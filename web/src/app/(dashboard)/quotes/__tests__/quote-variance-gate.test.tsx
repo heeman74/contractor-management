@@ -187,7 +187,7 @@ describe("useQuoteVariance", () => {
 
   it("is enabled and fires exactly one request when both finance.view and approved hold", async () => {
     grantPermission(true);
-    const { result } = renderHook(() => useQuoteVariance(QUOTE_ID, true), {
+    renderHook(() => useQuoteVariance(QUOTE_ID, true), {
       wrapper: createQueryWrapper(),
     });
 
