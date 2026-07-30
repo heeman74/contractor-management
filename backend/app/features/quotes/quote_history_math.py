@@ -165,3 +165,150 @@ def median_of(values: Sequence[Decimal]) -> Decimal | None:
 def _nearest_rank_index(percentile: Decimal, count: int) -> int:
     index = math.ceil(percentile * count) - 1
     return min(max(index, 0), count - 1)
+
+
+# ---------------------------------------------------------------------------
+# Comparable reduction (FINAI-03/D-13) — same-trade anchors and their approved-
+# quote lines, already fetched by the caller, reduced to citable rates.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ComparableAnchor:
+    """One completed, invoiced anchor of the matched trade — cost and labor
+    already resolved by the caller (this module reduces them, never fetches
+    them)."""
+
+    is_job_anchored: bool
+    actual_cost: Decimal
+    quoted_pre_tax: Decimal | None
+    labor_cost: Decimal
+
+
+@dataclass(frozen=True)
+class ComparableLine:
+    """One approved-quote line item at a comparable anchor."""
+
+    item_type: str
+    unit: str
+    description: str
+    quantity: Decimal
+    unit_price: Decimal
+
+
+@dataclass(frozen=True)
+class RateRow:
+    """One rate the model is permitted to select. `typical_quantity` is a string
+    by construction — a Decimal here would make the number citable as money."""
+
+    item_type: str
+    unit: str
+    median_quoted_unit_price: Decimal
+    typical_quantity: str
+    sample_description: str
+
+
+@dataclass(frozen=True)
+class ComparableSummary:
+    """Everything one trade's comparable set reduces to — the payload's entire
+    numeric substance."""
+
+    trade: str
+    comparable_count: int
+    confidence_band: str
+    rate_rows: tuple[RateRow, ...]
+    median_actual_total_per_comparable: Decimal | None
+    median_actual_labor_cost: Decimal | None
+    quoted_vs_actual_variance_percent: Decimal | None
+
+
+def summarize_comparables(
+    trade: str, anchors: Sequence[ComparableAnchor], lines: Sequence[ComparableLine]
+) -> ComparableSummary:
+    """Reduce one trade's comparable anchors and their quote lines to citable rates.
+
+    D-13's pricing rule, stated here rather than merely inferred:
+    `median_quoted_unit_price` comes from what the company CHARGED at comparable
+    anchors, never from its actual unit cost. v4.0 labor cost is unburdened
+    (wage only), so pricing a labor line from the cost rate would quote at or
+    below true cost (PITFALLS #2). The actual-cost and variance figures ride
+    along as separately named fields so the basis can STATE the correction
+    rather than apply it — D-12's no-multiplier rule holds because nothing here
+    multiplies anything.
+
+    The confidence spread rides on the SAME population the rate rows' medians
+    came from — every comparable line's unit price, pooled across groups —
+    never an anchor-level figure and never an AI self-report.
+    """
+    comparable_count = len(anchors)
+    rate_rows = _rate_rows(lines) if comparable_count >= MIN_COMPARABLES_FOR_SUGGESTION else ()
+    spread_ratio = spread_ratio_for([line.unit_price for line in lines])
+    return ComparableSummary(
+        trade=trade,
+        comparable_count=comparable_count,
+        confidence_band=confidence_band(comparable_count, spread_ratio),
+        rate_rows=rate_rows,
+        median_actual_total_per_comparable=median_of([anchor.actual_cost for anchor in anchors]),
+        median_actual_labor_cost=_median_job_anchored_labor(anchors),
+        quoted_vs_actual_variance_percent=_quoted_vs_actual_variance_percent(anchors),
+    )
+
+
+def _median_job_anchored_labor(anchors: Sequence[ComparableAnchor]) -> Decimal | None:
+    """The unburdened labor median, from job-anchored comparables only — a
+    trade-scope anchor structurally carries no labor cost."""
+    return median_of([anchor.labor_cost for anchor in anchors if anchor.is_job_anchored])
+
+
+def _quoted_vs_actual_variance_percent(anchors: Sequence[ComparableAnchor]) -> Decimal | None:
+    """Variance across every comparable with a known quoted leg, summed then
+    compared — never averaged per-anchor, so one large job cannot be swamped by
+    several small ones. Comparables with no quoted leg contribute to neither sum."""
+    quoted_total = ZERO_PERCENT
+    actual_total = ZERO_PERCENT
+    for anchor in anchors:
+        if anchor.quoted_pre_tax is None:
+            continue
+        quoted_total += anchor.quoted_pre_tax
+        actual_total += anchor.actual_cost
+    return variance_for(quoted_total, actual_total).variance_percent
+
+
+def _rate_rows(lines: Sequence[ComparableLine]) -> tuple[RateRow, ...]:
+    """One rate row per (item_type, unit) group present in the comparable lines —
+    a group with no lines simply has no entry, never a zero."""
+    groups: dict[tuple[str, str], list[ComparableLine]] = {}
+    for line in lines:
+        groups.setdefault((line.item_type, line.unit), []).append(line)
+    return tuple(
+        _rate_row_for(item_type, unit, group) for (item_type, unit), group in sorted(groups.items())
+    )
+
+
+def _rate_row_for(item_type: str, unit: str, group: Sequence[ComparableLine]) -> RateRow:
+    """One group's rate row — group is always non-empty (see `_rate_rows`)."""
+    return RateRow(
+        item_type=item_type,
+        unit=unit,
+        median_quoted_unit_price=_median_nonempty([line.unit_price for line in group]),
+        typical_quantity=str(_median_nonempty([line.quantity for line in group])),
+        sample_description=_most_common_description(group),
+    )
+
+
+def _median_nonempty(values: Sequence[Decimal]) -> Decimal:
+    """`median_of`, guaranteed non-None for the always-nonempty groups this
+    module builds rows from."""
+    median = median_of(values)
+    assert median is not None
+    return median
+
+
+def _most_common_description(group: Sequence[ComparableLine]) -> str:
+    """The description repeated most often in the group, ties broken by first
+    appearance — a real line's own words, never a generated summary."""
+    counts: dict[str, int] = {}
+    for line in group:
+        counts[line.description] = counts.get(line.description, 0) + 1
+    best_count = max(counts.values())
+    return next(line.description for line in group if counts[line.description] == best_count)
