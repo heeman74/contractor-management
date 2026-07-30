@@ -9,6 +9,9 @@ All CLAUDE.md rules apply:
 - Relationships declare lazy="raise" so an accidental lazy load fails loudly
 - Inherits TenantScopedModel (id, company_id, version, timestamps)
 - from __future__ import annotations + TYPE_CHECKING for circular-import safety
+
+Success criteria (SCn) used below resolve in
+.planning/phases/36-ai-profitability-analysis/36-CONTEXT.md.
 """
 
 from __future__ import annotations

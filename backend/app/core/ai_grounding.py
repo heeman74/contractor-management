@@ -1,4 +1,4 @@
-"""Grounding validator for AI-authored text (FINAI D-05, SC3).
+"""Grounding validator for AI-authored text.
 
 Every dollar and percent the model writes must already exist in the payload it was
 given. That is only tractable if the payload's value set is CLOSED under everything
@@ -81,7 +81,7 @@ def matches_allowed(figure: CitedFigure, allowed: frozenset[Decimal]) -> bool:
 
 
 def validate_grounding(text: str, allowed: frozenset[Decimal]) -> GroundingResult:
-    """Reject text citing any figure absent from the allowed set (D-05).
+    """Reject text citing any figure absent from the allowed set.
 
     Text with no figures at all is grounded: a qualitative sentence cites nothing
     and therefore fabricates nothing.

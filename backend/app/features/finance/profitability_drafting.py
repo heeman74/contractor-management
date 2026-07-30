@@ -13,6 +13,9 @@ clipped to fit, never partially saved.
 Feature-agnostic on purpose, like the validator it wraps: it imports the payload's
 `ProfitabilityCandidate` but no repository, no alerting and no scheduler, so a
 second grounded-AI feature reuses the retry envelope instead of restating it.
+
+Decision IDs (D-nn), success criteria (SCn) and requirement tags (FINAI-nn) used
+below resolve in .planning/phases/36-ai-profitability-analysis/36-CONTEXT.md.
 """
 
 from __future__ import annotations

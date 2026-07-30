@@ -9,6 +9,9 @@ and what fingerprint it carries (D-06).
 D-02 draws the line: detection is deterministic and unit-testable, and the AI adds
 judgment and phrasing on top of it — never the detection itself. So every threshold
 and every band boundary below is a named, tunable `Decimal` and lives here alone.
+
+Decision IDs (D-nn), success criteria (SCn) and requirement tags (FINAI-nn) used
+below resolve in .planning/phases/36-ai-profitability-analysis/36-CONTEXT.md.
 """
 
 from __future__ import annotations

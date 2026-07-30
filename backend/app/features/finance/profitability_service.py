@@ -23,6 +23,9 @@ No run-log table exists in this codebase and no success criterion needs one:
 structured logging IS the run log, one line per skip plus one summary per company.
 
 No method here commits — on the scheduler path only `_run_for_all_companies` does.
+
+Decision IDs (D-nn), success criteria (SCn) and requirement tags (FINAI-nn) used
+below resolve in .planning/phases/36-ai-profitability-analysis/36-CONTEXT.md.
 """
 
 from __future__ import annotations

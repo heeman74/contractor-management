@@ -10,6 +10,9 @@ The closure property is the whole point. `collect_allowed_values` in
 becomes citable — so a figure that is NOT a named field here is a figure the model
 cannot use, and validation stays pure set membership instead of a search for
 derivable arithmetic.
+
+Decision IDs (D-nn), success criteria (SCn) and requirement tags (FINAI-nn) used
+below resolve in .planning/phases/36-ai-profitability-analysis/36-CONTEXT.md.
 """
 
 from __future__ import annotations

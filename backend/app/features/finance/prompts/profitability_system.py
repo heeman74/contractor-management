@@ -6,6 +6,9 @@ makes validation pure set membership against the payload's named fields.
 
 The length constants are interpolated into the prompt text so the prompt and the
 database CHECK constraints can never state different bounds.
+
+Decision IDs (D-nn), success criteria (SCn) and requirement tags (FINAI-nn) used
+below resolve in .planning/phases/36-ai-profitability-analysis/36-CONTEXT.md.
 """
 
 NARRATIVE_MAX_CHARS = 600

@@ -13,6 +13,9 @@ lifecycle guarantees the nightly analysis depends on:
 
 No method commits: on the scheduler path only _run_for_all_companies commits
 (CLAUDE.md).
+
+Decision IDs (D-nn) used below resolve in
+.planning/phases/36-ai-profitability-analysis/36-CONTEXT.md.
 """
 
 from __future__ import annotations
