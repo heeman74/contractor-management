@@ -31,8 +31,18 @@ from app.features.finance.margin_math import (
 
 
 class QuoteLineItemCreate(BaseModel):
-    """Schema for creating a single quote line item."""
+    """Schema for creating or reconciling a single quote line item.
 
+    `id` is how the reconcile in QuoteService._reconcile_line_items matches this
+    entry to a stored row — omit it (or send an id the quote doesn't have) to
+    insert a new row. `review_state` is the client's requested state; the server
+    derives the actual stored state (see review_state_after in service.py) and
+    may override it. Deliberately absent: the AI-provenance flag, `confidence_band`,
+    `basis`, `suggested_at` — those are server-owned, so a client can never
+    claim AI provenance for a line it submits.
+    """
+
+    id: uuid.UUID | None = None
     item_type: Literal["labor", "material"]
     description: str = Field(..., min_length=1, max_length=500)
     quantity: Decimal = Field(..., gt=0, decimal_places=3)
@@ -41,6 +51,7 @@ class QuoteLineItemCreate(BaseModel):
     sort_order: int = Field(default=0, ge=0)
     # Trade/field grouping for project-level quotes (one job per field on approval).
     field: str | None = Field(default=None, max_length=100)
+    review_state: Literal["unreviewed", "accepted", "edited"] | None = None
 
 
 class QuoteLineItemResponse(BaseResponseSchema):
@@ -54,6 +65,10 @@ class QuoteLineItemResponse(BaseResponseSchema):
     unit_price: Decimal
     sort_order: int
     field: str | None = None
+    ai_origin: bool
+    review_state: str
+    confidence_band: str | None = None
+    basis: str | None = None
 
     @property
     def line_total(self) -> Decimal:
@@ -105,7 +120,10 @@ class QuoteCreate(BaseModel):
 class QuoteUpdate(BaseModel):
     """Schema for updating an existing draft quote.
 
-    Line items are fully replaced on update — pass the complete new list.
+    Line items are reconciled by `id`, not replaced wholesale: a submitted item
+    matching a stored row's id updates it in place, an item with no id (or an
+    id the quote doesn't carry) is inserted as new, and any stored row whose id
+    is absent from the submitted list is deleted.
     """
 
     tax_rate: Decimal | None = Field(default=None, ge=0, le=100, decimal_places=2)

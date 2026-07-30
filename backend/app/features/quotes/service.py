@@ -5,7 +5,7 @@ Implements the full quote lifecycle:
 
 Key operations:
 - create_quote: creates quote with line items, appends event to job.status_history
-- update_quote: full line item replacement (draft only)
+- update_quote: id-keyed line item reconcile (draft only)
 - send_quote: transitions draft -> sent, sends FCM notification to client
 - record_view: sets viewed_at on first view (read receipt)
 - approve_quote: transitions sent/viewed -> approved, optionally transitions job
@@ -30,7 +30,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from fastapi import HTTPException, status
-from sqlalchemy import delete, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -42,11 +42,19 @@ from app.features.jobs.service import JobService
 from app.features.projects.models import TradeScope
 from app.features.projects.schemas import ProjectCreate
 from app.features.projects.service import ProjectService
-from app.features.quotes.models import Quote, QuoteLineItem, QuoteTemplate
+from app.features.quotes.models import (
+    REVIEW_STATE_ACCEPTED,
+    REVIEW_STATE_EDITED,
+    REVIEW_STATE_UNREVIEWED,
+    Quote,
+    QuoteLineItem,
+    QuoteTemplate,
+)
 from app.features.quotes.repository import QuoteRepository, QuoteTemplateRepository
 from app.features.quotes.schemas import (
     DeclineQuoteRequest,
     QuoteCreate,
+    QuoteLineItemCreate,
     QuoteTemplateCreate,
     QuoteUpdate,
 )
@@ -54,6 +62,31 @@ from app.features.quotes.schemas import (
 # Fallbacks when an approved project-level quote is converted into a project.
 _DEFAULT_PROJECT_NAME = "New Project"
 _DEFAULT_JOB_FIELD = "General"
+
+# Priced/descriptive fields compared to decide whether a stored AI line was
+# touched by a PATCH (D-07/D-08). Deliberately excludes `id`, `sort_order`,
+# `review_state` — reordering or an explicit review-state change is not itself
+# an edit of the line's content.
+PRICED_FIELDS = ("description", "quantity", "unit", "unit_price", "field")
+
+
+def review_state_after(row: QuoteLineItem, incoming: QuoteLineItemCreate) -> str:
+    """The review state a stored line carries after one PATCH (D-07, D-08).
+
+    Only an AI-originated line has review state at all. A changed priced field
+    is an edit no matter what the client claimed, so an edit can never be
+    laundered as an untouched acceptance; and an edit never reverts to
+    accepted.
+    """
+    if not row.ai_origin:
+        return REVIEW_STATE_UNREVIEWED
+    if any(getattr(row, name) != getattr(incoming, name) for name in PRICED_FIELDS):
+        return REVIEW_STATE_EDITED
+    if row.review_state == REVIEW_STATE_EDITED:
+        return REVIEW_STATE_EDITED
+    if incoming.review_state == REVIEW_STATE_ACCEPTED:
+        return REVIEW_STATE_ACCEPTED
+    return row.review_state
 
 
 class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
@@ -70,29 +103,63 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
     # Internal helpers
     # -------------------------------------------------------------------------
 
-    async def _replace_line_items(
-        self,
-        quote_id: uuid.UUID,
-        company_id: uuid.UUID,
-        items_data: list,
-    ) -> None:
-        """Delete all existing line items for a quote and create new ones."""
-        await self.db.execute(delete(QuoteLineItem).where(QuoteLineItem.quote_id == quote_id))
-        for item in items_data:
-            self.db.add(
-                QuoteLineItem(
-                    quote_id=quote_id,
-                    company_id=company_id,
-                    item_type=item.item_type,
-                    description=item.description,
-                    quantity=item.quantity,
-                    unit=item.unit,
-                    unit_price=item.unit_price,
-                    sort_order=item.sort_order,
-                    field=getattr(item, "field", None),
-                )
-            )
+    async def _reconcile_line_items(self, quote: Quote, items_data: list) -> None:
+        """Match incoming lines to stored rows by id: update in place, insert the
+        unmatched, delete the absent. Identity is what every review-state
+        guarantee in this phase stands on — a delete-and-recreate destroys it."""
+        stored = {item.id: item for item in quote.line_items}
+        kept: set[uuid.UUID] = set()
+        for position, incoming in enumerate(items_data):
+            row = stored.get(incoming.id) if incoming.id is not None else None
+            if row is None:
+                self.db.add(self._new_line_item(quote, incoming, position))
+            else:
+                self._apply_line_item(row, incoming, position)
+                kept.add(row.id)
+        for row_id, row in stored.items():
+            if row_id not in kept:
+                await self.db.delete(row)
         await self.db.flush()
+        # Added/removed rows never went through the collection itself (they were
+        # added/deleted directly on the session), so the in-memory `line_items`
+        # collection is now stale. Expire it so the next load — including the
+        # selectinload the router's response is built from — re-reads it from
+        # the DB instead of serving the pre-reconcile Python list.
+        self.db.expire(quote, ["line_items"])
+
+    def _new_line_item(
+        self, quote: Quote, incoming: QuoteLineItemCreate, position: int
+    ) -> QuoteLineItem:
+        """Build a fresh hand-built line item — never AI-originated."""
+        return QuoteLineItem(
+            quote_id=quote.id,
+            company_id=quote.company_id,
+            item_type=incoming.item_type,
+            description=incoming.description,
+            quantity=incoming.quantity,
+            unit=incoming.unit,
+            unit_price=incoming.unit_price,
+            sort_order=position,
+            field=incoming.field,
+            ai_origin=False,
+            review_state=REVIEW_STATE_UNREVIEWED,
+        )
+
+    @staticmethod
+    def _apply_line_item(row: QuoteLineItem, incoming: QuoteLineItemCreate, position: int) -> None:
+        """Overwrite a stored line item with the incoming data.
+
+        Computes the new review state BEFORE overwriting the priced fields —
+        review_state_after compares the stored values against the incoming ones.
+        """
+        row.review_state = review_state_after(row, incoming)
+        row.item_type = incoming.item_type
+        row.description = incoming.description
+        row.quantity = incoming.quantity
+        row.unit = incoming.unit
+        row.unit_price = incoming.unit_price
+        row.field = incoming.field
+        row.sort_order = position
 
     def _require_quote_status(
         self,
@@ -201,7 +268,7 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
         quote_id: uuid.UUID,
         data: QuoteUpdate,
     ) -> Quote:
-        """Update a draft quote. Full line item replacement if items provided."""
+        """Update a draft quote. Line items are reconciled by id if provided."""
         quote = await self._get_quote_or_404(quote_id)
         self._require_quote_status(quote, {"draft"}, "update")
 
@@ -217,7 +284,7 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
             quote.admin_notes = data.admin_notes
 
         if data.line_items is not None:
-            await self._replace_line_items(quote_id, quote.company_id, data.line_items)
+            await self._reconcile_line_items(quote, data.line_items)
 
         await self.db.flush()
         return await self.repository.get_with_line_items(quote_id)  # type: ignore[return-value]
