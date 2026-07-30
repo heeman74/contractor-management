@@ -15,8 +15,10 @@ export const SCOPE_BARS_TITLE = "Budget vs Actual by Trade Scope";
 export const SCOPE_BARS_CSV_FILENAME = "budget-vs-actual-by-trade-scope.csv";
 
 /** The Phase 30 anchor asymmetry makes every scope bar structurally short; saying
- *  so is the honest alternative to a silently low bar. */
-const LABOR_NOTE = "Scope spend excludes labor — labor is tracked at job level.";
+ *  so is the honest alternative to a silently low bar. Exported (Phase 37) so
+ *  every trade-scope-anchored quote surface reuses this exact string rather
+ *  than retyping it — one condition, one text, one testid (`scope-labor-note`). */
+export const LABOR_NOTE = "Scope spend excludes labor — labor is tracked at job level.";
 const EMPTY_HEADING = "No scope budgets set";
 const EMPTY_BODY = "Set a budget on a trade scope to track its spend.";
 const CSV_HEADER = ["Trade scope", "Budget", "Spent", "Percent used"];

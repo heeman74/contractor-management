@@ -5,6 +5,8 @@ import { usePermissions } from "@/lib/hooks/usePermissions";
 import { apiGet } from "@/lib/api-client";
 import { FinanceGate } from "@/features/finance/components/FinanceGate";
 import { useQuoteVariance } from "@/features/finance/hooks";
+import { QuoteVarianceSection } from "../[id]/_components/quote-variance-section";
+import { QuoteVarianceCard } from "../[id]/_components/quote-variance-card";
 
 jest.mock("@/lib/hooks/usePermissions", () => ({ usePermissions: jest.fn() }));
 jest.mock("@/lib/api-client", () => ({
@@ -192,5 +194,264 @@ describe("useQuoteVariance", () => {
     });
 
     await waitFor(() => expect(mockApiGet).toHaveBeenCalledTimes(1));
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+/** The exact composition `quotes/[id]/page.tsx` mounts. This is the layering
+ *  under test: FinanceGate short-circuits before QuoteVarianceSection (the
+ *  hook's owner) ever mounts, so an unauthorized or not-yet-resolved visit
+ *  proves zero requests rather than merely a hidden card. */
+function renderVarianceGate(isApproved: boolean) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <FinanceGate fallback={null}>
+        <QuoteVarianceSection quoteId={QUOTE_ID} isApproved={isApproved} />
+      </FinanceGate>
+    </QueryClientProvider>
+  );
+}
+
+describe("quote variance gate", () => {
+  beforeEach(() => {
+    mockUsePermissions.mockReset();
+    mockApiGet.mockReset().mockResolvedValue(VARIANCE_RESPONSE);
+  });
+
+  it("state 37: renders nothing and issues zero requests while permissions load", () => {
+    mockUsePermissions.mockReturnValue({
+      can: () => false,
+      permissions: new Set<string>(),
+      isLoading: true,
+    });
+
+    const { container } = renderVarianceGate(true);
+
+    expect(container).toBeEmptyDOMElement();
+    expect(mockApiGet).not.toHaveBeenCalled();
+  });
+
+  it("state 38: renders no card and no deny panel for a quotes.view-only viewer, zero requests", () => {
+    mockUsePermissions.mockReturnValue({
+      can: () => false,
+      permissions: new Set<string>(),
+      isLoading: false,
+    });
+
+    renderVarianceGate(true);
+
+    expect(screen.queryByTestId("quote-variance")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("financials-deny-panel")).not.toBeInTheDocument();
+    expect(mockApiGet).not.toHaveBeenCalled();
+  });
+
+  it("state 39: renders no card and issues zero requests for a non-approved quote", () => {
+    mockUsePermissions.mockReturnValue({
+      can: () => true,
+      permissions: new Set<string>(),
+      isLoading: false,
+    });
+
+    renderVarianceGate(false);
+
+    expect(screen.queryByTestId("quote-variance")).not.toBeInTheDocument();
+    expect(mockApiGet).not.toHaveBeenCalled();
+  });
+
+  it("renders the card for an approved quote when finance.view is granted", async () => {
+    mockUsePermissions.mockReturnValue({
+      can: () => true,
+      permissions: new Set<string>(),
+      isLoading: false,
+    });
+
+    renderVarianceGate(true);
+
+    expect(await screen.findByTestId("quote-variance")).toBeInTheDocument();
+    expect(mockApiGet).toHaveBeenCalledWith(VARIANCE_PATH);
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+const NOT_COMPARABLE_VARIANCE = {
+  quoted: null,
+  actual: null,
+  variance: null,
+  variancePercent: null,
+  laborIncluded: false,
+  scopeAnchored: false,
+  trades: [],
+};
+
+const UNDER_QUOTED_VARIANCE = {
+  quoted: "10000.00",
+  actual: "9200.00",
+  variance: "-800.00",
+  variancePercent: "-8.0",
+  laborIncluded: false,
+  scopeAnchored: false,
+  trades: [],
+};
+
+const OVER_QUOTED_VARIANCE = {
+  quoted: "12400.00",
+  actual: "13640.00",
+  variance: "1240.00",
+  variancePercent: "10.0",
+  laborIncluded: true,
+  scopeAnchored: false,
+  trades: [],
+};
+
+const SCOPE_ANCHORED_VARIANCE = {
+  ...UNDER_QUOTED_VARIANCE,
+  scopeAnchored: true,
+};
+
+const PROJECT_LEVEL_VARIANCE = {
+  quoted: "20000.00",
+  actual: "18000.00",
+  variance: "-2000.00",
+  variancePercent: "-10.0",
+  laborIncluded: false,
+  scopeAnchored: false,
+  trades: [
+    {
+      label: "Plumbing",
+      quoted: "8000.00",
+      actual: "7000.00",
+      variance: "-1000.00",
+      variancePercent: "-12.5",
+    },
+    {
+      label: "Electrical",
+      quoted: "6000.00",
+      actual: null,
+      variance: null,
+      variancePercent: null,
+    },
+  ],
+};
+
+describe("quote variance card", () => {
+  it("renders a skeleton while loading", () => {
+    render(<QuoteVarianceCard variance={undefined} isLoading isError={false} />);
+
+    expect(screen.getByTestId("quote-variance-skeleton")).toBeInTheDocument();
+  });
+
+  it("renders the in-card error line on a query error", () => {
+    render(
+      <QuoteVarianceCard variance={undefined} isLoading={false} isError />
+    );
+
+    expect(screen.getByTestId("quote-variance-error")).toHaveTextContent(
+      "Couldn't load quoted vs actual. Refresh to try again."
+    );
+  });
+
+  it("renders no card at all when there is no result and nothing is loading or erroring", () => {
+    const { container } = render(
+      <QuoteVarianceCard variance={undefined} isLoading={false} isError={false} />
+    );
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("renders the Not comparable yet empty state for a null quoted/actual", () => {
+    render(
+      <QuoteVarianceCard
+        variance={NOT_COMPARABLE_VARIANCE}
+        isLoading={false}
+        isError={false}
+      />
+    );
+
+    expect(screen.getByTestId("quote-variance-empty")).toHaveTextContent(
+      "Not comparable yet"
+    );
+    expect(screen.getByTestId("quote-variance-empty")).toHaveTextContent(
+      "Quoted vs actual appears once the work from this quote has been invoiced."
+    );
+  });
+
+  it("renders red-800 on an over-quoted (positive) variance with the above interpretation", () => {
+    render(
+      <QuoteVarianceCard
+        variance={OVER_QUOTED_VARIANCE}
+        isLoading={false}
+        isError={false}
+      />
+    );
+
+    const figure = screen.getByTestId("quote-variance-figure");
+    expect(figure.className).toContain("text-red-800");
+    expect(screen.getByTestId("quote-variance-interpretation")).toHaveTextContent(
+      /above this quote's pre-tax price\.$/
+    );
+  });
+
+  it("renders gray-900 on an under-quoted (negative) variance with the below interpretation, no green", () => {
+    render(
+      <QuoteVarianceCard
+        variance={UNDER_QUOTED_VARIANCE}
+        isLoading={false}
+        isError={false}
+      />
+    );
+
+    const figure = screen.getByTestId("quote-variance-figure");
+    expect(figure.className).toContain("text-gray-900");
+    expect(figure.className).not.toMatch(/text-green/);
+    expect(screen.getByTestId("quote-variance-interpretation")).toHaveTextContent(
+      /below this quote's pre-tax price\.$/
+    );
+  });
+
+  it("renders the scope-labor caption for a trade-scope-anchored quote", () => {
+    render(
+      <QuoteVarianceCard
+        variance={SCOPE_ANCHORED_VARIANCE}
+        isLoading={false}
+        isError={false}
+      />
+    );
+
+    expect(screen.getByTestId("scope-labor-note")).toHaveTextContent(
+      "Scope spend excludes labor — labor is tracked at job level."
+    );
+  });
+
+  it("renders the unburdened-labor caption whenever the actual includes derived labor", () => {
+    render(
+      <QuoteVarianceCard
+        variance={OVER_QUOTED_VARIANCE}
+        isLoading={false}
+        isError={false}
+      />
+    );
+
+    expect(screen.getByText(/Unburdened labor/)).toBeInTheDocument();
+  });
+
+  it("renders one row per trade plus a Project total row, and Not yet invoiced for an uninvoiced trade", () => {
+    render(
+      <QuoteVarianceCard
+        variance={PROJECT_LEVEL_VARIANCE}
+        isLoading={false}
+        isError={false}
+      />
+    );
+
+    expect(screen.getByText("Plumbing")).toBeInTheDocument();
+    expect(screen.getByText("Electrical")).toBeInTheDocument();
+    expect(screen.getByText("Project total")).toBeInTheDocument();
+    expect(screen.getByText("Not yet invoiced")).toBeInTheDocument();
+    expect(screen.getByTestId("quote-variance-figure")).toBeInTheDocument();
   });
 });
