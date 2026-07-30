@@ -1,7 +1,7 @@
 """ProfitabilityRepository — persistence for AI profitability findings.
 
-Every later Phase 36 plan writes findings through this repository. It owns three
-lifecycle guarantees the nightly analysis depends on:
+The nightly analysis writes every finding through this repository. It owns three
+lifecycle guarantees that analysis depends on:
 
 - The nightly re-run is an idempotent UPSERT on the OPEN (company_id, fingerprint)
   pair, so a still-true problem restates its text instead of piling up rows.
@@ -118,9 +118,9 @@ class ProfitabilityRepository(TenantScopedRepository[AIProfitabilityFinding]):
         """Atomically claim the right to publish this finding's alert.
 
         An ``UPDATE ... WHERE alerted_at IS NULL`` returning the id is the entire
-        exactly-once mechanism (the Phase 34 claim-first precedent): no locks, no
-        unique index, no unique-violation catching. Returns None when the alert
-        was already claimed — the caller must then NOT create an alert.
+        exactly-once mechanism: no locks, no unique index, no unique-violation
+        catching. Returns None when the alert was already claimed — the caller
+        must then NOT create an alert.
         """
         statement = (
             update(AIProfitabilityFinding)

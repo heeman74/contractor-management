@@ -25,7 +25,8 @@ structured logging IS the run log, one line per skip plus one summary per compan
 No method here commits — on the scheduler path only `_run_for_all_companies` does.
 
 Decision IDs (D-nn), success criteria (SCn) and requirement tags (FINAI-nn) used
-below resolve in .planning/phases/36-ai-profitability-analysis/36-CONTEXT.md.
+below resolve in .planning/phases/36-ai-profitability-analysis/36-CONTEXT.md;
+numbered pitfalls resolve in that phase's 36-RESEARCH.md.
 """
 
 from __future__ import annotations
@@ -210,7 +211,7 @@ class ProfitabilityService(TenantScopedService[AIProfitabilityFinding]):
         # the nightly cap hit — and none of those mean the erosion cleared.
         # Resolving such a row would let the next successful night insert a fresh
         # unalerted row, claim it, and fire a SECOND alert for a condition that
-        # never cleared (D-06, RESEARCH Pitfall 6).
+        # never cleared (D-06, Pitfall 6).
         await self.repository.resolve_absent_fingerprints(result.qualifying_fingerprints)
         fired = await self._fire_findings(result.published, company_id)
         if fired:
@@ -302,7 +303,7 @@ class ProfitabilityService(TenantScopedService[AIProfitabilityFinding]):
         data: dict[str, str],
     ) -> None:
         """Send one finding push in its OWN session — the request session is closed
-        by the time this task runs (RESEARCH Pitfall 3). Never raises."""
+        by the time this task runs (Pitfall 3). Never raises."""
         from app.core.database import async_session_factory
         from app.core.tenant import set_current_tenant_id
         from app.features.notifications.service import NotificationService
@@ -443,7 +444,7 @@ class ProfitabilityService(TenantScopedService[AIProfitabilityFinding]):
         """Persist the drafts that clear the length contract, up to the nightly cap.
 
         The cap is checked AFTER both the drafting and the length verdict, so a
-        dropped finding never spends one of tonight's slots (RESEARCH Pitfall 6).
+        dropped finding never spends one of tonight's slots (Pitfall 6).
         """
         published: list[PublishedFinding] = []
         for candidate, draft in zip(candidates, drafts, strict=True):

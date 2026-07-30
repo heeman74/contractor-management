@@ -11,7 +11,8 @@ judgment and phrasing on top of it — never the detection itself. So every thre
 and every band boundary below is a named, tunable `Decimal` and lives here alone.
 
 Decision IDs (D-nn), success criteria (SCn) and requirement tags (FINAI-nn) used
-below resolve in .planning/phases/36-ai-profitability-analysis/36-CONTEXT.md.
+below resolve in .planning/phases/36-ai-profitability-analysis/36-CONTEXT.md;
+numbered pitfalls resolve in that phase's 36-RESEARCH.md.
 """
 
 from __future__ import annotations
@@ -215,7 +216,7 @@ def quote_implied_gap(inputs: QuoteGapInputs) -> QuoteGap | None:
 
 def band_for(signal: str, decline: Decimal | None, gap: QuoteGap | None) -> str:
     """warning or critical. Two bands, not three: the band lives inside the
-    fingerprint, so band count directly sets the re-alert cadence (PITFALLS #8)."""
+    fingerprint, so band count directly sets the re-alert cadence (Pitfall 8)."""
     if signal == SIGNAL_NEGATIVE_MARGIN:
         return SEVERITY_BAND_CRITICAL
     if signal == SIGNAL_MARGIN_DECLINE:

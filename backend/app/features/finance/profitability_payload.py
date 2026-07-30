@@ -106,7 +106,8 @@ def jsonb_payload(payload: Mapping[str, object]) -> dict:
 def _build_payload(inputs: PayloadInputs) -> dict[str, object]:
     """The complete, CLOSED value set the finding may cite.
 
-    Aggregates only — never raw cost rows (the PITFALLS performance note). Every
+    Aggregates only — never raw cost rows, which is what keeps the payload's size
+    independent of a project's cost-entry count. Every
     derived figure the prompt permits is a NAMED field here, because the
     alternative is a validator that searches for derivable arithmetic: unbounded,
     slow, and a hallucination-laundering channel. Decimals stay Decimal so
