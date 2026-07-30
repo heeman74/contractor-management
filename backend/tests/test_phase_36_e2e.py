@@ -46,6 +46,15 @@ from app.features.checklists.service import ChecklistService
 from app.features.dashboard.alert_types import AI_PROFITABILITY_ALERT_TYPE, FINANCIAL_ALERT_TYPES
 from app.features.dashboard.models import DashboardAlert
 from app.features.finance.models import CostCategory
+from app.features.finance.profitability_drafting import (
+    DISMISSAL_LOG_TEMPLATE,
+    EMPTY_DRAFT_LOG_TEMPLATE,
+    GROUNDING_RETRY_LIMIT,
+    PROFITABILITY_MAX_OUTPUT_TOKENS,
+    UNGROUNDED_DROP_LOG_TEMPLATE,
+    FindingDraft,
+    draft_for,
+)
 from app.features.finance.profitability_math import (
     SEVERITY_BAND_CRITICAL,
     SEVERITY_BAND_WARNING,
@@ -60,26 +69,22 @@ from app.features.finance.profitability_models import (
     MAX_NARRATIVE_LENGTH,
     AIProfitabilityFinding,
 )
+from app.features.finance.profitability_payload import (
+    LABOR_BASIS_UNBURDENED,
+    TREND_PAYLOAD_BUCKETS,
+    ProfitabilityCandidate,
+)
 from app.features.finance.profitability_repository import FindingUpsert, ProfitabilityRepository
 from app.features.finance.profitability_service import (
     _PROFITABILITY_PUSH_TYPE,
     AI_FINDING_PREFIX,
     CAP_DROP_LOG_TEMPLATE,
-    DISMISSAL_LOG_TEMPLATE,
-    EMPTY_DRAFT_LOG_TEMPLATE,
-    GROUNDING_RETRY_LIMIT,
-    LABOR_BASIS_UNBURDENED,
     MAX_FINDINGS_PER_COMPANY_PER_NIGHT,
     OVER_LENGTH_DROP_LOG_TEMPLATE,
-    PROFITABILITY_MAX_OUTPUT_TOKENS,
     PUSH_TITLE_BY_BAND,
     SCAN_SUMMARY_LOG_TEMPLATE,
     SKIP_LOG_TEMPLATE,
     SUGGESTED_ACTION_PREFIX,
-    TREND_PAYLOAD_BUCKETS,
-    UNGROUNDED_DROP_LOG_TEMPLATE,
-    FindingDraft,
-    ProfitabilityCandidate,
     ProfitabilityService,
     PublishResult,
 )
@@ -1254,15 +1259,15 @@ def _patched_claude(*, side_effect: object) -> Iterator[AsyncMock]:
 async def _draft_findings(company_id: str) -> list[FindingDraft | None]:
     """Scan, then draft every candidate — the publish path minus persistence.
 
-    Drives the private _draft_for through the same gather_with_concurrency
-    wrapper publish_findings uses, which is what makes a per-candidate Claude
-    failure observable as one None rather than a raised run.
+    Drives profitability_drafting.draft_for through the same
+    gather_with_concurrency wrapper publish_findings uses, which is what makes a
+    per-candidate Claude failure observable as one None rather than a raised run.
     """
     async with async_session_factory() as session:
         await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
         service = ProfitabilityService(session)
         candidates = await service.scan_candidates(UUID(company_id))
-        return await gather_with_concurrency(candidates, service._draft_for)
+        return await gather_with_concurrency(candidates, draft_for)
 
 
 def _patched_scan(

@@ -244,11 +244,6 @@ def project_cost_blocks(project_id: uuid.UUID, inputs: PortfolioInputs) -> Proje
     )
 
 
-def margin_context(project_id: uuid.UUID, inputs: PortfolioInputs) -> ProjectMarginContext:
-    """The cost half of one project's figures, through the shipped breakdown assembly."""
-    return project_cost_blocks(project_id, inputs).context
-
-
 def _project_level_quote_revenue(
     project_id: uuid.UUID, inputs: PortfolioInputs
 ) -> ResolvedRevenue | None:
@@ -316,7 +311,7 @@ def _anchored_budgets(project: Row, spent: Decimal, budgets: BudgetInputs) -> li
 
 def _project_figures(project: Row, inputs: PortfolioInputs) -> ProjectFinancialFigures:
     """One project's whole financial block, assembled from already-fetched data."""
-    context = margin_context(project.id, inputs)
+    context = project_cost_blocks(project.id, inputs).context
     revenue = _project_revenue(project.id, context, inputs)
     return ProjectFinancialFigures(
         project_id=project.id,

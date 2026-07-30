@@ -1,13 +1,15 @@
 """ProfitabilityService — the nightly AI profitability analysis (FINAI-01/02).
 
-Three halves live here. The read half fetches and gates; it decides nothing about
-margin, because detection is deterministic and lives entirely in
-`profitability_math` (D-02), so no threshold, band rule or signal comparison is
-restated here. The publish half calls Claude once per candidate and lets nothing
-reach the database until `validate_grounding` accepts every figure the model wrote
-(D-05, SC3): a finding still citing an unmatched figure after its single retry is
-dropped and logged. The alerting half resolves what stopped qualifying, claims
-each finding's alert exactly once, and pushes to the live finance.view holder set.
+Orchestration, persistence and alerting. The two halves this service composes but
+does not own live next door and carry no DB: `profitability_payload` assembles the
+closed value set a finding may cite, and `profitability_drafting` runs the Claude
+call and the grounding retry behind it. Detection is deterministic and lives
+entirely in `profitability_math` (D-02), so no threshold, band rule or signal
+comparison is restated here either.
+
+What remains here is the run: fetch and gate the candidates, hand each to the
+drafter, enforce the nightly cap, persist, resolve what stopped qualifying, claim
+each finding's alert exactly once, and push to the live finance.view holder set.
 
 Two orderings in `scan_candidates` are load-bearing:
 
@@ -26,38 +28,33 @@ No method here commits — on the scheduler path only `_run_for_all_companies` d
 from __future__ import annotations
 
 import asyncio
-import json
 import uuid
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
-from decimal import Decimal
 
-from app.core.ai_grounding import collect_allowed_values, validate_grounding
-from app.core.ai_utils import (
-    ClaudeJsonResponse,
-    call_claude_json_strict,
-    gather_with_concurrency,
-)
+from app.core.ai_utils import gather_with_concurrency
 from app.core.base_service import TenantScopedService
 from app.core.logging_config import get_logger
 from app.features.dashboard.alert_types import AI_PROFITABILITY_ALERT_TYPE
 from app.features.dashboard.models import DashboardAlert
 from app.features.dashboard.repository import AlertRepository
-from app.features.finance.budget_math import percent_used
-from app.features.finance.labor_derivation import ZERO_MONEY
 from app.features.finance.margin_math import RevenueAnchor, anchor_revenues
-from app.features.finance.portfolio_math import AnchoredBudget, ProjectFinancialFigures
+from app.features.finance.portfolio_math import ProjectFinancialFigures
 from app.features.finance.portfolio_service import (
     PortfolioInputs,
     PortfolioService,
     ProjectCostBlocks,
     project_cost_blocks,
 )
+from app.features.finance.profitability_drafting import (
+    FindingDraft,
+    draft_for,
+    within_length_contract,
+)
 from app.features.finance.profitability_math import (
     SEVERITY_BAND_CRITICAL,
     SEVERITY_BAND_WARNING,
-    CandidateSignal,
     DetectionInputs,
     QuoteGapInputs,
     SkipReason,
@@ -65,20 +62,15 @@ from app.features.finance.profitability_math import (
     latest_quote_per_anchor,
     skip_reason_for,
 )
-from app.features.finance.profitability_models import (
-    MAX_ALERT_SUMMARY_LENGTH,
-    MAX_CORRECTIVE_ACTION_LENGTH,
-    MAX_NARRATIVE_LENGTH,
-    AIProfitabilityFinding,
+from app.features.finance.profitability_models import AIProfitabilityFinding
+from app.features.finance.profitability_payload import (
+    PayloadInputs,
+    ProfitabilityCandidate,
+    build_candidate,
+    jsonb_payload,
 )
 from app.features.finance.profitability_repository import FindingUpsert, ProfitabilityRepository
-from app.features.finance.prompts.profitability_system import (
-    GROUNDING_RETRY_TEMPLATE,
-    PROFITABILITY_SYSTEM_PROMPT,
-)
-from app.features.finance.schemas import CategoryTotal
 from app.features.finance.service import contributing_anchor_cost
-from app.features.finance.trend_math import TrendBucket
 
 logger = get_logger(__name__)
 
@@ -88,24 +80,8 @@ logger = get_logger(__name__)
 # unassertable.
 SKIP_LOG_TEMPLATE = "ai_profitability: skipped project=%s reason=%s"
 SCAN_SUMMARY_LOG_TEMPLATE = "ai_profitability: company=%s analyzed=%d candidates=%d skipped=%d"
-TOKEN_USAGE_LOG_TEMPLATE = "ai_profitability: tokens project=%s input=%s output=%s"
-DISMISSAL_LOG_TEMPLATE = "ai_profitability: dismissed project=%s reason=%s"
-EMPTY_DRAFT_LOG_TEMPLATE = "ai_profitability: dropped textless finding project=%s"
-UNGROUNDED_DROP_LOG_TEMPLATE = "ai_profitability: dropped ungrounded finding project=%s figures=%s"
 OVER_LENGTH_DROP_LOG_TEMPLATE = "ai_profitability: dropped over-length finding project=%s"
 CAP_DROP_LOG_TEMPLATE = "ai_profitability: nightly cap reached project=%s cap=%d"
-
-GROUNDING_RETRY_LIMIT = 1
-"""D-05: one VALIDATION retry, and only one.
-
-There is no transport retry on this path — the exponential-backoff envelope is
-streaming-only (ai/service.py), so a transient API error surfaces as a raised
-candidate that gather_with_concurrency isolates.
-"""
-
-PROFITABILITY_MAX_OUTPUT_TOKENS = 1024
-"""D-10 per-project ceiling. max_tokens caps OUTPUT only; the input side is bounded
-by the aggregates-only payload rule, not by this number."""
 
 MAX_FINDINGS_PER_COMPANY_PER_NIGHT = 10
 """D-10 nightly cap on published findings per company.
@@ -114,12 +90,6 @@ Counted in memory over tonight's publishes, after validation — a dropped findi
 never spends a slot, and no open-row count is read from the database because the
 cap is about what this run alerts, not about history.
 """
-
-LABOR_BASIS_UNBURDENED = "unburdened"
-"""D-06: v4.0 labor cost is wage-only, so the basis travels with the payload and
-the finding can never present an unburdened figure as a fully loaded one."""
-
-TREND_PAYLOAD_BUCKETS = 2
 
 AI_FINDING_PREFIX = "AI finding — "
 SUGGESTED_ACTION_PREFIX = "Suggested action: "
@@ -145,38 +115,6 @@ _PROFITABILITY_PUSH_TASKS: set[asyncio.Task[None]] = set()
 finish — asyncio holds only weak references to running tasks."""
 
 type SkippedProject = tuple[uuid.UUID, SkipReason]
-type PayloadRow = dict[str, object]
-
-
-@dataclass(frozen=True)
-class ProfitabilityCandidate:
-    """One project that reached the AI: its candidate signal and the payload the
-    finding will be grounded against.
-
-    `revenue_basis` and `labor_included` are the two honesty columns every finding
-    row carries, so the UI can caption an estimate-backed or wage-only figure
-    without re-deriving either from the payload.
-    """
-
-    candidate: CandidateSignal
-    project_name: str
-    revenue_basis: str
-    labor_included: bool
-    payload: dict[str, object]
-
-    @property
-    def project_id(self) -> uuid.UUID:
-        """The project this candidate speaks for — the detection signal owns the id."""
-        return self.candidate.project_id
-
-
-@dataclass(frozen=True)
-class FindingDraft:
-    """A validated, publishable finding before it touches the database."""
-
-    narrative: str
-    corrective_action: str
-    alert_summary: str
 
 
 @dataclass(frozen=True)
@@ -238,22 +176,12 @@ class _PublishContext:
     target_date: date
 
 
-@dataclass(frozen=True)
-class PayloadInputs:
-    """Everything one project's payload is assembled from — all already fetched."""
-
-    figures: ProjectFinancialFigures
-    candidate: CandidateSignal
-    blocks: ProjectCostBlocks
-    buckets: Sequence[TrendBucket]
-
-
 class ProfitabilityService(TenantScopedService[AIProfitabilityFinding]):
     """Nightly AI profitability analysis (FINAI-01/02).
 
-    Detection is deterministic and lives in profitability_math; this service
-    fetches, gates, assembles the payload, calls Claude, validates, persists,
-    resolves and alerts.
+    Detection is deterministic and lives in profitability_math; drafting lives in
+    profitability_drafting. This service fetches, gates, persists, resolves and
+    alerts.
     """
 
     repository_class = ProfitabilityRepository
@@ -288,7 +216,7 @@ class ProfitabilityService(TenantScopedService[AIProfitabilityFinding]):
     async def latest_finding(self, project_id: uuid.UUID) -> AIProfitabilityFinding | None:
         """The newest open finding for one project, or None (FINAI-02).
 
-        The read half of the nightly write path: the same open-row predicate the
+        The read stage of the nightly write path: the same open-row predicate the
         upsert arbitrates on, so the card goes quiet the night a condition clears.
         """
         return await self.repository.latest_open_for_project(project_id)
@@ -309,11 +237,11 @@ class ProfitabilityService(TenantScopedService[AIProfitabilityFinding]):
     ) -> FiredFinding | None:
         """Claim this finding's alert and write it; None when it already alerted.
 
-        Claim BEFORE writing the alert (34-03): the read-then-write version
-        double-fires under concurrent runs. Nothing has to be resolved ahead of the
-        claim here — PublishedFinding already carries its project anchor, read in
-        this session off the row that was just persisted — so no claim can be burnt
-        on a vanished anchor.
+        Claim BEFORE writing the alert: the read-then-write version double-fires
+        under concurrent runs. Nothing has to be resolved ahead of the claim here —
+        PublishedFinding already carries its project anchor, read in this session
+        off the row that was just persisted — so no claim can be burnt on a
+        vanished anchor.
         """
         if await self.repository.claim_alert(published.finding_id) is None:
             return None
@@ -372,11 +300,11 @@ class ProfitabilityService(TenantScopedService[AIProfitabilityFinding]):
     ) -> None:
         """Send one finding push in its OWN session — the request session is closed
         by the time this task runs (RESEARCH Pitfall 3). Never raises."""
-        try:
-            from app.core.database import async_session_factory
-            from app.core.tenant import set_current_tenant_id
-            from app.features.notifications.service import NotificationService
+        from app.core.database import async_session_factory
+        from app.core.tenant import set_current_tenant_id
+        from app.features.notifications.service import NotificationService
 
+        try:
             set_current_tenant_id(company_id)
             async with async_session_factory() as db:
                 await NotificationService(db).send_profitability_finding_notification(
@@ -460,7 +388,7 @@ class ProfitabilityService(TenantScopedService[AIProfitabilityFinding]):
         )
         if candidate is None:
             return None
-        return _to_profitability_candidate(
+        return build_candidate(
             PayloadInputs(figures=figures, candidate=candidate, blocks=blocks, buckets=buckets)
         )
 
@@ -494,7 +422,7 @@ class ProfitabilityService(TenantScopedService[AIProfitabilityFinding]):
         and a failed call returns None instead of aborting the company's run.
         """
         candidates = await self.scan_candidates(company_id)
-        drafts = await gather_with_concurrency(candidates, self._draft_for)
+        drafts = await gather_with_concurrency(candidates, draft_for)
         published = await self._persist_publishable(
             candidates, drafts, _PublishContext(company_id=company_id, target_date=target_date)
         )
@@ -502,35 +430,6 @@ class ProfitabilityService(TenantScopedService[AIProfitabilityFinding]):
             published=published,
             qualifying_fingerprints=[candidate.candidate.fingerprint for candidate in candidates],
         )
-
-    async def _draft_for(self, candidate: ProfitabilityCandidate) -> FindingDraft | None:
-        """One candidate's grounded finding, or None when it is dismissed or ungrounded.
-
-        Validate-and-block with exactly one retry (D-05). A finding still citing a
-        figure the payload does not contain on the second attempt is DROPPED and
-        logged: never published, never clipped to fit, never partially saved.
-        """
-        allowed = collect_allowed_values(candidate.payload)
-        messages = [_payload_turn(candidate.payload)]
-        ungrounded: tuple[str, ...] = ()
-        for _attempt in range(GROUNDING_RETRY_LIMIT + 1):
-            response = await call_claude_json_strict(
-                PROFITABILITY_SYSTEM_PROMPT, messages, max_tokens=PROFITABILITY_MAX_OUTPUT_TOKENS
-            )
-            _log_token_usage(candidate, response)
-            if not response.data.get("confirmed"):
-                _log_dismissal(candidate, response.data)
-                return None
-            draft = _to_draft(response.data)
-            if draft is None:
-                logger.warning(EMPTY_DRAFT_LOG_TEMPLATE % (candidate.project_id,))
-                return None
-            ungrounded = _ungrounded_literals(draft, allowed)
-            if not ungrounded:
-                return draft
-            messages = [*messages, *_retry_turns(response.raw_text, ungrounded)]
-        logger.warning(UNGROUNDED_DROP_LOG_TEMPLATE % (candidate.project_id, ", ".join(ungrounded)))
-        return None
 
     async def _persist_publishable(
         self,
@@ -547,7 +446,7 @@ class ProfitabilityService(TenantScopedService[AIProfitabilityFinding]):
         for candidate, draft in zip(candidates, drafts, strict=True):
             if draft is None:
                 continue
-            if not _within_length_contract(draft):
+            if not within_length_contract(draft):
                 logger.warning(OVER_LENGTH_DROP_LOG_TEMPLATE % (candidate.project_id,))
                 continue
             if len(published) >= MAX_FINDINGS_PER_COMPANY_PER_NIGHT:
@@ -572,90 +471,6 @@ class ProfitabilityService(TenantScopedService[AIProfitabilityFinding]):
             alert_summary=finding.alert_summary,
             corrective_action=finding.corrective_action,
         )
-
-
-def _payload_turn(payload: Mapping[str, object]) -> dict[str, str]:
-    """The candidate's payload as the opening user turn.
-
-    default=str renders Decimals as exact strings for the model to read; the
-    validator still compares against the original Decimal objects, so no figure
-    changes representation on the way to the API.
-    """
-    return {"role": "user", "content": json.dumps(payload, default=str)}
-
-
-def _retry_turns(raw_text: str, ungrounded: tuple[str, ...]) -> list[dict[str, str]]:
-    """The two turns that continue the conversation into its one retry: the model's
-    own reply, then the literals it is not allowed to use."""
-    return [
-        {"role": "assistant", "content": raw_text},
-        {
-            "role": "user",
-            "content": GROUNDING_RETRY_TEMPLATE.format(unmatched=", ".join(ungrounded)),
-        },
-    ]
-
-
-def _to_draft(data: Mapping[str, object]) -> FindingDraft | None:
-    """The three AI strings, or None when the model confirmed a finding without writing one.
-
-    The prompt reserves empty strings for a dismissal, so a confirmed reply with
-    empty text is malformed — publishing it would ship a blank card and a blank alert.
-    """
-    draft = FindingDraft(
-        narrative=_ai_string(data, "narrative"),
-        corrective_action=_ai_string(data, "corrective_action"),
-        alert_summary=_ai_string(data, "alert_summary"),
-    )
-    if not (draft.narrative and draft.corrective_action and draft.alert_summary):
-        return None
-    return draft
-
-
-def _ai_string(data: Mapping[str, object], field: str) -> str:
-    """One AI text field, read defensively so a null can never reach a NOT NULL column."""
-    value = data.get(field)
-    return value if isinstance(value, str) else ""
-
-
-def _ungrounded_literals(draft: FindingDraft, allowed: frozenset[Decimal]) -> tuple[str, ...]:
-    """Every figure the draft cites that the payload does not contain, across ALL
-    three AI strings — validating only the narrative would let a fabricated figure
-    reach the dashboard alert and the push body.
-
-    Deduplicated in first-seen order so the retry turn names each literal once.
-    """
-    verdicts = (
-        validate_grounding(text, allowed)
-        for text in (draft.narrative, draft.corrective_action, draft.alert_summary)
-    )
-    return tuple(dict.fromkeys(literal for verdict in verdicts for literal in verdict.unmatched))
-
-
-def _log_token_usage(candidate: ProfitabilityCandidate, response: ClaudeJsonResponse) -> None:
-    """The run log's cost line — one per Claude turn, the D-05 retry included."""
-    logger.info(
-        TOKEN_USAGE_LOG_TEMPLATE
-        % (candidate.project_id, response.input_tokens, response.output_tokens)
-    )
-
-
-def _log_dismissal(candidate: ProfitabilityCandidate, data: Mapping[str, object]) -> None:
-    """An AI dismissal is a normal outcome (D-02), so it is logged with its reason."""
-    logger.info(DISMISSAL_LOG_TEMPLATE % (candidate.project_id, data.get("dismissal_reason")))
-
-
-def _within_length_contract(draft: FindingDraft) -> bool:
-    """The D-09/UI-SPEC bounds, checked against the same constants the DB enforces.
-
-    Over-length text is rejected whole rather than shortened to fit: clipping a
-    grounded sentence can drop the very figure that justifies it.
-    """
-    return (
-        len(draft.narrative) <= MAX_NARRATIVE_LENGTH
-        and len(draft.corrective_action) <= MAX_CORRECTIVE_ACTION_LENGTH
-        and len(draft.alert_summary) <= MAX_ALERT_SUMMARY_LENGTH
-    )
 
 
 def _push_data(fired: FiredFinding) -> dict[str, str]:
@@ -715,131 +530,6 @@ def _to_upsert(
         alert_summary=draft.alert_summary,
         revenue_basis=candidate.revenue_basis,
         labor_included=candidate.labor_included,
-        payload=_jsonb_payload(candidate.payload),
+        payload=jsonb_payload(candidate.payload),
         analyzed_on=context.target_date,
     )
-
-
-def _jsonb_payload(payload: Mapping[str, object]) -> dict:
-    """The payload as JSONB-safe data, Decimals rendered as exact strings.
-
-    The SC3 audit trail must stay re-readable, so every figure the finding was
-    validated against is stored verbatim rather than as a lossy float.
-    """
-    return json.loads(json.dumps(payload, default=str))
-
-
-def _to_profitability_candidate(inputs: PayloadInputs) -> ProfitabilityCandidate:
-    """Wrap one fired candidate with the finding metadata and payload its row carries."""
-    labor_cost = _labor_cost(inputs.blocks)
-    return ProfitabilityCandidate(
-        candidate=inputs.candidate,
-        project_name=inputs.figures.name,
-        revenue_basis=inputs.figures.margin.revenue_basis,
-        labor_included=labor_cost > ZERO_MONEY,
-        payload=_build_payload(inputs),
-    )
-
-
-def _build_payload(inputs: PayloadInputs) -> dict[str, object]:
-    """The complete, CLOSED value set the finding may cite.
-
-    Aggregates only — never raw cost rows (the PITFALLS performance note). Every
-    derived figure the prompt permits is a NAMED field here, because the
-    alternative is a validator that searches for derivable arithmetic: unbounded,
-    slow, and a hallucination-laundering channel. Decimals stay Decimal so
-    collect_allowed_values sees them and payload STRINGS can never become citable
-    numbers.
-
-    The honesty counters that ride on the shipped labor and margin blocks — the
-    uncosted-time second count and the incomplete-reason list — are deliberately
-    left out: D-01 guarantees both are empty for an analyzed project, so either one
-    would only ship a citable zero waiting to be fabricated against.
-    """
-    return {
-        **_cost_block(inputs.figures, _labor_cost(inputs.blocks)),
-        **_context_block(inputs.figures, inputs.blocks, inputs.buckets),
-        **_signal_block(inputs.candidate),
-    }
-
-
-def _cost_block(figures: ProjectFinancialFigures, labor_cost: Decimal) -> dict[str, object]:
-    """The headline money block, copied verbatim off the shipped figures."""
-    margin = figures.margin
-    return {
-        "project_name": figures.name,
-        "project_status": figures.status,
-        "cost": figures.cost,
-        "revenue": margin.revenue,
-        "revenue_basis": margin.revenue_basis,
-        "quoted_revenue_share": figures.quoted_revenue,
-        "margin": margin.margin,
-        "margin_percent": margin.margin_percent,
-        "labor_basis": LABOR_BASIS_UNBURDENED,
-        "labor_cost": labor_cost,
-    }
-
-
-def _context_block(
-    figures: ProjectFinancialFigures,
-    blocks: ProjectCostBlocks,
-    buckets: Sequence[TrendBucket],
-) -> dict[str, object]:
-    """Where the money went, what was budgeted for it, and where the margin is heading."""
-    return {
-        "categories": _category_rows(blocks.breakdown.categories),
-        "budgets": _budget_rows(figures.budgets),
-        "trend": _trend_rows(buckets),
-    }
-
-
-def _signal_block(candidate: CandidateSignal) -> dict[str, object]:
-    """One named field per citable delta; an absent signal carries None, never a 0."""
-    gap = candidate.quote_gap
-    return {
-        "signal": candidate.signal,
-        "severity_band": candidate.band,
-        "negative_margin_dollars": candidate.negative_margin_dollars,
-        "margin_decline_points": candidate.margin_decline_points,
-        "quote_gap_points": None if gap is None else gap.points,
-        "billed_margin_percent": None if gap is None else gap.billed_margin_percent,
-        "quote_implied_margin_percent": None if gap is None else gap.quote_implied_margin_percent,
-        "over_quote_dollars": None if gap is None else gap.over_quote_dollars,
-    }
-
-
-def _category_rows(categories: Sequence[CategoryTotal]) -> list[PayloadRow]:
-    """One aggregate per cost category — never the entries behind it."""
-    return [{"name": category.category_name, "cost": category.total} for category in categories]
-
-
-def _budget_rows(budgets: Sequence[AnchoredBudget]) -> list[PayloadRow]:
-    """Each budget anchor with its usage precomputed, so the AI derives no percent."""
-    return [
-        {
-            "label": budget.label,
-            "spent": budget.spent,
-            "total": budget.total,
-            "percent_used": percent_used(budget.spent, budget.total),
-            "remaining": budget.total - budget.spent,
-        }
-        for budget in budgets
-    ]
-
-
-def _trend_rows(buckets: Sequence[TrendBucket]) -> list[PayloadRow]:
-    """The last cumulative months, the same unsliced buckets detection compared."""
-    return [
-        {
-            "month": bucket.month,
-            "cost": bucket.cost,
-            "margin_percent": bucket.margin.margin_percent,
-        }
-        for bucket in buckets[-TREND_PAYLOAD_BUCKETS:]
-    ]
-
-
-def _labor_cost(blocks: ProjectCostBlocks) -> Decimal:
-    """The project's derived labor total, legacy labor-category entries folded in."""
-    labor = blocks.breakdown.labor
-    return ZERO_MONEY if labor is None else labor.total
