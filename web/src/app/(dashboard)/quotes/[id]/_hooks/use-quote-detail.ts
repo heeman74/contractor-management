@@ -2,11 +2,13 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { apiGet, apiPost } from "@/lib/api-client";
+import { apiGet, apiPost, ApiError } from "@/lib/api-client";
 import { downloadFileFromApi } from "@/lib/download-file";
 import type { Quote, Job, Invoice } from "@/types/api";
 import { useAppDispatch } from "@/store/hooks";
 import { setPageTitle } from "@/store/slices/ui-slice";
+
+const SEND_FAILED_PREFIX = "Failed to send quote.";
 
 export function useQuoteDetail(id: string) {
   const router = useRouter();
@@ -70,8 +72,15 @@ export function useQuoteDetail(id: string) {
       queryClient.invalidateQueries({ queryKey: ["quotes"] });
       toast.success(`Quote sent to ${job?.client_name ?? "client"}`);
     },
-    onError: () =>
-      toast.error("Failed to send quote. Try again.", { duration: Infinity }),
+    // A 409 here means the server's D-07 unreviewed-AI-lines check fired on a
+    // stale client — its detail is user-facing copy the backend owns and
+    // 37-UI-SPEC locks, so it is surfaced verbatim rather than swallowed
+    // behind the generic message.
+    onError: (err) =>
+      toast.error(
+        err instanceof ApiError ? err.detail : `${SEND_FAILED_PREFIX} Try again.`,
+        { duration: Infinity }
+      ),
   });
 
   const extendMutation = useMutation<Quote, Error, string>({

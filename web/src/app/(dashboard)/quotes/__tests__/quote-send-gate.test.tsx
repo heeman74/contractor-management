@@ -1,13 +1,44 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, renderHook, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { ApiError } from "@/lib/api-client";
 import type { Quote, QuoteLineItem } from "@/types/api";
-import { QuoteStatusAlerts } from "../[id]/_components/quote-status-alerts";
+import {
+  QuoteStatusAlerts,
+  SEND_BLOCKED_ALERT_ID,
+} from "../[id]/_components/quote-status-alerts";
+import { QuoteActionsCard } from "../[id]/_components/quote-actions-card";
+import { useQuoteDetail } from "../[id]/_hooks/use-quote-detail";
 
 const mockPush = jest.fn();
+const mockDispatch = jest.fn();
+const mockApiGet = jest.fn();
+const mockApiPost = jest.fn();
 
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
 }));
+
+jest.mock("@/store/hooks", () => ({
+  useAppDispatch: () => mockDispatch,
+}));
+
+jest.mock("sonner", () => ({
+  toast: { success: jest.fn(), error: jest.fn(), loading: jest.fn(), dismiss: jest.fn() },
+}));
+
+jest.mock("@/lib/api-client", () => ({
+  ...jest.requireActual("@/lib/api-client"),
+  apiGet: (...args: unknown[]) => mockApiGet(...args),
+  apiPost: (...args: unknown[]) => mockApiPost(...args),
+}));
+
+const mockToastError = toast.error as jest.Mock;
+const mockToastSuccess = toast.success as jest.Mock;
+
+const SEND_BLOCKED_DETAIL =
+  "This quote has AI-suggested line items that have not been reviewed. Accept or edit every suggested line before sending.";
 
 function makeLineItem(overrides: Partial<QuoteLineItem> = {}): QuoteLineItem {
   return {
@@ -138,5 +169,112 @@ describe("blocked send alert", () => {
 
     screen.getByRole("button", { name: "Review Line Items" }).click();
     expect(mockPush).toHaveBeenCalledWith(`/quotes/${quote.id}/edit`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe("send button gating", () => {
+  const cardProps = {
+    job: undefined,
+    isPdfDownloading: false,
+    isGeneratingInvoice: false,
+    onSend: jest.fn(),
+    onEdit: jest.fn(),
+    onRevise: jest.fn(),
+    onExtendExpiry: jest.fn(),
+    onDownloadPdf: jest.fn(),
+    onGenerateInvoice: jest.fn(),
+  };
+
+  it("disables Send Quote with aria-describedby pointing at the alert when a line is unreviewed", () => {
+    const quote = makeQuote({
+      line_items: [makeLineItem({ ai_origin: true, review_state: "unreviewed" })],
+    });
+    render(<QuoteActionsCard quote={quote} isSending={false} {...cardProps} />);
+
+    const sendButton = screen.getByRole("button", { name: "Send Quote" });
+    expect(sendButton).toBeDisabled();
+    expect(sendButton).toHaveAttribute("aria-describedby", SEND_BLOCKED_ALERT_ID);
+  });
+
+  it("enables Send Quote with no aria-describedby when nothing is unreviewed", () => {
+    const quote = makeQuote({ line_items: [makeLineItem({ ai_origin: false })] });
+    render(<QuoteActionsCard quote={quote} isSending={false} {...cardProps} />);
+
+    const sendButton = screen.getByRole("button", { name: "Send Quote" });
+    expect(sendButton).not.toBeDisabled();
+    expect(sendButton).not.toHaveAttribute("aria-describedby");
+  });
+
+  it("keeps the shipped isSending disable independent of the unreviewed gate", () => {
+    const quote = makeQuote({ line_items: [makeLineItem({ ai_origin: false })] });
+    render(<QuoteActionsCard quote={quote} isSending={true} {...cardProps} />);
+
+    const sendButton = screen.getByRole("button", { name: "Send Quote" });
+    expect(sendButton).toBeDisabled();
+    expect(sendButton).not.toHaveAttribute("aria-describedby");
+  });
+
+  function createWrapper() {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    return wrapper;
+  }
+
+  beforeEach(() => {
+    mockApiGet.mockReset().mockResolvedValue(makeQuote());
+    mockApiPost.mockReset();
+    mockToastError.mockReset();
+    mockToastSuccess.mockReset();
+    mockDispatch.mockReset();
+  });
+
+  it("fires a toast with the server's 409 detail verbatim on a rejected send", async () => {
+    mockApiPost.mockRejectedValue(new ApiError(409, SEND_BLOCKED_DETAIL));
+    const { result } = renderHook(() => useQuoteDetail("quote-1"), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(result.current.quote).toBeDefined());
+
+    result.current.sendQuote();
+
+    await waitFor(() => expect(mockToastError).toHaveBeenCalled());
+    expect(mockToastError).toHaveBeenCalledWith(SEND_BLOCKED_DETAIL, {
+      duration: Infinity,
+    });
+  });
+
+  it("fires the shipped generic message for a non-ApiError rejection", async () => {
+    mockApiPost.mockRejectedValue(new Error("network down"));
+    const { result } = renderHook(() => useQuoteDetail("quote-1"), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(result.current.quote).toBeDefined());
+
+    result.current.sendQuote();
+
+    await waitFor(() => expect(mockToastError).toHaveBeenCalled());
+    expect(mockToastError).toHaveBeenCalledWith("Failed to send quote. Try again.", {
+      duration: Infinity,
+    });
+  });
+
+  it("leaves the success path unchanged", async () => {
+    mockApiPost.mockResolvedValue(makeQuote({ status: "sent" }));
+    const { result } = renderHook(() => useQuoteDetail("quote-1"), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(result.current.quote).toBeDefined());
+
+    result.current.sendQuote();
+
+    await waitFor(() => expect(mockToastSuccess).toHaveBeenCalled());
+    expect(mockToastSuccess).toHaveBeenCalledWith("Quote sent to client");
+    expect(mockToastError).not.toHaveBeenCalled();
   });
 });

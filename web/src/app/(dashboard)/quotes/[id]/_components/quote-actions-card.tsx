@@ -2,6 +2,8 @@ import type { Quote, Job } from "@/types/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusStepper } from "./status-stepper";
+import { SEND_BLOCKED_ALERT_ID } from "./quote-status-alerts";
+import { unreviewedAiLineCount } from "../_lib/review-state";
 
 interface QuoteActionsCardProps {
   quote: Quote;
@@ -31,6 +33,7 @@ export function QuoteActionsCard({
   onGenerateInvoice,
 }: QuoteActionsCardProps) {
   const status = quote.status;
+  const unreviewedCount = unreviewedAiLineCount(quote.line_items);
 
   const downloadPdfButton = (
     <Button
@@ -66,7 +69,19 @@ export function QuoteActionsCard({
         <div className="flex flex-col gap-2">
           {status === "draft" && (
             <>
-              <Button size="sm" onClick={onSend} disabled={isSending}>
+              {/* The disable is a convenience that stops a click from burning a
+                  request into a guaranteed 409 — the actual guarantee is the
+                  server-side D-07 check. aria-describedby links the control to
+                  the alert that explains why, so the reason is announced with
+                  the control rather than sitting silently beside it. */}
+              <Button
+                size="sm"
+                onClick={onSend}
+                disabled={isSending || unreviewedCount > 0}
+                aria-describedby={
+                  unreviewedCount > 0 ? SEND_BLOCKED_ALERT_ID : undefined
+                }
+              >
                 Send Quote
               </Button>
               <Button size="sm" variant="outline" onClick={onEdit}>
