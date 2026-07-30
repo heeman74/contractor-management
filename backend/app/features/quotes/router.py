@@ -17,6 +17,11 @@ Static/collection paths declared BEFORE /{quote_id} parameterized paths:
   POST   /quotes/{quote_id}/revise  — create revision (admin)
   POST   /quotes/{quote_id}/extend  — extend expiry date (admin)
   GET    /quotes/{quote_id}/pdf     — download PDF (admin or client)
+  GET    /quotes/{quote_id}/variance — quoted-vs-actual for this quote (finance.view, FINAI-05)
+
+  /projects/{project_id}/financials/quote-variance — the project drill-down's
+  per-anchor quoted-vs-actual table (finance.view, FINAI-05), on its own router
+  below (mirrors scope_quote_router's separate-router precedent).
 
 Design notes:
 - Plain APIRouter (not CRUDRouter) — custom domain operations per Phase 3 pattern.
@@ -51,13 +56,18 @@ from app.features.jobs.models import Job
 from app.features.pdf.service import pdf_service
 from app.features.quotes.schemas import (
     DeclineQuoteRequest,
+    ProjectQuoteVarianceResponse,
     QuoteCreate,
     QuoteResponse,
     QuoteTemplateCreate,
     QuoteTemplateResponse,
     QuoteUpdate,
+    QuoteVarianceResponse,
+    to_project_quote_variance_response,
+    to_quote_variance_response,
 )
 from app.features.quotes.service import QuoteService
+from app.features.quotes.variance_service import QuoteVarianceService
 from app.features.users.models import User
 
 
@@ -81,6 +91,18 @@ router = APIRouter(prefix="/quotes", tags=["quotes"])
 # Separate router so /api/trade-scopes/{scope_id}/quotes doesn't shadow /quotes
 # ---------------------------------------------------------------------------
 scope_quote_router = APIRouter(prefix="/trade-scopes/{scope_id}", tags=["trade-scope-quotes"])
+
+# ---------------------------------------------------------------------------
+# Project quote-variance router — Phase 37 (FINAI-05)
+# Lives in the quotes feature (not finance/router.py): every definition it needs
+# is quote-domain, and quotes -> finance is the established one-way import
+# direction in this codebase (finance already imports quotes at
+# finance/repository.py:39, budget_service.py:42, portfolio_repository.py:57),
+# so declaring the route here adds no new edge and no cycle.
+# ---------------------------------------------------------------------------
+project_variance_router = APIRouter(
+    prefix="/projects/{project_id}/financials", tags=["quote-variance"]
+)
 
 
 def _require_client(current_user: CurrentUser) -> None:
@@ -350,6 +372,23 @@ async def download_quote_pdf(
     )
 
 
+@router.get("/{quote_id}/variance", response_model=QuoteVarianceResponse)
+async def get_quote_variance(
+    quote_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> QuoteVarianceResponse:
+    """One quote's quoted-vs-actual (FINAI-05).
+
+    finance.view-gated — this is the backend half of the Trap 8 double lock, and
+    the half that actually holds: `/quotes/[id]` has no UI gate today, so a UI
+    gate over an ungated endpoint would not be a lock.
+    """
+    await require_permission("finance.view")(current_user, db)
+    result = await QuoteVarianceService(db).quote_variance(quote_id)
+    return to_quote_variance_response(result)
+
+
 # ---------------------------------------------------------------------------
 # Trade-scope quote endpoints (Phase 25)
 # ---------------------------------------------------------------------------
@@ -397,3 +436,24 @@ async def list_scope_quotes(
     svc = QuoteService(db)
     quotes = await svc.list_by_scope(scope_id)
     return [QuoteResponse.from_orm_with_totals(q, include_finance=include_finance) for q in quotes]
+
+
+# ---------------------------------------------------------------------------
+# Project quote-variance endpoint (Phase 37, FINAI-05)
+# ---------------------------------------------------------------------------
+
+
+@project_variance_router.get("/quote-variance", response_model=ProjectQuoteVarianceResponse)
+async def get_project_quote_variance(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> ProjectQuoteVarianceResponse:
+    """The financials drill-down's quoted-vs-actual table for one project (FINAI-05).
+
+    One row per invoiced, approved-quote anchor in the project plus a summed
+    total. finance.view-gated — the other half of the Trap 8 double lock.
+    """
+    await require_permission("finance.view")(current_user, db)
+    result = await QuoteVarianceService(db).project_quote_variance(project_id)
+    return to_project_quote_variance_response(result)

@@ -36,8 +36,8 @@ from app.features.jobs.ratings_router import router as jobs_ratings_router
 from app.features.jobs.router import router as jobs_router
 from app.features.notifications.router import router as notifications_router
 from app.features.projects.router import router as projects_router
+from app.features.quotes.router import project_variance_router, scope_quote_router
 from app.features.quotes.router import router as quotes_router
-from app.features.quotes.router import scope_quote_router
 from app.features.rbac.router import router as rbac_router
 from app.features.reports.router import router as reports_router
 from app.features.scheduling.router import router as scheduling_router
@@ -170,6 +170,7 @@ app.include_router(quotes_router, prefix="/api/v1")
 app.include_router(invoices_router, prefix="/api/v1")
 # Phase 25: trade-scope billing endpoints
 app.include_router(scope_quote_router, prefix="/api/v1")
+app.include_router(project_variance_router, prefix="/api/v1")
 app.include_router(scope_invoice_router, prefix="/api/v1")
 app.include_router(reports_router, prefix="/api/v1")
 # Foreman role: project assignments and daily status updates

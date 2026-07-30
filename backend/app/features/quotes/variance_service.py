@@ -29,7 +29,7 @@ from decimal import Decimal
 
 from sqlalchemy import select
 
-from app.core.base_service import TenantScopedService, entity_or_404
+from app.core.base_service import TenantScopedService, active_entity_or_404, entity_or_404
 from app.features.finance.labor_derivation import ZERO_MONEY
 from app.features.finance.margin_math import DocumentAmounts, RevenueAnchor, quoted_revenue
 from app.features.finance.repository import RevenueRepository, invoice_amounts_query
@@ -40,10 +40,12 @@ from app.features.finance.service import (
 )
 from app.features.invoices.models import Invoice
 from app.features.jobs.models import Job
-from app.features.projects.models import TradeScope
+from app.features.projects.models import Project, TradeScope
 from app.features.quotes.models import Quote, QuoteLineItem
 from app.features.quotes.quote_history_math import prorated_pre_tax_totals, variance_for
 from app.features.quotes.repository import QuoteRepository
+
+_PROJECT_NOT_FOUND = "Project not found"
 
 PROJECT_TOTAL_LABEL = "Project total"
 
@@ -293,7 +295,13 @@ class QuoteVarianceService(TenantScopedService[Quote]):
         return {row.job_id for row in result.all()}
 
     async def project_quote_variance(self, project_id: uuid.UUID) -> ProjectQuoteVarianceResult:
-        """One row per invoiced, approved-quote anchor in a project, plus a summed total."""
+        """One row per invoiced, approved-quote anchor in a project, plus a summed total.
+
+        The project existence check runs BEFORE any aggregate query so a missing,
+        soft-deleted or cross-tenant id 404s on one cheap lookup rather than
+        paying for the aggregate first (mirrors PortfolioService.project_financials).
+        """
+        active_entity_or_404(await self.db.get(Project, project_id), _PROJECT_NOT_FOUND)
         quoted_by_anchor = await self._latest_approved_quote_amounts_by_anchor(project_id)
         invoiced_anchors = await self._invoiced_anchors_for_project(project_id)
         comparable_anchors = [anchor for anchor in quoted_by_anchor if anchor in invoiced_anchors]

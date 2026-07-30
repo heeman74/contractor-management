@@ -893,3 +893,144 @@ async def test_project_quote_variance_quoted_legs_sum_to_pre_tax_total(
 
     assert sum((trade.quoted for trade in result.trades), Decimal("0")) == Decimal("100.00")
     assert result.quoted == Decimal("100.00")
+
+
+# ---------------------------------------------------------------------------
+# Plan 37-04 Task 3 — the two variance endpoints, finance-gated
+# ---------------------------------------------------------------------------
+
+
+def _quote_variance_url(quote_id: str) -> str:
+    return f"{_QUOTES_URL}{quote_id}/variance"
+
+
+def _project_quote_variance_url(project_id: str) -> str:
+    return f"{_PROJECTS_URL}{project_id}/financials/quote-variance"
+
+
+@pytest.mark.asyncio
+async def test_quote_variance_requires_finance_view(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    company_id = seed_two_tenants["tenant_a_id"]
+    job_id = await _create_job(tenant_a_client)
+    quote = await _create_quote(tenant_a_client, job_id, [_line_item(unit_price="100.00")])
+    await _approve_quote(company_id, quote["id"], approved_at=datetime.now(UTC))
+    await _create_invoice(tenant_a_client, company_id, job_id=job_id, amount="10.00")
+
+    denied = await tenant_a_client.get(
+        _quote_variance_url(quote["id"]), headers=_admin_headers(company_id)
+    )
+    assert denied.status_code == 403, denied.text
+    assert denied.json()["detail"] == _MISSING_VIEW_PERMISSION
+
+    allowed = await tenant_a_client.get(
+        _quote_variance_url(quote["id"]), headers=_pm_headers(company_id)
+    )
+    assert allowed.status_code == 200, allowed.text
+    body = allowed.json()
+    assert body["quoted"] == "100.00"
+    assert body["scope_anchored"] is False
+    assert body["trades"] == []
+
+
+@pytest.mark.asyncio
+async def test_project_quote_variance_requires_finance_view(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    company_id = seed_two_tenants["tenant_a_id"]
+    project_id = await _create_project(tenant_a_client)
+
+    denied = await tenant_a_client.get(
+        _project_quote_variance_url(project_id), headers=_admin_headers(company_id)
+    )
+    assert denied.status_code == 403, denied.text
+    assert denied.json()["detail"] == _MISSING_VIEW_PERMISSION
+
+    allowed = await tenant_a_client.get(
+        _project_quote_variance_url(project_id), headers=_pm_headers(company_id)
+    )
+    assert allowed.status_code == 200, allowed.text
+
+
+@pytest.mark.asyncio
+async def test_project_quote_variance_lists_invoiced_anchors_with_total(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_cost_categories(company_id)
+    materials_id = await _category_id(company_id, "materials")
+
+    project_id = await _create_project(tenant_a_client)
+    job_id = await _create_job(tenant_a_client, project_id=project_id, trade_type="Electrical")
+    scope_id = await _create_trade_scope(tenant_a_client, project_id, "Plumbing")
+
+    job_quote = await _create_quote(tenant_a_client, job_id, [_line_item(unit_price="200.00")])
+    await _approve_quote(company_id, job_quote["id"], approved_at=datetime.now(UTC))
+    await _create_invoice(tenant_a_client, company_id, job_id=job_id, amount="10.00")
+    await _add_cost_entry(
+        tenant_a_client, headers, job_id=job_id, category_id=materials_id, amount="220.00"
+    )
+
+    scope_quote = await _create_quote_for_scope(
+        tenant_a_client, scope_id, [_line_item(unit_price="300.00")]
+    )
+    await _approve_quote(company_id, scope_quote["id"], approved_at=datetime.now(UTC))
+    await _create_invoice(tenant_a_client, company_id, trade_scope_id=scope_id, amount="10.00")
+    await _add_cost_entry(
+        tenant_a_client,
+        headers,
+        trade_scope_id=scope_id,
+        category_id=materials_id,
+        amount="280.00",
+    )
+
+    resp = await tenant_a_client.get(_project_quote_variance_url(project_id), headers=headers)
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    by_label = {row["label"]: row for row in body["scopes"]}
+    assert set(by_label) == {"Electrical", "Plumbing"}
+    assert by_label["Electrical"]["quoted"] == "200.00"
+    assert by_label["Electrical"]["actual"] == "220.00"
+    assert by_label["Plumbing"]["quoted"] == "300.00"
+    assert by_label["Plumbing"]["actual"] == "280.00"
+    assert body["total"]["label"] == "Project total"
+    assert body["total"]["quoted"] == "500.00"
+    assert body["total"]["actual"] == "500.00"
+    assert body["total"]["variance"] == "0.00"
+    assert body["has_scope_anchored_rows"] is True
+
+
+@pytest.mark.asyncio
+async def test_project_quote_variance_empty_without_invoiced_anchor(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    company_id = seed_two_tenants["tenant_a_id"]
+    project_id = await _create_project(tenant_a_client)
+
+    resp = await tenant_a_client.get(
+        _project_quote_variance_url(project_id), headers=_pm_headers(company_id)
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    assert body["scopes"] == []
+    assert body["total"]["quoted"] is None
+    assert body["total"]["actual"] is None
+    assert body["labor_included"] is False
+    assert body["has_scope_anchored_rows"] is False
+
+
+@pytest.mark.asyncio
+async def test_project_quote_variance_is_tenant_isolated(
+    tenant_a_client: AsyncClient, tenant_b_client: AsyncClient, seed_two_tenants: dict
+):
+    tenant_b_id = seed_two_tenants["tenant_b_id"]
+    project_id = await _create_project(tenant_a_client)
+
+    resp = await tenant_b_client.get(
+        _project_quote_variance_url(project_id), headers=_pm_headers(tenant_b_id)
+    )
+    assert resp.status_code == 404, resp.text
