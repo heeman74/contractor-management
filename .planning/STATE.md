@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 37-01-PLAN.md
-last_updated: "2026-07-30T18:48:09.537Z"
+stopped_at: Completed 37-03-PLAN.md
+last_updated: "2026-07-30T18:57:16.883Z"
 last_activity: 2026-07-30
 progress:
   total_phases: 22
   completed_phases: 19
   total_plans: 127
-  completed_plans: 113
+  completed_plans: 114
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 37 (ai-quote-planning) — EXECUTING
-Plan: 2 of 12
+Plan: 3 of 12
 Status: Ready to execute
 Last activity: 2026-07-30
 
@@ -92,6 +92,7 @@ Last activity: 2026-07-30
 | Phase 36 P09 | 26min | 2 tasks tasks | 4 files files |
 | Phase 36 P10 | 46min | 3 tasks tasks | 6 files files |
 | Phase 37-ai-quote-planning P01 | 30min | 3 tasks | 6 files |
+| Phase 37 P03 | 15min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -337,6 +338,8 @@ Last activity: 2026-07-30
 - [Phase 37-ai-quote-planning]: 37-01: id-keyed line-item reconcile replaces delete-and-recreate; identity and field now survive an ordinary PATCH
 - [Phase 37-ai-quote-planning]: 37-01: review_state_after (module-level, service.py) derives review state from priced-field comparison — a client's requested review_state can never launder an edit as an acceptance
 - [Phase 37-ai-quote-planning]: 37-01: FINANCE_VIEW_PERMISSION promoted to a public constant in permissions.py; private duplicates in profitability_service.py/budget_service.py left alone
+- [Phase 37]: 37-03: buildQuotePayload spreads id conditionally so a hand-added row sends no id key, matching the 37-01 backend reconcile insert-vs-update rule
+- [Phase 37]: 37-03: confidence-band.ts docstring restates the evidence-not-correctness inversion as a plain comment (no quoted string) to satisfy the literal no-confidence-in-quotes acceptance grep
 
 ### Pending Todos
 
@@ -358,6 +361,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-30T18:48:09.527Z
-Stopped at: Completed 37-01-PLAN.md
+Last session: 2026-07-30T18:57:16.874Z
+Stopped at: Completed 37-03-PLAN.md
 Resume file: None

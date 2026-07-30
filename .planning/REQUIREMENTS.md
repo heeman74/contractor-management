@@ -35,7 +35,7 @@ Requirements for the Financial Intelligence milestone. Each maps to roadmap phas
 - [x] **FINAI-01**: AI analyzes each active project's financial health on a nightly schedule, flagging margin erosion with suggested corrective actions
 - [x] **FINAI-02**: Owner/PM receives finance-gated alerts for AI profitability findings
 - [x] **FINAI-03**: Owner/PM can have AI pre-fill quote line items (labor hours, material quantities, unit prices) grounded in company cost history — assistive only, human reviews before sending
-- [ ] **FINAI-04**: AI quote suggestions show a confidence indicator based on how much historical data backs them
+- [x] **FINAI-04**: AI quote suggestions show a confidence indicator based on how much historical data backs them
 - [ ] **FINAI-05**: Owner/PM can view quoted-vs-actual variance per completed project/trade; variance history feeds AI quote suggestions
 
 ### Financial Access Control
@@ -95,7 +95,7 @@ Which phases cover which requirements. Filled during roadmap creation.
 | FINAI-01 | Phase 36: AI Profitability Analysis | Complete |
 | FINAI-02 | Phase 36: AI Profitability Analysis | Complete |
 | FINAI-03 | Phase 37: AI Quote Planning | Complete |
-| FINAI-04 | Phase 37: AI Quote Planning | Pending |
+| FINAI-04 | Phase 37: AI Quote Planning | Complete |
 | FINAI-05 | Phase 37: AI Quote Planning | Pending |
 | FINSEC-01 | Phase 30: Financial Schema Foundation and RBAC Audit | Complete |
 | FINSEC-02 | Phase 30: Financial Schema Foundation and RBAC Audit | Complete |
