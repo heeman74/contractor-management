@@ -13,7 +13,9 @@ import { QuoteActionsCard } from "./_components/quote-actions-card";
 import { QuoteContractCard } from "./_components/quote-contract-card";
 import { QuoteDetailsCard } from "./_components/quote-details-card";
 import { QuoteFinancialSummary } from "./_components/quote-financial-summary";
+import { QuoteVarianceSection } from "./_components/quote-variance-section";
 import { LinkedInvoiceCard } from "./_components/linked-invoice-card";
+import { FinanceGate } from "@/features/finance/components/FinanceGate";
 import { SendQuoteDialog, ExtendExpiryDialog } from "./_components/quote-dialogs";
 import { useQuoteDetail } from "./_hooks/use-quote-detail";
 import { buildQuoteActivity } from "./_lib/quote-activity";
@@ -166,6 +168,21 @@ export default function QuoteDetailPage({
               <QuoteFinancialSummary quote={quote} emphasizeTotal />
             </CardContent>
           </Card>
+
+          {/* Trap 8 double lock: FinanceGate stops the render, and the
+              variance section's own hook-level enabled flag (a child of the
+              gate, never a sibling) stops the request. The fallback below is
+              null because a sidebar card the viewer may not be entitled to
+              must never reserve layout, flash a skeleton or announce its own
+              absence with a deny panel on a page they otherwise own. The page
+              owns no variance hook — that is the entire purpose of the
+              section container below. */}
+          <FinanceGate fallback={null}>
+            <QuoteVarianceSection
+              quoteId={quote.id}
+              isApproved={quote.status === "approved"}
+            />
+          </FinanceGate>
 
           {detail.linkedInvoice && (
             <LinkedInvoiceCard invoice={detail.linkedInvoice} />
