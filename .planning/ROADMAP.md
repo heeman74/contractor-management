@@ -469,10 +469,10 @@ Plans:
   2. Owner/PM must explicitly review and approve AI-suggested line items before a quote can be sent — no quote is ever sent autonomously
   3. Each AI quote suggestion displays a confidence indicator reflecting how much historical data backs it
   4. Owner/PM can view quoted-vs-actual variance for any completed project or trade scope, and that variance history feeds into future AI quote suggestions
-**Plans:** 12 plans in 7 waves (at most one backend plan per wave — conftest TRUNCATEs all tables per test, so two pytest processes against contractorhub_test deadlock; the web plans run in parallel with the backend chain)
+**Plans:** 1/12 plans executed
 
 Plans:
-- [ ] 37-01-PLAN.md — Line-item identity (id-keyed reconcile), review-state columns + migration 0037, the D-07 send gate [wave 1]
+- [x] 37-01-PLAN.md — Line-item identity (id-keyed reconcile), review-state columns + migration 0037, the D-07 send gate [wave 1]
 - [ ] 37-02-PLAN.md — Typed money/percent grounding + the DB-free confidence-band and variance math [wave 2]
 - [ ] 37-03-PLAN.md — Web contract layer: line-item type, the two new chip recipes, the band map, the form round trip [wave 2]
 - [ ] 37-04-PLAN.md — Quoted-vs-actual endpoints for one quote and one project, incl. the D-14 field grouping [wave 3]
@@ -532,4 +532,4 @@ Note: Phase 37 (AI Quote Planning) depends only on Phase 32 and may run in paral
 | 34. Budgeting and Overrun Alerts | v4.0 | 8/8 | Complete    | 2026-07-28 |
 | 35. Web Financial Dashboard | v4.0 | 11/11 | Complete    | 2026-07-29 |
 | 36. AI Profitability Analysis | v4.0 | 10/10 | Complete    | 2026-07-29 |
-| 37. AI Quote Planning | v4.0 | 0/? | Not started | - |
+| 37. AI Quote Planning | v4.0 | 1/12 | In Progress|  |

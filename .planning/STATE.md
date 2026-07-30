@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
-status: verifying
-stopped_at: Phase 37 context gathered
-last_updated: "2026-07-30T06:06:22.659Z"
-last_activity: 2026-07-29
+status: executing
+stopped_at: Completed 37-01-PLAN.md
+last_updated: "2026-07-30T18:48:09.537Z"
+last_activity: 2026-07-30
 progress:
   total_phases: 22
   completed_phases: 19
-  total_plans: 115
-  completed_plans: 112
+  total_plans: 127
+  completed_plans: 113
 ---
 
 # Project State
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-24)
 
 **Core value:** AI eliminates the chaos of multi-trade coordination — GCs always know where every trade stands, contractors always know what to do today, projects stay on track.
-**Current focus:** Phase 36 — ai-profitability-analysis
+**Current focus:** Phase 37 — ai-quote-planning
 
 ## Current Position
 
-Phase: 37
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-07-29
+Phase: 37 (ai-quote-planning) — EXECUTING
+Plan: 2 of 12
+Status: Ready to execute
+Last activity: 2026-07-30
 
 ## Performance Metrics
 
@@ -91,6 +91,7 @@ Last activity: 2026-07-29
 | Phase 36 P08 | 26min | 2 tasks tasks | 2 files files |
 | Phase 36 P09 | 26min | 2 tasks tasks | 4 files files |
 | Phase 36 P10 | 46min | 3 tasks tasks | 6 files files |
+| Phase 37-ai-quote-planning P01 | 30min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -333,6 +334,9 @@ Last activity: 2026-07-29
 - [Phase 36]: 36-09: the cleared-then-recurring test pauses and re-activates the project instead of billing the gap away — Billing up to the quote amount clears the condition but a later recurrence carries a DIFFERENT fingerprint, which re-alerts through the band-change path keystone 2 already covers. Pausing keeps the fingerprint byte-identical, so the second alert can only come from resolve-then-reinsert -- the D-06 mechanism actually under test.
 - [Phase 36]: 36-09: a raised Claude transport error consumes no D-05 grounding retry -- exactly one call on a failing night — The exception propagates out of _draft_for before the retry loop can iterate, and gather_with_concurrency isolates it into a None draft. The first RED assertion expected GROUNDING_RETRY_LIMIT + 1 calls and was wrong about the code, not the reverse.
 - [Phase 36]: 36-09: send_profitability_finding_notification gained its own unit tests in test_notification_service.py rather than inheriting the budget sibling's coverage gap — The e2e suite patches the method to assert WHO it addresses, so its body -- token lookup, empty-recipient guard, dispatch loop, credential-free degradation -- would have shipped with zero executed coverage. send_budget_alert_notification has exactly that gap, so copying the precedent would have propagated it.
+- [Phase 37-ai-quote-planning]: 37-01: id-keyed line-item reconcile replaces delete-and-recreate; identity and field now survive an ordinary PATCH
+- [Phase 37-ai-quote-planning]: 37-01: review_state_after (module-level, service.py) derives review state from priced-field comparison — a client's requested review_state can never launder an edit as an acceptance
+- [Phase 37-ai-quote-planning]: 37-01: FINANCE_VIEW_PERMISSION promoted to a public constant in permissions.py; private duplicates in profitability_service.py/budget_service.py left alone
 
 ### Pending Todos
 
@@ -354,6 +358,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-30T06:06:22.629Z
-Stopped at: Phase 37 context gathered
-Resume file: .planning/phases/37-ai-quote-planning/37-CONTEXT.md
+Last session: 2026-07-30T18:48:09.527Z
+Stopped at: Completed 37-01-PLAN.md
+Resume file: None
