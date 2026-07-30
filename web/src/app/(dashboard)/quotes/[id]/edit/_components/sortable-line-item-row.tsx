@@ -23,6 +23,7 @@ interface SortableLineItemRowProps {
   control: UseFormReturn<QuoteFormValues>["control"];
   watch: UseFormReturn<QuoteFormValues>["watch"];
   errors: UseFormReturn<QuoteFormValues>["formState"]["errors"];
+  showTradeColumn?: boolean;
 }
 
 export function SortableLineItemRow({
@@ -35,6 +36,7 @@ export function SortableLineItemRow({
   control,
   watch,
   errors,
+  showTradeColumn = false,
 }: SortableLineItemRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: fieldId });
@@ -51,11 +53,21 @@ export function SortableLineItemRow({
 
   const lineErrors = errors.line_items?.[index];
 
+  const isUnreviewedAiLine =
+    watch(`line_items.${index}.ai_origin`) === true &&
+    watch(`line_items.${index}.review_state`) === "unreviewed";
+
+  const rowTintClass = isDragging
+    ? "opacity-50 bg-blue-50"
+    : isUnreviewedAiLine
+      ? "bg-secondary"
+      : "";
+
   return (
     <tr
       ref={setNodeRef}
       style={style}
-      className={`border-b border-gray-100 ${isDragging ? "opacity-50 bg-blue-50" : ""}`}
+      className={`border-b border-gray-100 ${rowTintClass}`}
     >
       {/* Drag handle */}
       <td className="w-8 px-1 py-2">
@@ -152,6 +164,18 @@ export function SortableLineItemRow({
           />
         </div>
       </td>
+
+      {/* Trade — project-level quotes only; job/scope-anchored quotes carry
+          `field` as a hidden value derived from their anchor. */}
+      {showTradeColumn && (
+        <td className="px-1 py-2 w-[140px]">
+          <Input
+            {...register(`line_items.${index}.field`)}
+            placeholder="e.g. Plumbing"
+            className="w-[140px] text-sm"
+          />
+        </td>
+      )}
 
       {/* Total (computed) */}
       <td className="px-1 py-2 w-[96px] text-right">
