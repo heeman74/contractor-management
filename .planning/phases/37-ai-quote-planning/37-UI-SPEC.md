@@ -1,7 +1,8 @@
 ---
 phase: 37
 slug: ai-quote-planning
-status: draft
+status: approved
+reviewed_at: 2026-07-30
 shadcn_initialized: true
 preset: base-nova (detected via existing web/components.json — not re-run this phase)
 created: 2026-07-30
@@ -21,6 +22,14 @@ Everything inherits the **"Job Ticket"** design system unchanged from the Phase 
 
 **Pre-populated from:** 37-CONTEXT.md (D-01..D-14), 37-RESEARCH.md (Traps 1–8, Patterns 1–5, Pitfalls 1–10, the Variance Definition section, Open Questions 1–4), 36-UI-SPEC.md (palette, red rule, chip recipes, caption voice, AI-disclosure convention), 35-UI-SPEC.md via shipped constants, ROADMAP Phase 37 SC1–SC4, `~/.agents/skills/clean-code`, and direct reads of `components.json`, `globals.css`, `FinanceFlagChip.tsx`, `FinanceGate.tsx`, `hooks.ts`, `types.ts`, `financials-format.ts`, `MarginSummarySection.tsx`, `chart-card.tsx`, `chart-empty-state.tsx`, `scope-budget-bars.tsx`, `project-financials-dashboard.tsx`, `lib/format.ts`, `quotes/[id]/page.tsx`, `quote-actions-card.tsx`, `quote-status-alerts.tsx`, `quote-line-items-card.tsx`, `edit/page.tsx`, `line-items-table.tsx`, `sortable-line-item-row.tsx`, `_lib/quote-form.ts`, `_hooks/use-quote-editor.ts`, `_hooks/use-quote-detail.ts`, `types/api.ts` (2026-07-30). **User input required: none.**
 
+**Checker corrections applied 2026-07-30** (0 blockers + 5 recommendations, all adopted):
+
+1. **The Trap 8 double lock was self-contradictory** — the lock-1 snippet implied the card fetched, the implementation-shape section said the *page* owned the hook, and a page-owned hook is a **sibling** of the gate, which React cannot call conditionally. The layering claim ("the gate short-circuits the mount") was therefore false, and the stated mutation test was wrong: weakening `enabled` with the gate intact **would** have fired a request. Resolved by option (a) — a thin **`QuoteVarianceSection`** container owns the hook and is rendered **inside** `<FinanceGate>`, matching the shipped `/financials` precedent where `project-financials-dashboard.tsx` owns every hook as a child of the layout-mounted gate. Snippet, files table, implementation shape and the mutation-verification description all updated to match.
+2. **`Limited history` was invisible on an unreviewed row** — a `bg-secondary` chip on a `bg-secondary` tint is 1.00:1 fill contrast with ink matching the adjacent marker, and a fresh medium-band suggestion is unreviewed *by definition*, making it the most common state. Both offered fixes adopted: the note recipe gains `border border-gray-300`, **and** the tint is now scoped to the input row only, leaving the sub-row on the white card surface.
+3. **`fallback={null}` needed an explicit `undefined` check** — `fallback ?? <pulse/>` collapses omitted and `null` (`null ?? x === x`) and would have rendered the 256px pulse and the yellow deny panel on the quote page, breaking States 37/38. The guard form is now stated literally.
+4. **The regenerate confirm button variant is now byte-locked** to `variant="default"`, so an executor cannot reach for `variant="destructive"` on a surface where `--destructive` is declared unused.
+5. Cosmetic: `separator.tsx` added to the primitives row; the `space-y-4` parenthetical moved from the lg row to the md row; `text-gray-700`-on-white corrected 10.30 → **10.31**.
+
 **The one thing this contract cannot lock:** the **qualitative half of each basis string** is AI-written. Per 37-RESEARCH Pattern 4 the **sample-count clause is composed server-side in code** and the AI writes only the interpretive half, so the basis is *partly* byte-assertable. This document locks every frame string byte-for-byte and bounds the AI half by **length and grounding only**. No plan task may assert byte-identity on the AI-authored half. Every other string here is a test constant.
 
 ---
@@ -31,7 +40,7 @@ Everything inherits the **"Job Ticket"** design system unchanged from the Phase 
 |----------|-------|
 | Tool | shadcn (already initialized — `web/components.json` present; **no gate action, no new blocks installed**) |
 | Preset | `style: base-nova`, `baseColor: neutral`, `iconLibrary: lucide`, `cssVariables: true`, `registries: {}` — read verbatim from `web/components.json` 2026-07-30 |
-| Component library | base-ui (`@base-ui/react`) via existing wrappers — this phase uses only `card.tsx`, `button.tsx`, `input.tsx`, `select.tsx`, `alert.tsx`, `dialog.tsx`, `skeleton.tsx`. **No new primitive.** The editor's shipped `@dnd-kit` sortable table and `react-hook-form` + `zod` form state are extended, never replaced. |
+| Component library | base-ui (`@base-ui/react`) via existing wrappers — this phase uses only `card.tsx`, `button.tsx`, `input.tsx`, `select.tsx`, `alert.tsx`, `dialog.tsx`, `separator.tsx`, `skeleton.tsx`. **No new primitive.** The editor's shipped `@dnd-kit` sortable table and `react-hook-form` + `zod` form state are extended, never replaced. |
 | Chart library | **none this phase** — variance is a signed comparison, which is a table, not a plot. `ChartCard` is reused as *furniture* (see the card contract). |
 | Icon library | lucide-react — **`Bot`** (the codebase's established AI-provenance glyph: `ChatBubble.tsx`, `TypingIndicator.tsx`, the AI intake affordances on `projects/page.tsx` and `quotes/page.tsx`, and the Phase 36 finding card) and **`Scale`** for the quoted-vs-actual cards. `Sparkles`, `Wand`, `BrainCircuit` are deliberately **not** introduced — one meaning, one glyph. |
 | Font | Geist Sans (body) per `globals.css`. No display face, no mono except the **shipped** `font-mono` line total in `sortable-line-item-row.tsx`, which is untouched. |
@@ -47,8 +56,8 @@ Declared values (all multiples of 4) — unchanged from the Phase 32/33/34/35/36
 |-------|-------|------------------|
 | xs | 4px | Chip↔basis gap (`gap-1`), caption stack rhythm (`space-y-1`), marker→basis offset (`mt-1`), shipped table cell inline padding (`px-1`) |
 | sm | 8px | AI sub-row content gap (`gap-2`), shipped table cell vertical padding (`py-2`), banner→table offset (`mt-2`) |
-| md | 16px | Notice/refusal block padding (`p-4`), banner block padding (`p-4`), card interior top padding (`pt-4`), variance table top offset (`mt-4`), card-level caption stack offset (`mt-4`) |
-| lg | 24px | Page and sidebar section rhythm (`space-y-6`, `space-y-4` is 16px) — inherited |
+| md | 16px | Notice/refusal block padding (`p-4`), banner block padding (`p-4`), card interior top padding (`pt-4`), variance table top offset (`mt-4`), card-level caption stack offset (`mt-4`), shipped sidebar card rhythm (`space-y-4`) |
+| lg | 24px | Page section rhythm (`space-y-6`) — inherited |
 | xl | 32px | In-card error block vertical padding (`py-8`) |
 | 3xl | 64px | `ChartEmptyState` vertical padding (`py-16`) — shipped, reused unchanged |
 
@@ -90,7 +99,7 @@ Declared values (all multiples of 4) — unchanged from the Phase 32/33/34/35/36
 | Role | Value | Usage this phase |
 |------|-------|------------------|
 | Dominant (60%) | `--background` `#f7f6f2`, `--foreground` `#0e1726` | Page background, body ink (inherited) |
-| Secondary (30%) | `--card` `#ffffff`, `--secondary` `#ece9e1`, `--border` `#e4e1d8` | Card surfaces, **the unreviewed-AI-row tint (`bg-secondary`)**, the refusal/notice block (`bg-secondary`), **the `Limited history` chip (`bg-secondary`)**, the `ChartCard` icon box, card hairlines |
+| Secondary (30%) | `--card` `#ffffff`, `--secondary` `#ece9e1`, `--border` `#e4e1d8` | Card surfaces, **the unreviewed input-row tint (`bg-secondary`)**, the refusal/notice block (`bg-secondary`), **the `Limited history` chip fill (`bg-secondary`)**, the `ChartCard` icon box, card hairlines |
 | Accent (10%) | `--brand` `#f5a623` | **One new usage: the `Thin history` confidence chip**, via the shipped `FINANCE_FLAG_CHIP_CLASS` (`bg-brand/15 text-amber-900`). Nothing else on any Phase 37 surface is `--brand`. |
 | Destructive | `--destructive` `#d64545` | **Not used this phase.** See the red rule below. |
 
@@ -121,7 +130,7 @@ Declared values (all multiples of 4) — unchanged from the Phase 32/33/34/35/36
 | Band (code-computed, D-05) | Chip label | Chip class | Composition | Why |
 |---|---|---|---|---|
 | `high` | **`Strong history`** | `QUOTE_CONFIDENCE_CHIP.high` → `FINANCE_OUTLINE_CHIP_CLASS` = `rounded-full border border-gray-300 px-2 py-0.5 text-xs text-gray-600` | **NEW class string, zero new hexes.** Chip geometry byte-identical to the two shipped finance chips; border + ink lifted from the **shipped revision badge** on `quotes/[id]/page.tsx:83` (`border border-gray-300 … text-xs text-gray-600`) | The quietest possible mark. It states the evidence is thick and then gets out of the way. Never green, never filled — nothing in this design system says "good", and a filled all-clear badge on an unreviewed AI number is the exact defect SC2 targets. |
-| `medium` | **`Limited history`** | `QUOTE_CONFIDENCE_CHIP.medium` → `FINANCE_NOTE_CHIP_CLASS` = `rounded-full bg-secondary px-2 py-0.5 text-xs text-gray-700` | **NEW class string, zero new hexes.** `bg-secondary` is the Job Ticket 30% token; `text-gray-700` is the Phase 36 eyebrow ink | Not a warning, not an all-clear. It carries visible weight against the white card without borrowing a signal hue. |
+| `medium` | **`Limited history`** | `QUOTE_CONFIDENCE_CHIP.medium` → `FINANCE_NOTE_CHIP_CLASS` = `rounded-full border border-gray-300 bg-secondary px-2 py-0.5 text-xs text-gray-700` | **NEW class string, zero new hexes.** `bg-secondary` is the Job Ticket 30% token; `border-gray-300` is the same edge the outline recipe uses; `text-gray-700` is the Phase 36 eyebrow ink | Not a warning, not an all-clear. It carries visible weight against the white card without borrowing a signal hue. **The border is load-bearing:** the `bg-secondary` fill measures only **1.21:1** against the white card and **1.00:1** against another `bg-secondary` surface, so without an edge the chip would dissolve into whatever sits behind it. The border keeps it a shape everywhere it can appear. |
 | `low` | **`Thin history`** | `FINANCE_FLAG_CHIP_CLASS` — `rounded-full bg-brand/15 px-2 py-0.5 text-xs text-amber-900` | **Shipped, imported byte-for-byte** | Literally a data-quality flag, which is the recipe's stated purpose. Thin or wildly-spread comparables *are* a data gap. Same hue, same meaning, same class string as the unrated-hours and incomplete-data chips. |
 
 **Red is not available on this surface.** A suggestion is not an alert. `FINANCE_ALERT_CHIP_CLASS` appears nowhere in Phase 37.
@@ -134,13 +143,15 @@ Declared values (all multiples of 4) — unchanged from the Phase 32/33/34/35/36
 
 An unreviewed AI line is marked by **three redundant, non-hue signals**:
 
-1. **Row tint** — the input row and its AI sub-row carry `bg-secondary` (#ece9e1). Reviewed rows return to the white card surface. A block of pending work is visible at a glance and visibly shrinks as it is cleared.
-2. **A text marker** — `Needs review`, always rendered, `text-xs text-gray-700` on the tinted surface (10.30:1 ✓; `text-gray-500` measures only 3.98:1 on `bg-secondary` and is **not** used there — the Phase 36 eyebrow-contrast finding applies verbatim).
+1. **Input-row tint** — the line's **input row** carries `bg-secondary` (#ece9e1). Reviewed rows return to the white card surface. A block of pending work is visible at a glance and visibly shrinks as it is cleared.
+2. **A text marker** — `Needs review`, always rendered on the AI sub-row, `text-xs text-gray-700` (10.31:1 on the white sub-row surface). It is a step heavier than the `text-gray-500` basis beneath it, so the pending state outranks the evidence supporting it.
 3. **The `Accept` button's presence** — it exists only while the line is unreviewed.
+
+**The tint stops at the input row; the AI sub-row stays on the white card surface.** This is deliberate and load-bearing. A `bg-secondary` chip on a `bg-secondary` surface is **1.00:1** fill contrast, and its `text-gray-700` ink matches the adjacent `Needs review` marker — so a tinted sub-row would have rendered the `Limited history` band as two undifferentiated gray strings. A medium-band suggestion is unreviewed **by definition** on arrival, making that the single most common state on the surface. The block still reads as one unit because the tinted input row sits directly above its own sub-row and the marker names the state in words. Belt and braces: the note recipe carries `border border-gray-300` regardless, so neither neutral chip is ever edgeless on any surface it may later appear on.
 
 **No amber rail, no red border, no colored row.** Amber stays chip-only so `Thin history` keeps one meaning; and a row that is *both* unreviewed *and* thin-history would otherwise carry the same hue twice for two different reasons. Meaning is never carried by color alone here (WCAG 1.4.1) — the marker text alone is sufficient.
 
-**Grays:** `text-gray-900` for figures and table values, `text-gray-700` for markers on `bg-secondary` and the `Limited history` chip, `text-gray-600` for the `Strong history` chip, `text-gray-500` for every caption on a white surface and for table column headers, `text-muted-foreground` for empty states — matching shipped conventions exactly.
+**Grays:** `text-gray-900` for figures and table values, `text-gray-700` for the `Needs review` marker and the `Limited history` chip, `text-gray-600` for the `Strong history` chip, `text-gray-500` for every caption and the reviewed-state markers, `text-muted-foreground` for empty states — matching shipped conventions exactly.
 
 ---
 
@@ -178,7 +189,7 @@ An unreviewed AI line is marked by **three redundant, non-hue signals**:
 | String | Where |
 |--------|-------|
 | `Strong history` / `Limited history` / `Thin history` | The confidence chip label — one per band, per the map above |
-| `Needs review` | Review marker on an unreviewed AI line (12px `text-gray-700` on `bg-secondary`) |
+| `Needs review` | Review marker on an unreviewed AI line (12px `text-gray-700`) |
 | `Accepted` | Review marker once the line is accepted (12px `text-gray-500`) |
 | `AI-originated, user-edited` | Review marker once any priced field of an AI line changes (12px `text-gray-500`). **D-08's exact words** — this marker is what lets the variance loop tell AI-seeded quotes from hand-built ones, so it is load-bearing and never abbreviated. |
 | `Accept` | The per-line review button, `variant="outline" size="sm"`, `aria-label="Accept suggested line {n}"` where `{n}` is the 1-based row position |
@@ -211,10 +222,10 @@ An unreviewed AI line is marked by **three redundant, non-hue signals**:
 | Dialog title | `Replace unreviewed suggestions?` |
 | Body (`unreviewedCount === 1`) | `1 unreviewed suggestion will be replaced with a fresh one. Lines you've accepted or edited stay exactly as they are.` |
 | Body (`unreviewedCount > 1`) | `{N} unreviewed suggestions will be replaced with fresh ones. Lines you've accepted or edited stay exactly as they are.` |
-| Confirm button | `Replace Suggestions` (the shipped `Replace Line Items` template-dialog voice) |
-| Cancel button | `Cancel` |
+| Confirm button | `Replace Suggestions` — **`<Button variant="default">`, byte-locked.** `variant="destructive"` is **forbidden**: this contract declares `--destructive` unused on every Phase 37 surface, and the shipped `Replace Line Items` template dialog — the exact composition being reused — uses the default variant for its confirm. The dialog's *words* carry the warning; the button does not need to shout it in a hue this phase does not own. |
+| Cancel button | `Cancel` — `variant="outline"` |
 
-The dialog reuses the shipped template-replace `Dialog` composition in `edit/page.tsx` verbatim (`DialogContent showCloseButton` → `DialogHeader`/`DialogTitle` → body `<p className="text-sm text-gray-600">` → `DialogFooter` with outline Cancel + solid confirm). **It appears only when `unreviewedCount > 0`** — regenerating with nothing to destroy is not destructive and goes straight through.
+The dialog reuses the shipped template-replace `Dialog` composition in `edit/page.tsx` verbatim (`DialogContent showCloseButton` → `DialogHeader`/`DialogTitle` → body `<p className="text-sm text-gray-600">` → `DialogFooter` with outline Cancel + default confirm). **It appears only when `unreviewedCount > 0`** — regenerating with nothing to destroy is not destructive and goes straight through.
 
 ### Fixed strings — `Quoted vs Actual` (quote detail, sidebar)
 
@@ -280,6 +291,7 @@ Card
            the SHIPPED SortableLineItemRow, unchanged except the new Trade cell
 
         ── AI sub-row ───────────────  AI lines only; <tr><td colSpan={all}>
+           ALWAYS on the white card surface — never tinted (see the chip-edge note)
            line 1:  [Bot h-3 w-3 text-foreground/70] [confidence chip] [review marker]
                                                                    … [Accept button]?
            line 2:  <p text-xs text-gray-500>{basis}
@@ -293,7 +305,9 @@ Card
        [AI disclosure line]          when aiLineCount > 0, always last
 ```
 
-**Why a sub-row rather than more columns.** The basis string runs to ~200 characters. A seventh data column would either truncate it (forbidden — see the length contract) or collapse the shipped price inputs below usable width on a 700px-min table. A full-width sub-row keeps the shipped input row byte-identical, reads as a continuation of the line it annotates, and gives the chip, the marker and the `Accept` button one predictable home. The sub-row inherits the row tint, so an unreviewed line reads as one two-row block.
+**Why a sub-row rather than more columns.** The basis string runs to ~200 characters. A seventh data column would either truncate it (forbidden — see the length contract) or collapse the shipped price inputs below usable width on a 700px-min table. A full-width sub-row keeps the shipped input row byte-identical, reads as a continuation of the line it annotates, and gives the chip, the marker and the `Accept` button one predictable home.
+
+**Why the sub-row is never tinted.** See [the unreviewed-line treatment](#the-unreviewed-line-treatment-deliberately-not-accent): a `bg-secondary` chip on a `bg-secondary` surface is 1.00:1, and the medium band's default state is unreviewed. The tint stays on the input row, where there is no chip to swallow.
 
 **The `Trade` column.** Shown **only for project-level quotes** (`job_id === null && trade_scope_id === null`), where `QuoteLineItem.field` is the trade key (37-RESEARCH Trap 3's ladder). A plain `Input`, `w-[140px]`, placeholder `e.g. Plumbing`. For job-anchored and scope-anchored quotes the trade comes from the anchor, so a per-line trade input would be a second source of truth — there, `field` round-trips as a **hidden form value** and no column renders. This is the Trap 2 fix: `field` must survive `mapQuoteToFormValues` → `buildQuotePayload` on **every** quote kind, and the editor must never again strip it.
 
@@ -341,39 +355,71 @@ The trigger renders only when **all** hold: `quote.status === "draft"`, the view
               [QuoteContractCard]?
               QuoteDetailsCard
               Financial Summary
-              QuoteVarianceCard                  ◀── NEW, double-locked
+              FinanceGate fallback={null}        ◀── NEW lock 1 — render
+                └─ QuoteVarianceSection          ◀── NEW — owns the hook (lock 2 — fetch)
+                     └─ QuoteVarianceCard        ◀── presentational, no hook
               [LinkedInvoiceCard]?
 ```
 
-`QuoteLineItemsCard` renders AI lines read-only with the confidence chip and basis beneath each line (same sub-row shape, no `Accept` button, no row tint — review happens in the editor). The variance card sits **after** `Financial Summary` and **before** `LinkedInvoiceCard`: quoted totals first, then what the work actually cost, then the invoice that settled it.
+`QuoteLineItemsCard` renders AI lines read-only with the confidence chip and basis beneath each line (same sub-row shape, no `Accept` button, no row tint — review happens in the editor). The variance block sits **after** `Financial Summary` and **before** `LinkedInvoiceCard`: quoted totals first, then what the work actually cost, then the invoice that settled it.
 
 #### The double lock (37-RESEARCH Trap 8 — the phase's finance-leak keystone)
 
-`/quotes/[id]` has **no `FinanceGate`**: `FinanceGate` is mounted once, at `financials/layout.tsx`, and this page renders for any `quotes.view` holder. Putting actual-cost data here without an explicit gate is PITFALLS #4 word for word. Two independent locks, **both required**:
+`/quotes/[id]` has **no `FinanceGate`**: `FinanceGate` is mounted once, at `financials/layout.tsx`, and this page renders for any `quotes.view` holder. Putting actual-cost data here without an explicit gate is PITFALLS #4 word for word. Two locks, **both required** — and, critically, **layered rather than sibling**:
 
 ```tsx
-// Lock 1 — render. FinanceGate gains ONE optional prop; the shipped
-// financials/layout.tsx call site is byte-unchanged and still gets the deny panel.
+// quotes/[id]/page.tsx — the page mounts the GATE ONLY. It owns no variance hook.
 <FinanceGate fallback={null}>
-  <QuoteVarianceCard quoteId={quote.id} />
+  <QuoteVarianceSection quoteId={quote.id} isApproved={quote.status === "approved"} />
 </FinanceGate>
 ```
 
+```tsx
+// quotes/[id]/_components/quote-variance-section.tsx — NEW. The thin container that
+// owns the hook. It exists so the hook is a CHILD of the gate rather than a sibling of
+// it: a hook called in page.tsx runs unconditionally on every render whatever
+// FinanceGate decides, which would leave the gate worth nothing for the request half.
+// This mirrors the shipped /financials layering, where project-financials-dashboard.tsx
+// owns every hook as a child of the layout-mounted gate.
+export function QuoteVarianceSection({ quoteId, isApproved }: Props) {
+  const variance = useQuoteVariance(quoteId, isApproved);
+  return <QuoteVarianceCard {...toCardProps(variance)} />;
+}
+```
+
 ```ts
-// Lock 2 — fetch. features/finance/hooks.ts, beside the four shipped financial hooks.
+// features/finance/hooks.ts, beside the four shipped financial hooks.
 export function useQuoteVariance(quoteId: string, isApproved: boolean) {
   const { can } = usePermissions();
   return useQuery({
     queryKey: ["cost-entries", "financials", "quote-variance", quoteId],
     queryFn: () => fetchQuoteVariance(quoteId),
+    // Not optional. FinanceGate stops the render; this stops the request. Without it an
+    // unauthorized visit still issues the call and the SC2 zero-request assertion would
+    // pass for the wrong reason.
     enabled: can(FINANCE_VIEW_PERMISSION) && !!quoteId && isApproved,
   });
 }
 ```
 
-- **`fallback` semantics (locked):** an optional node rendered **both** while permissions are loading **and** when the permission is absent. Default (prop omitted) is byte-identical to the shipped behaviour — the 256px pulse, then the deny panel. `/quotes/[id]` passes `null`: a sidebar card the user may not be entitled to must never reserve layout, flash a skeleton, or announce its own absence with a yellow panel on a page they legitimately own. One gate component in the codebase, two call sites, one responsibility ("what renders when the gate is not open").
-- **`enabled` is not optional.** The gate stops the render; `enabled` stops the request. Without it a `quotes.view`-only visit still issues the call, cost-derived text crosses the wire, and the SC2 "zero variance requests" assertion passes for the wrong reason. The spec file must carry a comment saying so — the shipped `hooks.ts` docstring precedent.
-- **Mutation-verify both halves**, in the 36-02 / 35-11 style: deleting `FinanceGate` must fail the card-absent assertion; with the gate gone, weakening `enabled` to `!!quoteId` must fire one request to the variance path and fail the counter assertion. The gate short-circuits the mount, so the request half is only observable once the render half is already broken — **that is what makes it a second independent lock**, and the spec file must say so in-file.
+- **`fallback` semantics (locked, with the guard form spelled out).** `FinanceGate` gains one optional prop: a node rendered **both** while permissions are loading **and** when the permission is absent. Omitting it must be byte-identical to the shipped behaviour — the 256px pulse, then the deny panel. Because `/quotes/[id]` passes `null`, the implementation **must** discriminate on `undefined`, never on falsiness:
+
+  ```tsx
+  // CORRECT — omitted and null are different answers.
+  const denied  = fallback !== undefined ? fallback : <DenyPanel />;
+  const loading = fallback !== undefined ? fallback : <div className="h-64 animate-pulse rounded-xl bg-muted" />;
+
+  // WRONG — `null ?? x === x`, so the quote page would render the 256px pulse and the
+  // yellow deny panel in its sidebar, breaking States 37 and 38.
+  const denied = fallback ?? <DenyPanel />;
+  ```
+
+  `/quotes/[id]` passes `null` because a sidebar card the user may not be entitled to must never reserve layout, flash a skeleton, or announce its own absence with a yellow panel on a page they legitimately own. One gate component in the codebase, two call sites, one responsibility ("what renders when the gate is not open"). `financials/layout.tsx` is untouched.
+- **The locks are layered, and the mutation verification reflects that.** `FinanceGate` short-circuits before `QuoteVarianceSection` mounts, so with the gate intact the hook never runs and no request is possible. Verify in this order, in the 36-02 / 35-11 style:
+  1. **Delete `FinanceGate`** → the card renders for a `quotes.view`-only user → the *card-absent* assertion (State 38) fails. Restore.
+  2. **With the gate deleted**, weaken `enabled` to `!!quoteId` → exactly one request to `/api/v1/quotes/*/variance` → the *zero-request counter* assertion fails. Restore both.
+
+  The request half is only observable once the render half is already broken — **that is precisely what makes `enabled` a second independent lock rather than a redundant one**, and the spec file must carry that sentence in-file so a later reader does not "simplify" the hook's `enabled` away as dead code. The proof that `enabled` holds on its own lives in the hook's unit test, which drives it directly without the gate (the 36-02 precedent).
 - **Backend half (restated because the UI test cannot see it):** the variance endpoint calls `require_permission("finance.view")`. A UI gate over an ungated endpoint is not a lock.
 
 #### Card anatomy
@@ -417,6 +463,8 @@ FinancialsLayout -> FinanceGate
 **Why `ChartCard` here but not in Phase 36.** The Phase 36 finding card refused `ChartCard` because a finding has no headline figure and nothing tabular to export. Variance has both: a genuine project-level KPI and a per-trade table that a contractor tuning their pricing will want in a spreadsheet. Reusing the shipped furniture buys the icon box, the title typography, the KPI slot and CSV export with no new component. Its `min-h-[300px]` child floor is inherited unchanged — the same floor the shipped bullet chart lives with.
 
 **The KPI slot is never colored.** `ChartCard` renders `text-3xl font-bold text-gray-900` and this phase does not modify it. A 30px `text-destructive` numeral would technically clear the red rule, but the shipped card family has exactly one KPI ink and forking it for one card would make that card read as an alert panel.
+
+**Hook ownership on this page is unchanged in shape.** `project-financials-dashboard.tsx` — already the only hook-owning component on the route, and already a child of the layout-mounted `FinanceGate` — takes the fourth hook. Its docstring rule holds: **four queries, four keys, four failure surfaces**, and the variance query stays **out** of the page loading gate. No new container is needed here; the layering this route needs already exists, which is exactly the precedent `QuoteVarianceSection` copies.
 
 ### Response contracts
 
@@ -466,8 +514,8 @@ interface QuoteVarianceTrade {
 
 ### Implementation shape (clean-code / SRP)
 
-- **Presentational components never fetch.** `QuoteVarianceCard` takes parsed props; the page owns the hook. `SuggestionNotice`, `UnreviewedBanner`, `AiLineSubRow` and `ConfidenceChip` are pure and hold no state.
-- **Intention-revealing names:** `ConfidenceChip`, `AiLineSubRow`, `SuggestionNotice`, `UnreviewedBanner`, `QuoteVarianceCard`, `QuoteVarianceTable`, `useQuoteSuggestions`, `useQuoteVariance`, `unreviewedAiLineCount`, `varianceKpi`, `varianceInterpretation`, `suggestionRefusalCopy`, `triggerDisabledReason`. No `data`, `info`, `temp`, `card2`, `handleClick2`.
+- **Presentational components never fetch; the container that owns a hook renders inside its gate.** `QuoteVarianceCard` takes parsed props and owns nothing. `QuoteVarianceSection` is the thin container that owns `useQuoteVariance`, and it exists **only** so the hook is a child of `FinanceGate` rather than a sibling of it — a hook in `page.tsx` runs on every render whatever the gate decides. `SuggestionNotice`, `UnreviewedBanner`, `AiLineSubRow` and `ConfidenceChip` are pure and hold no state.
+- **Intention-revealing names:** `ConfidenceChip`, `AiLineSubRow`, `SuggestionNotice`, `UnreviewedBanner`, `QuoteVarianceSection`, `QuoteVarianceCard`, `QuoteVarianceTable`, `useQuoteSuggestions`, `useQuoteVariance`, `unreviewedAiLineCount`, `varianceKpi`, `varianceInterpretation`, `suggestionRefusalCopy`, `triggerDisabledReason`. No `data`, `info`, `temp`, `card2`, `handleClick2`.
 - **One map per concept.** `QUOTE_CONFIDENCE_CHIP: Record<ConfidenceBand, {label, className}>` and `REVIEW_MARKER: Record<QuoteLineReviewState, string>` — a band's copy and its color, and a state and its marker, can never drift apart. The backend holds the band map once for `confidence_band`.
 - **Functions under ~20 lines, 0–2 args.** `unreviewedAiLineCount`, `varianceKpi`, `varianceInterpretation`, `suggestionRefusalCopy`, `triggerDisabledReason` and `unreviewedBannerCopy` are pure, exported and unit-tested without React.
 - **Named constants, no magic values.** Every copy string, class string, length bound, query-key segment and testid is a named constant — the shipped `INCOMPLETE_CHIP_LABEL` / `FINANCE_FLAG_CHIP_CLASS` pattern.
@@ -483,25 +531,26 @@ interface QuoteVarianceTrade {
 | `quotes/[id]/edit/_lib/quote-form.ts` | edit | **Wave 0.** Round-trip `id` and `field` through `lineItemSchema` / `mapQuoteToFormValues` / `buildQuotePayload`; add `ai_origin`, `review_state`, `confidence_band`, `basis`. Trap 1 + Trap 2 — nothing else in the phase is buildable first. |
 | `quotes/[id]/edit/_lib/confidence-band.ts` | **new** | The band → `{label, className}` map and the review-marker map. Pure, React-free, unit-tested. |
 | `quotes/[id]/edit/_components/confidence-chip.tsx` | **new** | A `<span>` with the mapped class — **not** the `FinanceFlagChip` component, which hardcodes the amber recipe (the Phase 36 severity-chip precedent) |
-| `quotes/[id]/edit/_components/ai-line-sub-row.tsx` | **new** | Chip + marker + `Accept` + basis. Presentational, no hook. |
+| `quotes/[id]/edit/_components/ai-line-sub-row.tsx` | **new** | Chip + marker + `Accept` + basis. Presentational, no hook, **never tinted**. |
 | `quotes/[id]/edit/_components/suggestion-notice.tsx` | **new** | The three refusal variants, one component, copy from a map |
 | `quotes/[id]/edit/_components/unreviewed-banner.tsx` | **new** | Heading + body from `unreviewedBannerCopy(count)` |
 | `quotes/[id]/edit/_components/line-items-table.tsx` | edit | Trigger in the header, notice + banner above the table, the conditional `Trade` column, the AI sub-row, the card caption stack |
-| `quotes/[id]/edit/_components/sortable-line-item-row.tsx` | edit | Row tint when unreviewed; the conditional `Trade` cell. Every other cell byte-unchanged. |
+| `quotes/[id]/edit/_components/sortable-line-item-row.tsx` | edit | **Input-row** tint when unreviewed; the conditional `Trade` cell. Every other cell byte-unchanged. |
 | `quotes/[id]/edit/_hooks/use-quote-suggestions.ts` | **new** | The suggest/regenerate mutations and the refusal state |
-| `quotes/[id]/edit/page.tsx` | edit | The regenerate confirmation dialog, composed from the shipped template-replace dialog |
+| `quotes/[id]/edit/page.tsx` | edit | The regenerate confirmation dialog, composed from the shipped template-replace dialog; confirm button `variant="default"` |
 | `quotes/[id]/_components/quote-status-alerts.tsx` | edit | The draft + `unreviewedCount > 0` blocked branch, reusing the shipped expired-quote alert class set byte-for-byte |
 | `quotes/[id]/_components/quote-actions-card.tsx` | edit | `Send Quote` disabled + `aria-describedby` |
 | `quotes/[id]/_components/quote-line-items-card.tsx` | edit | Read-only chip + basis beneath AI lines |
+| `quotes/[id]/_components/quote-variance-section.tsx` | **new** | **The hook-owning container.** Renders inside `FinanceGate` so the hook is a child of the gate, not a sibling. Carries the in-file comment explaining that the layering — not the `enabled` flag alone — is what makes the two locks independent. |
 | `quotes/[id]/_components/quote-variance-card.tsx` | **new** | Presentational; takes parsed props, owns no hook |
-| `quotes/[id]/page.tsx` | edit | Mounts `<FinanceGate fallback={null}><QuoteVarianceCard/></FinanceGate>` and owns the hook |
+| `quotes/[id]/page.tsx` | edit | Mounts `<FinanceGate fallback={null}><QuoteVarianceSection …/></FinanceGate>`. **Owns no variance hook** — that is the entire purpose of the section container. |
 | `quotes/[id]/_hooks/use-quote-detail.ts` | edit | Surface the 409 `detail` verbatim instead of the generic send-failure toast |
-| `features/finance/components/FinanceGate.tsx` | edit | Add the optional `fallback?: ReactNode` prop. Default behaviour byte-unchanged; `financials/layout.tsx` untouched. |
+| `features/finance/components/FinanceGate.tsx` | edit | Add the optional `fallback?: ReactNode` prop, discriminated on `!== undefined` (**never** `??`). Default behaviour byte-unchanged; `financials/layout.tsx` untouched. |
 | `features/finance/components/FinanceFlagChip.tsx` | edit | Export `FINANCE_NOTE_CHIP_CLASS` and `FINANCE_OUTLINE_CHIP_CLASS` beside the two shipped recipes |
 | `features/finance/components/CostBreakdownSummary.tsx` | **no change** | `UNBURDENED_TITLE` / `UNBURDENED_BODY` were already promoted to `export` in Phase 36 |
 | `financials/[projectId]/_components/scope-budget-bars.tsx` | edit | Promote `LABOR_NOTE` to `export` — value unchanged. Two surfaces must not author the scope-labor caption twice. |
 | `financials/[projectId]/_components/quote-variance-table.tsx` | **new** | The per-trade table + `varianceKpi` + `csvRows`, mirroring the `scope-budget-bars.tsx` module shape |
-| `financials/[projectId]/_components/project-financials-dashboard.tsx` | edit | Owns the fourth hook, mounts the new `ChartCard`. Its own docstring rule holds: **four queries, four keys, four failure surfaces**, and the variance query stays **out** of the page loading gate. |
+| `financials/[projectId]/_components/project-financials-dashboard.tsx` | edit | Owns the fourth hook (already a child of the layout-mounted gate), mounts the new `ChartCard`. **Four queries, four keys, four failure surfaces**; the variance query stays **out** of the page loading gate. |
 | `features/finance/hooks.ts`, `api.ts`, `types.ts` | edit | `useQuoteVariance`, `useProjectQuoteVariance`, fetchers, `QuoteVariance` types |
 | `features/finance/financials-format.ts` | **no change** | Nothing new to format — `formatSignedCurrency` and `formatMarginPercent` already exist |
 | `financials/_components/financials-skeleton.tsx` | **no change** | The variance card mounts with its own loading state after the page renders |
@@ -530,11 +579,11 @@ Test-asserted; the executor implements exactly these.
 | 11 | Suggest transport failure | mutation `isError` | `toast.error("Couldn't generate suggestions. Try again.", { duration: Infinity })`. No notice block, no partial rows |
 | **Editor — AI line anatomy** ||||
 | 12 | AI line, high band | `ai_origin && confidence_band === "high"` | `Strong history` chip in `FINANCE_OUTLINE_CHIP_CLASS` |
-| 13 | AI line, medium band | `confidence_band === "medium"` | `Limited history` chip in `FINANCE_NOTE_CHIP_CLASS` |
+| 13 | AI line, medium band | `confidence_band === "medium"` | `Limited history` chip in `FINANCE_NOTE_CHIP_CLASS` — **bordered**, on the untinted sub-row |
 | 14 | AI line, low band | `confidence_band === "low"` | `Thin history` chip in `FINANCE_FLAG_CHIP_CLASS` (shipped amber) |
 | 15 | Basis rendered | any AI line, viewer has `finance.view` | Basis on sub-row line 2, **verbatim, wraps, never truncated, no clamp, no "read more"** |
 | 16 | Basis withheld | AI line, viewer lacks `finance.view` | **No chip** and the caption `Basis hidden — requires finance access.` The API sends `null` for both fields — the client does not hide data it received |
-| 17 | Unreviewed line ★ | `ai_origin && review_state === "unreviewed"` | Row + sub-row `bg-secondary`; marker `Needs review` (`text-gray-700`); `Accept` button present |
+| 17 | Unreviewed line ★ | `ai_origin && review_state === "unreviewed"` | **Input row** `bg-secondary`; the AI sub-row stays on the white card surface so its chip keeps its edge and its ink; marker `Needs review` (`text-gray-700`); `Accept` button present |
 | 18 | Accepted line | `review_state === "accepted"` | Default row surface; marker `Accepted`; **no `Accept` button** |
 | 19 | Edited line | `review_state === "edited"` | Default row surface; marker `AI-originated, user-edited`; no `Accept` button. Chip and basis still render — the provenance survives the edit (D-08) |
 | 20 | Hand-built line | `ai_origin === false` | **No sub-row at all.** No chip, no marker, no basis. Byte-identical to the shipped row |
@@ -548,7 +597,7 @@ Test-asserted; the executor implements exactly these.
 | 27 | Unburdened-labor caption | any AI line `item_type === "labor"` | The composed shipped caption (PITFALLS #2) |
 | 28 | AI disclosure | `aiLineCount > 0` | `AI-suggested from your own completed work — every figure is from your recorded history, never an AI estimate.` — **always last, never conditional** |
 | **Editor — regenerate** ||||
-| 29 | Regenerate with unreviewed ★ | `Suggest again` clicked, `unreviewedCount > 0` | Confirmation dialog: `Replace unreviewed suggestions?` + the count body + `Replace Suggestions` / `Cancel` |
+| 29 | Regenerate with unreviewed ★ | `Suggest again` clicked, `unreviewedCount > 0` | Confirmation dialog: `Replace unreviewed suggestions?` + the count body + `Replace Suggestions` (`variant="default"`) / `Cancel` (`variant="outline"`) |
 | 30 | Regenerate, nothing to destroy | `unreviewedCount === 0` | **No dialog** — the mutation runs immediately. Nothing destructive is happening |
 | 31 | Regenerate result ★ | confirmed | Accepted and edited lines are **byte-identical, `id` included**; only unreviewed AI lines are replaced. Row order preserved for kept lines |
 | 32 | Regenerate cancelled | `Cancel` or dismiss | No mutation, no state change |
@@ -558,8 +607,8 @@ Test-asserted; the executor implements exactly these.
 | 35 | Send 409 from a stale client ★ | `POST /send` → 409 | The backend `detail` surfaced verbatim: `This quote has AI-suggested line items that have not been reviewed. Accept or edit every suggested line before sending.` Quote stays `draft`. **Never** the generic `Failed to send quote. Try again.` |
 | 36 | No AI lines at all | `aiLineCount === 0` | The entire Phase 37 editor and detail surface is invisible. A hand-built quote looks exactly as it does today |
 | **Quote detail — variance (Trap 8) ★** ||||
-| 37 | Permissions loading | `usePermissions().isLoading` | **Nothing renders** (`fallback={null}`) — no pulse, no reserved space. **Zero** requests |
-| 38 | Denied ★ | viewer lacks `finance.view` | **No card, no deny panel.** **Zero** requests to `/api/v1/quotes/*/variance` — the hook's `enabled` gate, not just the render gate |
+| 37 | Permissions loading | `usePermissions().isLoading` | **Nothing renders** — `fallback={null}` covers the loading branch too, so no pulse and no reserved space. `QuoteVarianceSection` never mounts, so **zero** requests |
+| 38 | Denied ★ | viewer lacks `finance.view` | **No card, no deny panel.** `FinanceGate` short-circuits before the section mounts, so the hook never runs: **zero** requests to `/api/v1/quotes/*/variance` |
 | 39 | Not approved | `quote.status !== "approved"` | No card; `enabled` false, zero requests. Variance is meaningless before an anchor exists |
 | 40 | Variance loading | query in flight | Card shell with two `Skeleton` bars (`h-4 w-full`, `mt-2 h-4 w-2/3`). The rest of the page renders normally |
 | 41 | Not comparable yet | `quoted === null \|\| actual === null` | `Not comparable yet` / `Quoted vs actual appears once the work from this quote has been invoiced.` |
@@ -571,7 +620,7 @@ Test-asserted; the executor implements exactly these.
 | 47 | Labor in the actual | `laborIncluded === true` | The composed unburdened caption |
 | 48 | Variance query error | query `isError` | In-card line `Couldn't load quoted vs actual. Refresh to try again.` (`py-8 text-center text-sm font-medium text-red-800`). **Every other card on the quote page renders normally** |
 | **Drill-down variance** ||||
-| 49 | Card always mounted | any permitted visit | Full width, below the trend. Rendered for finding/loading/empty/error alike so the page never reflows |
+| 49 | Card always mounted | any permitted visit | Full width, below the trend. Rendered for populated/loading/empty/error alike so the page never reflows |
 | 50 | Loading | variance query in flight | Two `Skeleton` bars inside the `ChartCard` body. **The page does not wait for it** — the loading gate stays `financials.isLoading \|\| trend.isLoading` |
 | 51 | Empty | no invoiced anchor in the project | `ChartEmptyState`: `No completed work to compare` / `Quoted vs actual appears once a trade's work has been invoiced.`; `kpiValue` = `No invoiced work yet` |
 | 52 | Populated | ≥1 comparable trade | Table + `Project total` row + both honesty captions as applicable; `kpiValue` = `{percent}% over quoted` / `{percent}% under quoted` / `Matched quoted` |
@@ -616,15 +665,15 @@ The shipped `scope-labor-note` testid is reused unchanged wherever the scope-lab
 ## Accessibility Notes
 
 - **Meaning is never carried by color alone** (WCAG 1.4.1). The confidence band is a **text label** (`Strong history` / `Limited history` / `Thin history`), not a hue. The unreviewed state carries a **text marker** (`Needs review`) and an `Accept` button in addition to its tint. The variance sign is in the **formatted figure** (`+$1,240.00`) and in a full sentence, not only in the ink.
-- **Contrast:** `text-gray-600` (#4b5563) on white **7.56:1** ✓; `text-gray-700` (#374151) on `bg-secondary` (#ece9e1) **8.50:1** ✓ and on white **10.30:1** ✓; `text-gray-500` (#6b7280) on white **4.83:1** ✓ — and **not used on `bg-secondary`**, where it measures only **3.98:1** (the Phase 36 eyebrow finding, applied here to every marker on a tinted row); `text-amber-900` on `bg-brand/15` ✓ (shipped, unchanged); `text-red-800` (#991b1b) on white **8.31:1** ✓; `text-amber-800` on `bg-amber-50` ✓ (shipped alert recipe, unchanged).
-- **The `Strong history` chip's `border-gray-300` is decorative.** The chip is non-interactive and its meaning is entirely its label, so WCAG 1.4.11 (non-text contrast) does not bind the border — the same reasoning that lets the shipped revision badge use it. If the border vanished entirely the chip would still be fully readable, which is the test.
+- **Contrast:** `text-gray-600` (#4b5563) on white **7.56:1** ✓; `text-gray-700` (#374151) on white **10.31:1** ✓ and on `bg-secondary` (#ece9e1) **8.50:1** ✓; `text-gray-500` (#6b7280) on white **4.83:1** ✓ — and **never used on `bg-secondary`**, where it measures only **3.98:1** (the Phase 36 eyebrow finding); `text-amber-900` on `bg-brand/15` ✓ (shipped, unchanged); `text-red-800` (#991b1b) on white **8.31:1** ✓; `text-amber-800` on `bg-amber-50` ✓ (shipped alert recipe, unchanged).
+- **Chip edges are decorative, and the labels are the sole carriers of meaning.** `border-gray-300` (#d1d5db) measures **1.47:1** on white and **1.21:1** on `bg-secondary`; the `bg-secondary` fill measures **1.21:1** on white and **1.00:1** on itself. Neither chip is interactive and neither conveys information its label does not, so WCAG 1.4.11 (non-text contrast) does not bind them — the same reasoning that lets the shipped revision badge use `border-gray-300`. The test is that if every border and fill vanished, all three chips would still read correctly. **The 1.00:1 case is nevertheless designed out rather than merely excused**: the sub-row is never tinted and the note recipe always carries an edge, because a chip legible only to a screen reader is a chip that failed its job.
 - **Reading order matches visual order** on every surface: line inputs → provenance → confidence → basis → review affordance; and quoted → actual → variance → interpretation → caveats.
 - **The `Accept` button has a unique accessible name per row** (`Accept suggested line 3`), because a table of twelve buttons all named "Accept" is unnavigable by a screen-reader's control list.
 - **`Send Quote` is `disabled` with `aria-describedby` pointing at the blocked alert**, so the reason is announced with the control. A disabled control with no programmatic reason is the failure mode D-07 explicitly rejects.
 - **The refusal notice uses `role="status"`**, so a cold-start refusal announces itself after the trigger click instead of silently replacing nothing.
 - **`Bot` is decorative** (`aria-hidden`); AI provenance is spoken through the always-rendered disclosure line and the `AI-originated, user-edited` marker, never through the glyph.
-- **The regenerate dialog is the shipped `Dialog`** — focus trap, `Escape` to dismiss and focus restoration come with it. `Cancel` is the first focusable action; the destructive confirm is never the default focus.
-- **Financial text never renders outside a `finance.view`-gated mount, and never before permissions resolve.** On `/quotes/[id]` that is `FinanceGate fallback={null}` for the render and `enabled` for the fetch; in the editor it is the `null` `basis`/`confidence_band` fields the API itself withholds.
+- **The regenerate dialog is the shipped `Dialog`** — focus trap, `Escape` to dismiss and focus restoration come with it. `Cancel` is the first focusable action; the confirm is never the default focus.
+- **Financial text never renders outside a `finance.view`-gated mount, and never before permissions resolve.** On `/quotes/[id]` that is `FinanceGate fallback={null}` wrapping the hook-owning `QuoteVarianceSection`, so the gate's decision precedes the hook's existence; in the editor it is the `null` `basis` / `confidence_band` fields the API itself withholds.
 - **Playwright must log in through the UI then SPA-navigate**, never `page.goto` a quote or drill-down: a hard navigation resets Redux `isAuthenticated`, disables `usePermissions`, and every finance surface is correctly denied — a test that would pass with the gate deleted (32-04 / 35-11 / 36-06 lesson). Run at `npx playwright test --workers=2 --retries=1` (Pitfall 8).
 
 ---
@@ -642,11 +691,11 @@ No `npx shadcn add`, no `--registry` flag, no new npm dependency, no new Python 
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** approved 2026-07-30
