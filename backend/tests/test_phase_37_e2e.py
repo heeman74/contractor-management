@@ -435,7 +435,9 @@ async def test_anchor_cost_context_matches_trade_scope_spend(
         set_current_tenant_id(UUID(company_id))
         service = FinanceService(db)
         context = await service.anchor_cost_context(UUID(project_id))
-        anchor_cost = contributing_anchor_cost(RevenueAnchor(trade_scope_id=UUID(scope_id)), context)
+        anchor_cost = contributing_anchor_cost(
+            RevenueAnchor(trade_scope_id=UUID(scope_id)), context
+        )
         spend = await service.trade_scope_spend(UUID(scope_id))
 
     assert anchor_cost == spend
@@ -698,3 +700,196 @@ async def test_line_item_finance_fields_withheld_without_finance_view(
     assert line["basis"] is None
     assert line["description"] == "Wired panel"
     assert line["unit_price"] == "50.00"
+
+
+# ---------------------------------------------------------------------------
+# Plan 37-04 Task 2 — QuoteVarianceService (one quote's quoted-vs-actual, D-14)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_quote_variance_job_anchored(tenant_a_client: AsyncClient, seed_two_tenants: dict):
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_cost_categories(company_id)
+    materials_id = await _category_id(company_id, "materials")
+
+    job_id = await _create_job(tenant_a_client)
+    quote = await _create_quote(
+        tenant_a_client, job_id, [_line_item(quantity="2.000", unit_price="100.00")]
+    )
+    await _approve_quote(company_id, quote["id"], approved_at=datetime.now(UTC))
+    await _create_invoice(tenant_a_client, company_id, job_id=job_id, amount="10.00")
+    await _add_cost_entry(
+        tenant_a_client, headers, job_id=job_id, category_id=materials_id, amount="250.00"
+    )
+
+    result = await _quote_variance(company_id, quote["id"])
+
+    assert result.quoted == Decimal("200.00")
+    assert result.actual == Decimal("250.00")
+    assert result.variance == Decimal("50.00")
+    assert result.labor_included is False
+    assert result.scope_anchored is False
+    assert result.trades == []
+
+
+@pytest.mark.asyncio
+async def test_quote_variance_scope_anchored_excludes_labor(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_cost_categories(company_id)
+    materials_id = await _category_id(company_id, "materials")
+
+    project_id = await _create_project(tenant_a_client)
+    scope_id = await _create_trade_scope(tenant_a_client, project_id, "Plumbing")
+    quote = await _create_quote_for_scope(
+        tenant_a_client, scope_id, [_line_item(quantity="1.000", unit_price="300.00")]
+    )
+    await _approve_quote(company_id, quote["id"], approved_at=datetime.now(UTC))
+    await _create_invoice(tenant_a_client, company_id, trade_scope_id=scope_id, amount="10.00")
+    await _add_cost_entry(
+        tenant_a_client, headers, trade_scope_id=scope_id, category_id=materials_id, amount="280.00"
+    )
+
+    result = await _quote_variance(company_id, quote["id"])
+
+    assert result.quoted == Decimal("300.00")
+    assert result.actual == Decimal("280.00")
+    assert result.variance == Decimal("-20.00")
+    assert result.labor_included is False
+    assert result.scope_anchored is True
+    assert result.trades == []
+
+
+@pytest.mark.asyncio
+async def test_quote_variance_null_without_invoice(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    company_id = seed_two_tenants["tenant_a_id"]
+    job_id = await _create_job(tenant_a_client)
+    quote = await _create_quote(tenant_a_client, job_id, [_line_item(unit_price="100.00")])
+    await _approve_quote(company_id, quote["id"], approved_at=datetime.now(UTC))
+
+    result = await _quote_variance(company_id, quote["id"])
+
+    assert result.quoted is None
+    assert result.actual is None
+    assert result.variance is None
+    assert result.variance_percent is None
+    assert result.trades == []
+
+
+@pytest.mark.asyncio
+async def test_project_quote_variance_groups_by_field(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    """D-14: one trades entry per field, matched to the job `_convert_project_quote` created."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_cost_categories(company_id)
+    materials_id = await _category_id(company_id, "materials")
+
+    project_id = await _create_project(tenant_a_client)
+    electrical_job = await _create_job(
+        tenant_a_client, project_id=project_id, trade_type="Electrical"
+    )
+    plumbing_job = await _create_job(tenant_a_client, project_id=project_id, trade_type="Plumbing")
+
+    electrical_item = _line_item(quantity="2.000", unit_price="100.00")
+    electrical_item["field"] = "Electrical"
+    plumbing_item = _line_item(quantity="3.000", unit_price="50.00")
+    plumbing_item["field"] = "Plumbing"
+    quote = await _create_project_quote(tenant_a_client, [electrical_item, plumbing_item])
+    await _approve_quote(
+        company_id, quote["id"], approved_at=datetime.now(UTC), project_id=project_id
+    )
+
+    await _create_invoice(tenant_a_client, company_id, job_id=electrical_job, amount="10.00")
+    await _add_cost_entry(
+        tenant_a_client, headers, job_id=electrical_job, category_id=materials_id, amount="220.00"
+    )
+    await _create_invoice(tenant_a_client, company_id, job_id=plumbing_job, amount="10.00")
+    await _add_cost_entry(
+        tenant_a_client, headers, job_id=plumbing_job, category_id=materials_id, amount="140.00"
+    )
+
+    result = await _quote_variance(company_id, quote["id"])
+
+    by_label = {trade.label: trade for trade in result.trades}
+    assert set(by_label) == {"Electrical", "Plumbing"}
+    assert by_label["Electrical"].quoted == Decimal("200.00")
+    assert by_label["Electrical"].actual == Decimal("220.00")
+    assert by_label["Electrical"].variance == Decimal("20.00")
+    assert by_label["Plumbing"].quoted == Decimal("150.00")
+    assert by_label["Plumbing"].actual == Decimal("140.00")
+    assert by_label["Plumbing"].variance == Decimal("-10.00")
+
+
+@pytest.mark.asyncio
+async def test_project_quote_variance_uninvoiced_group_reports_null(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_cost_categories(company_id)
+    materials_id = await _category_id(company_id, "materials")
+
+    project_id = await _create_project(tenant_a_client)
+    electrical_job = await _create_job(
+        tenant_a_client, project_id=project_id, trade_type="Electrical"
+    )
+    plumbing_job = await _create_job(tenant_a_client, project_id=project_id, trade_type="Plumbing")
+
+    electrical_item = _line_item(quantity="2.000", unit_price="100.00")
+    electrical_item["field"] = "Electrical"
+    plumbing_item = _line_item(quantity="3.000", unit_price="50.00")
+    plumbing_item["field"] = "Plumbing"
+    quote = await _create_project_quote(tenant_a_client, [electrical_item, plumbing_item])
+    await _approve_quote(
+        company_id, quote["id"], approved_at=datetime.now(UTC), project_id=project_id
+    )
+
+    # Only the electrical job gets an invoice; plumbing has cost but no invoice.
+    await _create_invoice(tenant_a_client, company_id, job_id=electrical_job, amount="10.00")
+    await _add_cost_entry(
+        tenant_a_client, headers, job_id=electrical_job, category_id=materials_id, amount="220.00"
+    )
+    await _add_cost_entry(
+        tenant_a_client, headers, job_id=plumbing_job, category_id=materials_id, amount="140.00"
+    )
+
+    result = await _quote_variance(company_id, quote["id"])
+
+    by_label = {trade.label: trade for trade in result.trades}
+    assert by_label["Electrical"].actual == Decimal("220.00")
+    assert by_label["Plumbing"].quoted == Decimal("150.00")
+    assert by_label["Plumbing"].actual is None
+    assert by_label["Plumbing"].variance is None
+    assert by_label["Plumbing"].variance_percent is None
+    # Not every group is comparable, so the project-level top total is honest, not partial.
+    assert result.actual is None
+    assert result.variance is None
+
+
+@pytest.mark.asyncio
+async def test_project_quote_variance_quoted_legs_sum_to_pre_tax_total(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    company_id = seed_two_tenants["tenant_a_id"]
+
+    first = _line_item(quantity="1.000", unit_price="33.33")
+    first["field"] = "Electrical"
+    second = _line_item(quantity="1.000", unit_price="33.33")
+    second["field"] = "Plumbing"
+    third = _line_item(quantity="1.000", unit_price="33.34")
+    third["field"] = "Carpentry"
+    quote = await _create_project_quote(tenant_a_client, [first, second, third])
+    await _approve_quote(company_id, quote["id"], approved_at=datetime.now(UTC))
+
+    result = await _quote_variance(company_id, quote["id"])
+
+    assert sum((trade.quoted for trade in result.trades), Decimal("0")) == Decimal("100.00")
+    assert result.quoted == Decimal("100.00")

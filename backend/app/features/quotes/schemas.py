@@ -24,6 +24,11 @@ from app.features.finance.margin_math import (
     document_total,
     tax_for,
 )
+from app.features.quotes.variance_service import (
+    ProjectQuoteVarianceResult,
+    QuoteVarianceResult,
+    QuoteVarianceTrade,
+)
 
 # ---------------------------------------------------------------------------
 # Line item schemas
@@ -228,6 +233,94 @@ class QuoteResponse(BaseResponseSchema):
         obj.tax_amount = tax_for(amounts)
         obj.total = document_total(amounts)
         return obj
+
+
+# ---------------------------------------------------------------------------
+# Quote variance schemas (FINAI-05)
+# ---------------------------------------------------------------------------
+
+
+class QuoteVarianceTradeResponse(BaseModel):
+    """One field group's (or project anchor's) quoted-vs-actual row.
+
+    `None` means honest absence, never zero — a group whose matched job carries
+    no invoice reports `actual`/`variance`/`variance_percent` as `None` while its
+    `quoted` share is still shown (D-14).
+    """
+
+    label: str
+    quoted: Decimal | None = None
+    actual: Decimal | None = None
+    variance: Decimal | None = None
+    variance_percent: Decimal | None = None
+
+
+def to_quote_variance_trade_response(trade: QuoteVarianceTrade) -> QuoteVarianceTradeResponse:
+    """Map one pure-math variance row onto its wire schema."""
+    return QuoteVarianceTradeResponse(
+        label=trade.label,
+        quoted=trade.quoted,
+        actual=trade.actual,
+        variance=trade.variance,
+        variance_percent=trade.variance_percent,
+    )
+
+
+class QuoteVarianceResponse(BaseModel):
+    """GET /quotes/{quote_id}/variance — one quote's quoted-vs-actual.
+
+    `trades` is empty for a job- or scope-anchored quote and carries one row per
+    `field` group for a project-level quote (D-14); the top-level figures are
+    `None` when the anchor is not yet comparable (D-02) — a missing comparison
+    is not a variance of nothing.
+    """
+
+    quoted: Decimal | None = None
+    actual: Decimal | None = None
+    variance: Decimal | None = None
+    variance_percent: Decimal | None = None
+    labor_included: bool
+    scope_anchored: bool
+    trades: list[QuoteVarianceTradeResponse] = Field(default_factory=list)
+
+
+def to_quote_variance_response(result: QuoteVarianceResult) -> QuoteVarianceResponse:
+    """Map the service's pure-math result onto its wire schema."""
+    return QuoteVarianceResponse(
+        quoted=result.quoted,
+        actual=result.actual,
+        variance=result.variance,
+        variance_percent=result.variance_percent,
+        labor_included=result.labor_included,
+        scope_anchored=result.scope_anchored,
+        trades=[to_quote_variance_trade_response(trade) for trade in result.trades],
+    )
+
+
+class ProjectQuoteVarianceResponse(BaseModel):
+    """GET /projects/{project_id}/financials/quote-variance — the drill-down table.
+
+    One row per invoiced, approved-quote anchor in the project, plus a summed
+    `total` row. `has_scope_anchored_rows` drives the scope-labor caption on the
+    web (labor is structurally excluded from a scope anchor's `actual`, Trap 6).
+    """
+
+    scopes: list[QuoteVarianceTradeResponse] = Field(default_factory=list)
+    total: QuoteVarianceTradeResponse
+    labor_included: bool
+    has_scope_anchored_rows: bool
+
+
+def to_project_quote_variance_response(
+    result: ProjectQuoteVarianceResult,
+) -> ProjectQuoteVarianceResponse:
+    """Map the service's pure-math result onto its wire schema."""
+    return ProjectQuoteVarianceResponse(
+        scopes=[to_quote_variance_trade_response(trade) for trade in result.scopes],
+        total=to_quote_variance_trade_response(result.total),
+        labor_included=result.labor_included,
+        has_scope_anchored_rows=result.has_scope_anchored_rows,
+    )
 
 
 # ---------------------------------------------------------------------------
