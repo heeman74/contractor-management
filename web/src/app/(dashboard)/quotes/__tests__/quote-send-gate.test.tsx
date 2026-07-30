@@ -9,6 +9,7 @@ import {
   SEND_BLOCKED_ALERT_ID,
 } from "../[id]/_components/quote-status-alerts";
 import { QuoteActionsCard } from "../[id]/_components/quote-actions-card";
+import { QuoteLineItemsCard } from "../[id]/_components/quote-line-items-card";
 import { useQuoteDetail } from "../[id]/_hooks/use-quote-detail";
 
 const mockPush = jest.fn();
@@ -276,5 +277,104 @@ describe("send button gating", () => {
     await waitFor(() => expect(mockToastSuccess).toHaveBeenCalled());
     expect(mockToastSuccess).toHaveBeenCalledWith("Quote sent to client");
     expect(mockToastError).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe("detail line items", () => {
+  it("renders an AI sub-row with the band chip, review marker and basis, and no Accept button", () => {
+    const quote = makeQuote({
+      line_items: [
+        makeLineItem({
+          ai_origin: true,
+          review_state: "unreviewed",
+          confidence_band: "medium",
+          basis: "median of 7 comparable plumbing scopes",
+        }),
+      ],
+    });
+    render(<QuoteLineItemsCard quote={quote} />);
+
+    expect(screen.getByTestId("ai-line-sub-row-0")).toBeInTheDocument();
+    expect(screen.getByTestId("confidence-chip-0")).toHaveTextContent(
+      "Limited history"
+    );
+    expect(screen.getByTestId("review-marker-0")).toHaveTextContent("Needs review");
+    expect(screen.getByTestId("line-basis-0")).toHaveTextContent(
+      "median of 7 comparable plumbing scopes"
+    );
+    expect(
+      screen.queryByRole("button", { name: /accept/i })
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders no tint on the data row for an AI line", () => {
+    const quote = makeQuote({
+      line_items: [
+        makeLineItem({
+          ai_origin: true,
+          review_state: "unreviewed",
+          confidence_band: "low",
+          basis: "median of 3 comparable jobs",
+        }),
+      ],
+    });
+    const { container } = render(<QuoteLineItemsCard quote={quote} />);
+
+    expect(container.querySelector(".bg-secondary")).not.toBeInTheDocument();
+  });
+
+  it("renders the withheld caption and no chip when basis is null", () => {
+    const quote = makeQuote({
+      line_items: [
+        makeLineItem({
+          ai_origin: true,
+          review_state: "accepted",
+          confidence_band: null,
+          basis: null,
+        }),
+      ],
+    });
+    render(<QuoteLineItemsCard quote={quote} />);
+
+    expect(screen.getByTestId("ai-line-sub-row-0")).toHaveTextContent(
+      "Basis hidden — requires finance access."
+    );
+    expect(screen.queryByTestId("confidence-chip-0")).not.toBeInTheDocument();
+  });
+
+  it("renders no sub-row for a hand-built line", () => {
+    const quote = makeQuote({ line_items: [makeLineItem({ ai_origin: false })] });
+    render(<QuoteLineItemsCard quote={quote} />);
+
+    expect(screen.queryByTestId(/^ai-line-sub-row-/)).not.toBeInTheDocument();
+  });
+
+  it("renders exactly as today for a quote with zero AI lines, including the footer", () => {
+    const quote = makeQuote({
+      line_items: [makeLineItem({ ai_origin: false })],
+      subtotal: "300",
+      total: "300",
+    });
+    const { container } = render(<QuoteLineItemsCard quote={quote} />);
+
+    expect(screen.queryByText(/^ai-line-sub-row-/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId("quote-ai-disclosure")).not.toBeInTheDocument();
+    expect(screen.getByText("Subtotal")).toBeInTheDocument();
+    expect(container.querySelector(".mt-4.border-t.pt-4")).toBeInTheDocument();
+  });
+
+  it("renders the AI disclosure caption whenever the quote holds at least one AI line", () => {
+    const quote = makeQuote({
+      line_items: [
+        makeLineItem({ ai_origin: true, review_state: "accepted", basis: "basis text" }),
+      ],
+    });
+    render(<QuoteLineItemsCard quote={quote} />);
+
+    expect(screen.getByTestId("quote-ai-disclosure")).toHaveTextContent(
+      "AI-suggested from your own completed work"
+    );
   });
 });
