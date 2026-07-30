@@ -18,9 +18,14 @@ PERMISSIONS_MANAGE = "roles.permissions.manage"
 # Company-level keys reserved for the owner; admins deliberately do NOT get these.
 _OWNER_ONLY_KEYS = ("company.settings.manage", "company.billing.manage")
 
+# The single public home for the finance-view key — Phase 30/36 each carried a
+# private duplicate of this literal (profitability_service.py, budget_service.py);
+# this is the one other modules should import going forward.
+FINANCE_VIEW_PERMISSION = "finance.view"
+
 # Financial keys reserved for owner + project_manager; admins deliberately do NOT
 # get these by default (finance visibility is separate from operational access).
-_FINANCE_ONLY_KEYS = ("finance.view", "finance.manage", "finance.rates.manage")
+_FINANCE_ONLY_KEYS = (FINANCE_VIEW_PERMISSION, "finance.manage", "finance.rates.manage")
 
 # Fixed catalog. Each entry is (key, label, group). Order drives UI grouping.
 PERMISSION_CATALOG: list[dict[str, str]] = [

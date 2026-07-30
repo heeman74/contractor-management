@@ -69,6 +69,12 @@ _DEFAULT_JOB_FIELD = "General"
 # an edit of the line's content.
 PRICED_FIELDS = ("description", "quantity", "unit", "unit_price", "field")
 
+# User-visible and byte-locked by 37-UI-SPEC (state 35) — do not reword.
+UNREVIEWED_AI_LINES_DETAIL = (
+    "This quote has AI-suggested line items that have not been reviewed. "
+    "Accept or edit every suggested line before sending."
+)
+
 
 def review_state_after(row: QuoteLineItem, incoming: QuoteLineItemCreate) -> str:
     """The review state a stored line carries after one PATCH (D-07, D-08).
@@ -178,6 +184,21 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
     async def _get_quote_or_404(self, quote_id: uuid.UUID) -> Quote:
         """Fetch a quote with line items eager-loaded, or raise 404."""
         return entity_or_404(await self.repository.get_with_line_items(quote_id), "Quote not found")
+
+    def _require_no_unreviewed_ai_lines(self, quote: Quote) -> None:
+        """409 while any AI-originated line is still unreviewed (D-07, SC2).
+
+        line_items is already eager-loaded by _get_quote_or_404, so this costs
+        no round trip. Server-side by design: a hidden button is not a
+        guarantee.
+        """
+        if any(
+            item.ai_origin and item.review_state == REVIEW_STATE_UNREVIEWED
+            for item in quote.line_items
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail=UNREVIEWED_AI_LINES_DETAIL
+            )
 
     @staticmethod
     def _serialize_line_items_to_json(items: list) -> str:
@@ -301,6 +322,7 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
         """
         quote = await self._get_quote_or_404(quote_id)
         self._require_quote_status(quote, {"draft"}, "send")
+        self._require_no_unreviewed_ai_lines(quote)
 
         quote.status = "sent"
         quote.sent_at = datetime.now(UTC)
@@ -538,7 +560,10 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
         self.db.add(new_quote)
         await self.db.flush()  # get new_quote.id
 
-        # Copy line items from old quote (or use update data)
+        # Copy line items from old quote (or use update data). AI provenance
+        # (ai_origin/confidence_band/basis/suggested_at) carries forward for the
+        # variance loop (D-08), but review_state always resets to unreviewed — a
+        # revision is a new document that must be reviewed again.
         for item in new_line_items_data:
             # Handle both ORM model instances and schema instances
             self.db.add(
@@ -552,6 +577,11 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
                     unit_price=getattr(item, "unit_price", None),
                     sort_order=getattr(item, "sort_order", 0),
                     field=getattr(item, "field", None),
+                    ai_origin=getattr(item, "ai_origin", False),
+                    review_state=REVIEW_STATE_UNREVIEWED,
+                    confidence_band=getattr(item, "confidence_band", None),
+                    basis=getattr(item, "basis", None),
+                    suggested_at=getattr(item, "suggested_at", None),
                 )
             )
 

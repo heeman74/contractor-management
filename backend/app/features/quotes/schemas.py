@@ -194,13 +194,24 @@ class QuoteResponse(BaseResponseSchema):
         return Decimal(str(v)) if v is not None else Decimal("0")
 
     @classmethod
-    def from_orm_with_totals(cls, quote: object) -> "QuoteResponse":
+    def from_orm_with_totals(
+        cls, quote: object, *, include_finance: bool = True
+    ) -> "QuoteResponse":
         """Build response from ORM instance, computing financial totals inline.
 
         Usage: QuoteResponse.from_orm_with_totals(quote)
         Requires quote.line_items to be eagerly loaded.
+
+        `include_finance=False` (Phase 30 D-06: a caller without finance.view)
+        nulls each line item's confidence_band and basis server-side — the
+        client must never receive data it is expected to hide.
         """
         obj = cls.model_validate(quote)
+
+        if not include_finance:
+            for item in obj.line_items:
+                item.confidence_band = None
+                item.basis = None
 
         subtotal = sum(
             (item.quantity * item.unit_price for item in obj.line_items),

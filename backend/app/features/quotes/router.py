@@ -38,7 +38,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_service import entity_or_404
 from app.core.database import get_db
-from app.core.security import CurrentUser, get_current_user, require_permission, require_roles
+from app.core.permissions import FINANCE_VIEW_PERMISSION
+from app.core.security import (
+    CurrentUser,
+    effective_permissions,
+    get_current_user,
+    require_permission,
+    require_roles,
+)
 from app.features.companies.models import Company
 from app.features.jobs.models import Job
 from app.features.pdf.service import pdf_service
@@ -79,6 +86,14 @@ scope_quote_router = APIRouter(prefix="/trade-scopes/{scope_id}", tags=["trade-s
 def _require_client(current_user: CurrentUser) -> None:
     """Raise 403 if the current user is not a client."""
     require_roles(current_user, "client", detail="Client role required")
+
+
+async def finance_view_granted(
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> bool:
+    """Whether this caller may see the AI lines' cost-derived fields."""
+    return FINANCE_VIEW_PERMISSION in await effective_permissions(current_user, db)
 
 
 # ---------------------------------------------------------------------------
@@ -145,6 +160,7 @@ async def list_quotes(
     limit: int = 50,
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
+    include_finance: bool = Depends(finance_view_granted),
 ) -> list[QuoteResponse]:
     """List all active (non-deleted, non-revised) quotes for the tenant (admin only).
 
@@ -158,7 +174,7 @@ async def list_quotes(
         quotes = [q for q in quotes if q.status == status]
     # Apply pagination
     quotes = quotes[offset : offset + min(limit, 200)]
-    return [QuoteResponse.from_orm_with_totals(q) for q in quotes]
+    return [QuoteResponse.from_orm_with_totals(q, include_finance=include_finance) for q in quotes]
 
 
 @router.get("/for-job/{job_id}", response_model=QuoteResponse)
@@ -166,11 +182,12 @@ async def get_quote_for_job(
     job_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
+    include_finance: bool = Depends(finance_view_granted),
 ) -> QuoteResponse:
     """Get the latest non-revised quote for a job."""
     svc = QuoteService(db)
     quote = entity_or_404(await svc.repository.get_for_job(job_id), "No quote found for job")
-    return QuoteResponse.from_orm_with_totals(quote)
+    return QuoteResponse.from_orm_with_totals(quote, include_finance=include_finance)
 
 
 # ---------------------------------------------------------------------------
@@ -183,12 +200,13 @@ async def create_quote(
     data: QuoteCreate,
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
+    include_finance: bool = Depends(finance_view_granted),
 ) -> QuoteResponse:
     """Create a new draft quote for a job (admin only)."""
     await require_permission("quotes.create")(current_user, db)
     svc = QuoteService(db)
     quote = await svc.create_quote(data, current_user.user_id)
-    return QuoteResponse.from_orm_with_totals(quote)
+    return QuoteResponse.from_orm_with_totals(quote, include_finance=include_finance)
 
 
 @router.get("/{quote_id}", response_model=QuoteResponse)
@@ -196,6 +214,7 @@ async def get_quote(
     quote_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
+    include_finance: bool = Depends(finance_view_granted),
 ) -> QuoteResponse:
     """Get a quote with line items.
 
@@ -209,7 +228,7 @@ async def get_quote(
     else:
         quote = entity_or_404(await svc.repository.get_with_line_items(quote_id), "Quote not found")
 
-    return QuoteResponse.from_orm_with_totals(quote)
+    return QuoteResponse.from_orm_with_totals(quote, include_finance=include_finance)
 
 
 @router.patch("/{quote_id}", response_model=QuoteResponse)
@@ -218,12 +237,13 @@ async def update_quote(
     data: QuoteUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
+    include_finance: bool = Depends(finance_view_granted),
 ) -> QuoteResponse:
-    """Update a draft quote (admin only). Full line item replacement if provided."""
+    """Update a draft quote (admin only). Line items are reconciled by id if provided."""
     await require_permission("quotes.edit")(current_user, db)
     svc = QuoteService(db)
     quote = await svc.update_quote(quote_id, data)
-    return QuoteResponse.from_orm_with_totals(quote)
+    return QuoteResponse.from_orm_with_totals(quote, include_finance=include_finance)
 
 
 @router.post("/{quote_id}/send", response_model=QuoteResponse)
@@ -231,12 +251,13 @@ async def send_quote(
     quote_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
+    include_finance: bool = Depends(finance_view_granted),
 ) -> QuoteResponse:
     """Send a draft quote to the client (admin only)."""
     await require_permission("quotes.edit")(current_user, db)
     svc = QuoteService(db)
     quote = await svc.send_quote(quote_id)
-    return QuoteResponse.from_orm_with_totals(quote)
+    return QuoteResponse.from_orm_with_totals(quote, include_finance=include_finance)
 
 
 @router.post("/{quote_id}/approve", response_model=QuoteResponse)
@@ -244,12 +265,13 @@ async def approve_quote(
     quote_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
+    include_finance: bool = Depends(finance_view_granted),
 ) -> QuoteResponse:
     """Approve a sent or viewed quote (client only)."""
     _require_client(current_user)
     svc = QuoteService(db)
     quote = await svc.approve_quote(quote_id, current_user.user_id)
-    return QuoteResponse.from_orm_with_totals(quote)
+    return QuoteResponse.from_orm_with_totals(quote, include_finance=include_finance)
 
 
 @router.post("/{quote_id}/decline", response_model=QuoteResponse)
@@ -258,12 +280,13 @@ async def decline_quote(
     data: DeclineQuoteRequest,
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
+    include_finance: bool = Depends(finance_view_granted),
 ) -> QuoteResponse:
     """Decline a sent or viewed quote with reason (client only)."""
     _require_client(current_user)
     svc = QuoteService(db)
     quote = await svc.decline_quote(quote_id, current_user.user_id, data)
-    return QuoteResponse.from_orm_with_totals(quote)
+    return QuoteResponse.from_orm_with_totals(quote, include_finance=include_finance)
 
 
 @router.post("/{quote_id}/revise", response_model=QuoteResponse, status_code=201)
@@ -272,12 +295,13 @@ async def revise_quote(
     data: QuoteUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
+    include_finance: bool = Depends(finance_view_granted),
 ) -> QuoteResponse:
     """Create a new revision of a sent/viewed/declined/expired quote (admin only)."""
     await require_permission("quotes.edit")(current_user, db)
     svc = QuoteService(db)
     new_quote = await svc.revise_quote(quote_id, data, current_user.user_id)
-    return QuoteResponse.from_orm_with_totals(new_quote)
+    return QuoteResponse.from_orm_with_totals(new_quote, include_finance=include_finance)
 
 
 @router.post("/{quote_id}/extend", response_model=QuoteResponse)
@@ -286,12 +310,13 @@ async def extend_expiry(
     data: ExtendExpiryRequest,
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
+    include_finance: bool = Depends(finance_view_granted),
 ) -> QuoteResponse:
     """Extend the expiry date of a quote. Resets expired -> sent (admin only)."""
     await require_permission("quotes.edit")(current_user, db)
     svc = QuoteService(db)
     quote = await svc.extend_expiry(quote_id, data.new_expiry_date)
-    return QuoteResponse.from_orm_with_totals(quote)
+    return QuoteResponse.from_orm_with_totals(quote, include_finance=include_finance)
 
 
 @router.get("/{quote_id}/pdf")
@@ -336,6 +361,7 @@ async def create_scope_quote(
     data: QuoteCreate,
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
+    include_finance: bool = Depends(finance_view_granted),
 ) -> QuoteResponse:
     """Create a draft quote scoped to a trade scope (admin only).
 
@@ -356,7 +382,7 @@ async def create_scope_quote(
     )
     svc = QuoteService(db)
     quote = await svc.create_for_scope(scope_id, data_with_scope, current_user.user_id)
-    return QuoteResponse.from_orm_with_totals(quote)
+    return QuoteResponse.from_orm_with_totals(quote, include_finance=include_finance)
 
 
 @scope_quote_router.get("/quotes", response_model=list[QuoteResponse])
@@ -364,9 +390,10 @@ async def list_scope_quotes(
     scope_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
+    include_finance: bool = Depends(finance_view_granted),
 ) -> list[QuoteResponse]:
     """List all quotes for a trade scope (admin only)."""
     await require_permission("quotes.view")(current_user, db)
     svc = QuoteService(db)
     quotes = await svc.list_by_scope(scope_id)
-    return [QuoteResponse.from_orm_with_totals(q) for q in quotes]
+    return [QuoteResponse.from_orm_with_totals(q, include_finance=include_finance) for q in quotes]
