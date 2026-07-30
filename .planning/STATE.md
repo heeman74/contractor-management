@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 37-04-PLAN.md
-last_updated: "2026-07-30T19:32:19.320Z"
+stopped_at: Completed 37-08-PLAN.md
+last_updated: "2026-07-30T19:57:15.570Z"
 last_activity: 2026-07-30
 progress:
   total_phases: 22
   completed_phases: 19
   total_plans: 127
-  completed_plans: 118
+  completed_plans: 119
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 37 (ai-quote-planning) — EXECUTING
-Plan: 7 of 12
+Plan: 8 of 12
 Status: Ready to execute
 Last activity: 2026-07-30
 
@@ -97,6 +97,7 @@ Last activity: 2026-07-30
 | Phase 37-ai-quote-planning P06 | 25min | 3 tasks | 5 files |
 | Phase 37 P05 | 35min | 3 tasks | 9 files |
 | Phase 37 P04 | 35min | 3 tasks | 5 files |
+| Phase 37 P08 | 16min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -356,6 +357,9 @@ Last activity: 2026-07-30
 - [Phase 37]: 37-04: a job/scope-anchored quote's whole comparison nulls together without an invoice; a project-level quote's per-field trades keep quoted (always known) and null only actual/variance per group
 - [Phase 37]: 37-04: project-level quote's top-level actual/variance reports only when every field group is comparable -- a partial sum would misrepresent completeness
 - [Phase 37]: 37-04: project_quote_variance checks project existence before any aggregate query (mirrors PortfolioService.project_financials) so a missing/soft-deleted/cross-tenant project 404s cheaply
+- [Phase 37]: 37-08: FinanceGate fallback discriminated on undefined (never nullish-coalesced), reused as the render half of the quote-detail double lock
+- [Phase 37]: 37-08: useQuoteVariance's own permission+approval enabled clause is a second, independent lock behind the render gate; mutation-verified it blocks a leak even with FinanceGate physically removed
+- [Phase 37]: 37-08: LABOR_NOTE promoted to an export in scope-budget-bars.tsx a wave early (37-10 was slated to do it) rather than retype the shipped scope-labor caption string
 
 ### Pending Todos
 
@@ -377,6 +381,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-30T19:32:19.312Z
-Stopped at: Completed 37-04-PLAN.md
+Last session: 2026-07-30T19:57:15.562Z
+Stopped at: Completed 37-08-PLAN.md
 Resume file: None
