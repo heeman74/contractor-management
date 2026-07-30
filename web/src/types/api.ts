@@ -181,6 +181,9 @@ export type InvoiceStatus = "unpaid" | "partially_paid" | "paid";
 export type ItemType = "labor" | "material";
 export type DiscountType = "percent" | "fixed";
 
+export type QuoteLineReviewState = "unreviewed" | "accepted" | "edited";
+export type QuoteConfidenceBand = "high" | "medium" | "low";
+
 export interface QuoteLineItem {
   id: string;
   quote_id: string;
@@ -191,6 +194,10 @@ export interface QuoteLineItem {
   unit_price: string;
   sort_order: number;
   field?: string | null;
+  ai_origin: boolean;
+  review_state: QuoteLineReviewState;
+  confidence_band: QuoteConfidenceBand | null;
+  basis: string | null;
 }
 
 export interface Quote {
