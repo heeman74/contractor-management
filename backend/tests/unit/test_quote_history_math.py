@@ -11,7 +11,15 @@ from decimal import Decimal
 
 from app.features.finance.margin_math import DocumentAmounts, margin_percent_for, pre_tax_total
 from app.features.quotes.quote_history_math import (
+    BAND_HIGH,
+    BAND_LOW,
+    BAND_MEDIUM,
+    band_by_count,
+    band_by_spread,
+    confidence_band,
+    median_of,
     prorated_pre_tax_totals,
+    spread_ratio_for,
     variance_for,
     variance_percent_for,
 )
@@ -120,3 +128,80 @@ def test_prorated_totals_zero_subtotal_input_returns_all_zeros() -> None:
     shares = prorated_pre_tax_totals([Decimal("0"), Decimal("0")], amounts)
 
     assert shares == [Decimal("0"), Decimal("0")]
+
+
+# ---------------------------------------------------------------------------
+# band_by_count / band_by_spread — the two independent confidence axes
+# ---------------------------------------------------------------------------
+
+
+def test_band_by_count_axis_alone() -> None:
+    assert band_by_count(9) == BAND_HIGH
+    assert band_by_count(5) == BAND_MEDIUM
+    assert band_by_count(3) == BAND_LOW
+
+
+def test_band_by_count_boundaries() -> None:
+    assert band_by_count(8) == BAND_HIGH
+    assert band_by_count(7) == BAND_MEDIUM
+    assert band_by_count(4) == BAND_MEDIUM
+    assert band_by_count(3) == BAND_LOW
+
+
+def test_band_by_spread_axis_alone() -> None:
+    assert band_by_spread(Decimal("1.2")) == BAND_HIGH
+    assert band_by_spread(Decimal("2.0")) == BAND_MEDIUM
+    assert band_by_spread(Decimal("5.0")) == BAND_LOW
+
+
+def test_band_by_spread_boundaries() -> None:
+    assert band_by_spread(Decimal("1.5")) == BAND_HIGH
+    assert band_by_spread(Decimal("1.51")) == BAND_MEDIUM
+    assert band_by_spread(Decimal("3.0")) == BAND_MEDIUM
+    assert band_by_spread(Decimal("3.01")) == BAND_LOW
+
+
+def test_band_by_spread_unknown_is_low() -> None:
+    assert band_by_spread(None) == BAND_LOW
+
+
+def test_confidence_band_takes_the_worse_axis() -> None:
+    assert confidence_band(9, Decimal("1.2")) == BAND_HIGH
+    assert confidence_band(9, Decimal("2.0")) == BAND_MEDIUM
+    assert confidence_band(9, Decimal("5.0")) == BAND_LOW
+    assert confidence_band(5, Decimal("1.0")) == BAND_MEDIUM
+    assert confidence_band(3, Decimal("1.0")) == BAND_LOW
+
+
+def test_confidence_band_twenty_samples_at_three_times_spread_is_not_high() -> None:
+    assert confidence_band(20, Decimal("3.0")) == BAND_MEDIUM
+    assert confidence_band(20, Decimal("3.01")) == BAND_LOW
+
+
+def test_confidence_band_unknown_spread_is_low_even_at_high_count() -> None:
+    assert confidence_band(20, None) == BAND_LOW
+
+
+# ---------------------------------------------------------------------------
+# spread_ratio_for / median_of
+# ---------------------------------------------------------------------------
+
+
+def test_spread_ratio_for_nearest_rank() -> None:
+    values = [Decimal(str(value)) for value in range(1, 11)]  # 1..10
+
+    ratio = spread_ratio_for(values)
+
+    assert ratio == Decimal("9")  # p90 = 9, p10 = 1 by nearest rank
+
+
+def test_spread_ratio_none_cases() -> None:
+    assert spread_ratio_for([Decimal("5")]) is None
+    assert spread_ratio_for([]) is None
+    assert spread_ratio_for([Decimal("0"), Decimal("5")]) is None
+
+
+def test_median_of_even_and_empty() -> None:
+    assert median_of([Decimal("1"), Decimal("2"), Decimal("3"), Decimal("4")]) == Decimal("2.5")
+    assert median_of([]) is None
+    assert median_of([Decimal("5")]) == Decimal("5")
