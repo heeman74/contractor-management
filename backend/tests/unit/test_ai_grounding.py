@@ -15,11 +15,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.core.ai_grounding import (
+    AllowedFigures,
     CitedFigure,
     collect_allowed_values,
     extract_figures,
     matches_allowed,
     validate_grounding,
+    validate_typed_grounding,
 )
 from app.core.ai_utils import ClaudeJsonResponse, call_claude_json_strict
 
@@ -237,6 +239,74 @@ def test_validate_grounding_ok_for_text_with_no_figures_at_all() -> None:
 
     assert result.ok is True
     assert result.unmatched == ()
+
+
+# ---------------------------------------------------------------------------
+# validate_typed_grounding / matches_typed — the Phase 37 typed sibling (D-03)
+# ---------------------------------------------------------------------------
+
+
+class TestTypedGrounding:
+    def test_percent_value_never_satisfies_a_dollar_citation(self) -> None:
+        allowed = AllowedFigures(money=frozenset(), percents=_allowed("7"))
+
+        result = validate_typed_grounding("The comparable count basis is $7.", allowed)
+
+        assert result.ok is False
+        assert result.unmatched == ("$7",)
+
+    def test_money_value_never_satisfies_a_percent_citation(self) -> None:
+        allowed = AllowedFigures(money=_allowed("7"), percents=frozenset())
+
+        result = validate_typed_grounding("Margin moved 7%.", allowed)
+
+        assert result.ok is False
+        assert result.unmatched == ("7%",)
+
+    def test_whole_dollar_loosening_survives_in_the_typed_form(self) -> None:
+        allowed = AllowedFigures(money=_allowed("3200.41"), percents=frozenset())
+
+        result = validate_typed_grounding("Materials ran $3,200 over the quote.", allowed)
+
+        assert result.ok is True
+
+    def test_whole_dollar_loosening_stays_one_directional_in_the_typed_form(self) -> None:
+        allowed = AllowedFigures(money=_allowed("3200"), percents=frozenset())
+
+        result = validate_typed_grounding("Materials ran $3,200.41 over the quote.", allowed)
+
+        assert result.ok is False
+        assert result.unmatched == ("$3,200.41",)
+
+    def test_percent_matches_its_own_set_at_one_decimal(self) -> None:
+        allowed = AllowedFigures(money=frozenset(), percents=_allowed("12.5"))
+
+        result = validate_typed_grounding("Margin fell 12.5%.", allowed)
+
+        assert result.ok is True
+
+    def test_typed_grounding_ok_for_text_with_no_figures_at_all(self) -> None:
+        allowed = AllowedFigures(money=frozenset(), percents=frozenset())
+
+        result = validate_typed_grounding(
+            "Plumbing needs a re-scope before drywall starts.", allowed
+        )
+
+        assert result.ok is True
+        assert result.unmatched == ()
+
+    def test_untyped_grounding_unchanged_by_typed_sibling(self) -> None:
+        payload = {
+            "over_quote_dollars": Decimal("3200.41"),
+            "margin_decline_points": Decimal("6.2"),
+        }
+
+        result = validate_grounding(
+            "Margin fell 6.2 points while plumbing ran $3,200 over the quote.",
+            collect_allowed_values(payload),
+        )
+
+        assert result.ok is True
 
 
 # ---------------------------------------------------------------------------

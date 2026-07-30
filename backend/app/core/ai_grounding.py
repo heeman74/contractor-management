@@ -7,7 +7,11 @@ and the prompt forbids the model from computing anything. Validation is then pur
 set membership — small, fast, exhaustively testable, with no false-accept surface.
 
 Payload-shape agnostic on purpose: it carries no feature-package imports, so the
-quote-planning feature reuses it unchanged.
+quote-planning feature reuses it unchanged. Two validators live here:
+`validate_grounding`, against one flat allowed-value set, unchanged since Phase
+36; and `validate_typed_grounding`, its sibling for callers that keep money and
+percent figures in separately typed sets so a percent can never satisfy a
+dollar citation.
 """
 
 from __future__ import annotations
@@ -134,3 +138,34 @@ def _matches_as_money(cited: Decimal, allowed_value: Decimal) -> bool:
     if allowed_value.quantize(CENTS) == cited.quantize(CENTS):
         return True
     return allowed_value.quantize(WHOLE_DOLLAR, rounding=ROUND_HALF_UP) == cited
+
+
+@dataclass(frozen=True)
+class AllowedFigures:
+    """Money and percent value sets kept apart, so a percent can never satisfy a
+    dollar citation. Counts and quantities belong in NEITHER: they are checked by
+    exact structured-field membership, not by text extraction.
+    """
+
+    money: frozenset[Decimal]
+    percents: frozenset[Decimal]
+
+
+def matches_typed(figure: CitedFigure, allowed: AllowedFigures) -> bool:
+    """Whether one cited figure appears in the set for its OWN sigil."""
+    if figure.is_percent:
+        return any(_matches_as_percent(figure.value, value) for value in allowed.percents)
+    return any(_matches_as_money(figure.value, value) for value in allowed.money)
+
+
+def validate_typed_grounding(text: str, allowed: AllowedFigures) -> GroundingResult:
+    """Reject text citing any figure absent from the set for its sigil.
+
+    The sibling of validate_grounding for callers that can separate their money
+    and percent fields. The untyped form remains for the profitability path,
+    whose flat set is the shape its payload was built and tested against.
+    """
+    unmatched = tuple(
+        figure.literal for figure in extract_figures(text) if not matches_typed(figure, allowed)
+    )
+    return GroundingResult(ok=not unmatched, unmatched=unmatched)
