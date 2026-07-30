@@ -17,23 +17,26 @@ can never silently change what this file asserts.
 
 from __future__ import annotations
 
+import contextlib
+from collections.abc import Iterator
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import CheckConstraint, text
+from sqlalchemy import CheckConstraint, event, text
 
 # Side-effect: register all mappers before tests run.
 import app.features.scheduling.models  # noqa: F401
-from app.core.database import async_session_factory
+from app.core.database import async_session_factory, engine
 from app.core.security import create_access_token
 from app.core.tenant import set_current_tenant_id
 from app.features.finance.margin_math import RevenueAnchor
 from app.features.finance.service import FinanceService, contributing_anchor_cost
 from app.features.quotes.models import QuoteLineItem
 from app.features.quotes.service import UNREVIEWED_AI_LINES_DETAIL
+from app.features.quotes.suggestion_repository import ComparableRows, QuoteComparableRepository
 from app.features.quotes.variance_service import QuoteVarianceService
 
 _QUOTES_URL = "/api/v1/quotes/"
@@ -1034,3 +1037,181 @@ async def test_project_quote_variance_is_tenant_isolated(
         _project_quote_variance_url(project_id), headers=_pm_headers(tenant_b_id)
     )
     assert resp.status_code == 404, resp.text
+
+
+# ---------------------------------------------------------------------------
+# Plan 37-07 Task 1 — QuoteComparableRepository: bounded, same-trade comparables
+# ---------------------------------------------------------------------------
+
+_ROOFING_TRADE = "Roofing"
+
+
+@contextlib.contextmanager
+def _count_sql_statements() -> Iterator[list[str]]:
+    """Record every SQL statement issued while the block runs (35-08 recipe).
+
+    Listens on engine.sync_engine because SQLAlchemy's event API is synchronous
+    by design (same reason app/core/tenant.py's after_begin listener is sync).
+    """
+    statements: list[str] = []
+
+    def _record(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    event.listen(engine.sync_engine, "before_cursor_execute", _record)
+    try:
+        yield statements
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", _record)
+
+
+async def _seed_roofing_comparable(
+    client: AsyncClient, headers: dict, company_id: str, materials_id: str, *, index: int
+) -> None:
+    """One same-trade, invoiced, costed anchor — a comparable for _ROOFING_TRADE."""
+    job_id = await _create_job(client, trade_type=_ROOFING_TRADE)
+    quote = await _create_quote(
+        client, job_id, [_line_item(unit_price="100.00", quantity=f"{index + 1}.000")]
+    )
+    await _approve_quote(company_id, quote["id"], approved_at=datetime.now(UTC))
+    await _create_invoice(client, company_id, job_id=job_id, amount="10.00")
+    await _add_cost_entry(client, headers, job_id=job_id, category_id=materials_id, amount="220.00")
+
+
+async def _seed_roofing_comparables(
+    client: AsyncClient, headers: dict, company_id: str, count: int
+) -> None:
+    await _seed_cost_categories(company_id)
+    materials_id = await _category_id(company_id, "materials")
+    for index in range(count):
+        await _seed_roofing_comparable(client, headers, company_id, materials_id, index=index)
+
+
+async def _comparables_for_trade(company_id: str, trade: str) -> ComparableRows:
+    async with async_session_factory() as db:
+        set_current_tenant_id(UUID(company_id))
+        return await QuoteComparableRepository(db).comparables_for_trade(trade)
+
+
+async def _statements_for_comparables(company_id: str, trade: str) -> list[str]:
+    async with async_session_factory() as db:
+        set_current_tenant_id(UUID(company_id))
+        repository = QuoteComparableRepository(db)
+        with _count_sql_statements() as statements:
+            await repository.comparables_for_trade(trade)
+    return statements
+
+
+@pytest.mark.asyncio
+async def test_comparable_query_count_constant(
+    tenant_a_client: AsyncClient, tenant_b_client: AsyncClient, seed_two_tenants: dict
+):
+    """The repository's round-trip count does not grow with comparable count —
+    the invariance is the contract; the absolute is whatever this run measures."""
+    small_company_id = seed_two_tenants["tenant_a_id"]
+    large_company_id = seed_two_tenants["tenant_b_id"]
+
+    await _seed_roofing_comparables(
+        tenant_a_client, _pm_headers(small_company_id), small_company_id, count=3
+    )
+    await _seed_roofing_comparables(
+        tenant_b_client, _pm_headers(large_company_id), large_company_id, count=12
+    )
+
+    small_statements = await _statements_for_comparables(small_company_id, _ROOFING_TRADE)
+    large_statements = await _statements_for_comparables(large_company_id, _ROOFING_TRADE)
+
+    assert len(large_statements) == len(small_statements), (
+        f"comparable query issued {len(large_statements) - len(small_statements)} more "
+        "statements at 12 comparables than at 3 — a per-comparable query has crept in"
+    )
+
+
+@pytest.mark.asyncio
+async def test_comparable_cost_equivalence(tenant_a_client: AsyncClient, seed_two_tenants: dict):
+    """A comparable's actual cost is pinned equal to the shipped contributing_anchor_cost."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    project_id = await _create_project(tenant_a_client)
+    await _seed_cost_categories(company_id)
+    materials_id = await _category_id(company_id, "materials")
+
+    job_id = await _create_job(tenant_a_client, project_id=project_id, trade_type=_ROOFING_TRADE)
+    quote = await _create_quote(tenant_a_client, job_id, [_line_item(unit_price="100.00")])
+    await _approve_quote(company_id, quote["id"], approved_at=datetime.now(UTC))
+    await _create_invoice(tenant_a_client, company_id, job_id=job_id, amount="10.00")
+    await _add_cost_entry(
+        tenant_a_client, headers, job_id=job_id, category_id=materials_id, amount="340.00"
+    )
+
+    rows = await _comparables_for_trade(company_id, _ROOFING_TRADE)
+    assert len(rows.anchors) == 1
+
+    async with async_session_factory() as db:
+        set_current_tenant_id(UUID(company_id))
+        context = await FinanceService(db).anchor_cost_context(UUID(project_id))
+        expected = contributing_anchor_cost(RevenueAnchor(job_id=UUID(job_id)), context)
+
+    assert rows.anchors[0].actual_cost == expected
+
+
+@pytest.mark.asyncio
+async def test_zero_cost_anchor_excluded(tenant_a_client: AsyncClient, seed_two_tenants: dict):
+    """PITFALLS #9: an invoiced anchor with zero recorded cost is not a comparable."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    job_id = await _create_job(tenant_a_client, trade_type=_ROOFING_TRADE)
+    quote = await _create_quote(tenant_a_client, job_id, [_line_item(unit_price="100.00")])
+    await _approve_quote(company_id, quote["id"], approved_at=datetime.now(UTC))
+    await _create_invoice(tenant_a_client, company_id, job_id=job_id, amount="10.00")
+    # No cost entry recorded for this anchor.
+
+    rows = await _comparables_for_trade(company_id, _ROOFING_TRADE)
+
+    assert rows.anchors == ()
+
+
+@pytest.mark.asyncio
+async def test_uninvoiced_anchor_excluded(tenant_a_client: AsyncClient, seed_two_tenants: dict):
+    """An anchor with cost but no invoice is not "completed", per D-02."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_cost_categories(company_id)
+    materials_id = await _category_id(company_id, "materials")
+
+    job_id = await _create_job(tenant_a_client, trade_type=_ROOFING_TRADE)
+    await _add_cost_entry(
+        tenant_a_client, headers, job_id=job_id, category_id=materials_id, amount="220.00"
+    )
+    # No invoice ever issued for this anchor.
+
+    rows = await _comparables_for_trade(company_id, _ROOFING_TRADE)
+
+    assert rows.anchors == ()
+
+
+@pytest.mark.asyncio
+async def test_scope_anchor_contributes_no_labor(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    """Trap 6: a trade-scope anchor structurally carries no labor cost."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_cost_categories(company_id)
+    materials_id = await _category_id(company_id, "materials")
+
+    project_id = await _create_project(tenant_a_client)
+    scope_id = await _create_trade_scope(tenant_a_client, project_id, _ROOFING_TRADE)
+    quote = await _create_quote_for_scope(
+        tenant_a_client, scope_id, [_line_item(unit_price="100.00")]
+    )
+    await _approve_quote(company_id, quote["id"], approved_at=datetime.now(UTC))
+    await _create_invoice(tenant_a_client, company_id, trade_scope_id=scope_id, amount="10.00")
+    await _add_cost_entry(
+        tenant_a_client, headers, trade_scope_id=scope_id, category_id=materials_id, amount="280.00"
+    )
+
+    rows = await _comparables_for_trade(company_id, _ROOFING_TRADE)
+
+    assert len(rows.anchors) == 1
+    assert rows.anchors[0].is_job_anchored is False
+    assert rows.anchors[0].labor_cost == Decimal("0")
