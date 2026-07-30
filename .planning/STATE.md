@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 37-05-PLAN.md
-last_updated: "2026-07-30T19:20:20.045Z"
+stopped_at: Completed 37-04-PLAN.md
+last_updated: "2026-07-30T19:32:19.320Z"
 last_activity: 2026-07-30
 progress:
   total_phases: 22
   completed_phases: 19
   total_plans: 127
-  completed_plans: 117
+  completed_plans: 118
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 37 (ai-quote-planning) — EXECUTING
-Plan: 6 of 12
+Plan: 7 of 12
 Status: Ready to execute
 Last activity: 2026-07-30
 
@@ -96,6 +96,7 @@ Last activity: 2026-07-30
 | Phase 37 P02 | 25min | 3 tasks | 4 files |
 | Phase 37-ai-quote-planning P06 | 25min | 3 tasks | 5 files |
 | Phase 37 P05 | 35min | 3 tasks | 9 files |
+| Phase 37 P04 | 35min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -351,6 +352,10 @@ Last activity: 2026-07-30
 - [Phase 37]: 37-05: aliased UNBURDENED_TITLE import so the composed unburdened-labor caption satisfies a literal-token acceptance grep while still importing the real shipped constant
 - [Phase 37]: 37-05: use-quote-editor.ts additively exposes existingQuote so the editor page can gate the AI trigger and Trade column on quote.status/job_id/trade_scope_id, with no change to the shipped reset effect
 - [Phase 37]: 37-05: aiLineCount/unreviewedCount computed in page.tsx from live watched form values (not the shipped QuoteLineItem-typed review-state.ts helpers), since draft form values are structurally incompatible with that required shape
+- [Phase 37]: 37-04: anchor_cost_context/rollup_for_project share one private _build_margin_context builder -- ProjectMarginContext constructed in exactly one place
+- [Phase 37]: 37-04: a job/scope-anchored quote's whole comparison nulls together without an invoice; a project-level quote's per-field trades keep quoted (always known) and null only actual/variance per group
+- [Phase 37]: 37-04: project-level quote's top-level actual/variance reports only when every field group is comparable -- a partial sum would misrepresent completeness
+- [Phase 37]: 37-04: project_quote_variance checks project existence before any aggregate query (mirrors PortfolioService.project_financials) so a missing/soft-deleted/cross-tenant project 404s cheaply
 
 ### Pending Todos
 
@@ -372,6 +377,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-30T19:20:20.037Z
-Stopped at: Completed 37-05-PLAN.md
+Last session: 2026-07-30T19:32:19.312Z
+Stopped at: Completed 37-04-PLAN.md
 Resume file: None
