@@ -18,8 +18,8 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, Integer, Numeric, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Integer, Numeric, Text
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_models import TenantScopedModel
@@ -28,6 +28,20 @@ if TYPE_CHECKING:
     from app.features.invoices.models import Invoice
     from app.features.jobs.models import Job
     from app.features.projects.models import Project, TradeScope
+
+# Review-state values a quote line item can carry (Phase 37, D-07/D-08). Only an
+# AI-originated line has review state that matters — a hand-built line stays
+# "unreviewed" forever and the send gate never looks at it.
+REVIEW_STATE_UNREVIEWED = "unreviewed"
+REVIEW_STATE_ACCEPTED = "accepted"
+REVIEW_STATE_EDITED = "edited"
+REVIEW_STATES = (REVIEW_STATE_UNREVIEWED, REVIEW_STATE_ACCEPTED, REVIEW_STATE_EDITED)
+
+CONFIDENCE_BANDS = ("high", "medium", "low")
+
+# The UI-SPEC bound on a line item's `basis` text. Referenced by the migration's
+# CHECK constraint SQL via an f-string so the DB and this constant cannot diverge.
+MAX_BASIS_LENGTH = 200
 
 
 class Quote(TenantScopedModel):
@@ -92,6 +106,9 @@ class Quote(TenantScopedModel):
         ForeignKey("quotes.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # SC3 audit trail: the exact payload an AI suggestion run validated its line
+    # items against, written once per run.
+    ai_suggestion_payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     __table_args__ = (
         CheckConstraint(
@@ -158,11 +175,32 @@ class QuoteLineItem(TenantScopedModel):
     # The trade/field this item belongs to on a project-level quote. Items are
     # grouped by field to generate one job per field when the quote is approved.
     field: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Server-owned AI provenance and review state (Phase 37, D-07/D-08). A client
+    # can never set ai_origin — only a suggestion run or a revision copy does.
+    ai_origin: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    review_state: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default=REVIEW_STATE_UNREVIEWED
+    )
+    confidence_band: Mapped[str | None] = mapped_column(Text, nullable=True)
+    basis: Mapped[str | None] = mapped_column(Text, nullable=True)
+    suggested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         CheckConstraint(
             "item_type IN ('labor','material')",
             name="quote_line_items_item_type_check",
+        ),
+        CheckConstraint(
+            f"review_state IN {REVIEW_STATES!r}",
+            name="quote_line_items_review_state_check",
+        ),
+        CheckConstraint(
+            f"confidence_band IS NULL OR confidence_band IN {CONFIDENCE_BANDS!r}",
+            name="quote_line_items_confidence_band_check",
+        ),
+        CheckConstraint(
+            f"basis IS NULL OR char_length(basis) <= {MAX_BASIS_LENGTH}",
+            name="quote_line_items_basis_length_check",
         ),
     )
 
