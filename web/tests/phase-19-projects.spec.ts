@@ -125,6 +125,10 @@ async function mockProjectsApi(page: Page) {
       await route.fulfill({ json: MOCK_SCOPES });
     } else if (pathParam.includes("/api/v1/tasks/")) {
       await route.fulfill({ json: [] });
+    } else if (pathParam.includes("/api/v1/quotes/change-orders")) {
+      // ProjectDetail's change-orders card queries this; the object fallback
+      // below is not a list and made the card throw, blanking the page.
+      await route.fulfill({ json: [] });
     } else if (pathParam.includes("/api/v1/trade-catalog/")) {
       await route.fulfill({ json: MOCK_CATALOG });
     } else if (pathParam.includes("/api/v1/contractors/")) {
@@ -155,6 +159,10 @@ async function mockEmptyProjectsApi(page: Page) {
     const pathParam = new URL(url).searchParams.get("path") ?? "";
 
     if (pathParam.includes("/api/v1/projects/")) {
+      await route.fulfill({ json: [] });
+    } else if (pathParam.includes("/api/v1/quotes/change-orders")) {
+      // ProjectDetail's change-orders card queries this; the object fallback
+      // below is not a list and made the card throw, blanking the page.
       await route.fulfill({ json: [] });
     } else if (pathParam.includes("/api/v1/trade-catalog/")) {
       await route.fulfill({ json: [] });
@@ -294,7 +302,11 @@ test.describe("Phase 19: Projects - Create Project Dialog", () => {
         await route.fulfill({ json: MOCK_SCOPES });
       } else if (pathParam.includes("/api/v1/tasks/")) {
         await route.fulfill({ json: [] });
-      } else if (pathParam.includes("/api/v1/trade-catalog/")) {
+      } else if (pathParam.includes("/api/v1/quotes/change-orders")) {
+      // ProjectDetail's change-orders card queries this; the object fallback
+      // below is not a list and made the card throw, blanking the page.
+      await route.fulfill({ json: [] });
+    } else if (pathParam.includes("/api/v1/trade-catalog/")) {
         await route.fulfill({ json: MOCK_CATALOG });
       } else if (pathParam.includes("/api/v1/contractors/")) {
         await route.fulfill({ json: MOCK_CONTRACTORS });

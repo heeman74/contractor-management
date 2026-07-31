@@ -38,7 +38,11 @@ function ProjectChangeOrdersCard({ projectId }: { projectId: string }) {
       ),
   });
 
-  if (!changeOrders || changeOrders.length === 0) return null;
+  // Array.isArray, not a truthiness check: a non-list payload (an error object,
+  // an unmocked route) has no `.length`, so the old guard let it through and the
+  // `.filter` below threw — taking the whole project page down with it. One
+  // card's bad response may cost that card and nothing else.
+  if (!Array.isArray(changeOrders) || changeOrders.length === 0) return null;
 
   const approved = changeOrders.filter((co) => co.status === "approved");
   const approvedTotal = approved.reduce((sum, co) => sum + Number(co.total), 0);
