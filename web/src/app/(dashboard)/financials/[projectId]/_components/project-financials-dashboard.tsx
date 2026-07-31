@@ -2,17 +2,20 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Gauge, PieChart as PieChartIcon, TrendingUp } from "lucide-react";
+import { Gauge, PieChart as PieChartIcon, Scale, TrendingUp } from "lucide-react";
 
 import { ChartCard } from "@/app/(dashboard)/reports/_components/chart-card";
 import { FinanceSummaryTiles } from "@/app/(dashboard)/financials/_components/finance-summary-tiles";
 import { FinancialsSkeleton } from "@/app/(dashboard)/financials/_components/financials-skeleton";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   useProjectFinancials,
   useProjectMarginTrend,
   useProjectProfitabilityFinding,
+  useProjectQuoteVariance,
 } from "@/features/finance/hooks";
+import type { ProjectQuoteVariance } from "@/features/finance/types";
 import { DEFAULT_TREND_WINDOW, type TrendWindow } from "@/features/finance/types";
 import { ApiError } from "@/lib/api-client";
 import {
@@ -37,6 +40,13 @@ import {
   scopeBarsCsvRows,
 } from "./scope-budget-bars";
 import { ProfitabilityFindingCard } from "./profitability-finding-card";
+import {
+  QUOTE_VARIANCE_CSV_FILENAME,
+  QUOTE_VARIANCE_TITLE,
+  QuoteVarianceTable,
+  quoteVarianceCsvRows,
+  quoteVarianceKpi,
+} from "./quote-variance-table";
 import { TREND_WINDOW_NOTE, TrendWindowFilter } from "./trend-window-filter";
 
 const NOT_FOUND_STATUS = 404;
@@ -51,6 +61,9 @@ const REVENUE_TILE_TITLE = "Revenue";
 const COST_TILE_TITLE = "Cost";
 const MARGIN_TILE_TITLE = "Margin";
 const PROJECT_TEST_ID_PREFIX = "project";
+
+const QUOTE_VARIANCE_ERROR_MESSAGE =
+  "Couldn't load quoted vs actual by trade. Refresh to try again.";
 
 const ERROR_PANEL_CLASS =
   "rounded-xl border border-red-200 bg-red-50 px-6 py-12 text-center text-sm font-medium text-red-800";
@@ -67,11 +80,12 @@ export function isNotFoundError(error: unknown): boolean {
 /**
  * The only hook-owning component on `/financials/[projectId]`.
  *
- * Three queries, three keys, three failure surfaces: the trend window belongs to
- * the trend alone, so switching it can never restate the lifetime tiles beside it
- * (D-10), and the profitability finding is deliberately excluded from the page
- * loading gate so a slow or failing findings query never delays or blanks the
- * money dashboard.
+ * Its docstring rule: four queries, four keys, four failure surfaces. The trend
+ * window belongs to the trend alone, so switching it can never restate the
+ * lifetime tiles beside it (D-10), and the profitability finding and
+ * quote-variance queries are both deliberately excluded from the page loading
+ * gate so a slow or failing query on either never delays or blanks the money
+ * dashboard.
  */
 export default function ProjectFinancialsDashboard({
   projectId,
@@ -82,6 +96,7 @@ export default function ProjectFinancialsDashboard({
   const financials = useProjectFinancials(projectId);
   const trend = useProjectMarginTrend(projectId, trendWindow);
   const finding = useProjectProfitabilityFinding(projectId);
+  const quoteVariance = useProjectQuoteVariance(projectId);
 
   if (financials.isLoading || trend.isLoading) {
     return <FinancialsSkeleton variant="project" />;
@@ -125,6 +140,21 @@ export default function ProjectFinancialsDashboard({
           {TREND_WINDOW_NOTE}
         </p>
         <MarginTrendChart buckets={buckets} isRefetching={trend.isFetching} />
+      </ChartCard>
+
+      <ChartCard
+        title={QUOTE_VARIANCE_TITLE}
+        kpiValue={quoteVarianceKpi(quoteVariance.data?.total ?? null)}
+        icon={Scale}
+        csvFilename={QUOTE_VARIANCE_CSV_FILENAME}
+        csvRows={quoteVarianceCsvRows(quoteVariance.data)}
+        ariaLabel={`${QUOTE_VARIANCE_TITLE} chart`}
+      >
+        <QuoteVarianceCardBody
+          variance={quoteVariance.data}
+          isLoading={quoteVariance.isLoading}
+          isError={quoteVariance.isError}
+        />
       </ChartCard>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -187,5 +217,43 @@ function LoadErrorPanel() {
     <div data-testid="financials-error" className={ERROR_PANEL_CLASS}>
       {LOAD_ERROR_MESSAGE}
     </div>
+  );
+}
+
+/** Scoped to the card, with no nested panel chrome: a quote-variance outage
+ *  must read as one card failing, never as the money dashboard failing —
+ *  the same isolation `ProfitabilityFindingCard` carries for the finding query. */
+function QuoteVarianceCardBody({
+  variance,
+  isLoading,
+  isError,
+}: {
+  variance: ProjectQuoteVariance | undefined;
+  isLoading: boolean;
+  isError: boolean;
+}) {
+  if (isLoading) return <QuoteVarianceSkeleton />;
+  if (isError) return <QuoteVarianceErrorLine />;
+  if (!variance) return null;
+  return <QuoteVarianceTable variance={variance} />;
+}
+
+function QuoteVarianceSkeleton() {
+  return (
+    <div data-testid="project-quote-variance-skeleton">
+      <Skeleton className="h-4 w-full" />
+      <Skeleton className="mt-2 h-4 w-2/3" />
+    </div>
+  );
+}
+
+function QuoteVarianceErrorLine() {
+  return (
+    <p
+      data-testid="project-quote-variance-error"
+      className="py-8 text-center text-sm font-medium text-red-800"
+    >
+      {QUOTE_VARIANCE_ERROR_MESSAGE}
+    </p>
   );
 }

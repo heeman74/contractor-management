@@ -17,6 +17,7 @@ import {
   useProjectFinancials,
   useProjectMarginTrend,
   useProjectProfitabilityFinding,
+  useProjectQuoteVariance,
 } from "@/features/finance/hooks";
 import type {
   CostBreakdown,
@@ -31,6 +32,7 @@ jest.mock("@/features/finance/hooks", () => ({
   useProjectFinancials: jest.fn(),
   useProjectMarginTrend: jest.fn(),
   useProjectProfitabilityFinding: jest.fn(),
+  useProjectQuoteVariance: jest.fn(),
 }));
 jest.mock("sonner", () => ({ toast: { error: jest.fn(), success: jest.fn() } }));
 jest.mock("next/navigation", () => ({ useRouter: () => ({ push: jest.fn() }) }));
@@ -327,6 +329,7 @@ const HEALTHY_TREND: MarginTrend = {
 const mockUseProjectFinancials = useProjectFinancials as jest.Mock;
 const mockUseProjectMarginTrend = useProjectMarginTrend as jest.Mock;
 const mockUseProjectProfitabilityFinding = useProjectProfitabilityFinding as jest.Mock;
+const mockUseProjectQuoteVariance = useProjectQuoteVariance as jest.Mock;
 
 function mockHealthyPageWithFinding(finding: Record<string, unknown>) {
   mockUseProjectFinancials.mockReturnValue({
@@ -341,6 +344,13 @@ function mockHealthyPageWithFinding(finding: Record<string, unknown>) {
     isFetching: false,
   });
   mockUseProjectProfitabilityFinding.mockReturnValue(finding);
+  // The quote-variance query is a sibling failure surface to the finding query —
+  // deliberately quiet here so these tests stay about the finding card.
+  mockUseProjectQuoteVariance.mockReturnValue({
+    data: undefined,
+    isLoading: false,
+    isError: false,
+  });
 }
 
 function expectMoneyDashboardIntact() {
@@ -358,6 +368,7 @@ describe("ProjectFinancialsDashboard — finding failure surface", () => {
     mockUseProjectFinancials.mockReset();
     mockUseProjectMarginTrend.mockReset();
     mockUseProjectProfitabilityFinding.mockReset();
+    mockUseProjectQuoteVariance.mockReset();
   });
 
   /**
@@ -432,6 +443,11 @@ describe("ProjectFinancialsDashboard — finding failure surface", () => {
       isFetching: false,
     });
     mockUseProjectProfitabilityFinding.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+    });
+    mockUseProjectQuoteVariance.mockReturnValue({
       data: undefined,
       isLoading: false,
       isError: false,

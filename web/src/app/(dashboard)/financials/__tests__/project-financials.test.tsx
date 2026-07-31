@@ -24,6 +24,7 @@ import {
 } from "../[projectId]/_components/category-mix-chart";
 import {
   QUOTE_VARIANCE_TEST_ID,
+  QUOTE_VARIANCE_TITLE,
   QuoteVarianceTable,
   quoteVarianceCsvRows,
   quoteVarianceKpi,
@@ -882,5 +883,107 @@ describe("quote variance table", () => {
     expect(screen.getByTestId("project-quote-variance-labor-note")).toHaveTextContent(
       /Unburdened labor/
     );
+  });
+});
+
+// --- Task 5 (37-10): mounting the card as a fourth independent query ---
+
+function quoteVarianceState(
+  overrides: Partial<{ data: ProjectQuoteVariance; isLoading: boolean; isError: boolean }> = {}
+) {
+  mockUseProjectQuoteVariance.mockReturnValue({
+    data: undefined,
+    isLoading: false,
+    isError: false,
+    ...overrides,
+  });
+}
+
+describe("Quote variance card wiring", () => {
+  it("renders below the margin trend and above the two-up grid, full width", () => {
+    mockQueries({ data: projectWith() });
+    quoteVarianceState({ data: projectQuoteVarianceWith() });
+
+    renderDashboard();
+
+    const card = screen.getByLabelText(`${QUOTE_VARIANCE_TITLE} chart`);
+    expect(within(card).getByText(QUOTE_VARIANCE_TITLE)).toBeInTheDocument();
+    expect(within(card).getByTestId(QUOTE_VARIANCE_TEST_ID)).toBeInTheDocument();
+  });
+
+  it("stays out of the page loading gate: a slow variance query never blanks the dashboard", () => {
+    mockQueries({ data: projectWith() });
+    quoteVarianceState({ isLoading: true });
+
+    renderDashboard();
+
+    expect(screen.queryByTestId("financials-skeleton")).not.toBeInTheDocument();
+    expect(screen.getByTestId("project-revenue")).toBeInTheDocument();
+    expect(screen.getByTestId("project-quote-variance-skeleton")).toBeInTheDocument();
+  });
+
+  it("a variance query in flight renders two skeleton bars while every other card renders normally", () => {
+    mockQueries(
+      { data: projectWith({ scopes: [scopeRow("s-1", "Electrical", budgetOf("10000.00", "8500.00"))] }) },
+      { data: trendWith({ buckets: THREE_MONTH_TREND }) }
+    );
+    quoteVarianceState({ isLoading: true });
+
+    const { container } = renderDashboard();
+
+    const skeleton = screen.getByTestId("project-quote-variance-skeleton");
+    expect(skeleton.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(2);
+    expect(within(container).getByTestId("scope-budget-bars")).toBeInTheDocument();
+    expect(within(container).getByTestId("category-mix-chart")).toBeInTheDocument();
+    expect(within(container).getByTestId("margin-trend-chart")).toBeInTheDocument();
+  });
+
+  it("a variance query error renders the in-card error line while every other card renders", () => {
+    mockQueries({ data: projectWith() });
+    quoteVarianceState({ isError: true });
+
+    renderDashboard();
+
+    expect(screen.getByTestId("project-quote-variance-error")).toHaveTextContent(
+      "Couldn't load quoted vs actual by trade. Refresh to try again."
+    );
+    expect(screen.getByTestId("project-revenue")).toBeInTheDocument();
+    expect(screen.queryByTestId("financials-error")).not.toBeInTheDocument();
+  });
+
+  it("an empty variance response renders the empty state and the No invoiced work yet KPI", () => {
+    mockQueries({ data: projectWith() });
+    quoteVarianceState({
+      data: projectQuoteVarianceWith({
+        scopes: [],
+        total: tradeOf("Project total", null, null, null, null),
+      }),
+    });
+
+    renderDashboard();
+
+    const card = screen.getByLabelText(`${QUOTE_VARIANCE_TITLE} chart`);
+    expect(within(card).getByText("No completed work to compare")).toBeInTheDocument();
+    expect(within(card).getByText("No invoiced work yet")).toBeInTheDocument();
+  });
+
+  it("passes the locked CSV filename and unrolled csvRows to the ChartCard", () => {
+    mockQueries({ data: projectWith() });
+    const variance = projectQuoteVarianceWith();
+    quoteVarianceState({ data: variance });
+
+    renderDashboard();
+
+    const card = screen.getByLabelText(`${QUOTE_VARIANCE_TITLE} chart`);
+    expect(
+      within(card).getByLabelText(`Download ${QUOTE_VARIANCE_TITLE} as CSV`)
+    ).toBeInTheDocument();
+    expect(quoteVarianceCsvRows(variance)[0]).toEqual([
+      "Trade scope",
+      "Quoted (pre-tax)",
+      "Actual cost",
+      "Variance",
+      "Variance percent",
+    ]);
   });
 });
