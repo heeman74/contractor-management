@@ -20,13 +20,14 @@ from __future__ import annotations
 
 import contextlib
 import json
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
 import pytest
+import structlog
 from httpx import AsyncClient
 from sqlalchemy import CheckConstraint, event, text
 
@@ -37,11 +38,16 @@ from app.core.security import create_access_token
 from app.core.tenant import set_current_tenant_id
 from app.features.finance.margin_math import RevenueAnchor
 from app.features.finance.service import FinanceService, contributing_anchor_cost
-from app.features.quotes.models import QuoteLineItem
-from app.features.quotes.quote_history_math import MIN_COMPARABLES_FOR_SUGGESTION
+from app.features.quotes.models import Quote, QuoteLineItem
+from app.features.quotes.quote_history_math import (
+    MIN_COMPARABLES_FOR_SUGGESTION,
+    summarize_comparables,
+)
 from app.features.quotes.router import SUGGEST_DENY_DETAIL
 from app.features.quotes.service import UNREVIEWED_AI_LINES_DETAIL
+from app.features.quotes.suggestion_payload import build_suggestion_payload, jsonb_payload
 from app.features.quotes.suggestion_repository import ComparableRows, QuoteComparableRepository
+from app.features.quotes.suggestion_service import DROPPED_SUGGESTION_LOG_TEMPLATE
 from app.features.quotes.variance_service import QuoteVarianceService
 
 _QUOTES_URL = "/api/v1/quotes/"
@@ -1405,3 +1411,716 @@ async def test_suggest_prefills_line_items_from_history(
     assert row["review_state"] == "unreviewed"
     assert row["confidence_band"] is not None
     assert row["basis"].startswith(f"median of 3 comparable {_ROOFING_TRADE} scopes")
+
+
+# ---------------------------------------------------------------------------
+# Plan 37-11 Task 1 — Keystones 2 and 2b: an ungrounded structured field and an
+# ungrounded basis figure are both blocked, fail-closed, with a retry budget
+# of exactly one and a logged drop naming the offender.
+#
+# Keystone 2 asserts on a STRUCTURED field, not on prose: validate_grounding
+# returns ok=True for text with no figures at all, so a basis-only assertion
+# can pass for the wrong reason (Pitfall 4 — the same false-green class 36-02
+# already recorded).
+# ---------------------------------------------------------------------------
+
+_CONCRETE_TRADE = "Concrete"
+
+
+async def _seed_concrete_comparables(
+    client: AsyncClient, headers: dict, company_id: str, *, count: int = 3
+) -> None:
+    """Same-trade comparables with a FIXED unit_price/quantity/actual-cost
+    across every anchor — the resulting payload's allowed sets are exact
+    singletons a test can assert precise figures against, no median spread to
+    account for. actual-cost 12.00 lands in the payload's MONEY set while the
+    trade's own variance percent (not 12) lands in the PERCENT set — the exact
+    shape Trap 5's typed-grounding fix exists to keep apart.
+    """
+    await _seed_cost_categories(company_id)
+    materials_id = await _category_id(company_id, "materials")
+    for _ in range(count):
+        job_id = await _create_job(client, trade_type=_CONCRETE_TRADE)
+        quote = await _create_quote(
+            client, job_id, [_line_item(unit_price="100.00", quantity="1.000")]
+        )
+        await _approve_quote(company_id, quote["id"], approved_at=datetime.now(UTC))
+        await _create_invoice(client, company_id, job_id=job_id, amount="10.00")
+        await _add_cost_entry(
+            client, headers, job_id=job_id, category_id=materials_id, amount="12.00"
+        )
+
+
+def _logged_events(logs: Sequence[dict]) -> list[str]:
+    """Every rendered log line a block emitted, in order.
+
+    structlog.testing.capture_logs, never the stdlib pytest logging fixture:
+    this app binds structlog to the stdlib bridge, which defers %-formatting
+    to the handler, so that fixture captures ZERO records from this
+    configuration (verified empirically in 36-07) and an assertion built on
+    it would pass vacuously.
+    """
+    return [entry["event"] for entry in logs]
+
+
+def _grounded_roofing_reply(
+    *,
+    unit_price: object = 100.00,
+    quantity: object = 2,
+    basis: str = "priced consistently with recent roofing jobs",
+) -> MagicMock:
+    """One suggested roofing line, its fields overridable per test — the
+    payload from `_seed_roofing_comparables(count=3)` makes 100.00/2 the only
+    grounded unit_price/quantity pair."""
+    return _make_mock_anthropic_response(
+        {
+            "lines": [
+                {
+                    "item_type": "labor",
+                    "description": "Roofing labor",
+                    "quantity": quantity,
+                    "unit": "hr",
+                    "unit_price": unit_price,
+                    "basis": basis,
+                }
+            ]
+        }
+    )
+
+
+@pytest.mark.asyncio
+async def test_ungrounded_line_blocked(tenant_a_client: AsyncClient, seed_two_tenants: dict):
+    """KEYSTONE 2: a structured unit_price absent from the payload's allowed
+    set is blocked and no line is persisted."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_roofing_comparables(tenant_a_client, headers, company_id, count=3)
+
+    job_id = await _create_job(tenant_a_client, trade_type=_ROOFING_TRADE)
+    created = await _create_quote(tenant_a_client, job_id, [])
+
+    with patch("app.core.ai_utils.get_anthropic_client") as mock_client:
+        create = AsyncMock(return_value=_grounded_roofing_reply(unit_price=999.99))
+        mock_client.return_value.messages.create = create
+        resp = await tenant_a_client.post(_suggest_url(created["id"]), headers=headers)
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["refusal_reason"] == "ungrounded"
+    assert body["suggested_line_count"] == 0
+    assert create.await_count == 2
+
+    rows = await _line_item_rows(company_id, created["id"])
+    assert rows == []
+
+
+@pytest.mark.asyncio
+async def test_ungrounded_quantity_blocked(tenant_a_client: AsyncClient, seed_two_tenants: dict):
+    """The same fail-closed path for a structured quantity outside the closed set."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_roofing_comparables(tenant_a_client, headers, company_id, count=3)
+
+    job_id = await _create_job(tenant_a_client, trade_type=_ROOFING_TRADE)
+    created = await _create_quote(tenant_a_client, job_id, [])
+
+    with patch("app.core.ai_utils.get_anthropic_client") as mock_client:
+        create = AsyncMock(return_value=_grounded_roofing_reply(quantity=999))
+        mock_client.return_value.messages.create = create
+        resp = await tenant_a_client.post(_suggest_url(created["id"]), headers=headers)
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["refusal_reason"] == "ungrounded"
+    assert body["suggested_line_count"] == 0
+    assert create.await_count == 2
+
+    rows = await _line_item_rows(company_id, created["id"])
+    assert rows == []
+
+
+@pytest.mark.asyncio
+async def test_cent_level_price_drift_blocked(tenant_a_client: AsyncClient, seed_two_tenants: dict):
+    """Structured membership is EXACT: a unit_price one cent off an allowed
+    price is blocked — unlike the whole-dollar loosening money PROSE gets from
+    validate_typed_grounding, a structured field is a number the model copied,
+    never one it formatted for a sentence."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_roofing_comparables(tenant_a_client, headers, company_id, count=3)
+
+    job_id = await _create_job(tenant_a_client, trade_type=_ROOFING_TRADE)
+    created = await _create_quote(tenant_a_client, job_id, [])
+
+    with patch("app.core.ai_utils.get_anthropic_client") as mock_client:
+        create = AsyncMock(return_value=_grounded_roofing_reply(unit_price=100.01))
+        mock_client.return_value.messages.create = create
+        resp = await tenant_a_client.post(_suggest_url(created["id"]), headers=headers)
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["refusal_reason"] == "ungrounded"
+    assert create.await_count == 2
+
+    rows = await _line_item_rows(company_id, created["id"])
+    assert rows == []
+
+
+@pytest.mark.asyncio
+async def test_ungrounded_basis_blocked(tenant_a_client: AsyncClient, seed_two_tenants: dict):
+    """KEYSTONE 2b: valid structured fields, but a basis dollar figure absent
+    from the payload's money set is blocked."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_roofing_comparables(tenant_a_client, headers, company_id, count=3)
+
+    job_id = await _create_job(tenant_a_client, trade_type=_ROOFING_TRADE)
+    created = await _create_quote(tenant_a_client, job_id, [])
+
+    with patch("app.core.ai_utils.get_anthropic_client") as mock_client:
+        create = AsyncMock(
+            return_value=_grounded_roofing_reply(basis="priced well above the usual $999.99 job")
+        )
+        mock_client.return_value.messages.create = create
+        resp = await tenant_a_client.post(_suggest_url(created["id"]), headers=headers)
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["refusal_reason"] == "ungrounded"
+    assert create.await_count == 2
+
+    rows = await _line_item_rows(company_id, created["id"])
+    assert rows == []
+
+
+@pytest.mark.asyncio
+async def test_percent_cannot_borrow_a_money_value(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    """Trap 5's fix, proven at the integration level: a payload MONEY value
+    (12.00, the actual-cost figure) is not a valid PERCENT citation even
+    though it is a valid money one. With the shipped flat collector this
+    citation would have passed."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_concrete_comparables(tenant_a_client, headers, company_id)
+
+    job_id = await _create_job(tenant_a_client, trade_type=_CONCRETE_TRADE)
+    created = await _create_quote(tenant_a_client, job_id, [])
+
+    reply = _make_mock_anthropic_response(
+        {
+            "lines": [
+                {
+                    "item_type": "labor",
+                    "description": "Concrete labor, priced from company history",
+                    "quantity": 1,
+                    "unit": "hr",
+                    "unit_price": 100.00,
+                    "basis": "past concrete jobs ran 12% under actual",
+                }
+            ]
+        }
+    )
+    with patch("app.core.ai_utils.get_anthropic_client") as mock_client:
+        create = AsyncMock(return_value=reply)
+        mock_client.return_value.messages.create = create
+        resp = await tenant_a_client.post(_suggest_url(created["id"]), headers=headers)
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["refusal_reason"] == "ungrounded"
+    assert body["suggested_line_count"] == 0
+    assert create.await_count == 2
+
+    rows = await _line_item_rows(company_id, created["id"])
+    assert rows == []
+
+
+@pytest.mark.asyncio
+async def test_grounding_retry_used_exactly_once(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    """The retry budget is exactly one: a persistently ungrounded reply is
+    awaited twice, never more, before the whole set drops."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_roofing_comparables(tenant_a_client, headers, company_id, count=3)
+
+    job_id = await _create_job(tenant_a_client, trade_type=_ROOFING_TRADE)
+    created = await _create_quote(tenant_a_client, job_id, [])
+
+    bad_reply = _grounded_roofing_reply(unit_price=999.99)
+    with patch("app.core.ai_utils.get_anthropic_client") as mock_client:
+        create = AsyncMock(side_effect=[bad_reply, bad_reply, bad_reply])
+        mock_client.return_value.messages.create = create
+        resp = await tenant_a_client.post(_suggest_url(created["id"]), headers=headers)
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["refusal_reason"] == "ungrounded"
+    assert create.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_ungrounded_drop_is_logged(tenant_a_client: AsyncClient, seed_two_tenants: dict):
+    """A dropped suggestion set is logged through a call-site-rendered template
+    naming the offending literal — structlog.testing.capture_logs, never the
+    stdlib pytest logging fixture, which captures zero records from this app's
+    structlog configuration."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_roofing_comparables(tenant_a_client, headers, company_id, count=3)
+
+    job_id = await _create_job(tenant_a_client, trade_type=_ROOFING_TRADE)
+    created = await _create_quote(tenant_a_client, job_id, [])
+
+    with patch("app.core.ai_utils.get_anthropic_client") as mock_client:
+        mock_client.return_value.messages.create = AsyncMock(
+            return_value=_grounded_roofing_reply(unit_price=999.99)
+        )
+        with structlog.testing.capture_logs() as logs:
+            resp = await tenant_a_client.post(_suggest_url(created["id"]), headers=headers)
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["refusal_reason"] == "ungrounded"
+
+    expected = DROPPED_SUGGESTION_LOG_TEMPLATE % (UUID(created["id"]), "unit_price")
+    assert expected in _logged_events(logs)
+
+
+# ---------------------------------------------------------------------------
+# Plan 37-11 Task 2 — Keystone 4: regeneration preserves reviewed work, and
+# the persisted confidence band always comes from code.
+#
+# A second suggestion run never goes through QuoteService.update_quote's
+# id-keyed reconcile — it deletes only server-owned AI rows still unreviewed
+# and inserts fresh ones (suggestion_service._persist). Every assertion below
+# reads the row's `id` back, not just its content: a deleted-and-recreated
+# look-alike is exactly Pitfall 2 / Trap 1's failure mode.
+# ---------------------------------------------------------------------------
+
+_FULL_LINE_ITEM_ROWS_SQL = (
+    "SELECT id, item_type, description, quantity, unit, unit_price, field, "
+    "ai_origin, review_state, confidence_band, basis, sort_order "
+    "FROM quote_line_items WHERE quote_id = CAST(:quote_id AS uuid) ORDER BY sort_order"
+)
+
+
+async def _full_line_item_rows(company_id: str, quote_id: str) -> list[dict]:
+    """Every column a regeneration test needs to prove byte-identity, id
+    included — the only thing separating a preserved row from a deleted-and-
+    recreated look-alike."""
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        result = await session.execute(text(_FULL_LINE_ITEM_ROWS_SQL), {"quote_id": quote_id})
+        return [dict(row._mapping) for row in result]
+
+
+async def _quote_ai_suggestion_payload(company_id: str, quote_id: str) -> dict | None:
+    """The audit-trail JSONB exactly as stored, read through the ORM (the
+    shipped `_stored_payload` precedent, test_phase_36_e2e.py) so the JSONB
+    column decodes to a plain dict rather than a raw text() query."""
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        quote = await session.get(Quote, UUID(quote_id))
+        assert quote is not None
+        return quote.ai_suggestion_payload
+
+
+def _roofing_line(description: str, **extra: object) -> dict:
+    """One grounded roofing line — unit_price/quantity copied verbatim from
+    the single rate row `_seed_roofing_comparables(count=3)` produces (median
+    unit_price 100.00, median quantity 2.000). Extra keys (e.g. a self-
+    reported `confidence`) ride along unread — nothing in the service looks
+    at them."""
+    return {
+        "item_type": "labor",
+        "description": description,
+        "quantity": 2,
+        "unit": "hr",
+        "unit_price": 100.00,
+        "basis": "priced consistently with recent roofing jobs",
+        **extra,
+    }
+
+
+def _patch_item_from(row: dict, *, review_state: str | None = None, **overrides: object) -> dict:
+    """One quote_line_items DB row turned into a PATCH-body item, preserving
+    every priced field unless overridden — the only way review_state_after
+    can resolve to 'edited' or stay unreviewed on purpose, rather than by
+    accident."""
+    item: dict = {
+        "id": str(row["id"]),
+        "item_type": row["item_type"],
+        "description": row["description"],
+        "quantity": str(row["quantity"]),
+        "unit": row["unit"],
+        "unit_price": str(row["unit_price"]),
+        "sort_order": row["sort_order"],
+    }
+    if row.get("field") is not None:
+        item["field"] = row["field"]
+    item.update(overrides)
+    if review_state is not None:
+        item["review_state"] = review_state
+    return item
+
+
+async def _run_suggest(
+    client: AsyncClient, headers: dict, quote_id: str, lines: list[dict]
+) -> dict:
+    """One suggestion run against a mocked Claude reply, returning the response body."""
+    reply = _make_mock_anthropic_response({"lines": lines})
+    with patch("app.core.ai_utils.get_anthropic_client") as mock_client:
+        mock_client.return_value.messages.create = AsyncMock(return_value=reply)
+        resp = await client.post(_suggest_url(quote_id), headers=headers)
+    assert resp.status_code == 200, resp.text
+    return resp.json()
+
+
+@pytest.mark.asyncio
+async def test_regenerate_preserves_reviewed_lines(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    """KEYSTONE 4: a second suggestion run leaves an accepted line and an
+    edited line byte-identical, id included, and replaces only the AI line
+    that was left unreviewed. A hand-built line is untouched by either run."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_roofing_comparables(tenant_a_client, headers, company_id, count=3)
+
+    job_id = await _create_job(tenant_a_client, trade_type=_ROOFING_TRADE)
+    created = await _create_quote(tenant_a_client, job_id, [])
+
+    first = await _run_suggest(
+        tenant_a_client,
+        headers,
+        created["id"],
+        [
+            _roofing_line("First AI line — keep as accepted"),
+            _roofing_line("Second AI line — keep as edited"),
+            _roofing_line("Third AI line — leave unreviewed"),
+        ],
+    )
+    assert first["suggested_line_count"] == 3
+
+    accept_row, edit_row, untouched_row = await _full_line_item_rows(company_id, created["id"])
+    untouched_id = untouched_row["id"]
+
+    hand_built = _line_item("Hand-built line", sort_order=3)
+    await _patch_quote(
+        tenant_a_client,
+        created["id"],
+        [
+            _patch_item_from(accept_row, review_state="accepted"),
+            _patch_item_from(edit_row, unit_price="150.00"),
+            _patch_item_from(untouched_row),
+            hand_built,
+        ],
+    )
+
+    before = await _full_line_item_rows(company_id, created["id"])
+    accepted_before = next(row for row in before if row["id"] == accept_row["id"])
+    edited_before = next(row for row in before if row["id"] == edit_row["id"])
+    hand_built_before = next(row for row in before if row["description"] == "Hand-built line")
+    assert accepted_before["review_state"] == "accepted"
+    assert edited_before["review_state"] == "edited"
+
+    second = await _run_suggest(
+        tenant_a_client,
+        headers,
+        created["id"],
+        [_roofing_line("Fresh line from the second run", confidence="high")],
+    )
+    assert second["suggested_line_count"] == 1
+
+    after = await _full_line_item_rows(company_id, created["id"])
+    after_by_id = {row["id"]: row for row in after}
+
+    assert untouched_id not in after_by_id
+    assert after_by_id[accept_row["id"]] == accepted_before
+    assert after_by_id[edit_row["id"]] == edited_before
+    assert after_by_id[hand_built_before["id"]] == hand_built_before
+
+    kept_ids = {accept_row["id"], edit_row["id"], hand_built_before["id"]}
+    new_rows = [row for row in after if row["id"] not in kept_ids]
+    assert len(new_rows) == 1
+    assert new_rows[0]["description"] == "Fresh line from the second run"
+    assert new_rows[0]["ai_origin"] is True
+    assert new_rows[0]["review_state"] == "unreviewed"
+
+
+@pytest.mark.asyncio
+async def test_regenerate_replaces_untouched_ai_lines(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    """Every remaining unreviewed AI line is replaced, not just the first —
+    D-08's set-wide language, proven at more than one row."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_roofing_comparables(tenant_a_client, headers, company_id, count=3)
+
+    job_id = await _create_job(tenant_a_client, trade_type=_ROOFING_TRADE)
+    created = await _create_quote(tenant_a_client, job_id, [])
+
+    first = await _run_suggest(
+        tenant_a_client,
+        headers,
+        created["id"],
+        [_roofing_line("Untouched A"), _roofing_line("Untouched B")],
+    )
+    assert first["suggested_line_count"] == 2
+    original_ids = {row["id"] for row in await _full_line_item_rows(company_id, created["id"])}
+
+    second = await _run_suggest(
+        tenant_a_client,
+        headers,
+        created["id"],
+        [_roofing_line("Fresh A"), _roofing_line("Fresh B"), _roofing_line("Fresh C")],
+    )
+    assert second["suggested_line_count"] == 3
+
+    after = await _full_line_item_rows(company_id, created["id"])
+    assert original_ids.isdisjoint({row["id"] for row in after})
+    assert len(after) == 3
+
+
+@pytest.mark.asyncio
+async def test_regenerate_leaves_hand_built_lines_alone(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    """A hand-built line — never AI-originated — is untouched by a suggestion
+    run: not deleted, not reviewed, not re-ordered away from its content."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_roofing_comparables(tenant_a_client, headers, company_id, count=3)
+
+    job_id = await _create_job(tenant_a_client, trade_type=_ROOFING_TRADE)
+    created = await _create_quote(
+        tenant_a_client, job_id, [_line_item("Hand-built line", unit_price="75.00")]
+    )
+    hand_built_before = (await _full_line_item_rows(company_id, created["id"]))[0]
+
+    resp = await _run_suggest(tenant_a_client, headers, created["id"], [_roofing_line("AI line")])
+    assert resp["suggested_line_count"] == 1
+
+    after = await _full_line_item_rows(company_id, created["id"])
+    hand_built_after = next(row for row in after if row["id"] == hand_built_before["id"])
+    assert hand_built_after == hand_built_before
+    assert len(after) == 2
+
+
+@pytest.mark.asyncio
+async def test_regenerate_preserves_kept_line_order(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    """Kept lines (accepted/edited/hand-built) keep their relative order; a
+    second run's fresh lines land after every kept one, never interleaved."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_roofing_comparables(tenant_a_client, headers, company_id, count=3)
+
+    job_id = await _create_job(tenant_a_client, trade_type=_ROOFING_TRADE)
+    created = await _create_quote(tenant_a_client, job_id, [])
+
+    await _run_suggest(
+        tenant_a_client,
+        headers,
+        created["id"],
+        [_roofing_line("Keep first"), _roofing_line("Keep second")],
+    )
+    keep_first, keep_second = await _full_line_item_rows(company_id, created["id"])
+
+    await _patch_quote(
+        tenant_a_client,
+        created["id"],
+        [
+            _patch_item_from(keep_first, review_state="accepted"),
+            _patch_item_from(keep_second, review_state="accepted"),
+        ],
+    )
+
+    await _run_suggest(tenant_a_client, headers, created["id"], [_roofing_line("Fresh")])
+
+    after = await _full_line_item_rows(company_id, created["id"])
+    assert [row["id"] for row in after[:2]] == [keep_first["id"], keep_second["id"]]
+    assert after[2]["description"] == "Fresh"
+
+
+@pytest.mark.asyncio
+async def test_band_is_code_computed(tenant_a_client: AsyncClient, seed_two_tenants: dict):
+    """D-05: the persisted confidence_band is always the code-computed one — a
+    self-reported band anywhere in the reply is never read back out. Exactly
+    the D-09 comparable floor (3) computes LOW on the count axis no matter how
+    tight the price agreement is on the spread axis (D-05's worse-of-two-axes
+    rule), so this is a stable, deterministic pin regardless of the model's
+    own claim."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_roofing_comparables(tenant_a_client, headers, company_id, count=3)
+
+    job_id = await _create_job(tenant_a_client, trade_type=_ROOFING_TRADE)
+    created = await _create_quote(tenant_a_client, job_id, [])
+
+    resp = await _run_suggest(
+        tenant_a_client,
+        headers,
+        created["id"],
+        [_roofing_line("Roofing labor", confidence="high")],
+    )
+    assert resp["suggested_line_count"] == 1
+
+    rows = await _full_line_item_rows(company_id, created["id"])
+    assert len(rows) == 1
+    assert rows[0]["confidence_band"] == "low"
+
+
+@pytest.mark.asyncio
+async def test_suggestion_payload_is_stored_for_audit(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    """The quote's ai_suggestion_payload holds exactly the payload the LATEST
+    run validated its lines against, independently rebuilt from the same
+    comparable read."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_roofing_comparables(tenant_a_client, headers, company_id, count=3)
+
+    job_id = await _create_job(tenant_a_client, trade_type=_ROOFING_TRADE)
+    created = await _create_quote(tenant_a_client, job_id, [])
+
+    resp = await _run_suggest(
+        tenant_a_client, headers, created["id"], [_roofing_line("Roofing labor")]
+    )
+    assert resp["suggested_line_count"] == 1
+
+    rows = await _comparables_for_trade(company_id, _ROOFING_TRADE)
+    summary = summarize_comparables(_ROOFING_TRADE, rows.anchors, rows.lines)
+    expected_payload = jsonb_payload(build_suggestion_payload(summary).payload)
+
+    stored_payload = await _quote_ai_suggestion_payload(company_id, created["id"])
+    assert stored_payload == expected_payload
+
+
+# ---------------------------------------------------------------------------
+# Plan 37-11 Task 3 — D-13 pricing basis and the payload variance leg (FINAI-05)
+# ---------------------------------------------------------------------------
+
+_FRAMING_TRADE = "Framing"
+
+
+async def _seed_framing_comparables(
+    client: AsyncClient,
+    headers: dict,
+    company_id: str,
+    *,
+    count: int = 3,
+    materials_cost: str = "33.00",
+) -> None:
+    """Same-trade comparables quoted well above their actual cost (100.00
+    quoted vs 33.00 actual per anchor) — D-13's 'profitable trade' precondition,
+    fixed unit_price/quantity so the resulting payload carries exact figures."""
+    await _seed_cost_categories(company_id)
+    materials_id = await _category_id(company_id, "materials")
+    for _ in range(count):
+        job_id = await _create_job(client, trade_type=_FRAMING_TRADE)
+        quote = await _create_quote(
+            client, job_id, [_line_item(unit_price="100.00", quantity="1.000")]
+        )
+        await _approve_quote(company_id, quote["id"], approved_at=datetime.now(UTC))
+        await _create_invoice(client, company_id, job_id=job_id, amount="10.00")
+        await _add_cost_entry(
+            client, headers, job_id=job_id, category_id=materials_id, amount=materials_cost
+        )
+
+
+@pytest.mark.asyncio
+async def test_pricing_basis_comes_from_quoted_history(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    """D-13 as a test: a suggestion prices from the QUOTED rate, not the
+    unburdened actual-cost rate. Pricing from actual cost would make every
+    suggestion at or below cost — PITFALLS #2 names this defect verbatim."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_framing_comparables(tenant_a_client, headers, company_id, count=3)
+
+    job_id = await _create_job(tenant_a_client, trade_type=_FRAMING_TRADE)
+    created = await _create_quote(tenant_a_client, job_id, [])
+
+    rows = await _comparables_for_trade(company_id, _FRAMING_TRADE)
+    summary = summarize_comparables(_FRAMING_TRADE, rows.anchors, rows.lines)
+    payload = build_suggestion_payload(summary).payload
+    quoted_rate = payload["rate_rows"][0]["median_quoted_unit_price"]
+    actual_leg = payload["median_actual_total_per_comparable"]
+    assert actual_leg < quoted_rate, "fixture must seed a profitable trade"
+
+    resp = await _run_suggest(
+        tenant_a_client,
+        headers,
+        created["id"],
+        [
+            {
+                "item_type": "labor",
+                "description": "Framing labor, priced from company history",
+                "quantity": 1,
+                "unit": "hr",
+                "unit_price": float(quoted_rate),
+                "basis": "priced consistently with recent framing jobs",
+            }
+        ],
+    )
+    assert resp["suggested_line_count"] == 1
+
+    persisted = (await _full_line_item_rows(company_id, created["id"]))[0]
+    assert persisted["unit_price"] == quoted_rate
+    assert persisted["unit_price"] > actual_leg
+
+
+@pytest.mark.asyncio
+async def test_actual_cost_and_variance_are_separately_named_payload_fields(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    """D-12: the quoted price, the actual cost and the variance percent are
+    three distinct payload keys, and none is the arithmetic product of the
+    other two — nothing here multiplies, adjusts or blends the two legs."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_framing_comparables(tenant_a_client, headers, company_id, count=3)
+
+    rows = await _comparables_for_trade(company_id, _FRAMING_TRADE)
+    summary = summarize_comparables(_FRAMING_TRADE, rows.anchors, rows.lines)
+    payload = build_suggestion_payload(summary).payload
+
+    quoted = payload["rate_rows"][0]["median_quoted_unit_price"]
+    actual = payload["median_actual_total_per_comparable"]
+    variance = payload["quoted_vs_actual_variance_percent"]
+
+    # Pinned to the seeded fixture (100.00 quoted, 33.00 actual, 3 anchors) so
+    # the "no field is a product of two others" claim is checked on real
+    # values, not merely asserted in prose.
+    assert quoted == Decimal("100.00")
+    assert actual == Decimal("33.00")
+    assert variance == Decimal("-67.0")
+    assert quoted != actual
+    assert quoted != variance
+    assert actual != variance
+    assert quoted != actual * variance
+    assert actual != quoted * variance
+    assert variance != quoted * actual
+
+
+@pytest.mark.asyncio
+async def test_variance_in_payload(tenant_a_client: AsyncClient, seed_two_tenants: dict):
+    """FINAI-05: the trade's quoted-vs-actual variance percent rides into the
+    payload as a named field, inside the AllowedFigures.percents set, so the
+    AI may state it in the basis (D-12)."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_framing_comparables(tenant_a_client, headers, company_id, count=3)
+
+    rows = await _comparables_for_trade(company_id, _FRAMING_TRADE)
+    summary = summarize_comparables(_FRAMING_TRADE, rows.anchors, rows.lines)
+    result = build_suggestion_payload(summary)
+
+    variance = result.payload["quoted_vs_actual_variance_percent"]
+    assert variance is not None
+    assert variance in result.allowed_figures.percents
