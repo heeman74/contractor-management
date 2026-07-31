@@ -311,7 +311,10 @@ test.describe("Phase 21: AI Interview Page", () => {
     await page.getByRole("button", { name: "Accept Plan" }).click({ force: true });
 
     // Should navigate back to project detail
-    await expect(page).toHaveURL(`/projects/${MOCK_PROJECT_ID}`, {
+    // The project list owns project detail and pre-selects via ?project=;
+    // there is no /projects/[id] route (refactor-project-preselect.spec.ts
+    // asserts that path 404s by design).
+    await expect(page).toHaveURL(`/projects?project=${MOCK_PROJECT_ID}`, {
       timeout: 10_000,
     });
   });
