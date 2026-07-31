@@ -262,8 +262,8 @@ test("job detail shows an invoiced margin with no caption and no chip", async ({
   await openJobDetail(page);
 
   await expect(page.getByTestId("margin-section")).toBeVisible();
-  await expect(page.getByTestId("margin-revenue")).toHaveText("$20000.00");
-  await expect(page.getByTestId("margin-figure")).toHaveText("$4200.00 · 21%");
+  await expect(page.getByTestId("margin-revenue")).toHaveText("$20,000.00");
+  await expect(page.getByTestId("margin-figure")).toHaveText("$4,200.00 · 21%");
   await expect(page.getByTestId("margin-basis-caption")).toHaveCount(0);
   await expect(page.getByTestId("margin-incomplete-chip")).toHaveCount(0);
 });
@@ -301,7 +301,7 @@ test("project Costs card shows the mixed-basis caption, and a no-revenue scope s
   await expect(page.getByTestId("margin-basis-caption")).toHaveText(
     "Includes approved quote amounts not yet invoiced."
   );
-  await expect(page.getByTestId("margin-figure")).toHaveText("$4200.00 · 21%");
+  await expect(page.getByTestId("margin-figure")).toHaveText("$4,200.00 · 21%");
 
   await openTradeScope(page);
 
@@ -328,7 +328,7 @@ test("KEYSTONE: legacy job with revenue and zero costs still shows the flagged m
   await expect(page.getByTestId("margin-incomplete-caption")).toHaveText(
     "Margin may overstate profit — some costs are missing or unrated."
   );
-  await expect(page.getByTestId("margin-figure")).toHaveText("$2000.00 · 100%");
+  await expect(page.getByTestId("margin-figure")).toHaveText("$2,000.00 · 100%");
 });
 
 test("no margin renders anywhere without finance.view", async ({ page }) => {

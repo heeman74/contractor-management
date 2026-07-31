@@ -138,7 +138,7 @@ describe("CompanyFinancialsDashboard shell", () => {
     expect(screen.getByText("Portfolio revenue")).toBeInTheDocument();
     expect(screen.getByText("Portfolio cost")).toBeInTheDocument();
     expect(screen.getByText("Portfolio margin")).toBeInTheDocument();
-    expect(screen.getByTestId("portfolio-cost")).toHaveTextContent("$79000.00");
+    expect(screen.getByTestId("portfolio-cost")).toHaveTextContent("$79,000.00");
   });
 });
 
@@ -172,7 +172,7 @@ describe("FinanceSummaryTiles revenue basis", () => {
     );
 
     expect(screen.getByTestId("portfolio-revenue-basis")).toHaveTextContent(
-      "Includes $18400.00 from approved quotes — not yet invoiced."
+      "Includes $18,400.00 from approved quotes — not yet invoiced."
     );
   });
 
@@ -224,7 +224,7 @@ describe("FinanceSummaryTiles margin figure", () => {
     );
 
     const figure = screen.getByTestId("portfolio-margin");
-    expect(figure).toHaveTextContent("-$3500.00");
+    expect(figure).toHaveTextContent("-$3,500.00");
     expect(figure).toHaveClass("text-destructive");
     expect(figure).toHaveClass("text-3xl");
     expect(screen.getByTestId("portfolio-margin-percent")).toHaveTextContent("-8% margin");
@@ -244,7 +244,7 @@ describe("FinanceSummaryTiles margin figure", () => {
 
     expect(screen.getByTestId("project-revenue")).toHaveTextContent("—");
     expect(screen.getByTestId("project-margin")).toHaveTextContent("—");
-    expect(screen.getByTestId("project-cost")).toHaveTextContent("$40120.00");
+    expect(screen.getByTestId("project-cost")).toHaveTextContent("$40,120.00");
     expect(screen.queryByTestId("project-margin-percent")).not.toBeInTheDocument();
     expect(screen.queryByTestId("project-revenue-basis")).not.toBeInTheDocument();
     expect(screen.queryByTestId("project-incomplete-badge")).not.toBeInTheDocument();
@@ -590,7 +590,7 @@ describe("AttentionList", () => {
     );
 
     expect(screen.getByTestId("attention-row-c")).toHaveTextContent(
-      "$11200.00 of $10000.00"
+      "$11,200.00 of $10,000.00"
     );
     expect(screen.getByTestId("attention-row-b")).toHaveTextContent(INCOMPLETE_CAPTION);
   });
@@ -700,7 +700,7 @@ describe("ProjectsTable", () => {
     render(<ProjectsTable projects={[project]} />);
 
     const cell = screen.getByTestId("projects-table-margin-p-1");
-    expect(cell).toHaveTextContent("-$3500.00");
+    expect(cell).toHaveTextContent("-$3,500.00");
     expect(cell).toHaveClass("text-red-800");
     expect(cell).not.toHaveClass("text-destructive");
   });

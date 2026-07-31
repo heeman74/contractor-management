@@ -83,13 +83,13 @@ test("builds a project-level quote payload grouped by field", async ({ page }) =
   const sections = page.getByTestId("field-section");
   await sections.nth(0).getByLabel("Field / trade").fill("Electrical");
   await sections.nth(0).getByLabel("Description").fill("Install panel");
-  await sections.nth(0).getByLabel("Unit price").fill("90");
+  await sections.nth(0).getByLabel("Rate ($/hr)").fill("90");
 
   // Add a second field section.
   await page.getByTestId("add-field-button").click();
   await sections.nth(1).getByLabel("Field / trade").fill("Plumbing");
   await sections.nth(1).getByLabel("Description").fill("Run lines");
-  await sections.nth(1).getByLabel("Unit price").fill("85");
+  await sections.nth(1).getByLabel("Rate ($/hr)").fill("85");
 
   await page.getByRole("button", { name: "Save Draft" }).click();
 

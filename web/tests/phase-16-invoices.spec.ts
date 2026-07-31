@@ -293,14 +293,14 @@ test.describe("Phase 16 -- Invoices", () => {
 
     // Payment Summary card shows Total, Paid, Balance
     // The detail page renders: ${Number(val).toFixed(2)} — no comma formatting
-    // Total: $1650.00
-    await expect(page.getByText("$1650.00").first()).toBeVisible();
+    // Total: $1,650.00
+    await expect(page.getByText("$1,650.00").first()).toBeVisible();
 
     // Paid: $500.00
     await expect(page.getByText("$500.00").first()).toBeVisible();
 
-    // Balance: $1150.00
-    await expect(page.getByText("$1150.00").first()).toBeVisible();
+    // Balance: $1,150.00
+    await expect(page.getByText("$1,150.00").first()).toBeVisible();
   });
 
   test("invoice detail: record partial payment updates balance", async ({ page }) => {

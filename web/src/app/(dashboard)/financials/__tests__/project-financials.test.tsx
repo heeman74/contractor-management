@@ -248,9 +248,9 @@ describe("ProjectFinancialsDashboard shell", () => {
     expect(screen.getByText("Revenue")).toBeInTheDocument();
     expect(screen.getByText("Cost")).toBeInTheDocument();
     expect(screen.getByText("Margin")).toBeInTheDocument();
-    expect(screen.getByTestId("project-revenue")).toHaveTextContent("$100000.00");
-    expect(screen.getByTestId("project-cost")).toHaveTextContent("$79000.00");
-    expect(screen.getByTestId("project-margin")).toHaveTextContent("$21000.00");
+    expect(screen.getByTestId("project-revenue")).toHaveTextContent("$100,000.00");
+    expect(screen.getByTestId("project-cost")).toHaveTextContent("$79,000.00");
+    expect(screen.getByTestId("project-margin")).toHaveTextContent("$21,000.00");
     expect(screen.queryByTestId("project-incomplete-badge")).not.toBeInTheDocument();
   });
 
@@ -261,7 +261,7 @@ describe("ProjectFinancialsDashboard shell", () => {
 
     expect(screen.getByTestId("project-revenue")).toHaveTextContent("—");
     expect(screen.getByTestId("project-margin")).toHaveTextContent("—");
-    expect(screen.getByTestId("project-cost")).toHaveTextContent("$79000.00");
+    expect(screen.getByTestId("project-cost")).toHaveTextContent("$79,000.00");
     expect(screen.queryByTestId("project-margin-percent")).not.toBeInTheDocument();
     expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
   });
@@ -356,11 +356,11 @@ describe("MarginTrendChart series", () => {
   it("labels every figure from the backend string, and the cost series never goes null", () => {
     const data = toTrendData(THREE_MONTH_TREND);
 
-    expect(data[0].revenueLabel).toBe("$14000.00");
-    expect(data[0].marginLabel).toBe("$4000.00");
+    expect(data[0].revenueLabel).toBe("$14,000.00");
+    expect(data[0].marginLabel).toBe("$4,000.00");
     expect(data[0].marginPercentLabel).toBe("28.6%");
-    expect(data[2].marginLabel).toBe("-$4000.00");
-    expect(data[1].costLabel).toBe("$12000.00");
+    expect(data[2].marginLabel).toBe("-$4,000.00");
+    expect(data[1].costLabel).toBe("$12,000.00");
     expect(data[1].cost).toBe(12000);
   });
 
@@ -568,8 +568,8 @@ describe("ScopeBudgetBars", () => {
     expect(rows.map((row) => row.label)).toEqual(["Electrical", "Plumbing"]);
     expect(rows[0].id).toBe("s-2");
     expect(rows[0].percentUsed).toBe("140.0");
-    expect(rows[0].spentLabel).toBe("$1400.00");
-    expect(rows[0].budgetLabel).toBe("$1000.00");
+    expect(rows[0].spentLabel).toBe("$1,400.00");
+    expect(rows[0].budgetLabel).toBe("$1,000.00");
   });
 
   it("attaches no click-through, because no per-scope financial route exists", () => {
@@ -670,7 +670,7 @@ describe("CategoryMixChart", () => {
     ];
     const slices = toCategorySlices(seven, null);
 
-    expect(categoryTooltipDetail(slices[0], 62000)).toBe("$30000.00 (48.4%)");
+    expect(categoryTooltipDetail(slices[0], 62000)).toBe("$30,000.00 (48.4%)");
     expect(categoryTooltipDetail(slices.at(-1)!, 62000)).toContain("Signage, Fuel");
 
     const rows = categoryMixCsvRows(seven, null);
@@ -711,7 +711,7 @@ describe("CategoryMixChart", () => {
   });
 
   it("states the total cost in the card kpi", () => {
-    expect(categoryMixKpi("40120.00")).toBe("$40120.00 total cost");
+    expect(categoryMixKpi("40120.00")).toBe("$40,120.00 total cost");
   });
 });
 
@@ -733,7 +733,7 @@ describe("Scope and category card wiring", () => {
 
     const mixCard = screen.getByLabelText("Cost Category Mix chart");
     expect(within(mixCard).getByText("Cost Category Mix")).toBeInTheDocument();
-    expect(within(mixCard).getByText("$79000.00 total cost")).toBeInTheDocument();
+    expect(within(mixCard).getByText("$79,000.00 total cost")).toBeInTheDocument();
     expect(within(mixCard).getByTestId("category-mix-chart")).toBeInTheDocument();
   });
 });

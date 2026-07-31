@@ -412,8 +412,8 @@ test.describe("Phase 16 -- Quotes", () => {
 
     // Financial summary values
     await expect(page.getByText("Subtotal").first()).toBeVisible();
-    await expect(page.getByText("$1500.00").first()).toBeVisible();
-    await expect(page.getByText("$1650.00").first()).toBeVisible();
+    await expect(page.getByText("$1,500.00").first()).toBeVisible();
+    await expect(page.getByText("$1,650.00").first()).toBeVisible();
   });
 
   test("quote detail: shows context-sensitive action buttons", async ({
@@ -514,8 +514,8 @@ test.describe("Phase 16 -- Quotes", () => {
     await page.locator("h1").click();
 
     // Wait for React to re-render with updated computed values
-    // The sticky financial summary footer shows subtotal as $1000.00
-    await expect(page.getByText("$1000.00").first()).toBeVisible({ timeout: 10000 });
+    // The sticky financial summary footer shows subtotal as $1,000.00
+    await expect(page.getByText("$1,000.00").first()).toBeVisible({ timeout: 10000 });
   });
 
   test("quote builder: drag reorder line items", async ({ page }) => {

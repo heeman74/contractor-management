@@ -440,9 +440,9 @@ const PRICING_BASIS_CAPTION =
 const COLD_START_HEADING = `Not enough ${TRADE_NAME} history yet`;
 const REGENERATE_DIALOG_TITLE = "Replace unreviewed suggestions?";
 const REGENERATE_DIALOG_BODY = `${AI_LINE_COUNT} unreviewed suggestions will be replaced with fresh ones. Lines you've accepted or edited stay exactly as they are.`;
-const QUOTE_VARIANCE_FIGURE = "$1380.00 · 7.5%";
+const QUOTE_VARIANCE_FIGURE = "$1,380.00 · 7.5%";
 const QUOTE_VARIANCE_INTERPRETATION =
-  "Actual cost ran $1380.00 (7.5%) above this quote's pre-tax price.";
+  "Actual cost ran $1,380.00 (7.5%) above this quote's pre-tax price.";
 const PROJECT_VARIANCE_TITLE = "Quoted vs Actual by Trade";
 
 /** A bulk control would let an estimator clear the review gate without reading a

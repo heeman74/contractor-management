@@ -354,9 +354,9 @@ function mockHealthyPageWithFinding(finding: Record<string, unknown>) {
 }
 
 function expectMoneyDashboardIntact() {
-  expect(screen.getByTestId("project-revenue")).toHaveTextContent("$100000.00");
-  expect(screen.getByTestId("project-cost")).toHaveTextContent("$79000.00");
-  expect(screen.getByTestId("project-margin")).toHaveTextContent("$21000.00");
+  expect(screen.getByTestId("project-revenue")).toHaveTextContent("$100,000.00");
+  expect(screen.getByTestId("project-cost")).toHaveTextContent("$79,000.00");
+  expect(screen.getByTestId("project-margin")).toHaveTextContent("$21,000.00");
   expect(screen.getByTestId("margin-trend-chart")).toBeInTheDocument();
   expect(screen.getByTestId("scope-budget-bars")).toBeInTheDocument();
   expect(screen.getByTestId("category-mix-chart")).toBeInTheDocument();

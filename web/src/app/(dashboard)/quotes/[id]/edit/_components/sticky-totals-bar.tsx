@@ -1,3 +1,4 @@
+import { formatCurrency } from "@/lib/format";
 import type { QuoteTotals } from "../_lib/quote-form";
 
 function TotalItem({
@@ -21,7 +22,7 @@ function TotalItem({
       <span
         className={`font-mono font-semibold ${emphasized ? "text-base" : "text-sm"} ${accentClass}`}
       >
-        {amount < 0 ? "-" : ""}${Math.abs(amount).toFixed(2)}
+        {amount < 0 ? "-" : ""}{formatCurrency(Math.abs(amount))}
       </span>
     </div>
   );

@@ -38,9 +38,9 @@ describe("BudgetSummarySection", () => {
     expect(screen.getByText("Budget")).toBeInTheDocument();
     expect(screen.getByText("Spent")).toBeInTheDocument();
     expect(screen.getByText("Remaining")).toBeInTheDocument();
-    expect(screen.getByTestId("budget-amount")).toHaveTextContent("$10000.00");
-    expect(screen.getByTestId("budget-spent").textContent).toBe("$4200.00 · 42%");
-    expect(screen.getByTestId("budget-remaining")).toHaveTextContent("$5800.00");
+    expect(screen.getByTestId("budget-amount")).toHaveTextContent("$10,000.00");
+    expect(screen.getByTestId("budget-spent").textContent).toBe("$4,200.00 · 42%");
+    expect(screen.getByTestId("budget-remaining")).toHaveTextContent("$5,800.00");
     expect(screen.queryByTestId("budget-warning-chip")).not.toBeInTheDocument();
     expect(screen.getByTestId("budget-remaining")).not.toHaveClass("text-destructive");
   });
@@ -68,7 +68,7 @@ describe("BudgetSummarySection", () => {
       />
     );
 
-    expect(screen.getByTestId("budget-spent").textContent).toBe("$10000.00 · 100%");
+    expect(screen.getByTestId("budget-spent").textContent).toBe("$10,000.00 · 100%");
     expect(screen.getByTestId("budget-remaining")).toHaveTextContent("$0.00");
     expect(screen.getByTestId("budget-remaining")).not.toHaveClass("text-destructive");
     expect(screen.queryByTestId("budget-warning-chip")).not.toBeInTheDocument();
@@ -86,9 +86,9 @@ describe("BudgetSummarySection", () => {
     );
 
     const figure = screen.getByTestId("budget-remaining");
-    expect(figure.textContent).toBe("-$1200.00");
+    expect(figure.textContent).toBe("-$1,200.00");
     expect(figure).toHaveClass("text-destructive");
-    expect(screen.getByTestId("budget-spent").textContent).toBe("$11200.00 · 112%");
+    expect(screen.getByTestId("budget-spent").textContent).toBe("$11,200.00 · 112%");
     expect(screen.queryByTestId("budget-warning-chip")).not.toBeInTheDocument();
   });
 
@@ -99,7 +99,7 @@ describe("BudgetSummarySection", () => {
       />
     );
 
-    expect(screen.getByTestId("budget-spent").textContent).toBe("$8250.00 · 82.5%");
+    expect(screen.getByTestId("budget-spent").textContent).toBe("$8,250.00 · 82.5%");
   });
 
   test("only the Remaining amount carries font-semibold", () => {

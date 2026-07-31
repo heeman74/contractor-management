@@ -9,7 +9,7 @@ import {
   UNBURDENED_TITLE,
 } from "@/features/finance/components/CostBreakdownSummary";
 import { LABOR_NOTE } from "@/app/(dashboard)/financials/[projectId]/_components/scope-budget-bars";
-import { formatSignedCurrency } from "@/lib/format";
+import { formatSignedCurrency, formatCurrency } from "@/lib/format";
 import { formatMarginPercent } from "@/features/finance/components/MarginSummarySection";
 import type { QuoteVariance, QuoteVarianceTrade } from "@/features/finance/types";
 
@@ -63,7 +63,7 @@ function varianceInterpretation(variance: string, percent: string | null): strin
   if (isExactlyMatched(variance)) {
     return "Actual cost matched this quote's pre-tax price.";
   }
-  const amount = `$${unsigned(variance)}`;
+  const amount = formatCurrency(unsigned(variance));
   const pct = percent ? formatMarginPercent(unsigned(percent)) : "0";
   return isOverQuoted(variance)
     ? `Actual cost ran ${amount} (${pct}%) above this quote's pre-tax price.`

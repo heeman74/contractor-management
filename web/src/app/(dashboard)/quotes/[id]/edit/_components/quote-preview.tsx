@@ -1,3 +1,4 @@
+import { formatCurrency } from "@/lib/format";
 import {
   computeLineTotal,
   computeQuoteTotals,
@@ -67,10 +68,10 @@ export function QuotePreview({ values, revisionNumber = 1 }: QuotePreviewProps) 
               </td>
               <td className="py-2 text-sm text-gray-500">{item.unit}</td>
               <td className="py-2 font-mono text-right text-gray-900">
-                ${Number(item.unit_price).toFixed(2)}
+                {formatCurrency(item.unit_price)}
               </td>
               <td className="py-2 font-mono text-right text-gray-900">
-                ${computeLineTotal(item).toFixed(2)}
+                {formatCurrency(computeLineTotal(item))}
               </td>
             </tr>
           ))}
@@ -81,7 +82,7 @@ export function QuotePreview({ values, revisionNumber = 1 }: QuotePreviewProps) 
       <div className="space-y-1 max-w-xs ml-auto">
         <div className="flex justify-between text-sm text-gray-600">
           <span>Subtotal</span>
-          <span className="font-mono">${subtotal.toFixed(2)}</span>
+          <span className="font-mono">{formatCurrency(subtotal)}</span>
         </div>
         {discountAmount > 0 && (
           <div className="flex justify-between text-sm text-gray-600">
@@ -92,17 +93,17 @@ export function QuotePreview({ values, revisionNumber = 1 }: QuotePreviewProps) 
                 : ""}
             </span>
             <span className="font-mono text-red-600">
-              -${discountAmount.toFixed(2)}
+              -{formatCurrency(discountAmount)}
             </span>
           </div>
         )}
         <div className="flex justify-between text-sm text-gray-600">
           <span>Tax ({values.tax_rate}%)</span>
-          <span className="font-mono">${taxAmount.toFixed(2)}</span>
+          <span className="font-mono">{formatCurrency(taxAmount)}</span>
         </div>
         <div className="flex justify-between text-base font-bold text-gray-900 pt-1 border-t">
           <span>Total</span>
-          <span className="font-mono">${total.toFixed(2)}</span>
+          <span className="font-mono">{formatCurrency(total)}</span>
         </div>
       </div>
 

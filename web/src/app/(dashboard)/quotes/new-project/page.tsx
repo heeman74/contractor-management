@@ -1,5 +1,6 @@
 "use client";
 
+import { formatCurrency } from "@/lib/format";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -151,7 +152,7 @@ export default function NewProjectQuotePage() {
             </div>
             <div className="flex items-center gap-3 self-end">
               <span className="text-sm text-gray-500">
-                ${sectionTotal(section).toFixed(2)}
+                {formatCurrency(sectionTotal(section))}
               </span>
               {sections.length > 1 && (
                 <button
@@ -231,7 +232,7 @@ export default function NewProjectQuotePage() {
                   aria-label="Line total"
                   className="flex h-9 w-[90px] items-center justify-end text-sm tabular-nums text-gray-800"
                 >
-                  ${lineTotal(item).toFixed(2)}
+                  {formatCurrency(lineTotal(item))}
                 </div>
                 <div className="flex h-9 w-[28px] items-center justify-center">
                   {section.items.length > 1 && (
@@ -266,7 +267,7 @@ export default function NewProjectQuotePage() {
           Add field
         </Button>
         <span className="text-sm font-medium text-gray-900">
-          Total: ${total.toFixed(2)}
+          Total: {formatCurrency(total)}
         </span>
       </div>
 

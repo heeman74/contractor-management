@@ -1,3 +1,4 @@
+import { formatCurrency } from "@/lib/format";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, X } from "lucide-react";
@@ -46,10 +47,12 @@ export function SortableLineItemRow({
     transition,
   };
 
-  const lineTotal = computeLineTotal({
-    quantity: watch(`line_items.${index}.quantity`),
-    unit_price: watch(`line_items.${index}.unit_price`),
-  }).toFixed(2);
+  const lineTotal = formatCurrency(
+    computeLineTotal({
+      quantity: watch(`line_items.${index}.quantity`),
+      unit_price: watch(`line_items.${index}.unit_price`),
+    })
+  );
 
   const lineErrors = errors.line_items?.[index];
 
@@ -179,7 +182,7 @@ export function SortableLineItemRow({
 
       {/* Total (computed) */}
       <td className="px-1 py-2 w-[96px] text-right">
-        <span className="font-mono text-sm text-gray-900">${lineTotal}</span>
+        <span className="font-mono text-sm text-gray-900">{lineTotal}</span>
       </td>
 
       {/* Delete */}

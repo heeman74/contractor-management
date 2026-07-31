@@ -102,8 +102,8 @@ describe("SetBudgetDialog", () => {
 
     expect(screen.getByText("Edit budget — Plumbing scope")).toBeInTheDocument();
     expect(screen.getByText("CURRENT BUDGET")).toBeInTheDocument();
-    expect(screen.getByText("$10000.00")).toBeInTheDocument();
-    expect(screen.getByText("Current spend: $8200.00 (82%).")).toBeInTheDocument();
+    expect(screen.getByText("$10,000.00")).toBeInTheDocument();
+    expect(screen.getByText("Current spend: $8,200.00 (82%).")).toBeInTheDocument();
     expect(
       screen.getByText("Increasing the budget re-arms the 80% and 100% alerts.")
     ).toBeInTheDocument();
@@ -199,7 +199,7 @@ describe("SetBudgetDialog", () => {
       tradeScopeId: undefined,
       total: "10000",
     });
-    expect(mockToastSuccess).toHaveBeenCalledWith("Budget set — $10000.00.");
+    expect(mockToastSuccess).toHaveBeenCalledWith("Budget set — $10,000.00.");
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
@@ -237,7 +237,7 @@ describe("SetBudgetDialog", () => {
       budgetId: "b-1",
       total: "12000",
     });
-    expect(mockToastSuccess).toHaveBeenCalledWith("Budget updated — $12000.00.");
+    expect(mockToastSuccess).toHaveBeenCalledWith("Budget updated — $12,000.00.");
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 

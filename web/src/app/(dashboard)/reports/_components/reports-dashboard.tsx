@@ -65,7 +65,7 @@ export default function ReportsDashboard() {
     (sum, item) => sum + parseFloat(item.paid) + parseFloat(item.unpaid),
     0
   ) ?? 0;
-  const revenueKpi = `$${revenueTotal.toLocaleString("en-AU", {
+  const revenueKpi = `$${revenueTotal.toLocaleString("en-US", {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   })} total revenue`;

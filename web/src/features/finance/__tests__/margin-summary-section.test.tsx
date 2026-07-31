@@ -53,8 +53,8 @@ describe("MarginSummarySection", () => {
   test("invoiced margin shows revenue and figure with no caption and no chip", () => {
     render(<MarginSummarySection margin={marginWith()} />);
 
-    expect(screen.getByTestId("margin-revenue")).toHaveTextContent("$20000.00");
-    expect(screen.getByTestId("margin-figure")).toHaveTextContent("$4200.00 · 21%");
+    expect(screen.getByTestId("margin-revenue")).toHaveTextContent("$20,000.00");
+    expect(screen.getByTestId("margin-figure")).toHaveTextContent("$4,200.00 · 21%");
     expect(screen.queryByTestId("margin-basis-caption")).not.toBeInTheDocument();
     expect(screen.queryByTestId("margin-incomplete-chip")).not.toBeInTheDocument();
     expect(screen.queryByTestId("margin-incomplete-caption")).not.toBeInTheDocument();
@@ -89,7 +89,7 @@ describe("MarginSummarySection", () => {
     expect(screen.getByTestId("margin-incomplete-caption")).toHaveTextContent(
       "Margin may overstate profit — some costs are missing or unrated."
     );
-    expect(screen.getByTestId("margin-figure")).toHaveTextContent("$4200.00 · 21%");
+    expect(screen.getByTestId("margin-figure")).toHaveTextContent("$4,200.00 · 21%");
   });
 
   test("negative margin renders signed dollars in the destructive color", () => {
@@ -113,7 +113,7 @@ describe("MarginSummarySection", () => {
   test("null percent renders dollars alone with no separator", () => {
     render(<MarginSummarySection margin={marginWith({ marginPercent: null })} />);
 
-    expect(screen.getByTestId("margin-figure").textContent).toBe("$4200.00");
+    expect(screen.getByTestId("margin-figure").textContent).toBe("$4,200.00");
   });
 
   test("labels Revenue and Margin always render when basis is not none", () => {
@@ -138,7 +138,7 @@ describe("formatMarginPercent", () => {
 
 describe("formatMarginDollars", () => {
   test.each([
-    ["4200.00", "$4200.00"],
+    ["4200.00", "$4,200.00"],
     ["-350.00", "-$350.00"],
     ["0.00", "$0.00"],
   ])("formats %s as %s", (input, expected) => {

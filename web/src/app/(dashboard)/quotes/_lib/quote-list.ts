@@ -1,3 +1,4 @@
+import { formatCurrency } from "@/lib/format";
 import type { Job, Quote, QuoteStatus } from "@/types/api";
 import { ALL_TAB, type SortDirection } from "@/hooks/use-list-table-filters";
 
@@ -44,12 +45,7 @@ export function formatQuoteReference(quoteId: string): string {
   return `QT-${quoteId.slice(0, QUOTE_REFERENCE_LENGTH).toUpperCase()}`;
 }
 
-export function formatQuoteTotal(total: number | string): string {
-  return `$${Number(total).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
+export const formatQuoteTotal = formatCurrency;
 
 export function filterQuotesByTab(quotes: Quote[], tab: string): Quote[] {
   if (tab === ALL_TAB) {

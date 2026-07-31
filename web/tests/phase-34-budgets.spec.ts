@@ -266,7 +266,7 @@ test("setting a budget closes the dialog and the rows appear without a reload", 
   await page.getByRole("button", { name: "Set Budget" }).click();
 
   await expect(page.getByTestId("set-budget-dialog")).toHaveCount(0);
-  await expect(page.getByTestId("budget-amount")).toHaveText("$10000.00");
+  await expect(page.getByTestId("budget-amount")).toHaveText("$10,000.00");
   await expect(page.getByTestId("budget-spent")).toContainText(" · ");
 });
 
@@ -302,7 +302,7 @@ test("warning band shows the chip; over-budget shows the negative remaining and 
   await loginThroughUi(page);
   await openProjects(page);
 
-  await expect(page.getByTestId("budget-remaining")).toHaveText("-$1200.00");
+  await expect(page.getByTestId("budget-remaining")).toHaveText("-$1,200.00");
   await expect(page.getByTestId("budget-warning-chip")).toHaveCount(0);
 
   await openTradeScope(page);

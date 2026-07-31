@@ -50,15 +50,28 @@ export function formatDateTime(dateStr: string): string {
   }
 }
 
-/** Money amount (number or numeric string from the API) as "$1,234.50". */
+/** Money amount (number or numeric string from the API) as "$1,234.50".
+ *
+ * The locale is pinned to en-US rather than left to the browser: money is
+ * rendered beside a hard-coded "$", and a locale-derived separator would put
+ * "1.234,50" next to a dollar sign for a European viewer. Every money string in
+ * the app comes from here or from `formatSignedCurrency` below — a local
+ * `toLocaleString` is how the three formatters drifted apart in the first place.
+ */
 export function formatCurrency(value: number | string): string {
-  return `$${Number(value).toFixed(2)}`;
+  return `$${Number(value).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
-/** "-$350.00": the minus sign leads, matching how negative money reads on
- *  every finance surface. Positive values format like formatCurrency. */
+/** "-$1,350.00": the minus sign leads, matching how negative money reads on
+ *  every finance surface. Magnitude is formatted by formatCurrency, so the two
+ *  can never disagree on grouping or precision. */
 export function formatSignedCurrency(amount: string): string {
-  return amount.startsWith("-") ? `-$${amount.slice(1)}` : `$${amount}`;
+  const isNegative = amount.startsWith("-");
+  const magnitude = formatCurrency(isNegative ? amount.slice(1) : amount);
+  return isNegative ? `-${magnitude}` : magnitude;
 }
 
 /** Locale date, returning a fallback for null/undefined/unparseable input. */

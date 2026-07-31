@@ -1,5 +1,6 @@
 "use client";
 
+import { formatCurrency } from "@/lib/format";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -51,7 +52,7 @@ export function RevenueChart({ data }: RevenueChartProps) {
           formatter={(value: any, name: any) => {
             const v = typeof value === "string" ? parseFloat(value) : (value as number);
             return [
-              `$${v.toLocaleString("en-AU", { minimumFractionDigits: 2 })}`,
+              formatCurrency(v),
               name === "paid" ? "Paid" : "Outstanding",
             ] as [string, string];
           }}

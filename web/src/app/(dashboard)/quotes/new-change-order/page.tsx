@@ -1,5 +1,6 @@
 "use client";
 
+import { formatCurrency } from "@/lib/format";
 import { Suspense, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -228,7 +229,7 @@ function NewChangeOrderContent() {
 
       <div className="flex items-center justify-end gap-3">
         <span className="mr-auto text-sm font-medium text-gray-900">
-          Total: ${total.toFixed(2)}
+          Total: {formatCurrency(total)}
         </span>
         <Button type="button" variant="ghost" onClick={() => router.back()}>
           Cancel

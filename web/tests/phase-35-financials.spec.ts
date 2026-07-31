@@ -342,12 +342,12 @@ const NO_REQUESTS = 0;
 // formats through the shipped formatCurrency, which inserts no thousands
 // separators — asserting a comma-grouped figure would contradict the shipped
 // Phase 32/33/34 finance tests (the 34-04 lesson).
-const PORTFOLIO_REVENUE_FIGURE = "$68000.00";
-const PORTFOLIO_COST_FIGURE = "$55420.00";
-const PORTFOLIO_MARGIN_FIGURE = "$12580.00";
+const PORTFOLIO_REVENUE_FIGURE = "$68,000.00";
+const PORTFOLIO_COST_FIGURE = "$55,420.00";
+const PORTFOLIO_MARGIN_FIGURE = "$12,580.00";
 const PORTFOLIO_MARGIN_SUBLINE = "18.5% margin";
 const MIXED_BASIS_CAPTION =
-  "Includes $18400.00 from approved quotes — not yet invoiced.";
+  "Includes $18,400.00 from approved quotes — not yet invoiced.";
 const INCOMPLETE_BADGE_LABEL = "2 projects with incomplete data";
 const ATTENTION_LIST_ANCHOR = "#attention-list";
 const UNBUDGETED_NOTE = "1 project has no budget set.";
