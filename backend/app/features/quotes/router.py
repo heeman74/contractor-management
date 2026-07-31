@@ -226,7 +226,7 @@ async def list_change_orders(
     """List a project's change orders (quote_kind='change_order'), ordered by CO number."""
     await require_permission("quotes.view")(current_user, db)
     svc = QuoteService(db)
-    quotes = await svc.repository.list_change_orders_for_project(project_id)
+    quotes = await svc.list_change_orders(project_id)
     return [QuoteResponse.from_orm_with_totals(q, include_finance=include_finance) for q in quotes]
 
 

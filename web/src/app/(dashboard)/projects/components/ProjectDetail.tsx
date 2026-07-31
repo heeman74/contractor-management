@@ -10,18 +10,12 @@ import { AddTradeScopeSheet } from "./AddTradeScopeSheet";
 import { ProjectAssignmentsCard } from "./ProjectAssignmentsCard";
 import { useTradeScopes, useTasks } from "@/lib/api/projects";
 import { apiGet } from "@/lib/api-client";
+import { formatCurrency } from "@/lib/format";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { TradeProgressCard } from "@/features/tasks/components/TradeProgressCard";
 import { ProjectCostsCard } from "@/features/finance/components/ProjectCostsCard";
 import type { ProjectResponse, TradeScopeResponse } from "@/types/projects";
 import type { Job, Quote } from "@/types/api";
-
-function _money(value: string | number): string {
-  return Number(value).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
 
 /**
  * Change orders raised against this project. Shows each CO with its status and
@@ -59,7 +53,7 @@ function ProjectChangeOrdersCard({ projectId }: { projectId: string }) {
         </h3>
         {approved.length > 0 && (
           <span className="text-xs text-gray-500">
-            Approved: ${_money(approvedTotal)}
+            Approved: {formatCurrency(approvedTotal)}
             {approvedDays > 0 ? ` · +${approvedDays}d` : ""}
           </span>
         )}
@@ -85,7 +79,7 @@ function ProjectChangeOrdersCard({ projectId }: { projectId: string }) {
                 {co.change_reason ? ` — ${co.change_reason}` : ""}
               </p>
               <p className="text-xs text-gray-500">
-                ${_money(co.total)}
+                {formatCurrency(co.total)}
                 {co.schedule_impact_days ? ` · +${co.schedule_impact_days}d` : ""}
               </p>
             </div>

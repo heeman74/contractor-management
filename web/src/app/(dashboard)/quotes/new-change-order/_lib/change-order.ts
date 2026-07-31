@@ -4,6 +4,8 @@
 // builder collects a reason, a target, an optional schedule impact, and line
 // items — no field grouping (a change order is one unit of work).
 
+import { computeLineTotal } from "../../[id]/edit/_lib/quote-form";
+
 export type ChangeOrderItemType = "labor" | "material";
 export type ChangeOrderTarget = "new_job" | "existing_job";
 
@@ -55,12 +57,13 @@ export function emptyChangeOrderForm(itemKey: string): ChangeOrderForm {
   };
 }
 
-export function lineTotal(item: { quantity: string; unit_price: string }): number {
-  return (Number(item.quantity) || 0) * (Number(item.unit_price) || 0);
-}
+// Line maths is the quote editor's, not a second definition — a change order
+// prices its lines exactly the way every other quote does. Re-exported under the
+// builder's own name so its callers need not reach across to the editor.
+export { computeLineTotal as lineTotal };
 
 export function changeOrderTotal(items: ChangeOrderItem[]): number {
-  return items.reduce((sum, item) => sum + lineTotal(item), 0);
+  return items.reduce((sum, item) => sum + computeLineTotal(item), 0);
 }
 
 /**

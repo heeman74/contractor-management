@@ -24,6 +24,7 @@ from app.features.finance.margin_math import (
     document_total,
     tax_for,
 )
+from app.features.quotes.models import QUOTE_KIND_CHANGE_ORDER, QUOTE_KIND_STANDARD
 from app.features.quotes.variance_service import (
     ProjectQuoteVarianceResult,
     QuoteVarianceResult,
@@ -109,7 +110,7 @@ class QuoteCreate(BaseModel):
     # Change orders: quote_kind='change_order' amends an existing project
     # (project_id) raised from an in-progress job (originating_job_id); on
     # approval it creates a new job or extends the originating job (co_target).
-    quote_kind: Literal["standard", "change_order"] = "standard"
+    quote_kind: Literal["standard", "change_order"] = QUOTE_KIND_STANDARD
     project_id: uuid.UUID | None = None
     originating_job_id: uuid.UUID | None = None
     co_target: Literal["new_job", "existing_job"] | None = None
@@ -127,7 +128,7 @@ class QuoteCreate(BaseModel):
         """
         if self.job_id is not None and self.trade_scope_id is not None:
             raise ValueError("A quote cannot attach to both a job and a trade scope")
-        if self.quote_kind == "change_order":
+        if self.quote_kind == QUOTE_KIND_CHANGE_ORDER:
             if self.job_id is not None or self.trade_scope_id is not None:
                 raise ValueError("A change order cannot attach to a job or trade scope")
             if self.project_id is None:
@@ -194,7 +195,7 @@ class QuoteResponse(BaseResponseSchema):
     trade_scope_id: uuid.UUID | None = None
     title: str | None = None
     project_id: uuid.UUID | None = None
-    quote_kind: str = "standard"
+    quote_kind: str = QUOTE_KIND_STANDARD
     co_number: int | None = None
     change_reason: str | None = None
     schedule_impact_days: int | None = None

@@ -26,7 +26,12 @@ import app.features.scheduling.models
 import app.features.users.models  # noqa: F401 — User mapper (Job.client_id)
 
 # isort: split
-from app.features.quotes.models import Quote, QuoteLineItem, QuoteTemplate
+from app.features.quotes.models import (
+    QUOTE_KIND_CHANGE_ORDER,
+    Quote,
+    QuoteLineItem,
+    QuoteTemplate,
+)
 
 # Depth guard for the revision-chain walk: terminates cyclic or corrupt chains
 # instead of looping forever. Real chains are single-digit deep.
@@ -110,7 +115,7 @@ class QuoteRepository(TenantScopedRepository[Quote]):
             .where(
                 and_(
                     Quote.project_id == project_id,
-                    Quote.quote_kind == "change_order",
+                    Quote.quote_kind == QUOTE_KIND_CHANGE_ORDER,
                     Quote.deleted_at.is_(None),
                 )
             )

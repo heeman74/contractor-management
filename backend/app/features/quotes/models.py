@@ -37,6 +37,19 @@ REVIEW_STATE_ACCEPTED = "accepted"
 REVIEW_STATE_EDITED = "edited"
 REVIEW_STATES = (REVIEW_STATE_UNREVIEWED, REVIEW_STATE_ACCEPTED, REVIEW_STATE_EDITED)
 
+# Quote kinds (0038). A change order amends an existing project mid-flight; a
+# standard quote wins the work in the first place. The DB CHECK below and every
+# comparison in the service, repository and schemas read from here.
+QUOTE_KIND_STANDARD = "standard"
+QUOTE_KIND_CHANGE_ORDER = "change_order"
+QUOTE_KINDS = (QUOTE_KIND_STANDARD, QUOTE_KIND_CHANGE_ORDER)
+
+# What an approved change order creates: a new job in the project, or added
+# scope on the job that surfaced the change.
+CO_TARGET_NEW_JOB = "new_job"
+CO_TARGET_EXISTING_JOB = "existing_job"
+CO_TARGETS = (CO_TARGET_NEW_JOB, CO_TARGET_EXISTING_JOB)
+
 CONFIDENCE_BANDS = ("high", "medium", "low")
 
 # The UI-SPEC bound on a line item's `basis` text. Referenced by the migration's
@@ -113,7 +126,9 @@ class Quote(TenantScopedModel):
     # Change-order fields (0038). A 'change_order' quote amends an existing
     # project (project_id set at draft) raised from an in-progress job; on
     # approval it adds a job or extends the originating job.
-    quote_kind: Mapped[str] = mapped_column(Text, nullable=False, server_default="standard")
+    quote_kind: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default=QUOTE_KIND_STANDARD
+    )
     co_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     change_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     schedule_impact_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -139,11 +154,11 @@ class Quote(TenantScopedModel):
             name="quotes_discount_type_check",
         ),
         CheckConstraint(
-            "quote_kind IN ('standard','change_order')",
+            f"quote_kind IN {QUOTE_KINDS!r}",
             name="quotes_quote_kind_check",
         ),
         CheckConstraint(
-            "co_target IS NULL OR co_target IN ('new_job','existing_job')",
+            f"co_target IS NULL OR co_target IN {CO_TARGETS!r}",
             name="quotes_co_target_check",
         ),
     )

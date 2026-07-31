@@ -43,6 +43,8 @@ from app.features.projects.models import Project, TradeScope
 from app.features.projects.schemas import ProjectCreate
 from app.features.projects.service import ProjectService
 from app.features.quotes.models import (
+    CO_TARGET_NEW_JOB,
+    QUOTE_KIND_CHANGE_ORDER,
     REVIEW_STATE_ACCEPTED,
     REVIEW_STATE_EDITED,
     REVIEW_STATE_UNREVIEWED,
@@ -245,7 +247,9 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
                 )
 
         co_number = (
-            await self._prepare_change_order(data) if data.quote_kind == "change_order" else None
+            await self._prepare_change_order(data)
+            if data.quote_kind == QUOTE_KIND_CHANGE_ORDER
+            else None
         )
 
         company_id = self._require_tenant_id()
@@ -317,7 +321,7 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
         result = await self.db.execute(
             select(func.max(Quote.co_number)).where(
                 Quote.project_id == project_id,
-                Quote.quote_kind == "change_order",
+                Quote.quote_kind == QUOTE_KIND_CHANGE_ORDER,
             )
         )
         return (result.scalar_one_or_none() or 0) + 1
@@ -423,7 +427,7 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
         quote.approved_at = datetime.now(UTC)
         await self.db.flush()
 
-        if quote.quote_kind == "change_order":
+        if quote.quote_kind == QUOTE_KIND_CHANGE_ORDER:
             # Change order → add work to the existing project (new job or extend).
             await self._execute_change_order(quote, client_user_id)
         elif quote.job_id is not None:
@@ -473,7 +477,7 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
             "Originating job not found",
         )
 
-        if quote.co_target == "new_job":
+        if quote.co_target == CO_TARGET_NEW_JOB:
             job = await JobService(self.db).create_job(
                 self._build_change_order_job(quote, originating_job),
                 user_id=client_user_id,
@@ -827,6 +831,10 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
     async def load_template(self, template_id: uuid.UUID) -> QuoteTemplate:
         """Return a template by ID (raises 404 if not found)."""
         return entity_or_404(await self.db.get(QuoteTemplate, template_id), "Template not found")
+
+    async def list_change_orders(self, project_id: uuid.UUID) -> list[Quote]:
+        """A project's change orders, ordered by CO number."""
+        return await self.repository.list_change_orders_for_project(project_id)
 
     async def list_templates(self) -> list[QuoteTemplate]:
         """Return all templates for the current tenant."""
