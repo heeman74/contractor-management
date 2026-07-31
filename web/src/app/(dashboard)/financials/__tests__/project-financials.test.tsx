@@ -23,9 +23,16 @@ import {
   toCategorySlices,
 } from "../[projectId]/_components/category-mix-chart";
 import {
+  QUOTE_VARIANCE_TEST_ID,
+  QuoteVarianceTable,
+  quoteVarianceCsvRows,
+  quoteVarianceKpi,
+} from "../[projectId]/_components/quote-variance-table";
+import {
   useProjectFinancials,
   useProjectMarginTrend,
   useProjectProfitabilityFinding,
+  useProjectQuoteVariance,
 } from "@/features/finance/hooks";
 import { NO_REVENUE_NOTE } from "@/features/finance/components/MarginSummarySection";
 import { CATEGORY_FILL } from "@/components/shared/chart-theme";
@@ -38,6 +45,8 @@ import type {
   MarginSummary,
   MarginTrend,
   ProjectFinancials,
+  ProjectQuoteVariance,
+  QuoteVarianceTrade,
   ScopeBudgetRow,
   TrendBucket,
 } from "@/features/finance/types";
@@ -46,6 +55,7 @@ jest.mock("@/features/finance/hooks", () => ({
   useProjectFinancials: jest.fn(),
   useProjectMarginTrend: jest.fn(),
   useProjectProfitabilityFinding: jest.fn(),
+  useProjectQuoteVariance: jest.fn(),
 }));
 jest.mock("sonner", () => ({ toast: { error: jest.fn(), success: jest.fn() } }));
 jest.mock("next/navigation", () => ({ useRouter: () => ({ push: jest.fn() }) }));
@@ -78,6 +88,7 @@ jest.mock("recharts", () => {
 const mockUseProjectFinancials = useProjectFinancials as jest.Mock;
 const mockUseProjectMarginTrend = useProjectMarginTrend as jest.Mock;
 const mockUseProjectProfitabilityFinding = useProjectProfitabilityFinding as jest.Mock;
+const mockUseProjectQuoteVariance = useProjectQuoteVariance as jest.Mock;
 
 const PROJECT_ID = "p-1";
 
@@ -150,6 +161,13 @@ function mockQueries(
     isLoading: false,
     isError: false,
   });
+  // The quote-variance query is the fourth independent query, deliberately
+  // quiet here so the money dashboard tests above stay about the first three.
+  mockUseProjectQuoteVariance.mockReturnValue({
+    data: undefined,
+    isLoading: false,
+    isError: false,
+  });
 }
 
 function renderDashboard() {
@@ -160,6 +178,7 @@ beforeEach(() => {
   mockUseProjectFinancials.mockReset();
   mockUseProjectMarginTrend.mockReset();
   mockUseProjectProfitabilityFinding.mockReset();
+  mockUseProjectQuoteVariance.mockReset();
 });
 
 // --- Task 1: drill-down shell, container and header states ---
@@ -715,5 +734,153 @@ describe("Scope and category card wiring", () => {
     expect(within(mixCard).getByText("Cost Category Mix")).toBeInTheDocument();
     expect(within(mixCard).getByText("$79000.00 total cost")).toBeInTheDocument();
     expect(within(mixCard).getByTestId("category-mix-chart")).toBeInTheDocument();
+  });
+});
+
+// --- Task 4 (37-10): Quoted vs Actual by Trade table ---
+
+function tradeOf(
+  label: string,
+  quoted: string | null,
+  actual: string | null,
+  variance: string | null,
+  variancePercent: string | null
+): QuoteVarianceTrade {
+  return { label, quoted, actual, variance, variancePercent };
+}
+
+const PROJECT_TOTAL_ROW = tradeOf("Project total", "8000.00", "8600.00", "600.00", "7.5");
+
+function projectQuoteVarianceWith(
+  overrides: Partial<ProjectQuoteVariance> = {}
+): ProjectQuoteVariance {
+  return {
+    scopes: [tradeOf("Plumbing", "8000.00", "8600.00", "600.00", "7.5")],
+    total: PROJECT_TOTAL_ROW,
+    laborIncluded: false,
+    hasScopeAnchoredRows: false,
+    ...overrides,
+  };
+}
+
+describe("quote variance table", () => {
+  it("kpi: over quoted (positive variance)", () => {
+    expect(quoteVarianceKpi(tradeOf("Project total", "8000.00", "8600.00", "600.00", "7.5"))).toBe(
+      "7.5% over quoted"
+    );
+  });
+
+  it("kpi: under quoted (negative variance), exactly matched and no invoiced work", () => {
+    expect(
+      quoteVarianceKpi(tradeOf("Project total", "8000.00", "7600.00", "-400.00", "-5.0"))
+    ).toBe("5% under quoted");
+    expect(
+      quoteVarianceKpi(tradeOf("Project total", "8000.00", "8000.00", "0.00", "0.0"))
+    ).toBe("Matched quoted");
+    expect(quoteVarianceKpi(tradeOf("Project total", "8000.00", null, null, null))).toBe(
+      "No invoiced work yet"
+    );
+    expect(quoteVarianceKpi(null)).toBe("No invoiced work yet");
+  });
+
+  it("renders one row per trade plus a hairline-separated Project total row", () => {
+    const variance = projectQuoteVarianceWith({
+      scopes: [
+        tradeOf("Plumbing", "8000.00", "8600.00", "600.00", "7.5"),
+        tradeOf("Electrical", "5000.00", "4200.00", "-800.00", "-16.0"),
+      ],
+    });
+
+    render(<QuoteVarianceTable variance={variance} />);
+    const table = screen.getByTestId(QUOTE_VARIANCE_TEST_ID);
+
+    expect(within(table).getByText("Plumbing")).toBeInTheDocument();
+    expect(within(table).getByText("Electrical")).toBeInTheDocument();
+    const totalRow = screen.getByTestId("project-quote-variance-total");
+    expect(within(totalRow).getByText("Project total")).toBeInTheDocument();
+    expect(totalRow.className).toContain("border-t");
+  });
+
+  it("a positive variance figure carries text-red-800 and a negative or zero one carries text-gray-900", () => {
+    const variance = projectQuoteVarianceWith({
+      scopes: [
+        tradeOf("Plumbing", "8000.00", "8600.00", "600.00", "7.5"),
+        tradeOf("Electrical", "5000.00", "4200.00", "-800.00", "-16.0"),
+      ],
+      total: tradeOf("Project total", "13000.00", "12800.00", "-200.00", "-1.5"),
+    });
+
+    render(<QuoteVarianceTable variance={variance} />);
+
+    expect(screen.getByText("$600.00 · 7.5%").className).toContain("text-red-800");
+    expect(screen.getByText("-$800.00 · 16%").className).toContain("text-gray-900");
+    expect(screen.getByText("-$800.00 · 16%").className).not.toMatch(/text-green/);
+  });
+
+  it("a trade with a null actual renders Not yet invoiced rather than a zero", () => {
+    const variance = projectQuoteVarianceWith({
+      scopes: [tradeOf("Electrical", "5000.00", null, null, null)],
+    });
+
+    render(<QuoteVarianceTable variance={variance} />);
+
+    expect(screen.getAllByText("Not yet invoiced").length).toBeGreaterThan(0);
+    expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
+  });
+
+  it("quoteVarianceCsvRows emits the locked header plus one row per trade with unrolled backend strings", () => {
+    const variance = projectQuoteVarianceWith({
+      scopes: [tradeOf("Plumbing", "8000.00", "8600.00", "600.00", "7.5")],
+      total: PROJECT_TOTAL_ROW,
+    });
+
+    const rows = quoteVarianceCsvRows(variance);
+
+    expect(rows[0]).toEqual([
+      "Trade scope",
+      "Quoted (pre-tax)",
+      "Actual cost",
+      "Variance",
+      "Variance percent",
+    ]);
+    expect(rows[1]).toEqual(["Plumbing", "8000.00", "8600.00", "600.00", "7.5"]);
+    expect(rows[2]).toEqual(["Project total", "8000.00", "8600.00", "600.00", "7.5"]);
+    expect(rows).toHaveLength(3);
+  });
+
+  it("quoteVarianceCsvRows returns only the header when variance is undefined", () => {
+    expect(quoteVarianceCsvRows(undefined)).toEqual([
+      ["Trade scope", "Quoted (pre-tax)", "Actual cost", "Variance", "Variance percent"],
+    ]);
+  });
+
+  it("an empty scopes array renders ChartEmptyState with the two locked strings", () => {
+    render(<QuoteVarianceTable variance={projectQuoteVarianceWith({ scopes: [] })} />);
+
+    expect(screen.getByText("No completed work to compare")).toBeInTheDocument();
+    expect(
+      screen.getByText("Quoted vs actual appears once a trade's work has been invoiced.")
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("project-quote-variance")).not.toBeInTheDocument();
+  });
+
+  it("the scope-labor caption renders only when hasScopeAnchoredRows, and the unburdened caption only when laborIncluded", () => {
+    const { rerender } = render(
+      <QuoteVarianceTable
+        variance={projectQuoteVarianceWith({ hasScopeAnchoredRows: false, laborIncluded: false })}
+      />
+    );
+    expect(screen.queryByTestId("scope-labor-note")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("project-quote-variance-labor-note")).not.toBeInTheDocument();
+
+    rerender(
+      <QuoteVarianceTable
+        variance={projectQuoteVarianceWith({ hasScopeAnchoredRows: true, laborIncluded: true })}
+      />
+    );
+    expect(screen.getByTestId("scope-labor-note")).toHaveTextContent(SCOPE_LABOR_NOTE);
+    expect(screen.getByTestId("project-quote-variance-labor-note")).toHaveTextContent(
+      /Unburdened labor/
+    );
   });
 });
