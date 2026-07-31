@@ -6,9 +6,10 @@ the client, POST /quotes/{id}/send 409s while any AI-originated line is still
 unreviewed, and `confidence_band`/`basis` never reach a caller without
 finance.view.
 
-No suggestion endpoint exists yet in this plan, so an AI-originated line is
-seeded directly via SQL (the test_phase_36_e2e.py SET LOCAL convention) rather
-than through a real suggestion run.
+Earlier sections (37-01/04/07) seed an AI-originated line directly via SQL
+(the test_phase_36_e2e.py SET LOCAL convention) since no suggestion endpoint
+existed yet; the 37-09 section at the bottom drives the real endpoint behind
+a mocked Claude client instead.
 
 Per the self-contained-test-file convention the helper set is COPIED rather
 than imported across test modules, so a later edit to another phase's fixture
@@ -18,9 +19,11 @@ can never silently change what this file asserts.
 from __future__ import annotations
 
 import contextlib
+import json
 from collections.abc import Iterator
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -35,6 +38,8 @@ from app.core.tenant import set_current_tenant_id
 from app.features.finance.margin_math import RevenueAnchor
 from app.features.finance.service import FinanceService, contributing_anchor_cost
 from app.features.quotes.models import QuoteLineItem
+from app.features.quotes.quote_history_math import MIN_COMPARABLES_FOR_SUGGESTION
+from app.features.quotes.router import SUGGEST_DENY_DETAIL
 from app.features.quotes.service import UNREVIEWED_AI_LINES_DETAIL
 from app.features.quotes.suggestion_repository import ComparableRows, QuoteComparableRepository
 from app.features.quotes.variance_service import QuoteVarianceService
@@ -1215,3 +1220,188 @@ async def test_scope_anchor_contributes_no_labor(
     assert len(rows.anchors) == 1
     assert rows.anchors[0].is_job_anchored is False
     assert rows.anchors[0].labor_cost == Decimal("0")
+
+
+# ---------------------------------------------------------------------------
+# Plan 37-09 — the suggest endpoint: cold-start/trade-unresolved refusals,
+# draft-only, the compound permission, and a grounded end-to-end suggestion.
+# ---------------------------------------------------------------------------
+
+
+def _make_mock_anthropic_response(content: dict | str) -> MagicMock:
+    """Build a mock Anthropic message response with content[0].text.
+
+    Copied (not imported) from test_phase_26_e2e.py per the self-contained-
+    test-file convention this module's docstring states.
+    """
+    content_text = json.dumps(content) if isinstance(content, dict) else content
+
+    mock_content = MagicMock()
+    mock_content.text = content_text
+
+    mock_response = MagicMock()
+    mock_response.content = [mock_content]
+    return mock_response
+
+
+def _suggest_url(quote_id: str) -> str:
+    return f"{_QUOTES_URL}{quote_id}/suggest-line-items"
+
+
+def _gc_headers(company_id: str) -> dict:
+    """Authorization header for a gc token (neither finance.view nor quotes.edit
+    by default)."""
+    return {"Authorization": f"Bearer {_token(company_id, ['gc'])}"}
+
+
+_GRANT_GC_FINANCE_VIEW_SQL = (
+    "UPDATE company_role_permissions SET permissions = permissions || "
+    "'[\"finance.view\"]'::jsonb WHERE role = 'gc'"
+)
+
+
+async def _grant_gc_finance_view(company_id: str) -> None:
+    """Seed finance.view onto the gc role for one tenant — no default role holds
+    finance.view without quotes.edit, so this is the only honest fixture for
+    the "granted finance access but not quote management" direction."""
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        await session.execute(text(_GRANT_GC_FINANCE_VIEW_SQL))
+        await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_cold_start_never_calls_claude(tenant_a_client: AsyncClient, seed_two_tenants: dict):
+    """KEYSTONE 3: a trade below the comparable threshold refuses without ever
+    awaiting the Claude client."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    job_id = await _create_job(tenant_a_client, trade_type="Drywall")
+    created = await _create_quote(tenant_a_client, job_id, [])
+
+    with patch("app.core.ai_utils.get_anthropic_client") as mock_client:
+        create = AsyncMock()
+        mock_client.return_value.messages.create = create
+        resp = await tenant_a_client.post(
+            _suggest_url(created["id"]), headers=_pm_headers(company_id)
+        )
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["refusal_reason"] == "insufficient_history"
+    assert body["trade_name"] == "Drywall"
+    assert body["comparable_count"] == 0
+    assert body["required_count"] == MIN_COMPARABLES_FOR_SUGGESTION
+    assert body["suggested_line_count"] == 0
+    create.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_trade_unresolved_never_calls_claude(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    """A project-level quote whose lines all carry an empty field refuses
+    before ever fetching a comparable or awaiting the Claude client."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    quote = await _create_project_quote(tenant_a_client, [_line_item()])
+
+    with patch("app.core.ai_utils.get_anthropic_client") as mock_client:
+        create = AsyncMock()
+        mock_client.return_value.messages.create = create
+        resp = await tenant_a_client.post(
+            _suggest_url(quote["id"]), headers=_pm_headers(company_id)
+        )
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["refusal_reason"] == "trade_unresolved"
+    assert body["trade_name"] is None
+    assert body["comparable_count"] is None
+    assert body["required_count"] is None
+    assert body["suggested_line_count"] == 0
+    create.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_suggest_draft_only(tenant_a_client: AsyncClient, seed_two_tenants: dict):
+    """Suggesting is refused on any quote that is not a draft."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    job_id = await _create_job(tenant_a_client)
+    created = await _create_quote(tenant_a_client, job_id, [_line_item()])
+    send = await tenant_a_client.post(f"{_QUOTES_URL}{created['id']}/send")
+    assert send.status_code == 200, send.text
+
+    resp = await tenant_a_client.post(_suggest_url(created["id"]), headers=_pm_headers(company_id))
+    assert resp.status_code == 409, resp.text
+
+
+@pytest.mark.asyncio
+async def test_suggest_requires_both_permissions(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    """Both halves of D-10's compound permission are enforced independently:
+    quotes.edit alone (admin) and finance.view alone (gc, seeded) each 403."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    job_id = await _create_job(tenant_a_client)
+    created = await _create_quote(tenant_a_client, job_id, [_line_item()])
+
+    admin_denied = await tenant_a_client.post(
+        _suggest_url(created["id"]), headers=_admin_headers(company_id)
+    )
+    assert admin_denied.status_code == 403, admin_denied.text
+    assert admin_denied.json()["detail"] == SUGGEST_DENY_DETAIL
+
+    await _grant_gc_finance_view(company_id)
+    gc_denied = await tenant_a_client.post(
+        _suggest_url(created["id"]), headers=_gc_headers(company_id)
+    )
+    assert gc_denied.status_code == 403, gc_denied.text
+    assert gc_denied.json()["detail"] == SUGGEST_DENY_DETAIL
+
+
+@pytest.mark.asyncio
+async def test_suggest_prefills_line_items_from_history(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    """A mocked Claude reply whose figures all come from the payload persists
+    one AI line, reports a matching suggested_line_count, and the persisted
+    basis carries the server-composed sample-count prefix."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    headers = _pm_headers(company_id)
+    await _seed_roofing_comparables(tenant_a_client, headers, company_id, count=3)
+
+    job_id = await _create_job(tenant_a_client, trade_type=_ROOFING_TRADE)
+    created = await _create_quote(tenant_a_client, job_id, [])
+
+    mock_reply = _make_mock_anthropic_response(
+        {
+            "lines": [
+                {
+                    "item_type": "labor",
+                    "description": "Roofing labor, priced from company history",
+                    "quantity": 2,
+                    "unit": "hr",
+                    "unit_price": 100.00,
+                    "basis": "priced consistently with recent roofing jobs",
+                }
+            ]
+        }
+    )
+
+    with patch("app.core.ai_utils.get_anthropic_client") as mock_client:
+        mock_client.return_value.messages.create = AsyncMock(return_value=mock_reply)
+        resp = await tenant_a_client.post(_suggest_url(created["id"]), headers=headers)
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["refusal_reason"] is None
+    assert body["trade_name"] == _ROOFING_TRADE
+    assert body["comparable_count"] == 3
+    assert body["suggested_line_count"] == 1
+
+    rows = await _line_item_rows(company_id, created["id"])
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["ai_origin"] is True
+    assert row["review_state"] == "unreviewed"
+    assert row["confidence_band"] is not None
+    assert row["basis"].startswith(f"median of 3 comparable {_ROOFING_TRADE} scopes")

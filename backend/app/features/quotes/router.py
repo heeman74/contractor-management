@@ -18,6 +18,8 @@ Static/collection paths declared BEFORE /{quote_id} parameterized paths:
   POST   /quotes/{quote_id}/extend  — extend expiry date (admin)
   GET    /quotes/{quote_id}/pdf     — download PDF (admin or client)
   GET    /quotes/{quote_id}/variance — quoted-vs-actual for this quote (finance.view, FINAI-05)
+  POST   /quotes/{quote_id}/suggest-line-items — AI line-item suggestions, priced from
+         company history (quotes.edit AND finance.view, FINAI-03/04)
 
   /projects/{project_id}/financials/quote-variance — the project drill-down's
   per-anchor quoted-vs-actual table (finance.view, FINAI-05), on its own router
@@ -59,6 +61,7 @@ from app.features.quotes.schemas import (
     ProjectQuoteVarianceResponse,
     QuoteCreate,
     QuoteResponse,
+    QuoteSuggestionResponse,
     QuoteTemplateCreate,
     QuoteTemplateResponse,
     QuoteUpdate,
@@ -67,6 +70,7 @@ from app.features.quotes.schemas import (
     to_quote_variance_response,
 )
 from app.features.quotes.service import QuoteService
+from app.features.quotes.suggestion_service import QuoteSuggestionService
 from app.features.quotes.variance_service import QuoteVarianceService
 from app.features.users.models import User
 
@@ -387,6 +391,33 @@ async def get_quote_variance(
     await require_permission("finance.view")(current_user, db)
     result = await QuoteVarianceService(db).quote_variance(quote_id)
     return to_quote_variance_response(result)
+
+
+QUOTE_MANAGE_PERMISSION = "quotes.edit"
+SUGGEST_DENY_DETAIL = "Requires quote management and finance access."
+
+
+@router.post("/{quote_id}/suggest-line-items", response_model=QuoteSuggestionResponse)
+async def suggest_line_items(
+    quote_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> QuoteSuggestionResponse:
+    """AI-suggested labor/material line items, priced from company history
+    (FINAI-03/04). Requires BOTH quote management and finance access in one
+    matrix read — holding either alone is 403 (D-10's compound permission).
+    """
+    granted = await effective_permissions(current_user, db)
+    if not {QUOTE_MANAGE_PERMISSION, FINANCE_VIEW_PERMISSION} <= granted:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=SUGGEST_DENY_DETAIL)
+    outcome = await QuoteSuggestionService(db).suggest(quote_id)
+    return QuoteSuggestionResponse(
+        refusal_reason=outcome.refusal_reason,
+        trade_name=outcome.trade_name,
+        comparable_count=outcome.comparable_count,
+        required_count=outcome.required_count,
+        suggested_line_count=outcome.suggested_line_count,
+    )
 
 
 # ---------------------------------------------------------------------------
