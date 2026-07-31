@@ -139,19 +139,20 @@ class TestTradeCatalog:
         self, tenant_a_client: AsyncClient, seed_two_tenants: dict
     ):
         """POST /trade-catalog/ with name+color returns 201."""
+        # Non-default name: the standard trades are seeded at registration.
         response = await tenant_a_client.post(
             "/api/v1/trade-catalog/",
-            json={"name": "Plumbing", "color": "#2196F3"},
+            json={"name": "Waterproofing", "color": "#2196F3"},
         )
         assert response.status_code == 201, response.text
         data = response.json()
-        assert data["name"] == "Plumbing"
+        assert data["name"] == "Waterproofing"
         assert data["color"] == "#2196F3"
         assert "id" in data
 
     async def test_trade_catalog_list(self, tenant_a_client: AsyncClient, seed_two_tenants: dict):
         """Create 3 catalog entries; GET /trade-catalog/ returns all 3."""
-        trades = ["Electrical", "Plumbing", "HVAC"]
+        trades = ["Waterproofing", "Excavation", "Cabinetry"]
         for trade in trades:
             resp = await tenant_a_client.post(
                 "/api/v1/trade-catalog/",
@@ -170,6 +171,61 @@ class TestTradeCatalog:
         response = await async_client.get("/api/v1/trade-catalog/")
         assert response.status_code == 401
 
+    async def test_registration_seeds_default_trades(
+        self, tenant_a_client: AsyncClient, seed_two_tenants: dict
+    ):
+        """A freshly registered company starts with the standard trades seeded."""
+        resp = await tenant_a_client.get("/api/v1/trade-catalog/")
+        assert resp.status_code == 200
+        names = {e["name"] for e in resp.json()}
+        assert {"Electrical", "Plumbing", "HVAC", "Framing"} <= names
+
+    async def test_seed_defaults_is_idempotent(
+        self, tenant_a_client: AsyncClient, seed_two_tenants: dict
+    ):
+        """POST /seed-defaults twice does not duplicate the seeded trades."""
+        first = await tenant_a_client.post("/api/v1/trade-catalog/seed-defaults")
+        assert first.status_code == 200
+        count_after_first = len(first.json())
+
+        second = await tenant_a_client.post("/api/v1/trade-catalog/seed-defaults")
+        assert second.status_code == 200
+        assert len(second.json()) == count_after_first
+
+    async def test_duplicate_active_name_conflicts(
+        self, tenant_a_client: AsyncClient, seed_two_tenants: dict
+    ):
+        """Creating a trade whose name is already active returns 409, not 500."""
+        resp = await tenant_a_client.post(
+            "/api/v1/trade-catalog/",
+            json={"name": "Electrical", "color": "#000000"},
+        )
+        assert resp.status_code == 409
+
+    async def test_remove_then_recreate_revives(
+        self, tenant_a_client: AsyncClient, seed_two_tenants: dict
+    ):
+        """Deleting a trade removes it from the list; re-creating the name revives it."""
+        create = await tenant_a_client.post(
+            "/api/v1/trade-catalog/",
+            json={"name": "Fencing", "color": "#111111"},
+        )
+        assert create.status_code == 201
+        entry_id = create.json()["id"]
+
+        deleted = await tenant_a_client.delete(f"/api/v1/trade-catalog/{entry_id}")
+        assert deleted.status_code == 204
+
+        listed = await tenant_a_client.get("/api/v1/trade-catalog/")
+        assert "Fencing" not in {e["name"] for e in listed.json()}
+
+        revived = await tenant_a_client.post(
+            "/api/v1/trade-catalog/",
+            json={"name": "Fencing", "color": "#222222"},
+        )
+        assert revived.status_code == 201
+        assert revived.json()["color"] == "#222222"
+
 
 class TestTradeScopes:
     """PROJ-02: Trade scope creation and listing."""
@@ -184,16 +240,16 @@ class TestTradeScopes:
         self, tenant_a_client: AsyncClient, seed_two_tenants: dict
     ):
         """Create catalog entry, create project, add scope linked to catalog — returns 201."""
-        # Create catalog entry
+        # Create catalog entry (non-default name; defaults are seeded at registration)
         cat_resp = await tenant_a_client.post(
             "/api/v1/trade-catalog/",
-            json={"name": "Plumbing", "color": "#2196F3"},
+            json={"name": "Waterproofing", "color": "#2196F3"},
         )
         assert cat_resp.status_code == 201
         catalog_id = cat_resp.json()["id"]
 
         # Create project
-        project_id = await self._create_project(tenant_a_client, "Plumbing Project")
+        project_id = await self._create_project(tenant_a_client, "Waterproofing Project")
 
         # Add scope linked to catalog
         scope_resp = await tenant_a_client.post(
@@ -201,7 +257,7 @@ class TestTradeScopes:
             json={
                 "project_id": project_id,
                 "trade_catalog_id": catalog_id,
-                "trade_name": "Plumbing",
+                "trade_name": "Waterproofing",
                 "trade_color": "#2196F3",
             },
         )
@@ -209,7 +265,7 @@ class TestTradeScopes:
         data = scope_resp.json()
         assert data["project_id"] == project_id
         assert data["trade_catalog_id"] == catalog_id
-        assert data["trade_name"] == "Plumbing"
+        assert data["trade_name"] == "Waterproofing"
 
     async def test_add_adhoc_trade_scope(
         self, tenant_a_client: AsyncClient, seed_two_tenants: dict
@@ -422,10 +478,10 @@ class TestContractorSpecialtyMatching:
         contractor_token = contractor_data.json()["access_token"]
         _contractor_user_id = contractor_data.json()["user_id"]
 
-        # Create a trade catalog entry in Tenant A
+        # Create a trade catalog entry in Tenant A (non-default name)
         cat_resp = await tenant_a_client.post(
             "/api/v1/trade-catalog/",
-            json={"name": "Electrical", "color": "#FFEB3B"},
+            json={"name": "Excavation", "color": "#FFEB3B"},
         )
         assert cat_resp.status_code == 201
         _catalog_id = cat_resp.json()["id"]
@@ -442,7 +498,7 @@ class TestContractorSpecialtyMatching:
             # Create catalog entry in contractor's company too
             cat_resp2 = await cc.post(
                 "/api/v1/trade-catalog/",
-                json={"name": "Electrical", "color": "#FFEB3B"},
+                json={"name": "Excavation", "color": "#FFEB3B"},
             )
             assert cat_resp2.status_code == 201
             contractor_catalog_id = cat_resp2.json()["id"]
@@ -506,7 +562,7 @@ class TestContractorSpecialtyMatching:
         # Create catalog entry via API first (outside DB transaction)
         cat_resp = await tenant_a_client.post(
             "/api/v1/trade-catalog/",
-            json={"name": "Framing", "color": "#8BC34A"},
+            json={"name": "Cabinetry", "color": "#8BC34A"},
         )
         assert cat_resp.status_code == 201
         catalog_id = cat_resp.json()["id"]

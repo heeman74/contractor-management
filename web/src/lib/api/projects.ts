@@ -91,6 +91,14 @@ export function createTradeCatalogEntry(data: {
   return apiPost<TradeCatalogResponse>("/api/v1/trade-catalog/", data);
 }
 
+export function deleteTradeCatalogEntry(id: string): Promise<void> {
+  return apiDelete<void>(`/api/v1/trade-catalog/${id}`);
+}
+
+export function seedDefaultTrades(): Promise<TradeCatalogResponse[]> {
+  return apiPost<TradeCatalogResponse[]>("/api/v1/trade-catalog/seed-defaults", {});
+}
+
 export function fetchTradeScopes(
   projectId: string
 ): Promise<TradeScopeResponse[]> {

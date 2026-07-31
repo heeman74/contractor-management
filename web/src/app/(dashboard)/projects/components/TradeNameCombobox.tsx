@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Check, ChevronsUpDown } from "lucide-react";
+import { Plus, Check, ChevronsUpDown, Trash2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import {
   Popover,
@@ -21,8 +21,12 @@ interface TradeNameComboboxProps {
   filteredCatalog: TradeCatalogResponse[];
   selectedCatalogId: string | null;
   showNewTradeOption: boolean;
+  catalogIsEmpty: boolean;
+  isSeedingDefaults: boolean;
   onSelectEntry: (entry: TradeCatalogResponse) => void;
   onSelectNewTrade: () => void;
+  onRemoveEntry: (id: string) => void;
+  onSeedDefaults: () => void;
 }
 
 export function TradeNameCombobox({
@@ -34,8 +38,12 @@ export function TradeNameCombobox({
   filteredCatalog,
   selectedCatalogId,
   showNewTradeOption,
+  catalogIsEmpty,
+  isSeedingDefaults,
   onSelectEntry,
   onSelectNewTrade,
+  onRemoveEntry,
+  onSeedDefaults,
 }: TradeNameComboboxProps) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -63,21 +71,33 @@ export function TradeNameCombobox({
             />
             <div className="max-h-60 overflow-y-auto py-1">
               {filteredCatalog.map((entry) => (
-                <button
+                <div
                   key={entry.id}
-                  type="button"
-                  className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
-                  onClick={() => onSelectEntry(entry)}
+                  className="group flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
                 >
-                  <span
-                    className="inline-block h-3 w-3 flex-shrink-0 rounded-full"
-                    style={{ backgroundColor: entry.color || DEFAULT_TRADE_COLOR }}
-                  />
-                  <span className="flex-1 text-left">{entry.name}</span>
-                  {selectedCatalogId === entry.id && (
-                    <Check className="h-3.5 w-3.5 text-foreground" />
-                  )}
-                </button>
+                  <button
+                    type="button"
+                    className="flex flex-1 cursor-pointer items-center gap-2 text-left"
+                    onClick={() => onSelectEntry(entry)}
+                  >
+                    <span
+                      className="inline-block h-3 w-3 flex-shrink-0 rounded-full"
+                      style={{ backgroundColor: entry.color || DEFAULT_TRADE_COLOR }}
+                    />
+                    <span className="flex-1">{entry.name}</span>
+                    {selectedCatalogId === entry.id && (
+                      <Check className="h-3.5 w-3.5 text-foreground" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onRemoveEntry(entry.id)}
+                    aria-label={`Remove ${entry.name}`}
+                    className="flex-shrink-0 rounded p-1 text-gray-400 opacity-0 hover:bg-gray-100 hover:text-destructive focus:opacity-100 group-hover:opacity-100"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               ))}
               {showNewTradeOption && (
                 <button
@@ -91,9 +111,24 @@ export function TradeNameCombobox({
                 </button>
               )}
               {filteredCatalog.length === 0 && !showNewTradeOption && (
-                <p className="px-3 py-2 text-sm text-gray-500">
-                  No trades found. Type to create a new one.
-                </p>
+                <div className="px-3 py-2">
+                  {catalogIsEmpty ? (
+                    <button
+                      type="button"
+                      onClick={onSeedDefaults}
+                      disabled={isSeedingDefaults}
+                      className="flex w-full items-center gap-2 rounded text-sm text-foreground hover:underline disabled:opacity-50"
+                      data-testid="seed-default-trades"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      {isSeedingDefaults ? "Adding defaults…" : "Add default trades"}
+                    </button>
+                  ) : (
+                    <p className="text-sm text-gray-500">
+                      No trades found. Type to create a new one.
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           </div>

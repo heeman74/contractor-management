@@ -50,8 +50,12 @@ export function AddTradeScopeSheet({
             filteredCatalog={form.filteredCatalog}
             selectedCatalogId={form.selectedCatalogId}
             showNewTradeOption={form.showNewTradeOption}
+            catalogIsEmpty={form.catalogIsEmpty}
+            isSeedingDefaults={form.isSeedingDefaults}
             onSelectEntry={form.selectCatalogEntry}
             onSelectNewTrade={form.selectNewTrade}
+            onRemoveEntry={form.removeCatalogEntry}
+            onSeedDefaults={form.seedDefaults}
           />
 
           {form.showSaveToCatalogPrompt && (

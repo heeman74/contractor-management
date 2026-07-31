@@ -159,8 +159,25 @@ class TradeCatalogService(TenantScopedService[TradeCatalog]):
     repository_class = TradeCatalogRepository
 
     async def create(self, data: TradeCatalogCreate) -> TradeCatalog:
-        """Create a new trade catalog entry for the current company."""
+        """Create a trade catalog entry, reviving a removed one of the same name.
+
+        Names are unique per company. If an active entry already has this name we
+        reject with 409; if a removed (soft-deleted) one does, we restore it with
+        the requested color rather than fail on the uniqueness constraint.
+        """
         company_id = self._require_tenant_id()
+        existing = await self.repository.find_by_name(company_id, data.name)
+        if existing is not None:
+            if existing.deleted_at is None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="A trade with this name already exists.",
+                )
+            existing.deleted_at = None
+            existing.color = data.color
+            await self.db.flush()
+            await self.db.refresh(existing)
+            return existing
         entry = TradeCatalog(
             company_id=company_id,
             name=data.name,
@@ -171,6 +188,17 @@ class TradeCatalogService(TenantScopedService[TradeCatalog]):
     async def list(self) -> list[TradeCatalog]:
         """List all catalog entries for the current company, ordered by name."""
         repo = TradeCatalogRepository(self.db)
+        return await repo.list_by_company()
+
+    async def seed_defaults(self) -> list[TradeCatalog]:
+        """Seed the default trades this company is missing, then return the list.
+
+        Idempotent — safe to call for a company that already has some or all of
+        the defaults (only the missing ones are inserted).
+        """
+        company_id = self._require_tenant_id()
+        repo = TradeCatalogRepository(self.db)
+        await repo.seed_defaults(company_id)
         return await repo.list_by_company()
 
 

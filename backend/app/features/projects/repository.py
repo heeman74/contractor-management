@@ -66,6 +66,28 @@ class ProjectRepository(TenantScopedRepository[Project]):
         return list(result.scalars().all())
 
 
+# Common construction trades every new company starts with. Seeded at
+# registration and available on demand for existing companies; each remains
+# individually editable and removable afterward.
+DEFAULT_TRADES: tuple[tuple[str, str], ...] = (
+    ("Electrical", "#F59E0B"),
+    ("Plumbing", "#3B82F6"),
+    ("HVAC", "#10B981"),
+    ("Framing", "#A16207"),
+    ("Drywall", "#9CA3AF"),
+    ("Painting", "#EC4899"),
+    ("Flooring", "#8B5CF6"),
+    ("Roofing", "#EF4444"),
+    ("Concrete", "#6B7280"),
+    ("Masonry", "#78716C"),
+    ("Insulation", "#F97316"),
+    ("Tiling", "#14B8A6"),
+    ("Carpentry", "#B45309"),
+    ("Landscaping", "#22C55E"),
+    ("Demolition", "#57534E"),
+)
+
+
 class TradeCatalogRepository(BaseRepository[TradeCatalog]):
     """Repository for TradeCatalog entries."""
 
@@ -79,6 +101,41 @@ class TradeCatalogRepository(BaseRepository[TradeCatalog]):
             .order_by(TradeCatalog.name)
         )
         return list(result.scalars().all())
+
+    async def find_by_name(self, company_id: uuid.UUID, name: str) -> TradeCatalog | None:
+        """Return the entry with this exact name (including soft-deleted), if any.
+
+        Matches the (company_id, name) uniqueness so create can detect a conflict
+        or revive a previously removed trade instead of hitting a DB error.
+        """
+        result = await self.db.execute(
+            select(TradeCatalog).where(
+                TradeCatalog.company_id == company_id,
+                TradeCatalog.name == name,
+            )
+        )
+        return result.scalars().first()
+
+    async def seed_defaults(self, company_id: uuid.UUID) -> int:
+        """Insert the default trades this company is missing; return how many.
+
+        Idempotent: an existing name (even a soft-deleted one) is skipped, so a
+        trade the user deliberately removed is never resurrected and re-seeding
+        never duplicates rows.
+        """
+        result = await self.db.execute(
+            select(TradeCatalog.name).where(TradeCatalog.company_id == company_id)
+        )
+        existing = {name.casefold() for name in result.scalars().all()}
+        created = 0
+        for name, color in DEFAULT_TRADES:
+            if name.casefold() in existing:
+                continue
+            self.db.add(TradeCatalog(company_id=company_id, name=name, color=color))
+            created += 1
+        if created:
+            await self.db.flush()
+        return created
 
 
 class TradeScopeRepository(BaseRepository[TradeScope]):

@@ -327,6 +327,22 @@ async def list_catalog(
     return [TradeCatalogResponse.model_validate(e) for e in entries]
 
 
+@trade_catalog_router.post("/seed-defaults", response_model=list[TradeCatalogResponse])
+async def seed_default_catalog(
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(get_current_user),
+) -> list[TradeCatalogResponse]:
+    """Seed the default trades this company is missing and return the full list.
+
+    Idempotent — companies created after this feature are seeded automatically at
+    registration; this lets an existing company (or one that removed everything)
+    populate the standard trades on demand.
+    """
+    svc = TradeCatalogService(db)
+    entries = await svc.seed_defaults()
+    return [TradeCatalogResponse.model_validate(e) for e in entries]
+
+
 @trade_catalog_router.patch("/{catalog_id}", response_model=TradeCatalogResponse)
 async def update_catalog_entry(
     catalog_id: uuid.UUID,

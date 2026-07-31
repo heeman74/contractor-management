@@ -8,6 +8,8 @@ import {
   useContractors,
   createTradeScope,
   createTradeCatalogEntry,
+  deleteTradeCatalogEntry,
+  seedDefaultTrades,
 } from "@/lib/api/projects";
 import type { TradeCatalogResponse } from "@/types/projects";
 
@@ -67,6 +69,34 @@ export function useAddTradeScope({
     },
     onError: () => {
       toast.error("Failed to save to catalog.");
+    },
+  });
+
+  const removeCatalogMutation = useMutation({
+    mutationFn: (id: string) => deleteTradeCatalogEntry(id),
+    onSuccess: (_data, removedId) => {
+      // If the removed trade was the current selection, clear the field.
+      if (selectedCatalogId === removedId) {
+        setSelectedCatalogId(null);
+        setTradeName("");
+        setTradeSearch("");
+      }
+      queryClient.invalidateQueries({ queryKey: ["trade-catalog"] });
+      toast.success("Trade removed.");
+    },
+    onError: () => {
+      toast.error("Failed to remove trade.");
+    },
+  });
+
+  const seedDefaultsMutation = useMutation({
+    mutationFn: () => seedDefaultTrades(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["trade-catalog"] });
+      toast.success("Default trades added.");
+    },
+    onError: () => {
+      toast.error("Failed to add default trades.");
     },
   });
 
@@ -143,10 +173,15 @@ export function useAddTradeScope({
     specialtyContractors,
     otherContractors,
     hasContractors: Boolean(contractors && contractors.length > 0),
+    catalogIsEmpty: Boolean(catalog && catalog.length === 0),
     isSavingCatalog: saveCatalogMutation.isPending,
     isCreatingScope: createScopeMutation.isPending,
+    isRemovingCatalog: removeCatalogMutation.isPending,
+    isSeedingDefaults: seedDefaultsMutation.isPending,
     saveToCatalog: () => saveCatalogMutation.mutate(),
     dismissSaveToCatalog: () => setSaveToCatalogDismissed(true),
+    removeCatalogEntry: (id: string) => removeCatalogMutation.mutate(id),
+    seedDefaults: () => seedDefaultsMutation.mutate(),
     resetForm,
     selectCatalogEntry,
     selectNewTrade,

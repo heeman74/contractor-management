@@ -20,6 +20,7 @@ from app.core.security import (
 from app.core.tenant import set_current_tenant_id
 from app.features.auth.models import RefreshToken
 from app.features.companies.models import Company
+from app.features.projects.repository import TradeCatalogRepository
 from app.features.rbac.repository import RbacRepository
 from app.features.users.models import User, UserRole
 
@@ -90,6 +91,9 @@ class AuthService:
 
         # Seed the editable role -> permission matrix from code-defined defaults.
         await RbacRepository(self.db).seed_defaults(company_id)
+
+        # Seed the standard construction trades so the catalog isn't empty.
+        await TradeCatalogRepository(self.db).seed_defaults(company_id)
 
         # Generate tokens
         roles = ["admin"]
