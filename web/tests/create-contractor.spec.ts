@@ -13,6 +13,13 @@ const MOCK_CONTRACTOR = {
   roles: ["contractor"],
 };
 
+/** The shared trade catalog the specialty picker reads. A real list body:
+ *  the object fallback below is not one, and the picker maps over it. */
+const MOCK_TRADE_CATALOG = [
+  { id: "trade-electrical", name: "Electrical", color: "#F59E0B" },
+  { id: "trade-plumbing", name: "Plumbing", color: "#3B82F6" },
+];
+
 const MOCK_USERS_LIST = [
   {
     id: "existing-1",
@@ -43,6 +50,12 @@ async function mockContractorsApi(
     const url = route.request().url();
     const method = route.request().method();
     const pathParam = new URL(url).searchParams.get("path") ?? "";
+
+    // GET /trade-catalog — the specialty picker's options
+    if (pathParam.includes("/trade-catalog")) {
+      await route.fulfill({ json: MOCK_TRADE_CATALOG });
+      return;
+    }
 
     // GET /users — users list (contractors page)
     if (method === "GET" && pathParam.includes("/users")) {
