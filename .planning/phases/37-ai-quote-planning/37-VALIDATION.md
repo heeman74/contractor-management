@@ -1,9 +1,9 @@
 ---
 phase: 37
 slug: ai-quote-planning
-status: assigned
+status: complete
 nyquist_compliant: true
-wave_0_complete: false
+wave_0_complete: true
 created: 2026-07-30
 ---
 
@@ -58,23 +58,23 @@ created: 2026-07-30
 | FINAI-03 | **KEYSTONE 4** — regenerate leaves accepted and edited lines byte-identical (incl. `id`) and replaces only untouched AI lines | integration | **37-11 T2** | `pytest tests/test_phase_37_e2e.py -k regenerate_preserves -x` | ✅ |
 | FINAI-03 | Line-item identity survives a PATCH round trip (Trap 1 fix) | integration | **37-01 T2** | `pytest tests/test_phase_37_e2e.py -k line_item_ids_stable -x` | ✅ |
 | FINAI-03 | `field` survives a PATCH round trip (Trap 2 fix) — backend half | integration | **37-01 T2** | `pytest tests/test_phase_37_e2e.py -k line_item_field_survives_patch -x` | ✅ |
-| FINAI-03 | `field` survives the editor form round trip (Trap 2 fix) — web half | unit (web) | **37-03 T2** | `npx jest "src/app/\(dashboard\)/quotes/__tests__/quote-contract"` | ⬜ |
+| FINAI-03 | `field` survives the editor form round trip (Trap 2 fix) — web half | unit (web) | **37-03 T2** | `npx jest "src/app/\(dashboard\)/quotes/__tests__/quote-contract"` | ✅ |
 | FINAI-03 | D-10 gate: quote-manage without `finance.view` → 403; `finance.view` without quote-manage → 403 | integration | **37-09 T3** | `pytest tests/test_phase_37_e2e.py -k suggest_requires_both_permissions -x` | ✅ |
 | FINAI-03 | Suggest refused on non-draft quotes | integration | **37-09 T2** | `pytest tests/test_phase_37_e2e.py -k suggest_draft_only -x` | ✅ |
 | FINAI-03 | Comparable query is constant in comparable count (statement counter, 35-02 pattern) | integration | **37-07 T1** | `pytest tests/test_phase_37_e2e.py -k comparable_query_count_constant -x` | ✅ |
 | FINAI-03 | Comparable actual cost equals `contributing_anchor_cost` (equivalence guard — no third cost definition) | integration | **37-07 T1** | `pytest tests/test_phase_37_e2e.py -k comparable_cost_equivalence -x` | ✅ |
 | FINAI-03 | An invoiced anchor with zero cost entries is excluded (PITFALLS #9) | integration | **37-07 T1** | `pytest tests/test_phase_37_e2e.py -k zero_cost_anchor_excluded -x` | ✅ |
-| FINAI-03 | Suggest → review → send-blocked → review-all → send-succeeds, in a browser | E2E | **37-12 T1** | `npx playwright test tests/phase-37-quote-ai.spec.ts --workers=2 --retries=1` | ⬜ |
+| FINAI-03 | Suggest → review → send-blocked → review-all → send-succeeds, in a browser | E2E | **37-12 T1** | `npx playwright test tests/phase-37-quote-ai.spec.ts --workers=2 --retries=1` | ✅ |
 | FINAI-04 | Confidence band on the **count** axis, spread held constant | unit | **37-02 T3** | `pytest tests/unit/test_quote_history_math.py -k band_by_count -x` | ✅ |
 | FINAI-04 | Confidence band on the **spread** axis, count held constant (20 comparables at 3× ≠ high) | unit | **37-02 T3** | `pytest tests/unit/test_quote_history_math.py -k band_by_spread -x` | ✅ |
 | FINAI-04 | Band never read from the AI reply — a self-reported band is ignored | integration | **37-11 T2** | `pytest tests/test_phase_37_e2e.py -k band_is_code_computed -x` | ✅ |
-| FINAI-04 | Band → label/class map has exactly one entry per band | unit (web) | **37-03 T1** | `npx jest "src/app/\(dashboard\)/quotes/__tests__/quote-contract"` | ⬜ |
-| FINAI-04 | Chip + basis render per band; no numeric score anywhere in the DOM; no bulk-approve control | unit (web) | **37-05 T2, 37-05 T3** | `npx jest "src/app/\(dashboard\)/quotes/__tests__/quote-suggestions"` | ⬜ |
+| FINAI-04 | Band → label/class map has exactly one entry per band | unit (web) | **37-03 T1** | `npx jest "src/app/\(dashboard\)/quotes/__tests__/quote-contract"` | ✅ |
+| FINAI-04 | Chip + basis render per band; no numeric score anywhere in the DOM; no bulk-approve control | unit (web) | **37-05 T2, 37-05 T3** | `npx jest "src/app/\(dashboard\)/quotes/__tests__/quote-suggestions"` | ✅ |
 | FINAI-05 | Variance = pre-tax quoted vs actual cost; sign convention; zero-quote guard | unit | **37-02 T2** | `pytest tests/unit/test_quote_history_math.py -k variance -x` | ✅ |
 | FINAI-05 | Quote variance and project quote variance endpoints are `finance.view`-gated | integration | **37-04 T3** | `pytest tests/test_phase_37_e2e.py -k requires_finance_view -x` | ✅ |
-| FINAI-05 | Variance rows render on `/financials/[projectId]` with the scope-labor caption | unit (web) | **37-10 T2, 37-10 T3** | `npx jest "src/app/\(dashboard\)/financials"` | ⬜ |
-| FINAI-05 | Variance on quote detail is finance-gated: no `finance.view` → card absent **and zero requests** (Trap 8) | unit (web) + E2E | **37-08 T3, 37-12 T2** | `npx jest "src/app/\(dashboard\)/quotes/__tests__/quote-variance-gate"`; `npx playwright test tests/phase-37-quote-ai.spec.ts --workers=2 --retries=1` | ⬜ |
-| FINAI-05 | `FinanceGate`'s omitted-`fallback` behavior is byte-unchanged | unit (web) | **37-08 T1** | `npx jest "src/features/finance" "src/app/\(dashboard\)/financials"` | ⬜ |
+| FINAI-05 | Variance rows render on `/financials/[projectId]` with the scope-labor caption | unit (web) | **37-10 T2, 37-10 T3** | `npx jest "src/app/\(dashboard\)/financials"` | ✅ |
+| FINAI-05 | Variance on quote detail is finance-gated: no `finance.view` → card absent **and zero requests** (Trap 8) | unit (web) + E2E | **37-08 T3, 37-12 T2** | `npx jest "src/app/\(dashboard\)/quotes/__tests__/quote-variance-gate"`; `npx playwright test tests/phase-37-quote-ai.spec.ts --workers=2 --retries=1` | ✅ |
+| FINAI-05 | `FinanceGate`'s omitted-`fallback` behavior is byte-unchanged | unit (web) | **37-08 T1** | `npx jest "src/features/finance" "src/app/\(dashboard\)/financials"` | ✅ |
 | FINAI-05 | Variance feeds the payload: the trade's variance percent appears as a named payload field | integration | **37-11 T3** | `pytest tests/test_phase_37_e2e.py -k variance_in_payload -x` | ✅ |
 | D-13 | `unit_price` derives from quoted history, not the unburdened cost rate; the cost/variance legs are separately named payload fields cited in the basis | integration | **37-11 T3** | `pytest tests/test_phase_37_e2e.py -k pricing_basis -x` | ✅ |
 | D-14 | Project-level quote variance groups by `field` → the per-field jobs approval created | integration | **37-04 T2** | `pytest tests/test_phase_37_e2e.py -k project_quote_variance -x` | ✅ |
@@ -89,14 +89,14 @@ created: 2026-07-30
 
 ## Wave 0 Requirements
 
-- [ ] **Production-code prerequisite, NOT a test — must land first (plan 37-01, wave 1):** the Trap 1 + Trap 2 identity fix (`_replace_line_items` DELETEs/re-INSERTs every line on every PATCH and `QuoteLineItemCreate` carries no `id`; the web form drops `field`). Every keystone except #3 is unwritable until line items have stable identity.
-- [ ] `backend/tests/test_phase_37_e2e.py` (created 37-01 T1, extended by 37-01/37-04/37-07/37-09/37-11) — all four keystones + permission, identity, cold-start and query-shape tests
-- [ ] `backend/tests/unit/test_quote_history_math.py` (37-02 T2/T3, extended 37-07 T2) — confidence bands (both axes independently) and variance math
-- [ ] Extend `backend/tests/unit/test_ai_grounding.py` (37-02 T1) — typed money/percent separation; assert the shipped untyped path is unchanged
-- [ ] `web/src/app/(dashboard)/quotes/__tests__/quote-suggestions.test.tsx` (37-05) — chip per band, basis line, per-line review affordance, no bulk-approve control, no numeric score
-- [ ] `web/src/app/(dashboard)/quotes/__tests__/quote-variance-gate.test.tsx` (37-08) — the Trap 8 render + zero-request pair
-- [ ] `web/tests/phase-37-quote-ai.spec.ts` (37-12) — Playwright: suggest → review → send-blocked → review-all → send-succeeds
-- [ ] Extend the `jest.mock` module factory in `web/src/app/(dashboard)/financials/__tests__/project-financials.test.tsx` when the variance hook is added (37-10 T3)
+- [x] **Production-code prerequisite, NOT a test — must land first (plan 37-01, wave 1):** the Trap 1 + Trap 2 identity fix (`_replace_line_items` DELETEs/re-INSERTs every line on every PATCH and `QuoteLineItemCreate` carries no `id`; the web form drops `field`). Every keystone except #3 is unwritable until line items have stable identity.
+- [x] `backend/tests/test_phase_37_e2e.py` (created 37-01 T1, extended by 37-01/37-04/37-07/37-09/37-11) — all four keystones + permission, identity, cold-start and query-shape tests
+- [x] `backend/tests/unit/test_quote_history_math.py` (37-02 T2/T3, extended 37-07 T2) — confidence bands (both axes independently) and variance math
+- [x] Extend `backend/tests/unit/test_ai_grounding.py` (37-02 T1) — typed money/percent separation; assert the shipped untyped path is unchanged
+- [x] `web/src/app/(dashboard)/quotes/__tests__/quote-suggestions.test.tsx` (37-05) — chip per band, basis line, per-line review affordance, no bulk-approve control, no numeric score
+- [x] `web/src/app/(dashboard)/quotes/__tests__/quote-variance-gate.test.tsx` (37-08) — the Trap 8 render + zero-request pair
+- [x] `web/tests/phase-37-quote-ai.spec.ts` (37-12) — Playwright: suggest → review → send-blocked → review-all → send-succeeds
+- [x] Extend the `jest.mock` module factory in `web/src/app/(dashboard)/financials/__tests__/project-financials.test.tsx` when the variance hook is added (37-10 T3)
 - Also: `backend/tests/unit/test_quote_suggestion_payload.py` (37-07 T3), `backend/tests/unit/test_quote_planning_prompt.py` (37-09 T1), `web/src/app/(dashboard)/quotes/__tests__/quote-contract.test.tsx` (37-03), `web/src/app/(dashboard)/quotes/__tests__/quote-send-gate.test.tsx` (37-06).
 - Framework install: none — pytest, Jest, Playwright all present.
 
@@ -113,11 +113,30 @@ created: 2026-07-30
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 30s (phase-gate suites sanctioned)
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 30s (phase-gate suites sanctioned)
 - [x] `nyquist_compliant: true` set in frontmatter
 
 **Approval:** per-task map assigned 2026-07-30 during `/gsd:plan-phase 37` (12 plans, 7 waves).
+
+**Closed 2026-07-31 (37-11 T3, 37-12 T3).** Every row's owning task has run and
+its named command is green. Gate evidence:
+
+| Gate | Result |
+|---|---|
+| `cd backend && .venv/bin/pytest` (one process) | 1110 passed, 1 skipped |
+| `cd backend && ruff check . && ruff format --check .` | both exit 0 |
+| `cd web && npm test` | 519 passed, 39 suites |
+| `cd web && npx tsc --noEmit` / `npm run lint` | both exit 0 |
+| `cd web && npx playwright test --workers=2 --retries=1` | 178 passed, 2 failed |
+
+The two Playwright failures are the documented Phase 21 URL drift (`ai-intake`,
+`ai-interview`) and nothing else. `phase-35-financials.spec.ts:669` was flaky
+once and passed on its retry.
+
+Backend rows were marked green only after confirming each row's `-k` selector
+actually collects tests — a selector matching nothing would otherwise read as a
+pass.
