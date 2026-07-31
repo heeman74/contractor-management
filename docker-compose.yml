@@ -16,6 +16,14 @@ services:
     build: ./backend
     ports:
       - "8000:8000"
+    # Secrets live in backend/.env (ANTHROPIC_API_KEY among them). Without this
+    # the container started with no key at all and every AI endpoint 500'd on
+    # "Could not resolve authentication method" — the key was configured, just
+    # never delivered. The explicit `environment` block below still wins over
+    # anything of the same name in the file, so DATABASE_URL keeps pointing at
+    # the compose postgres rather than the host one.
+    env_file:
+      - ./backend/.env
     environment:
       DATABASE_URL: postgresql+asyncpg://appuser:apppassword@postgres:5432/${POSTGRES_DB:-contractorhub}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-docker-dev-secret-change-in-production}
