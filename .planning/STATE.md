@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 37-07-PLAN.md
-last_updated: "2026-07-30T20:03:32.984Z"
-last_activity: 2026-07-30
+stopped_at: Completed 37-10-PLAN.md
+last_updated: "2026-07-31T06:28:13.553Z"
+last_activity: 2026-07-31
 progress:
   total_phases: 22
   completed_phases: 19
   total_plans: 127
-  completed_plans: 120
+  completed_plans: 121
 ---
 
 # Project State
@@ -25,9 +25,9 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 37 (ai-quote-planning) — EXECUTING
-Plan: 9 of 12
+Plan: 10 of 12
 Status: Ready to execute
-Last activity: 2026-07-30
+Last activity: 2026-07-31
 
 ## Performance Metrics
 
@@ -99,6 +99,7 @@ Last activity: 2026-07-30
 | Phase 37 P04 | 35min | 3 tasks | 5 files |
 | Phase 37 P08 | 16min | 3 tasks | 8 files |
 | Phase 37 P07 | 30min | 3 tasks | 6 files |
+| Phase 37 P10 | 30min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -364,6 +365,7 @@ Last activity: 2026-07-30
 - [Phase 37]: 37-07: summarize_comparables takes an explicit trade parameter beyond the plan's abbreviated signature, since ComparableSummary.trade needs a source
 - [Phase 37]: 37-07: contributing_anchor_cost is reused directly via a repository-local ProjectMarginContext so a comparable's cost can never drift from the margin rollup's
 - [Phase 37]: 37-07: quoted_vs_actual_variance_percent pairs quoted/actual sums only over anchors with a known quoted leg, relying on variance_for's existing zero-revenue guard for the no-quotes case
+- [Phase 37]: 37-10: extended profitability-finding.test.tsx's hooks mock factory with useProjectQuoteVariance -- a second test file rendering ProjectFinancialsDashboard behind the same jest.mock module factory hit the 36-04 'not a function' trap
 
 ### Pending Todos
 
@@ -385,6 +387,6 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 
 ## Session Continuity
 
-Last session: 2026-07-30T20:03:32.976Z
-Stopped at: Completed 37-07-PLAN.md
+Last session: 2026-07-31T06:28:13.544Z
+Stopped at: Completed 37-10-PLAN.md
 Resume file: None
