@@ -1,5 +1,5 @@
 ---
-status: partial
+status: testing
 phase: 37-ai-quote-planning
 source:
   - 37-01-SUMMARY.md
@@ -15,20 +15,23 @@ source:
   - 37-11-SUMMARY.md
   - 37-12-SUMMARY.md
 started: 2026-07-31T17:09:08Z
-updated: 2026-07-31T17:25:00Z
+updated: 2026-07-31T19:15:00Z
 ---
 
 ## Current Test
 <!-- OVERWRITE each test - shows where we are -->
 
-number: 2
-name: Suggest → review → send, against a real Claude call
+number: 3
+name: Confidence chip visual fidelity
 expected: |
-  BLOCKED on seed data — the dev company has 0 quotes, 0 jobs, 0 clients and
-  0 invoices, and AI suggestions require several INVOICED jobs in the same
-  trade with recorded costs before they will run at all (that refusal is the
-  cold-start keystone, working as designed).
-awaiting: decision on seeding a trade history
+  Open each of the three quotes below and judge the chips on a real screen:
+  legible contrast against the 35/36 palette, and loudness rising as evidence
+  thins rather than the reverse.
+
+    Strong history (high)   /quotes/77f3be63-2c29-428f-9cee-2f7e616083c3/edit
+    Limited history (medium)/quotes/dd71d7c1-98a0-4fb3-81f1-9325c6cd8d83/edit
+    Thin history (low)      /quotes/9a4c1871-433c-43af-bbe0-74cd6d973c2e/edit
+awaiting: user response
 
 ## Tests
 
@@ -49,22 +52,43 @@ evidence: |
 expected: On a draft quote for a trade with enough invoiced history, "Suggest line items" produces line items whose prices and basis sentences are drawn from your own recorded work. Every suggested line shows a confidence chip and a basis sentence you can trace back to real jobs. The quote cannot be sent until each line is accepted or edited.
 automated: false
 reason: Every automated test patches the Anthropic client — this is the one check that exercises a live model call and real prompt adherence.
-result: blocked
-blocked_by: seed-data
-blocked_detail: |
-  The dev company has 0 quotes, 0 jobs, 0 clients, 0 invoices. The suggestion
-  path requires several invoiced same-trade jobs carrying recorded cost
-  entries; with none, it correctly refuses before ever calling Claude, so
-  there is nothing for a live call to adhere to. Needs a seeded trade history
-  (or a restore of whatever dataset this DB previously held).
+result: pass
+evidence: |
+  17 invoiced jobs seeded across three trades (Roofing 9, Framing 5,
+  Tiling 3), each with an approved quote, an invoice and a recorded cost
+  below its quoted revenue.
+
+  A live Claude call on a new Roofing draft returned refusal_reason null,
+  comparable_count 9, suggested_line_count 2. Every figure traces to the
+  seeded history rather than to the model:
+
+    Roofing labor  24 hr @ $167.00  band high
+      $167.00 is the exact median of the nine seeded rates (162-172).
+    Roofing material 30 ea @ $118.00 band high
+      $118.00 is the seeded material price; 24 hr / 30 ea are the seeded
+      quantities.
+
+  Both basis sentences cite only figures in the allowed set, so typed
+  grounding passed on a real reply. D-13 holds: $167.00 quoted is above the
+  comparable actual unit cost (costs were seeded at 78% of quoted).
+
+  The send gate was then exercised on the same quote: POST /send returned
+  409 with the byte-locked detail, with two unreviewed AI lines present.
+
+  Bands confirmed on all three trades, each from its own live call:
+    Roofing 9 comparables -> high   ($167.00 = median of 9)
+    Framing 5 comparables -> medium ($93.00  = median of 5)
+    Tiling  3 comparables -> low    ($85.00  = median of 3)
 
 ### 3. Confidence chip visual fidelity
 expected: The three chips (Strong history / Limited history / Thin history) read clearly against the Phase 35/36 palette on a real screen — legible contrast, and loudness rising as evidence thins rather than the reverse.
 automated: false
 reason: Aesthetic judgment on a real renderer.
-result: blocked
-blocked_by: seed-data
-blocked_detail: Depends on test 2 — the chips only render on AI-suggested lines.
+result: pending
+detail: |
+  Unblocked — all three chips now render on real suggestions. The three
+  quotes are listed under Current Test above. This is the one item that
+  cannot be automated: it is an aesthetic judgment on a real renderer.
 
 ## Automated Coverage
 
@@ -90,11 +114,11 @@ Full gates: backend 1110 passed / 1 skipped (single process); web 519 jest,
 ## Summary
 
 total: 3
-passed: 1
+passed: 2
 issues: 0
-pending: 0
+pending: 1
 skipped: 0
-blocked: 2
+blocked: 0
 
 ## Gaps
 
