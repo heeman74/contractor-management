@@ -130,77 +130,111 @@ class _ChangeOrderBuilderScreenState
     return Scaffold(
       appBar: AppBar(
         title: const Text('New Change Order'),
-        actions: [
-          IconButton(
-            key: const Key('save_change_order'),
-            onPressed: _isSaving ? null : _save,
-            icon: _isSaving
-                ? const SizedBox(
-                    width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.save_outlined),
-          ),
-        ],
+        actions: [_saveAction()],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          TextField(
-            key: const Key('co_reason'),
-            controller: _reasonController,
-            maxLines: 3,
-            decoration: const InputDecoration(
-              labelText: 'Reason for change',
-              hintText: 'e.g. Rotted subfloor discovered under the tile',
-              border: OutlineInputBorder(),
-            ),
-          ),
+          _reasonField(),
           const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            key: const Key('co_target'),
-            initialValue: _coTarget,
-            isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: 'Apply approved work to',
-              border: OutlineInputBorder(),
-            ),
-            items: const [
-              DropdownMenuItem(value: 'new_job', child: Text('A new job in the project')),
-              DropdownMenuItem(value: 'existing_job', child: Text('This job (extend it)')),
-            ],
-            onChanged: (v) => setState(() => _coTarget = v ?? 'new_job'),
-          ),
+          _targetField(),
           const SizedBox(height: 16),
-          TextField(
-            key: const Key('co_days'),
-            controller: _daysController,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Schedule impact (days)',
-              border: OutlineInputBorder(),
-            ),
-          ),
+          _scheduleImpactField(),
           const SizedBox(height: 24),
           Text('Line items', style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 8),
           for (var i = 0; i < _lines.length; i++) _lineItemRow(i),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              key: const Key('add_co_line'),
-              onPressed: () => setState(() => _lines.add(_CoLine())),
-              icon: const Icon(Icons.add),
-              label: const Text('Add line item'),
-            ),
-          ),
+          _addLineButton(),
           const Divider(),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              'Total: \$${_total.toStringAsFixed(2)}',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          ),
+          _totalRow(context),
         ],
+      ),
+    );
+  }
+
+  /// Save lives in the app bar; while a save is in flight the icon becomes a
+  /// spinner and the action is disabled, so a double tap cannot raise two
+  /// change orders for the same work.
+  Widget _saveAction() {
+    return IconButton(
+      key: const Key('save_change_order'),
+      onPressed: _isSaving ? null : _save,
+      icon: _isSaving
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.save_outlined),
+    );
+  }
+
+  Widget _reasonField() {
+    return TextField(
+      key: const Key('co_reason'),
+      controller: _reasonController,
+      maxLines: 3,
+      decoration: const InputDecoration(
+        labelText: 'Reason for change',
+        hintText: 'e.g. Rotted subfloor discovered under the tile',
+        border: OutlineInputBorder(),
+      ),
+    );
+  }
+
+  Widget _targetField() {
+    return DropdownButtonFormField<String>(
+      key: const Key('co_target'),
+      initialValue: _coTarget,
+      isExpanded: true,
+      decoration: const InputDecoration(
+        labelText: 'Apply approved work to',
+        border: OutlineInputBorder(),
+      ),
+      items: const [
+        DropdownMenuItem(
+          value: 'new_job',
+          child: Text('A new job in the project'),
+        ),
+        DropdownMenuItem(
+          value: 'existing_job',
+          child: Text('This job (extend it)'),
+        ),
+      ],
+      onChanged: (value) => setState(() => _coTarget = value ?? 'new_job'),
+    );
+  }
+
+  Widget _scheduleImpactField() {
+    return TextField(
+      key: const Key('co_days'),
+      controller: _daysController,
+      keyboardType: TextInputType.number,
+      decoration: const InputDecoration(
+        labelText: 'Schedule impact (days)',
+        border: OutlineInputBorder(),
+      ),
+    );
+  }
+
+  Widget _addLineButton() {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton.icon(
+        key: const Key('add_co_line'),
+        onPressed: () => setState(() => _lines.add(_CoLine())),
+        icon: const Icon(Icons.add),
+        label: const Text('Add line item'),
+      ),
+    );
+  }
+
+  Widget _totalRow(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Text(
+        'Total: \$${_total.toStringAsFixed(2)}',
+        style: Theme.of(context).textTheme.titleMedium,
       ),
     );
   }
@@ -212,69 +246,86 @@ class _ChangeOrderBuilderScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              SizedBox(
-                width: 120,
-                child: DropdownButtonFormField<String>(
-                  initialValue: line.itemType,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Type', isDense: true),
-                  items: const [
-                    DropdownMenuItem(value: 'labor', child: Text('Labor')),
-                    DropdownMenuItem(value: 'material', child: Text('Material')),
-                  ],
-                  onChanged: (v) => setState(() => line.itemType = v ?? 'labor'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: TextFormField(
-                  key: Key('co_line_desc_$index'),
-                  initialValue: line.description,
-                  decoration: const InputDecoration(labelText: 'Description', isDense: true),
-                  onChanged: (v) => line.description = v,
-                ),
-              ),
-              if (_lines.length > 1)
-                IconButton(
-                  icon: const Icon(Icons.close, size: 18),
-                  onPressed: () => setState(() => _lines.removeAt(index)),
-                ),
-            ],
-          ),
-          Row(
-            children: [
-              Expanded(
-                child: TextFormField(
-                  initialValue: line.quantity.toString(),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'Qty', isDense: true),
-                  onChanged: (v) => line.quantity = double.tryParse(v) ?? 0,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: TextFormField(
-                  initialValue: line.unit,
-                  decoration: const InputDecoration(labelText: 'Unit', isDense: true),
-                  onChanged: (v) => line.unit = v,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: TextFormField(
-                  key: Key('co_line_price_$index'),
-                  initialValue: line.unitPrice.toString(),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'Unit price', isDense: true),
-                  onChanged: (v) => setState(() => line.unitPrice = double.tryParse(v) ?? 0),
-                ),
-              ),
-            ],
-          ),
+          _lineDescriptionRow(index, line),
+          _linePricingRow(index, line),
         ],
       ),
+    );
+  }
+
+  /// Type, description and the remove control — what the line IS.
+  Widget _lineDescriptionRow(int index, _CoLine line) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 120,
+          child: DropdownButtonFormField<String>(
+            initialValue: line.itemType,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Type', isDense: true),
+            items: const [
+              DropdownMenuItem(value: 'labor', child: Text('Labor')),
+              DropdownMenuItem(value: 'material', child: Text('Material')),
+            ],
+            onChanged: (v) => setState(() => line.itemType = v ?? 'labor'),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: TextFormField(
+            key: Key('co_line_desc_$index'),
+            initialValue: line.description,
+            decoration: const InputDecoration(
+              labelText: 'Description',
+              isDense: true,
+            ),
+            onChanged: (v) => line.description = v,
+          ),
+        ),
+        if (_lines.length > 1)
+          IconButton(
+            icon: const Icon(Icons.close, size: 18),
+            onPressed: () => setState(() => _lines.removeAt(index)),
+          ),
+      ],
+    );
+  }
+
+  /// Quantity, unit and unit price — what the line COSTS.
+  Widget _linePricingRow(int index, _CoLine line) {
+    return Row(
+      children: [
+        Expanded(
+          child: TextFormField(
+            initialValue: line.quantity.toString(),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(labelText: 'Qty', isDense: true),
+            onChanged: (v) => line.quantity = double.tryParse(v) ?? 0,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: TextFormField(
+            initialValue: line.unit,
+            decoration: const InputDecoration(labelText: 'Unit', isDense: true),
+            onChanged: (v) => line.unit = v,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: TextFormField(
+            key: Key('co_line_price_$index'),
+            initialValue: line.unitPrice.toString(),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Unit price',
+              isDense: true,
+            ),
+            onChanged: (v) =>
+                setState(() => line.unitPrice = double.tryParse(v) ?? 0),
+          ),
+        ),
+      ],
     );
   }
 }
