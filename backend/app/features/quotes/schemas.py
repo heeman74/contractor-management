@@ -236,6 +236,29 @@ class QuoteResponse(BaseResponseSchema):
 
 
 # ---------------------------------------------------------------------------
+# AI quote-suggestion schemas (FINAI-03/04)
+# ---------------------------------------------------------------------------
+
+REFUSAL_INSUFFICIENT_HISTORY = "insufficient_history"
+REFUSAL_TRADE_UNRESOLVED = "trade_unresolved"
+REFUSAL_UNGROUNDED = "ungrounded"
+
+
+class QuoteSuggestionResponse(BaseModel):
+    """POST /quotes/{quote_id}/suggest-line-items — the locked response shape
+    (37-UI-SPEC "Response contracts"). `refusal_reason` is None on a
+    successful suggestion run; every other combination carries a named
+    reason and leaves `suggested_line_count` at zero.
+    """
+
+    refusal_reason: Literal["insufficient_history", "trade_unresolved", "ungrounded"] | None = None
+    trade_name: str | None = None
+    comparable_count: int | None = None
+    required_count: int | None = None
+    suggested_line_count: int
+
+
+# ---------------------------------------------------------------------------
 # Quote variance schemas (FINAI-05)
 # ---------------------------------------------------------------------------
 
