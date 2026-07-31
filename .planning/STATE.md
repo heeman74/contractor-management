@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: Financial Intelligence
 status: executing
-stopped_at: Completed 37-10-PLAN.md
-last_updated: "2026-07-31T06:28:13.553Z"
+stopped_at: Completed 37-09-PLAN.md
+last_updated: "2026-07-31T06:36:26.656Z"
 last_activity: 2026-07-31
 progress:
   total_phases: 22
   completed_phases: 19
   total_plans: 127
-  completed_plans: 121
+  completed_plans: 122
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-24)
 ## Current Position
 
 Phase: 37 (ai-quote-planning) — EXECUTING
-Plan: 10 of 12
+Plan: 11 of 12
 Status: Ready to execute
 Last activity: 2026-07-31
 
@@ -100,6 +100,7 @@ Last activity: 2026-07-31
 | Phase 37 P08 | 16min | 3 tasks | 8 files |
 | Phase 37 P07 | 30min | 3 tasks | 6 files |
 | Phase 37 P10 | 30min | 3 tasks | 8 files |
+| Phase 37 P09 | 55min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -366,6 +367,10 @@ Last activity: 2026-07-31
 - [Phase 37]: 37-07: contributing_anchor_cost is reused directly via a repository-local ProjectMarginContext so a comparable's cost can never drift from the margin rollup's
 - [Phase 37]: 37-07: quoted_vs_actual_variance_percent pairs quoted/actual sums only over anchors with a known quoted leg, relying on variance_for's existing zero-revenue guard for the no-quotes case
 - [Phase 37]: 37-10: extended profitability-finding.test.tsx's hooks mock factory with useProjectQuoteVariance -- a second test file rendering ProjectFinancialsDashboard behind the same jest.mock module factory hit the 36-04 'not a function' trap
+- [Phase 37]: 37-09: qualified ai_utils import keeps call_claude_json_strict to exactly one greppable line in suggestion_service.py
+- [Phase 37]: 37-09: a project-level quote's new AI lines carry field=resolved trade so approval's per-field job grouping still finds them
+- [Phase 37]: 37-09: all 5 suggest-endpoint e2e tests committed with Task 3 (router) since they drive the real POST endpoint, which Task 2 alone does not provide
+- [Phase 37]: 37-09: basis length bound checked against the server-prefix-composed string actually persisted, not the model's clause alone
 
 ### Pending Todos
 
@@ -384,9 +389,10 @@ None yet. v4.0 roadmap created; next step is `/gsd:plan-phase 30`.
 - Phase 35 (v4.0): backend suites run red under parallel agent execution -- conftest.py TRUNCATEs all tables per test, which deadlocks when two pytest processes share contractorhub_test. A deadlock inside seed_two_tenants is contention, not a regression. Consider per-worker test databases if parallel execution stays routine.
 - ~~Phase 36: tests/unit/test_finance_scrub.py::test_financial_alert_types_are_the_budget_types RED since 36-01~~ RESOLVED in bb3a151 (relaxed to a subset check); re-verified green during 36-08 (tests/unit: 229 passed).
 - Phase 36: web full-suite runs (npm run test-e2e, 175 tests, default workers, one dev server, backend agent running concurrently) are not a trustworthy gate -- four runs returned 16/4/7/24 failures with a shifting set. At --workers=2 --retries=1: 173 passed, 2 failed, 0 flaky. Later web plans should gate on --workers=2. The 2 failures are the pre-existing Phase 21 URL-shape drift already logged in Phase 35's deferred-items.md.
+- Phase 37 (v4.0): backend working tree carries unrelated pre-existing uncommitted change-order work (models/repository/service/schemas/router.py in quotes, test_change_orders_e2e.py) unrelated to 37-09 -- isolated via reconstruct-from-HEAD during 37-09's commits; still uncommitted, should be committed or reverted deliberately before the next backend plan runs a whole-tree ruff format --check
 
 ## Session Continuity
 
-Last session: 2026-07-31T06:28:13.544Z
-Stopped at: Completed 37-10-PLAN.md
+Last session: 2026-07-31T06:36:26.646Z
+Stopped at: Completed 37-09-PLAN.md
 Resume file: None
