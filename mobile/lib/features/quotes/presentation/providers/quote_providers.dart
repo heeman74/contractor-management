@@ -36,6 +36,16 @@ final quoteForJobProvider =
   },
 );
 
+/// Reactive stream of a job's change orders (quote_kind='change_order' with
+/// originating_job_id = jobId), ordered by CO number. Empty when none exist.
+final changeOrdersForJobProvider =
+    StreamProvider.autoDispose.family<List<QuoteEntity>, String>(
+  (ref, jobId) {
+    final dao = ref.watch(quoteDaoProvider);
+    return dao.watchChangeOrdersForOriginatingJob(jobId);
+  },
+);
+
 /// Reactive stream of a single quote by ID.
 ///
 /// Emits null when the quote is not found or soft-deleted.

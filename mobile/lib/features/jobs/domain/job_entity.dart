@@ -25,6 +25,7 @@ abstract class JobEntity with _$JobEntity {
     required String companyId,
     required String description, required String tradeType, required String status, required List<Map<String, dynamic>> statusHistory, required String priority, required List<String> tags, required int version, required DateTime createdAt, required DateTime updatedAt, String? clientId,
     String? contractorId,
+    String? projectId,
     String? purchaseOrderNumber,
     String? externalReference,
     String? notes,

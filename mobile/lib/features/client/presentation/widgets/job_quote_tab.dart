@@ -105,6 +105,7 @@ class JobQuoteTab extends ConsumerWidget {
                 ),
               ),
             ),
+            _ChangeOrdersSection(jobId: jobId),
             if (quote.total > 0) ...[
               const SizedBox(height: 8),
               Card(
@@ -157,6 +158,57 @@ class JobQuoteTab extends ConsumerWidget {
 ///
 /// Watches [contractProvider]; after the signing screen pops with success the
 /// provider is invalidated so the status refreshes to `signed`.
+/// Lists the job's change orders (client-visible only) so the client can open
+/// and approve/decline each one. Renders nothing until a change order exists.
+class _ChangeOrdersSection extends StatelessWidget {
+  const _ChangeOrdersSection({required this.jobId});
+
+  final String jobId;
+
+  @override
+  Widget build(BuildContext context) {
+    final quoteDao = getIt<QuoteDao>();
+    return StreamBuilder<List<QuoteEntity>>(
+      stream: quoteDao.watchChangeOrdersForOriginatingJob(jobId),
+      builder: (context, snapshot) {
+        final changeOrders =
+            (snapshot.data ?? []).where((q) => q.status != 'draft').toList();
+        if (changeOrders.isEmpty) return const SizedBox.shrink();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 16),
+            Text('Change Orders', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            for (final co in changeOrders)
+              Card(
+                child: ListTile(
+                  leading: Icon(
+                    Icons.post_add_outlined,
+                    color: QuoteStatusPresentation.color(co.status),
+                  ),
+                  title: Text(
+                    co.coNumber != null ? 'CO-${co.coNumber}' : 'Change Order',
+                  ),
+                  subtitle: Text(
+                    co.changeReason?.isNotEmpty == true
+                        ? co.changeReason!
+                        : QuoteStatusPresentation.label(co.status),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: Text('\$${co.total.toStringAsFixed(2)}'),
+                  onTap: () => context.push(RouteNames.quoteDetailPath(co.id)),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class _ContractCard extends ConsumerWidget {
   const _ContractCard({required this.contractId});
 

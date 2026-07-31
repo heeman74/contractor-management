@@ -276,6 +276,25 @@ class BudgetService(TenantScopedService[Budget]):
         await self.repository.set_total(budget, adjusted_budget_total(budget.total, delta))
         await self.evaluate_budget(budget)
 
+    async def apply_change_order(self, quote: Quote) -> None:
+        """Add an approved change order's full pre-tax revenue to its project budget.
+
+        Unlike apply_quote_delta (a revision delta within a quote chain), a change
+        order is an independent quote that adds scope, so its full amount raises the
+        project's contract-sum budget. No budget at the project anchor → no-op. Runs
+        in the caller's transaction alongside the approval and job creation.
+        """
+        if quote.project_id is None:
+            return
+        budget = await self.repository.active_for_project(quote.project_id)
+        if budget is None:
+            return
+        amount = self._pre_tax_total_of(quote)
+        if amount == ZERO_MONEY:
+            return
+        await self.repository.set_total(budget, adjusted_budget_total(budget.total, amount))
+        await self.evaluate_budget(budget)
+
     async def _budget_for_quote(self, quote: Quote) -> Budget | None:
         """The active budget at the quote's D-06 anchor, or None."""
         if quote.trade_scope_id is not None:

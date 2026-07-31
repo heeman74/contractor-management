@@ -2666,6 +2666,17 @@ class $JobsTable extends Jobs with TableInfo<$JobsTable, Job> {
         type: DriftSqlType.dateTime,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _projectIdMeta = const VerificationMeta(
+    'projectId',
+  );
+  @override
+  late final GeneratedColumn<String> projectId = GeneratedColumn<String>(
+    'project_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _quoteIdMeta = const VerificationMeta(
     'quoteId',
   );
@@ -2783,6 +2794,7 @@ class $JobsTable extends Jobs with TableInfo<$JobsTable, Job> {
     notes,
     estimatedDurationMinutes,
     scheduledCompletionDate,
+    projectId,
     quoteId,
     invoiceId,
     gpsLatitude,
@@ -2919,6 +2931,12 @@ class $JobsTable extends Jobs with TableInfo<$JobsTable, Job> {
         ),
       );
     }
+    if (data.containsKey('project_id')) {
+      context.handle(
+        _projectIdMeta,
+        projectId.isAcceptableOrUnknown(data['project_id']!, _projectIdMeta),
+      );
+    }
     if (data.containsKey('quote_id')) {
       context.handle(
         _quoteIdMeta,
@@ -3052,6 +3070,10 @@ class $JobsTable extends Jobs with TableInfo<$JobsTable, Job> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}scheduled_completion_date'],
       ),
+      projectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}project_id'],
+      ),
       quoteId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}quote_id'],
@@ -3133,6 +3155,10 @@ class Job extends DataClass implements Insertable<Job> {
 
   /// FK to Quotes.id — the most recent approved quote for this job.
   /// Nullable — populated when a quote is approved and linked to this job.
+  /// Soft FK to Projects.id — the multi-trade project this job belongs to.
+  /// Populated for jobs created under a project (e.g. from a project quote or
+  /// change order); null for standalone jobs.
+  final String? projectId;
   final String? quoteId;
 
   /// FK to Invoices.id — the invoice issued for this job.
@@ -3169,6 +3195,7 @@ class Job extends DataClass implements Insertable<Job> {
     this.notes,
     this.estimatedDurationMinutes,
     this.scheduledCompletionDate,
+    this.projectId,
     this.quoteId,
     this.invoiceId,
     this.gpsLatitude,
@@ -3214,6 +3241,9 @@ class Job extends DataClass implements Insertable<Job> {
       map['scheduled_completion_date'] = Variable<DateTime>(
         scheduledCompletionDate,
       );
+    }
+    if (!nullToAbsent || projectId != null) {
+      map['project_id'] = Variable<String>(projectId);
     }
     if (!nullToAbsent || quoteId != null) {
       map['quote_id'] = Variable<String>(quoteId);
@@ -3270,6 +3300,9 @@ class Job extends DataClass implements Insertable<Job> {
       scheduledCompletionDate: scheduledCompletionDate == null && nullToAbsent
           ? const Value.absent()
           : Value(scheduledCompletionDate),
+      projectId: projectId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(projectId),
       quoteId: quoteId == null && nullToAbsent
           ? const Value.absent()
           : Value(quoteId),
@@ -3323,6 +3356,7 @@ class Job extends DataClass implements Insertable<Job> {
       scheduledCompletionDate: serializer.fromJson<DateTime?>(
         json['scheduledCompletionDate'],
       ),
+      projectId: serializer.fromJson<String?>(json['projectId']),
       quoteId: serializer.fromJson<String?>(json['quoteId']),
       invoiceId: serializer.fromJson<String?>(json['invoiceId']),
       gpsLatitude: serializer.fromJson<double?>(json['gpsLatitude']),
@@ -3357,6 +3391,7 @@ class Job extends DataClass implements Insertable<Job> {
       'scheduledCompletionDate': serializer.toJson<DateTime?>(
         scheduledCompletionDate,
       ),
+      'projectId': serializer.toJson<String?>(projectId),
       'quoteId': serializer.toJson<String?>(quoteId),
       'invoiceId': serializer.toJson<String?>(invoiceId),
       'gpsLatitude': serializer.toJson<double?>(gpsLatitude),
@@ -3385,6 +3420,7 @@ class Job extends DataClass implements Insertable<Job> {
     Value<String?> notes = const Value.absent(),
     Value<int?> estimatedDurationMinutes = const Value.absent(),
     Value<DateTime?> scheduledCompletionDate = const Value.absent(),
+    Value<String?> projectId = const Value.absent(),
     Value<String?> quoteId = const Value.absent(),
     Value<String?> invoiceId = const Value.absent(),
     Value<double?> gpsLatitude = const Value.absent(),
@@ -3418,6 +3454,7 @@ class Job extends DataClass implements Insertable<Job> {
     scheduledCompletionDate: scheduledCompletionDate.present
         ? scheduledCompletionDate.value
         : this.scheduledCompletionDate,
+    projectId: projectId.present ? projectId.value : this.projectId,
     quoteId: quoteId.present ? quoteId.value : this.quoteId,
     invoiceId: invoiceId.present ? invoiceId.value : this.invoiceId,
     gpsLatitude: gpsLatitude.present ? gpsLatitude.value : this.gpsLatitude,
@@ -3459,6 +3496,7 @@ class Job extends DataClass implements Insertable<Job> {
       scheduledCompletionDate: data.scheduledCompletionDate.present
           ? data.scheduledCompletionDate.value
           : this.scheduledCompletionDate,
+      projectId: data.projectId.present ? data.projectId.value : this.projectId,
       quoteId: data.quoteId.present ? data.quoteId.value : this.quoteId,
       invoiceId: data.invoiceId.present ? data.invoiceId.value : this.invoiceId,
       gpsLatitude: data.gpsLatitude.present
@@ -3495,6 +3533,7 @@ class Job extends DataClass implements Insertable<Job> {
           ..write('notes: $notes, ')
           ..write('estimatedDurationMinutes: $estimatedDurationMinutes, ')
           ..write('scheduledCompletionDate: $scheduledCompletionDate, ')
+          ..write('projectId: $projectId, ')
           ..write('quoteId: $quoteId, ')
           ..write('invoiceId: $invoiceId, ')
           ..write('gpsLatitude: $gpsLatitude, ')
@@ -3525,6 +3564,7 @@ class Job extends DataClass implements Insertable<Job> {
     notes,
     estimatedDurationMinutes,
     scheduledCompletionDate,
+    projectId,
     quoteId,
     invoiceId,
     gpsLatitude,
@@ -3554,6 +3594,7 @@ class Job extends DataClass implements Insertable<Job> {
           other.notes == this.notes &&
           other.estimatedDurationMinutes == this.estimatedDurationMinutes &&
           other.scheduledCompletionDate == this.scheduledCompletionDate &&
+          other.projectId == this.projectId &&
           other.quoteId == this.quoteId &&
           other.invoiceId == this.invoiceId &&
           other.gpsLatitude == this.gpsLatitude &&
@@ -3581,6 +3622,7 @@ class JobsCompanion extends UpdateCompanion<Job> {
   final Value<String?> notes;
   final Value<int?> estimatedDurationMinutes;
   final Value<DateTime?> scheduledCompletionDate;
+  final Value<String?> projectId;
   final Value<String?> quoteId;
   final Value<String?> invoiceId;
   final Value<double?> gpsLatitude;
@@ -3607,6 +3649,7 @@ class JobsCompanion extends UpdateCompanion<Job> {
     this.notes = const Value.absent(),
     this.estimatedDurationMinutes = const Value.absent(),
     this.scheduledCompletionDate = const Value.absent(),
+    this.projectId = const Value.absent(),
     this.quoteId = const Value.absent(),
     this.invoiceId = const Value.absent(),
     this.gpsLatitude = const Value.absent(),
@@ -3634,6 +3677,7 @@ class JobsCompanion extends UpdateCompanion<Job> {
     this.notes = const Value.absent(),
     this.estimatedDurationMinutes = const Value.absent(),
     this.scheduledCompletionDate = const Value.absent(),
+    this.projectId = const Value.absent(),
     this.quoteId = const Value.absent(),
     this.invoiceId = const Value.absent(),
     this.gpsLatitude = const Value.absent(),
@@ -3665,6 +3709,7 @@ class JobsCompanion extends UpdateCompanion<Job> {
     Expression<String>? notes,
     Expression<int>? estimatedDurationMinutes,
     Expression<DateTime>? scheduledCompletionDate,
+    Expression<String>? projectId,
     Expression<String>? quoteId,
     Expression<String>? invoiceId,
     Expression<double>? gpsLatitude,
@@ -3695,6 +3740,7 @@ class JobsCompanion extends UpdateCompanion<Job> {
         'estimated_duration_minutes': estimatedDurationMinutes,
       if (scheduledCompletionDate != null)
         'scheduled_completion_date': scheduledCompletionDate,
+      if (projectId != null) 'project_id': projectId,
       if (quoteId != null) 'quote_id': quoteId,
       if (invoiceId != null) 'invoice_id': invoiceId,
       if (gpsLatitude != null) 'gps_latitude': gpsLatitude,
@@ -3724,6 +3770,7 @@ class JobsCompanion extends UpdateCompanion<Job> {
     Value<String?>? notes,
     Value<int?>? estimatedDurationMinutes,
     Value<DateTime?>? scheduledCompletionDate,
+    Value<String?>? projectId,
     Value<String?>? quoteId,
     Value<String?>? invoiceId,
     Value<double?>? gpsLatitude,
@@ -3753,6 +3800,7 @@ class JobsCompanion extends UpdateCompanion<Job> {
           estimatedDurationMinutes ?? this.estimatedDurationMinutes,
       scheduledCompletionDate:
           scheduledCompletionDate ?? this.scheduledCompletionDate,
+      projectId: projectId ?? this.projectId,
       quoteId: quoteId ?? this.quoteId,
       invoiceId: invoiceId ?? this.invoiceId,
       gpsLatitude: gpsLatitude ?? this.gpsLatitude,
@@ -3820,6 +3868,9 @@ class JobsCompanion extends UpdateCompanion<Job> {
         scheduledCompletionDate.value,
       );
     }
+    if (projectId.present) {
+      map['project_id'] = Variable<String>(projectId.value);
+    }
     if (quoteId.present) {
       map['quote_id'] = Variable<String>(quoteId.value);
     }
@@ -3871,6 +3922,7 @@ class JobsCompanion extends UpdateCompanion<Job> {
           ..write('notes: $notes, ')
           ..write('estimatedDurationMinutes: $estimatedDurationMinutes, ')
           ..write('scheduledCompletionDate: $scheduledCompletionDate, ')
+          ..write('projectId: $projectId, ')
           ..write('quoteId: $quoteId, ')
           ..write('invoiceId: $invoiceId, ')
           ..write('gpsLatitude: $gpsLatitude, ')
@@ -10456,6 +10508,94 @@ class $QuotesTable extends Quotes with TableInfo<$QuotesTable, Quote> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _projectIdMeta = const VerificationMeta(
+    'projectId',
+  );
+  @override
+  late final GeneratedColumn<String> projectId = GeneratedColumn<String>(
+    'project_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _quoteKindMeta = const VerificationMeta(
+    'quoteKind',
+  );
+  @override
+  late final GeneratedColumn<String> quoteKind = GeneratedColumn<String>(
+    'quote_kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('standard'),
+  );
+  static const VerificationMeta _coNumberMeta = const VerificationMeta(
+    'coNumber',
+  );
+  @override
+  late final GeneratedColumn<int> coNumber = GeneratedColumn<int>(
+    'co_number',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _changeReasonMeta = const VerificationMeta(
+    'changeReason',
+  );
+  @override
+  late final GeneratedColumn<String> changeReason = GeneratedColumn<String>(
+    'change_reason',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _scheduleImpactDaysMeta =
+      const VerificationMeta('scheduleImpactDays');
+  @override
+  late final GeneratedColumn<int> scheduleImpactDays = GeneratedColumn<int>(
+    'schedule_impact_days',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _originatingJobIdMeta = const VerificationMeta(
+    'originatingJobId',
+  );
+  @override
+  late final GeneratedColumn<String> originatingJobId = GeneratedColumn<String>(
+    'originating_job_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _coTargetMeta = const VerificationMeta(
+    'coTarget',
+  );
+  @override
+  late final GeneratedColumn<String> coTarget = GeneratedColumn<String>(
+    'co_target',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdJobIdMeta = const VerificationMeta(
+    'createdJobId',
+  );
+  @override
+  late final GeneratedColumn<String> createdJobId = GeneratedColumn<String>(
+    'created_job_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _versionMeta = const VerificationMeta(
     'version',
   );
@@ -10520,6 +10660,14 @@ class $QuotesTable extends Quotes with TableInfo<$QuotesTable, Quote> {
     declineReason,
     declineDetail,
     adminNotes,
+    projectId,
+    quoteKind,
+    coNumber,
+    changeReason,
+    scheduleImpactDays,
+    originatingJobId,
+    coTarget,
+    createdJobId,
     version,
     createdAt,
     updatedAt,
@@ -10656,6 +10804,66 @@ class $QuotesTable extends Quotes with TableInfo<$QuotesTable, Quote> {
         adminNotes.isAcceptableOrUnknown(data['admin_notes']!, _adminNotesMeta),
       );
     }
+    if (data.containsKey('project_id')) {
+      context.handle(
+        _projectIdMeta,
+        projectId.isAcceptableOrUnknown(data['project_id']!, _projectIdMeta),
+      );
+    }
+    if (data.containsKey('quote_kind')) {
+      context.handle(
+        _quoteKindMeta,
+        quoteKind.isAcceptableOrUnknown(data['quote_kind']!, _quoteKindMeta),
+      );
+    }
+    if (data.containsKey('co_number')) {
+      context.handle(
+        _coNumberMeta,
+        coNumber.isAcceptableOrUnknown(data['co_number']!, _coNumberMeta),
+      );
+    }
+    if (data.containsKey('change_reason')) {
+      context.handle(
+        _changeReasonMeta,
+        changeReason.isAcceptableOrUnknown(
+          data['change_reason']!,
+          _changeReasonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('schedule_impact_days')) {
+      context.handle(
+        _scheduleImpactDaysMeta,
+        scheduleImpactDays.isAcceptableOrUnknown(
+          data['schedule_impact_days']!,
+          _scheduleImpactDaysMeta,
+        ),
+      );
+    }
+    if (data.containsKey('originating_job_id')) {
+      context.handle(
+        _originatingJobIdMeta,
+        originatingJobId.isAcceptableOrUnknown(
+          data['originating_job_id']!,
+          _originatingJobIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('co_target')) {
+      context.handle(
+        _coTargetMeta,
+        coTarget.isAcceptableOrUnknown(data['co_target']!, _coTargetMeta),
+      );
+    }
+    if (data.containsKey('created_job_id')) {
+      context.handle(
+        _createdJobIdMeta,
+        createdJobId.isAcceptableOrUnknown(
+          data['created_job_id']!,
+          _createdJobIdMeta,
+        ),
+      );
+    }
     if (data.containsKey('version')) {
       context.handle(
         _versionMeta,
@@ -10761,6 +10969,38 @@ class $QuotesTable extends Quotes with TableInfo<$QuotesTable, Quote> {
         DriftSqlType.string,
         data['${effectivePrefix}admin_notes'],
       ),
+      projectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}project_id'],
+      ),
+      quoteKind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}quote_kind'],
+      )!,
+      coNumber: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}co_number'],
+      ),
+      changeReason: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}change_reason'],
+      ),
+      scheduleImpactDays: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}schedule_impact_days'],
+      ),
+      originatingJobId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}originating_job_id'],
+      ),
+      coTarget: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}co_target'],
+      ),
+      createdJobId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}created_job_id'],
+      ),
       version: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}version'],
@@ -10838,6 +11078,31 @@ class Quote extends DataClass implements Insertable<Quote> {
 
   /// Internal notes for admins/contractors — not visible to clients.
   final String? adminNotes;
+
+  /// Soft FK to Projects.id — the project a change order amends (set at draft),
+  /// or the project a project-level quote creates on approval.
+  final String? projectId;
+
+  /// 'standard' | 'change_order'. A change order amends an existing project.
+  final String quoteKind;
+
+  /// Sequential change-order number within a project (CO-1, CO-2, …). Server-assigned.
+  final int? coNumber;
+
+  /// Justification for a change order (unforeseen finding, added scope).
+  final String? changeReason;
+
+  /// Days added to the project completion when a change order is approved.
+  final int? scheduleImpactDays;
+
+  /// FK to Jobs.id — the in-progress job a change order was raised from.
+  final String? originatingJobId;
+
+  /// 'new_job' | 'existing_job' — what an approved change order creates.
+  final String? coTarget;
+
+  /// FK to Jobs.id — the job created when a change order is approved.
+  final String? createdJobId;
   final int version;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -10862,6 +11127,14 @@ class Quote extends DataClass implements Insertable<Quote> {
     this.declineReason,
     this.declineDetail,
     this.adminNotes,
+    this.projectId,
+    required this.quoteKind,
+    this.coNumber,
+    this.changeReason,
+    this.scheduleImpactDays,
+    this.originatingJobId,
+    this.coTarget,
+    this.createdJobId,
     required this.version,
     required this.createdAt,
     required this.updatedAt,
@@ -10908,6 +11181,28 @@ class Quote extends DataClass implements Insertable<Quote> {
     }
     if (!nullToAbsent || adminNotes != null) {
       map['admin_notes'] = Variable<String>(adminNotes);
+    }
+    if (!nullToAbsent || projectId != null) {
+      map['project_id'] = Variable<String>(projectId);
+    }
+    map['quote_kind'] = Variable<String>(quoteKind);
+    if (!nullToAbsent || coNumber != null) {
+      map['co_number'] = Variable<int>(coNumber);
+    }
+    if (!nullToAbsent || changeReason != null) {
+      map['change_reason'] = Variable<String>(changeReason);
+    }
+    if (!nullToAbsent || scheduleImpactDays != null) {
+      map['schedule_impact_days'] = Variable<int>(scheduleImpactDays);
+    }
+    if (!nullToAbsent || originatingJobId != null) {
+      map['originating_job_id'] = Variable<String>(originatingJobId);
+    }
+    if (!nullToAbsent || coTarget != null) {
+      map['co_target'] = Variable<String>(coTarget);
+    }
+    if (!nullToAbsent || createdJobId != null) {
+      map['created_job_id'] = Variable<String>(createdJobId);
     }
     map['version'] = Variable<int>(version);
     map['created_at'] = Variable<DateTime>(createdAt);
@@ -10959,6 +11254,28 @@ class Quote extends DataClass implements Insertable<Quote> {
       adminNotes: adminNotes == null && nullToAbsent
           ? const Value.absent()
           : Value(adminNotes),
+      projectId: projectId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(projectId),
+      quoteKind: Value(quoteKind),
+      coNumber: coNumber == null && nullToAbsent
+          ? const Value.absent()
+          : Value(coNumber),
+      changeReason: changeReason == null && nullToAbsent
+          ? const Value.absent()
+          : Value(changeReason),
+      scheduleImpactDays: scheduleImpactDays == null && nullToAbsent
+          ? const Value.absent()
+          : Value(scheduleImpactDays),
+      originatingJobId: originatingJobId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(originatingJobId),
+      coTarget: coTarget == null && nullToAbsent
+          ? const Value.absent()
+          : Value(coTarget),
+      createdJobId: createdJobId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(createdJobId),
       version: Value(version),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
@@ -10991,6 +11308,14 @@ class Quote extends DataClass implements Insertable<Quote> {
       declineReason: serializer.fromJson<String?>(json['declineReason']),
       declineDetail: serializer.fromJson<String?>(json['declineDetail']),
       adminNotes: serializer.fromJson<String?>(json['adminNotes']),
+      projectId: serializer.fromJson<String?>(json['projectId']),
+      quoteKind: serializer.fromJson<String>(json['quoteKind']),
+      coNumber: serializer.fromJson<int?>(json['coNumber']),
+      changeReason: serializer.fromJson<String?>(json['changeReason']),
+      scheduleImpactDays: serializer.fromJson<int?>(json['scheduleImpactDays']),
+      originatingJobId: serializer.fromJson<String?>(json['originatingJobId']),
+      coTarget: serializer.fromJson<String?>(json['coTarget']),
+      createdJobId: serializer.fromJson<String?>(json['createdJobId']),
       version: serializer.fromJson<int>(json['version']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
@@ -11018,6 +11343,14 @@ class Quote extends DataClass implements Insertable<Quote> {
       'declineReason': serializer.toJson<String?>(declineReason),
       'declineDetail': serializer.toJson<String?>(declineDetail),
       'adminNotes': serializer.toJson<String?>(adminNotes),
+      'projectId': serializer.toJson<String?>(projectId),
+      'quoteKind': serializer.toJson<String>(quoteKind),
+      'coNumber': serializer.toJson<int?>(coNumber),
+      'changeReason': serializer.toJson<String?>(changeReason),
+      'scheduleImpactDays': serializer.toJson<int?>(scheduleImpactDays),
+      'originatingJobId': serializer.toJson<String?>(originatingJobId),
+      'coTarget': serializer.toJson<String?>(coTarget),
+      'createdJobId': serializer.toJson<String?>(createdJobId),
       'version': serializer.toJson<int>(version),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -11043,6 +11376,14 @@ class Quote extends DataClass implements Insertable<Quote> {
     Value<String?> declineReason = const Value.absent(),
     Value<String?> declineDetail = const Value.absent(),
     Value<String?> adminNotes = const Value.absent(),
+    Value<String?> projectId = const Value.absent(),
+    String? quoteKind,
+    Value<int?> coNumber = const Value.absent(),
+    Value<String?> changeReason = const Value.absent(),
+    Value<int?> scheduleImpactDays = const Value.absent(),
+    Value<String?> originatingJobId = const Value.absent(),
+    Value<String?> coTarget = const Value.absent(),
+    Value<String?> createdJobId = const Value.absent(),
     int? version,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -11069,6 +11410,18 @@ class Quote extends DataClass implements Insertable<Quote> {
         ? declineDetail.value
         : this.declineDetail,
     adminNotes: adminNotes.present ? adminNotes.value : this.adminNotes,
+    projectId: projectId.present ? projectId.value : this.projectId,
+    quoteKind: quoteKind ?? this.quoteKind,
+    coNumber: coNumber.present ? coNumber.value : this.coNumber,
+    changeReason: changeReason.present ? changeReason.value : this.changeReason,
+    scheduleImpactDays: scheduleImpactDays.present
+        ? scheduleImpactDays.value
+        : this.scheduleImpactDays,
+    originatingJobId: originatingJobId.present
+        ? originatingJobId.value
+        : this.originatingJobId,
+    coTarget: coTarget.present ? coTarget.value : this.coTarget,
+    createdJobId: createdJobId.present ? createdJobId.value : this.createdJobId,
     version: version ?? this.version,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -11113,6 +11466,22 @@ class Quote extends DataClass implements Insertable<Quote> {
       adminNotes: data.adminNotes.present
           ? data.adminNotes.value
           : this.adminNotes,
+      projectId: data.projectId.present ? data.projectId.value : this.projectId,
+      quoteKind: data.quoteKind.present ? data.quoteKind.value : this.quoteKind,
+      coNumber: data.coNumber.present ? data.coNumber.value : this.coNumber,
+      changeReason: data.changeReason.present
+          ? data.changeReason.value
+          : this.changeReason,
+      scheduleImpactDays: data.scheduleImpactDays.present
+          ? data.scheduleImpactDays.value
+          : this.scheduleImpactDays,
+      originatingJobId: data.originatingJobId.present
+          ? data.originatingJobId.value
+          : this.originatingJobId,
+      coTarget: data.coTarget.present ? data.coTarget.value : this.coTarget,
+      createdJobId: data.createdJobId.present
+          ? data.createdJobId.value
+          : this.createdJobId,
       version: data.version.present ? data.version.value : this.version,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
@@ -11140,6 +11509,14 @@ class Quote extends DataClass implements Insertable<Quote> {
           ..write('declineReason: $declineReason, ')
           ..write('declineDetail: $declineDetail, ')
           ..write('adminNotes: $adminNotes, ')
+          ..write('projectId: $projectId, ')
+          ..write('quoteKind: $quoteKind, ')
+          ..write('coNumber: $coNumber, ')
+          ..write('changeReason: $changeReason, ')
+          ..write('scheduleImpactDays: $scheduleImpactDays, ')
+          ..write('originatingJobId: $originatingJobId, ')
+          ..write('coTarget: $coTarget, ')
+          ..write('createdJobId: $createdJobId, ')
           ..write('version: $version, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -11167,6 +11544,14 @@ class Quote extends DataClass implements Insertable<Quote> {
     declineReason,
     declineDetail,
     adminNotes,
+    projectId,
+    quoteKind,
+    coNumber,
+    changeReason,
+    scheduleImpactDays,
+    originatingJobId,
+    coTarget,
+    createdJobId,
     version,
     createdAt,
     updatedAt,
@@ -11193,6 +11578,14 @@ class Quote extends DataClass implements Insertable<Quote> {
           other.declineReason == this.declineReason &&
           other.declineDetail == this.declineDetail &&
           other.adminNotes == this.adminNotes &&
+          other.projectId == this.projectId &&
+          other.quoteKind == this.quoteKind &&
+          other.coNumber == this.coNumber &&
+          other.changeReason == this.changeReason &&
+          other.scheduleImpactDays == this.scheduleImpactDays &&
+          other.originatingJobId == this.originatingJobId &&
+          other.coTarget == this.coTarget &&
+          other.createdJobId == this.createdJobId &&
           other.version == this.version &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
@@ -11217,6 +11610,14 @@ class QuotesCompanion extends UpdateCompanion<Quote> {
   final Value<String?> declineReason;
   final Value<String?> declineDetail;
   final Value<String?> adminNotes;
+  final Value<String?> projectId;
+  final Value<String> quoteKind;
+  final Value<int?> coNumber;
+  final Value<String?> changeReason;
+  final Value<int?> scheduleImpactDays;
+  final Value<String?> originatingJobId;
+  final Value<String?> coTarget;
+  final Value<String?> createdJobId;
   final Value<int> version;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
@@ -11240,6 +11641,14 @@ class QuotesCompanion extends UpdateCompanion<Quote> {
     this.declineReason = const Value.absent(),
     this.declineDetail = const Value.absent(),
     this.adminNotes = const Value.absent(),
+    this.projectId = const Value.absent(),
+    this.quoteKind = const Value.absent(),
+    this.coNumber = const Value.absent(),
+    this.changeReason = const Value.absent(),
+    this.scheduleImpactDays = const Value.absent(),
+    this.originatingJobId = const Value.absent(),
+    this.coTarget = const Value.absent(),
+    this.createdJobId = const Value.absent(),
     this.version = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -11264,6 +11673,14 @@ class QuotesCompanion extends UpdateCompanion<Quote> {
     this.declineReason = const Value.absent(),
     this.declineDetail = const Value.absent(),
     this.adminNotes = const Value.absent(),
+    this.projectId = const Value.absent(),
+    this.quoteKind = const Value.absent(),
+    this.coNumber = const Value.absent(),
+    this.changeReason = const Value.absent(),
+    this.scheduleImpactDays = const Value.absent(),
+    this.originatingJobId = const Value.absent(),
+    this.coTarget = const Value.absent(),
+    this.createdJobId = const Value.absent(),
     this.version = const Value.absent(),
     required DateTime createdAt,
     required DateTime updatedAt,
@@ -11290,6 +11707,14 @@ class QuotesCompanion extends UpdateCompanion<Quote> {
     Expression<String>? declineReason,
     Expression<String>? declineDetail,
     Expression<String>? adminNotes,
+    Expression<String>? projectId,
+    Expression<String>? quoteKind,
+    Expression<int>? coNumber,
+    Expression<String>? changeReason,
+    Expression<int>? scheduleImpactDays,
+    Expression<String>? originatingJobId,
+    Expression<String>? coTarget,
+    Expression<String>? createdJobId,
     Expression<int>? version,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
@@ -11314,6 +11739,15 @@ class QuotesCompanion extends UpdateCompanion<Quote> {
       if (declineReason != null) 'decline_reason': declineReason,
       if (declineDetail != null) 'decline_detail': declineDetail,
       if (adminNotes != null) 'admin_notes': adminNotes,
+      if (projectId != null) 'project_id': projectId,
+      if (quoteKind != null) 'quote_kind': quoteKind,
+      if (coNumber != null) 'co_number': coNumber,
+      if (changeReason != null) 'change_reason': changeReason,
+      if (scheduleImpactDays != null)
+        'schedule_impact_days': scheduleImpactDays,
+      if (originatingJobId != null) 'originating_job_id': originatingJobId,
+      if (coTarget != null) 'co_target': coTarget,
+      if (createdJobId != null) 'created_job_id': createdJobId,
       if (version != null) 'version': version,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -11340,6 +11774,14 @@ class QuotesCompanion extends UpdateCompanion<Quote> {
     Value<String?>? declineReason,
     Value<String?>? declineDetail,
     Value<String?>? adminNotes,
+    Value<String?>? projectId,
+    Value<String>? quoteKind,
+    Value<int?>? coNumber,
+    Value<String?>? changeReason,
+    Value<int?>? scheduleImpactDays,
+    Value<String?>? originatingJobId,
+    Value<String?>? coTarget,
+    Value<String?>? createdJobId,
     Value<int>? version,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
@@ -11364,6 +11806,14 @@ class QuotesCompanion extends UpdateCompanion<Quote> {
       declineReason: declineReason ?? this.declineReason,
       declineDetail: declineDetail ?? this.declineDetail,
       adminNotes: adminNotes ?? this.adminNotes,
+      projectId: projectId ?? this.projectId,
+      quoteKind: quoteKind ?? this.quoteKind,
+      coNumber: coNumber ?? this.coNumber,
+      changeReason: changeReason ?? this.changeReason,
+      scheduleImpactDays: scheduleImpactDays ?? this.scheduleImpactDays,
+      originatingJobId: originatingJobId ?? this.originatingJobId,
+      coTarget: coTarget ?? this.coTarget,
+      createdJobId: createdJobId ?? this.createdJobId,
       version: version ?? this.version,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -11426,6 +11876,30 @@ class QuotesCompanion extends UpdateCompanion<Quote> {
     if (adminNotes.present) {
       map['admin_notes'] = Variable<String>(adminNotes.value);
     }
+    if (projectId.present) {
+      map['project_id'] = Variable<String>(projectId.value);
+    }
+    if (quoteKind.present) {
+      map['quote_kind'] = Variable<String>(quoteKind.value);
+    }
+    if (coNumber.present) {
+      map['co_number'] = Variable<int>(coNumber.value);
+    }
+    if (changeReason.present) {
+      map['change_reason'] = Variable<String>(changeReason.value);
+    }
+    if (scheduleImpactDays.present) {
+      map['schedule_impact_days'] = Variable<int>(scheduleImpactDays.value);
+    }
+    if (originatingJobId.present) {
+      map['originating_job_id'] = Variable<String>(originatingJobId.value);
+    }
+    if (coTarget.present) {
+      map['co_target'] = Variable<String>(coTarget.value);
+    }
+    if (createdJobId.present) {
+      map['created_job_id'] = Variable<String>(createdJobId.value);
+    }
     if (version.present) {
       map['version'] = Variable<int>(version.value);
     }
@@ -11464,6 +11938,14 @@ class QuotesCompanion extends UpdateCompanion<Quote> {
           ..write('declineReason: $declineReason, ')
           ..write('declineDetail: $declineDetail, ')
           ..write('adminNotes: $adminNotes, ')
+          ..write('projectId: $projectId, ')
+          ..write('quoteKind: $quoteKind, ')
+          ..write('coNumber: $coNumber, ')
+          ..write('changeReason: $changeReason, ')
+          ..write('scheduleImpactDays: $scheduleImpactDays, ')
+          ..write('originatingJobId: $originatingJobId, ')
+          ..write('coTarget: $coTarget, ')
+          ..write('createdJobId: $createdJobId, ')
           ..write('version: $version, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -36324,6 +36806,7 @@ typedef $$JobsTableCreateCompanionBuilder =
       Value<String?> notes,
       Value<int?> estimatedDurationMinutes,
       Value<DateTime?> scheduledCompletionDate,
+      Value<String?> projectId,
       Value<String?> quoteId,
       Value<String?> invoiceId,
       Value<double?> gpsLatitude,
@@ -36352,6 +36835,7 @@ typedef $$JobsTableUpdateCompanionBuilder =
       Value<String?> notes,
       Value<int?> estimatedDurationMinutes,
       Value<DateTime?> scheduledCompletionDate,
+      Value<String?> projectId,
       Value<String?> quoteId,
       Value<String?> invoiceId,
       Value<double?> gpsLatitude,
@@ -36461,6 +36945,11 @@ class $$JobsTableFilterComposer extends Composer<_$AppDatabase, $JobsTable> {
 
   ColumnFilters<DateTime> get scheduledCompletionDate => $composableBuilder(
     column: $table.scheduledCompletionDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get projectId => $composableBuilder(
+    column: $table.projectId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -36611,6 +37100,11 @@ class $$JobsTableOrderingComposer extends Composer<_$AppDatabase, $JobsTable> {
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get projectId => $composableBuilder(
+    column: $table.projectId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get quoteId => $composableBuilder(
     column: $table.quoteId,
     builder: (column) => ColumnOrderings(column),
@@ -36745,6 +37239,9 @@ class $$JobsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get projectId =>
+      $composableBuilder(column: $table.projectId, builder: (column) => column);
+
   GeneratedColumn<String> get quoteId =>
       $composableBuilder(column: $table.quoteId, builder: (column) => column);
 
@@ -36845,6 +37342,7 @@ class $$JobsTableTableManager
                 Value<String?> notes = const Value.absent(),
                 Value<int?> estimatedDurationMinutes = const Value.absent(),
                 Value<DateTime?> scheduledCompletionDate = const Value.absent(),
+                Value<String?> projectId = const Value.absent(),
                 Value<String?> quoteId = const Value.absent(),
                 Value<String?> invoiceId = const Value.absent(),
                 Value<double?> gpsLatitude = const Value.absent(),
@@ -36871,6 +37369,7 @@ class $$JobsTableTableManager
                 notes: notes,
                 estimatedDurationMinutes: estimatedDurationMinutes,
                 scheduledCompletionDate: scheduledCompletionDate,
+                projectId: projectId,
                 quoteId: quoteId,
                 invoiceId: invoiceId,
                 gpsLatitude: gpsLatitude,
@@ -36899,6 +37398,7 @@ class $$JobsTableTableManager
                 Value<String?> notes = const Value.absent(),
                 Value<int?> estimatedDurationMinutes = const Value.absent(),
                 Value<DateTime?> scheduledCompletionDate = const Value.absent(),
+                Value<String?> projectId = const Value.absent(),
                 Value<String?> quoteId = const Value.absent(),
                 Value<String?> invoiceId = const Value.absent(),
                 Value<double?> gpsLatitude = const Value.absent(),
@@ -36925,6 +37425,7 @@ class $$JobsTableTableManager
                 notes: notes,
                 estimatedDurationMinutes: estimatedDurationMinutes,
                 scheduledCompletionDate: scheduledCompletionDate,
+                projectId: projectId,
                 quoteId: quoteId,
                 invoiceId: invoiceId,
                 gpsLatitude: gpsLatitude,
@@ -40355,6 +40856,14 @@ typedef $$QuotesTableCreateCompanionBuilder =
       Value<String?> declineReason,
       Value<String?> declineDetail,
       Value<String?> adminNotes,
+      Value<String?> projectId,
+      Value<String> quoteKind,
+      Value<int?> coNumber,
+      Value<String?> changeReason,
+      Value<int?> scheduleImpactDays,
+      Value<String?> originatingJobId,
+      Value<String?> coTarget,
+      Value<String?> createdJobId,
       Value<int> version,
       required DateTime createdAt,
       required DateTime updatedAt,
@@ -40380,6 +40889,14 @@ typedef $$QuotesTableUpdateCompanionBuilder =
       Value<String?> declineReason,
       Value<String?> declineDetail,
       Value<String?> adminNotes,
+      Value<String?> projectId,
+      Value<String> quoteKind,
+      Value<int?> coNumber,
+      Value<String?> changeReason,
+      Value<int?> scheduleImpactDays,
+      Value<String?> originatingJobId,
+      Value<String?> coTarget,
+      Value<String?> createdJobId,
       Value<int> version,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -40495,6 +41012,46 @@ class $$QuotesTableFilterComposer
 
   ColumnFilters<String> get adminNotes => $composableBuilder(
     column: $table.adminNotes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get projectId => $composableBuilder(
+    column: $table.projectId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get quoteKind => $composableBuilder(
+    column: $table.quoteKind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get coNumber => $composableBuilder(
+    column: $table.coNumber,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get changeReason => $composableBuilder(
+    column: $table.changeReason,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get scheduleImpactDays => $composableBuilder(
+    column: $table.scheduleImpactDays,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get originatingJobId => $composableBuilder(
+    column: $table.originatingJobId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get coTarget => $composableBuilder(
+    column: $table.coTarget,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get createdJobId => $composableBuilder(
+    column: $table.createdJobId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -40631,6 +41188,46 @@ class $$QuotesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get projectId => $composableBuilder(
+    column: $table.projectId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get quoteKind => $composableBuilder(
+    column: $table.quoteKind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get coNumber => $composableBuilder(
+    column: $table.coNumber,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get changeReason => $composableBuilder(
+    column: $table.changeReason,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get scheduleImpactDays => $composableBuilder(
+    column: $table.scheduleImpactDays,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get originatingJobId => $composableBuilder(
+    column: $table.originatingJobId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get coTarget => $composableBuilder(
+    column: $table.coTarget,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get createdJobId => $composableBuilder(
+    column: $table.createdJobId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get version => $composableBuilder(
     column: $table.version,
     builder: (column) => ColumnOrderings(column),
@@ -40752,6 +41349,38 @@ class $$QuotesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get projectId =>
+      $composableBuilder(column: $table.projectId, builder: (column) => column);
+
+  GeneratedColumn<String> get quoteKind =>
+      $composableBuilder(column: $table.quoteKind, builder: (column) => column);
+
+  GeneratedColumn<int> get coNumber =>
+      $composableBuilder(column: $table.coNumber, builder: (column) => column);
+
+  GeneratedColumn<String> get changeReason => $composableBuilder(
+    column: $table.changeReason,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get scheduleImpactDays => $composableBuilder(
+    column: $table.scheduleImpactDays,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get originatingJobId => $composableBuilder(
+    column: $table.originatingJobId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get coTarget =>
+      $composableBuilder(column: $table.coTarget, builder: (column) => column);
+
+  GeneratedColumn<String> get createdJobId => $composableBuilder(
+    column: $table.createdJobId,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get version =>
       $composableBuilder(column: $table.version, builder: (column) => column);
 
@@ -40833,6 +41462,14 @@ class $$QuotesTableTableManager
                 Value<String?> declineReason = const Value.absent(),
                 Value<String?> declineDetail = const Value.absent(),
                 Value<String?> adminNotes = const Value.absent(),
+                Value<String?> projectId = const Value.absent(),
+                Value<String> quoteKind = const Value.absent(),
+                Value<int?> coNumber = const Value.absent(),
+                Value<String?> changeReason = const Value.absent(),
+                Value<int?> scheduleImpactDays = const Value.absent(),
+                Value<String?> originatingJobId = const Value.absent(),
+                Value<String?> coTarget = const Value.absent(),
+                Value<String?> createdJobId = const Value.absent(),
                 Value<int> version = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -40856,6 +41493,14 @@ class $$QuotesTableTableManager
                 declineReason: declineReason,
                 declineDetail: declineDetail,
                 adminNotes: adminNotes,
+                projectId: projectId,
+                quoteKind: quoteKind,
+                coNumber: coNumber,
+                changeReason: changeReason,
+                scheduleImpactDays: scheduleImpactDays,
+                originatingJobId: originatingJobId,
+                coTarget: coTarget,
+                createdJobId: createdJobId,
                 version: version,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -40881,6 +41526,14 @@ class $$QuotesTableTableManager
                 Value<String?> declineReason = const Value.absent(),
                 Value<String?> declineDetail = const Value.absent(),
                 Value<String?> adminNotes = const Value.absent(),
+                Value<String?> projectId = const Value.absent(),
+                Value<String> quoteKind = const Value.absent(),
+                Value<int?> coNumber = const Value.absent(),
+                Value<String?> changeReason = const Value.absent(),
+                Value<int?> scheduleImpactDays = const Value.absent(),
+                Value<String?> originatingJobId = const Value.absent(),
+                Value<String?> coTarget = const Value.absent(),
+                Value<String?> createdJobId = const Value.absent(),
                 Value<int> version = const Value.absent(),
                 required DateTime createdAt,
                 required DateTime updatedAt,
@@ -40904,6 +41557,14 @@ class $$QuotesTableTableManager
                 declineReason: declineReason,
                 declineDetail: declineDetail,
                 adminNotes: adminNotes,
+                projectId: projectId,
+                quoteKind: quoteKind,
+                coNumber: coNumber,
+                changeReason: changeReason,
+                scheduleImpactDays: scheduleImpactDays,
+                originatingJobId: originatingJobId,
+                coTarget: coTarget,
+                createdJobId: createdJobId,
                 version: version,
                 createdAt: createdAt,
                 updatedAt: updatedAt,

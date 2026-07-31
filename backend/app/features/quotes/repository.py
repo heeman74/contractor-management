@@ -103,6 +103,25 @@ class QuoteRepository(TenantScopedRepository[Quote]):
         )
         return result.scalars().first()
 
+    async def list_change_orders_for_project(self, project_id: uuid.UUID) -> list[Quote]:
+        """Return a project's change orders (quote_kind='change_order'), by CO number."""
+        result = await self.db.execute(
+            select(Quote)
+            .where(
+                and_(
+                    Quote.project_id == project_id,
+                    Quote.quote_kind == "change_order",
+                    Quote.deleted_at.is_(None),
+                )
+            )
+            .options(
+                selectinload(Quote.line_items),
+                joinedload(Quote.job),
+            )
+            .order_by(Quote.co_number)
+        )
+        return list(result.scalars().all())
+
     async def get_active_quotes(self) -> list[Quote]:
         """Return all non-deleted, non-revised quotes for the current tenant."""
         result = await self.db.execute(

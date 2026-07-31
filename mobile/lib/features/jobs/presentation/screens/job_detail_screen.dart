@@ -130,6 +130,20 @@ class _JobDetailView extends ConsumerWidget {
           overflow: TextOverflow.ellipsis,
         ),
         actions: [
+          // Raise a change order — only for a job that belongs to a project and
+          // is actively being worked (the real-world trigger for a change order).
+          if (job.projectId != null &&
+              (job.jobStatus == JobStatus.scheduled ||
+                  job.jobStatus == JobStatus.inProgress))
+            IconButton(
+              key: const Key('create_change_order'),
+              tooltip: 'Create Change Order',
+              icon: const Icon(Icons.post_add_outlined),
+              onPressed: () => context.push(
+                RouteNames.changeOrderBuilderPath(job.id),
+                extra: {'projectId': job.projectId},
+              ),
+            ),
           // Status chip in AppBar
           Padding(
             padding: const EdgeInsets.only(right: 8),

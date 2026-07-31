@@ -58,6 +58,11 @@ class Jobs extends Table {
 
   /// FK to Quotes.id — the most recent approved quote for this job.
   /// Nullable — populated when a quote is approved and linked to this job.
+  /// Soft FK to Projects.id — the multi-trade project this job belongs to.
+  /// Populated for jobs created under a project (e.g. from a project quote or
+  /// change order); null for standalone jobs.
+  TextColumn get projectId => text().nullable()();
+
   TextColumn get quoteId => text().nullable()();
 
   /// FK to Invoices.id — the invoice issued for this job.

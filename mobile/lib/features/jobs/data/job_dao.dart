@@ -588,6 +588,7 @@ class JobDao extends DatabaseAccessor<AppDatabase> with _$JobDaoMixin {
       companyId: row.companyId,
       clientId: row.clientId,
       contractorId: row.contractorId,
+      projectId: row.projectId,
       description: row.description,
       tradeType: row.tradeType,
       status: row.status,

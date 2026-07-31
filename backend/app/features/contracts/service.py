@@ -82,7 +82,10 @@ class ContractService(TenantScopedService[Contract]):
             )
 
         company = entity_or_404(await self.db.get(Company, quote.company_id), "Company not found")
-        job = await self.db.get(Job, quote.job_id) if quote.job_id else None
+        # Change orders carry no job_id; the client and project context come from
+        # the originating job instead.
+        source_job_id = quote.job_id or quote.originating_job_id
+        job = await self.db.get(Job, source_job_id) if source_job_id else None
         client = await self.db.get(User, job.client_id) if job and job.client_id else None
         client_name, client_address = pdf_service._client_display(client)
 
@@ -117,7 +120,7 @@ class ContractService(TenantScopedService[Contract]):
         contract = Contract(
             company_id=company_id,
             quote_id=quote.id,
-            job_id=quote.job_id,
+            job_id=source_job_id,
             client_user_id=getattr(client, "id", None),
             template_id=template.id,
             status="draft",

@@ -67,6 +67,31 @@ class Quotes extends Table {
   /// Internal notes for admins/contractors — not visible to clients.
   TextColumn get adminNotes => text().nullable()();
 
+  /// Soft FK to Projects.id — the project a change order amends (set at draft),
+  /// or the project a project-level quote creates on approval.
+  TextColumn get projectId => text().nullable()();
+
+  /// 'standard' | 'change_order'. A change order amends an existing project.
+  TextColumn get quoteKind => text().withDefault(const Constant('standard'))();
+
+  /// Sequential change-order number within a project (CO-1, CO-2, …). Server-assigned.
+  IntColumn get coNumber => integer().nullable()();
+
+  /// Justification for a change order (unforeseen finding, added scope).
+  TextColumn get changeReason => text().nullable()();
+
+  /// Days added to the project completion when a change order is approved.
+  IntColumn get scheduleImpactDays => integer().nullable()();
+
+  /// FK to Jobs.id — the in-progress job a change order was raised from.
+  TextColumn get originatingJobId => text().nullable()();
+
+  /// 'new_job' | 'existing_job' — what an approved change order creates.
+  TextColumn get coTarget => text().nullable()();
+
+  /// FK to Jobs.id — the job created when a change order is approved.
+  TextColumn get createdJobId => text().nullable()();
+
   IntColumn get version => integer().withDefault(const Constant(1))();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();

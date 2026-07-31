@@ -38,8 +38,34 @@ export interface ProjectQuotePayload {
   line_items: ProjectQuotePayloadItem[];
 }
 
+/**
+ * The default unit for a line-item type: labor is billed by the hour, material
+ * by the each. Used to seed new rows and to swap the unit when the type changes
+ * (so a material line never reads "hr").
+ */
+export function defaultUnitFor(type: ProjectQuoteItemType): string {
+  return type === "labor" ? "hr" : "ea";
+}
+
+/** Column label for the price input — labor is a rate, material a unit price. */
+export function priceLabelFor(type: ProjectQuoteItemType): string {
+  return type === "labor" ? "Rate ($/hr)" : "Unit price";
+}
+
+/** Column label for the quantity input — hours for labor, a count for material. */
+export function quantityLabelFor(type: ProjectQuoteItemType): string {
+  return type === "labor" ? "Hours" : "Qty";
+}
+
 export function emptyItem(key: string): ProjectQuoteItem {
-  return { key, item_type: "labor", description: "", quantity: "1", unit: "hr", unit_price: "0" };
+  return {
+    key,
+    item_type: "labor",
+    description: "",
+    quantity: "1",
+    unit: defaultUnitFor("labor"),
+    unit_price: "0",
+  };
 }
 
 export function emptyFieldSection(key: string, itemKey: string): ProjectQuoteFieldSection {

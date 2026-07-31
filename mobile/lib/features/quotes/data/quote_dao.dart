@@ -53,6 +53,23 @@ class QuoteDao extends DatabaseAccessor<AppDatabase> with _$QuoteDaoMixin {
     return parentQuery.asyncMap(_populateLineItems);
   }
 
+  /// Reactive stream of a job's change orders — quotes with
+  /// quote_kind='change_order' and originating_job_id = [jobId], ordered by CO
+  /// number so the client sees them on the job they were raised from.
+  Stream<List<QuoteEntity>> watchChangeOrdersForOriginatingJob(String jobId) {
+    final parentQuery = (select(quotes)
+          ..where(
+            (tbl) =>
+                tbl.originatingJobId.equals(jobId) &
+                tbl.quoteKind.equals('change_order') &
+                tbl.deletedAt.isNull(),
+          )
+          ..orderBy([(tbl) => OrderingTerm.asc(tbl.coNumber)]))
+        .watch();
+
+    return parentQuery.asyncMap(_populateLineItems);
+  }
+
   /// Reactive stream of all non-deleted quotes for a trade scope.
   ///
   /// Ordered by revisionNumber descending (latest revision first).
@@ -130,6 +147,14 @@ class QuoteDao extends DatabaseAccessor<AppDatabase> with _$QuoteDaoMixin {
           declineReason: Value(entity.declineReason),
           declineDetail: Value(entity.declineDetail),
           adminNotes: Value(entity.adminNotes),
+          projectId: Value(entity.projectId),
+          quoteKind: Value(entity.quoteKind),
+          coNumber: Value(entity.coNumber),
+          changeReason: Value(entity.changeReason),
+          scheduleImpactDays: Value(entity.scheduleImpactDays),
+          originatingJobId: Value(entity.originatingJobId),
+          coTarget: Value(entity.coTarget),
+          createdJobId: Value(entity.createdJobId),
           createdAt: entity.createdAt,
           updatedAt: entity.updatedAt,
         ),
@@ -329,6 +354,16 @@ class QuoteDao extends DatabaseAccessor<AppDatabase> with _$QuoteDaoMixin {
         declineReason: Value(data['decline_reason'] as String?),
         declineDetail: Value(data['decline_detail'] as String?),
         adminNotes: Value(data['admin_notes'] as String?),
+        projectId: Value(data['project_id'] as String?),
+        quoteKind: data['quote_kind'] != null
+            ? Value(data['quote_kind'] as String)
+            : const Value.absent(),
+        coNumber: Value(data['co_number'] as int?),
+        changeReason: Value(data['change_reason'] as String?),
+        scheduleImpactDays: Value(data['schedule_impact_days'] as int?),
+        originatingJobId: Value(data['originating_job_id'] as String?),
+        coTarget: Value(data['co_target'] as String?),
+        createdJobId: Value(data['created_job_id'] as String?),
         version: data['version'] != null ? Value(data['version'] as int) : const Value.absent(),
         createdAt: data['created_at'] != null ? Value(DateTime.parse(data['created_at'] as String)) : const Value.absent(),
         updatedAt: data['updated_at'] != null ? Value(DateTime.parse(data['updated_at'] as String)) : const Value.absent(),
@@ -410,6 +445,14 @@ class QuoteDao extends DatabaseAccessor<AppDatabase> with _$QuoteDaoMixin {
         declineReason: quoteRow.declineReason,
         declineDetail: quoteRow.declineDetail,
         adminNotes: quoteRow.adminNotes,
+        projectId: quoteRow.projectId,
+        quoteKind: quoteRow.quoteKind,
+        coNumber: quoteRow.coNumber,
+        changeReason: quoteRow.changeReason,
+        scheduleImpactDays: quoteRow.scheduleImpactDays,
+        originatingJobId: quoteRow.originatingJobId,
+        coTarget: quoteRow.coTarget,
+        createdJobId: quoteRow.createdJobId,
         lineItems: items.map(_mapLineItem).toList(),
         createdAt: quoteRow.createdAt,
         updatedAt: quoteRow.updatedAt,
@@ -447,6 +490,12 @@ class QuoteDao extends DatabaseAccessor<AppDatabase> with _$QuoteDaoMixin {
       'decline_reason': entity.declineReason,
       'decline_detail': entity.declineDetail,
       'admin_notes': entity.adminNotes,
+      'quote_kind': entity.quoteKind,
+      'project_id': entity.projectId,
+      'originating_job_id': entity.originatingJobId,
+      'co_target': entity.coTarget,
+      'change_reason': entity.changeReason,
+      'schedule_impact_days': entity.scheduleImpactDays,
       'created_at': entity.createdAt.toIso8601String(),
       'updated_at': entity.updatedAt.toIso8601String(),
       'line_items': entity.lineItems

@@ -21,9 +21,14 @@ import {
 import {
   ProjectQuoteFieldSection,
   ProjectQuoteItem,
+  ProjectQuoteItemType,
   buildProjectQuotePayload,
+  defaultUnitFor,
   emptyFieldSection,
   emptyItem,
+  lineTotal,
+  priceLabelFor,
+  quantityLabelFor,
   quoteTotal,
   sectionTotal,
   validateProjectQuote,
@@ -67,6 +72,20 @@ export default function NewProjectQuotePage() {
           : s
       )
     );
+
+  // Switching type swaps the unit too (labor "hr" ↔ material "ea"), but only
+  // when it still holds the old type's default — a custom unit is preserved.
+  const changeItemType = (
+    sectionKey: string,
+    item: ProjectQuoteItem,
+    next: ProjectQuoteItemType
+  ) => {
+    const patch: Partial<ProjectQuoteItem> = { item_type: next };
+    if (item.unit.trim() === defaultUnitFor(item.item_type)) {
+      patch.unit = defaultUnitFor(next);
+    }
+    patchItem(sectionKey, item.key, patch);
+  };
 
   const addSection = () =>
     setSections((prev) => [...prev, emptyFieldSection(nextKey(), nextKey())]);
@@ -147,13 +166,24 @@ export default function NewProjectQuotePage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-2">
+            {/* Column headers — labeled once per field so the numeric columns
+                (count, unit price, line total) read clearly for both types. */}
+            <div className="flex items-end gap-2 text-[10px] font-medium uppercase tracking-wide text-gray-400">
+              <div className="w-[110px]">Type</div>
+              <div className="flex-1">Description</div>
+              <div className="w-[72px]">Qty</div>
+              <div className="w-[64px]">Unit</div>
+              <div className="w-[96px]">Unit price</div>
+              <div className="w-[90px] text-right">Total</div>
+              <div className="w-[28px]" />
+            </div>
             {section.items.map((item) => (
               <div key={item.key} className="flex items-end gap-2">
                 <div className="w-[110px]">
                   <Select
                     value={item.item_type}
                     onValueChange={(v) => {
-                      if (v) patchItem(section.key, item.key, { item_type: v as "labor" | "material" });
+                      if (v) changeItemType(section.key, item, v as ProjectQuoteItemType);
                     }}
                   >
                     <SelectTrigger aria-label="Item type">
@@ -173,7 +203,7 @@ export default function NewProjectQuotePage() {
                   className="flex-1"
                 />
                 <Input
-                  aria-label="Quantity"
+                  aria-label={quantityLabelFor(item.item_type)}
                   type="number"
                   min="0"
                   step="0.5"
@@ -186,10 +216,10 @@ export default function NewProjectQuotePage() {
                   value={item.unit}
                   onChange={(e) => patchItem(section.key, item.key, { unit: e.target.value })}
                   placeholder="unit"
-                  className="w-[72px]"
+                  className="w-[64px]"
                 />
                 <Input
-                  aria-label="Unit price"
+                  aria-label={priceLabelFor(item.item_type)}
                   type="number"
                   min="0"
                   step="0.01"
@@ -197,16 +227,24 @@ export default function NewProjectQuotePage() {
                   onChange={(e) => patchItem(section.key, item.key, { unit_price: e.target.value })}
                   className="w-[96px]"
                 />
-                {section.items.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeItem(section.key, item.key)}
-                    aria-label="Remove line item"
-                    className="mb-1.5 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-destructive"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                )}
+                <div
+                  aria-label="Line total"
+                  className="flex h-9 w-[90px] items-center justify-end text-sm tabular-nums text-gray-800"
+                >
+                  ${lineTotal(item).toFixed(2)}
+                </div>
+                <div className="flex h-9 w-[28px] items-center justify-center">
+                  {section.items.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeItem(section.key, item.key)}
+                      aria-label="Remove line item"
+                      className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-destructive"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
             <Button

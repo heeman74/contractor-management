@@ -207,6 +207,13 @@ export interface Quote {
   trade_scope_id?: string | null;
   title?: string | null;
   project_id?: string | null;
+  quote_kind?: string;
+  co_number?: number | null;
+  change_reason?: string | null;
+  schedule_impact_days?: number | null;
+  originating_job_id?: string | null;
+  co_target?: string | null;
+  created_job_id?: string | null;
   status: QuoteStatus;
   revision_number: number;
   tax_rate: string;

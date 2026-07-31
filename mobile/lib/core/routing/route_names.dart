@@ -153,6 +153,11 @@ abstract final class RouteNames {
   /// Navigate via: context.push(RouteNames.quoteDetailPath(quoteId))
   static const quoteDetail = '/quotes/:quoteId';
 
+  /// Change-order builder — raise a change order from an in-progress job.
+  /// Navigate via: context.push(RouteNames.changeOrderBuilderPath(jobId),
+  ///   extra: {'projectId': projectId})
+  static const changeOrderBuilder = '/jobs/:jobId/change-order';
+
   // ─── Helpers ─────────────────────────────────────────────────────────────
 
   /// Build the timer screen path for a specific job.
@@ -171,6 +176,10 @@ abstract final class RouteNames {
 
   /// Build the client-facing quote detail path for a specific quote.
   static String quoteDetailPath(String quoteId) => '/quotes/$quoteId';
+
+  /// Build the change-order builder path for a specific originating job.
+  static String changeOrderBuilderPath(String jobId) =>
+      '/jobs/$jobId/change-order';
 
   // --- Project routes (Phase 19) ---
 

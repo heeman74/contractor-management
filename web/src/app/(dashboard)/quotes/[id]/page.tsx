@@ -135,23 +135,70 @@ export default function QuoteDetailPage({
             onGenerateInvoice={detail.generateInvoice}
           />
 
-          {quote.project_id && (
+          {quote.quote_kind === "change_order" ? (
             <Card>
               <CardHeader>
-                <CardTitle>Project</CardTitle>
+                <CardTitle>
+                  Change Order{quote.co_number ? ` CO-${quote.co_number}` : ""}
+                </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
-                <p className="text-sm text-gray-600">
-                  This quote was approved and turned into a project.
-                </p>
-                <Link
-                  href={`/projects?project=${quote.project_id}`}
-                  className="inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline"
-                >
-                  View project →
-                </Link>
+              <CardContent className="space-y-2 text-sm">
+                {quote.change_reason && (
+                  <p className="text-gray-700 whitespace-pre-wrap">{quote.change_reason}</p>
+                )}
+                {quote.schedule_impact_days ? (
+                  <p className="text-gray-500">
+                    Schedule impact: +{quote.schedule_impact_days} day
+                    {quote.schedule_impact_days === 1 ? "" : "s"}
+                  </p>
+                ) : null}
+                <div className="flex flex-col gap-1 pt-1">
+                  {quote.project_id && (
+                    <Link
+                      href={`/projects?project=${quote.project_id}`}
+                      className="font-medium text-brand hover:underline"
+                    >
+                      View project →
+                    </Link>
+                  )}
+                  {quote.created_job_id && (
+                    <Link
+                      href={`/jobs/${quote.created_job_id}`}
+                      className="font-medium text-brand hover:underline"
+                    >
+                      View created job →
+                    </Link>
+                  )}
+                  {quote.originating_job_id && (
+                    <Link
+                      href={`/jobs/${quote.originating_job_id}`}
+                      className="text-gray-500 hover:underline"
+                    >
+                      From job →
+                    </Link>
+                  )}
+                </div>
               </CardContent>
             </Card>
+          ) : (
+            quote.project_id && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Project</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <p className="text-sm text-gray-600">
+                    This quote was approved and turned into a project.
+                  </p>
+                  <Link
+                    href={`/projects?project=${quote.project_id}`}
+                    className="inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline"
+                  >
+                    View project →
+                  </Link>
+                </CardContent>
+              </Card>
+            )
           )}
 
           {quote.status === "approved" && (

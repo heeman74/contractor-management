@@ -1,7 +1,8 @@
 "use client";
 
 import { use, useState } from "react";
-import { Plus } from "lucide-react";
+import Link from "next/link";
+import { Plus, FilePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { usePermissions } from "@/lib/hooks/usePermissions";
@@ -88,6 +89,17 @@ export default function JobDetailPage({
             </span>
           </div>
         </div>
+        {current.project_id &&
+          ["scheduled", "in_progress"].includes(current.status) && (
+            <Link
+              href={`/quotes/new-change-order?project_id=${current.project_id}&originating_job_id=${current.id}`}
+              className="inline-flex h-9 flex-shrink-0 items-center gap-1.5 rounded-lg bg-brand px-3 text-sm font-medium text-brand-foreground transition-colors hover:bg-brand/90"
+              data-testid="create-change-order"
+            >
+              <FilePlus className="h-4 w-4" />
+              Create Change Order
+            </Link>
+          )}
       </div>
 
       {/* Two-column grid */}

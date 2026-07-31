@@ -106,15 +106,38 @@ class QuoteCreate(BaseModel):
     admin_notes: str | None = Field(default=None, max_length=2000)
     line_items: list[QuoteLineItemCreate] = Field(default_factory=list)
 
+    # Change orders: quote_kind='change_order' amends an existing project
+    # (project_id) raised from an in-progress job (originating_job_id); on
+    # approval it creates a new job or extends the originating job (co_target).
+    quote_kind: Literal["standard", "change_order"] = "standard"
+    project_id: uuid.UUID | None = None
+    originating_job_id: uuid.UUID | None = None
+    co_target: Literal["new_job", "existing_job"] | None = None
+    change_reason: str | None = Field(default=None, max_length=2000)
+    schedule_impact_days: int | None = Field(default=None, ge=0)
+
     @model_validator(mode="after")
     def validate_fields(self) -> "QuoteCreate":
-        """Validate job/scope linkage and discount consistency.
+        """Validate linkage, change-order requirements, and discount consistency.
 
-        job_id and trade_scope_id are mutually exclusive; omitting both makes a
-        project-level quote.
+        Standard: job_id and trade_scope_id are mutually exclusive; omitting both
+        makes a project-level quote (project_id is set server-side on approval).
+        Change order: requires project_id, originating_job_id and co_target, and
+        must not attach to a job or trade scope.
         """
         if self.job_id is not None and self.trade_scope_id is not None:
             raise ValueError("A quote cannot attach to both a job and a trade scope")
+        if self.quote_kind == "change_order":
+            if self.job_id is not None or self.trade_scope_id is not None:
+                raise ValueError("A change order cannot attach to a job or trade scope")
+            if self.project_id is None:
+                raise ValueError("A change order requires project_id")
+            if self.originating_job_id is None:
+                raise ValueError("A change order requires originating_job_id")
+            if self.co_target is None:
+                raise ValueError("A change order requires co_target")
+        elif self.project_id is not None:
+            raise ValueError("project_id is only allowed on change-order quotes")
         if self.discount_value > 0 and self.discount_type is None:
             raise ValueError("discount_type is required when discount_value is set")
         if self.discount_type == "percent" and self.discount_value > 100:
@@ -171,6 +194,13 @@ class QuoteResponse(BaseResponseSchema):
     trade_scope_id: uuid.UUID | None = None
     title: str | None = None
     project_id: uuid.UUID | None = None
+    quote_kind: str = "standard"
+    co_number: int | None = None
+    change_reason: str | None = None
+    schedule_impact_days: int | None = None
+    originating_job_id: uuid.UUID | None = None
+    co_target: str | None = None
+    created_job_id: uuid.UUID | None = None
     status: str
     revision_number: int
     tax_rate: Decimal

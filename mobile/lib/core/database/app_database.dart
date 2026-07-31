@@ -184,7 +184,7 @@ class AppDatabase extends _$AppDatabase {
       : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 16;
+  int get schemaVersion => 18;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -317,6 +317,26 @@ class AppDatabase extends _$AppDatabase {
             // offline data layer.
             await m.createTable(costEntries);
             await m.createTable(costReceipts);
+          }
+          if (from < 17) {
+            // Change orders: quote-variant amendments to a project + the
+            // project link (offline data layer).
+            await _addColumnIfMissing(m, 'quotes', 'project_id', quotes, quotes.projectId);
+            await _addColumnIfMissing(m, 'quotes', 'quote_kind', quotes, quotes.quoteKind);
+            await _addColumnIfMissing(m, 'quotes', 'co_number', quotes, quotes.coNumber);
+            await _addColumnIfMissing(
+                m, 'quotes', 'change_reason', quotes, quotes.changeReason);
+            await _addColumnIfMissing(m, 'quotes', 'schedule_impact_days', quotes,
+                quotes.scheduleImpactDays);
+            await _addColumnIfMissing(m, 'quotes', 'originating_job_id', quotes,
+                quotes.originatingJobId);
+            await _addColumnIfMissing(m, 'quotes', 'co_target', quotes, quotes.coTarget);
+            await _addColumnIfMissing(
+                m, 'quotes', 'created_job_id', quotes, quotes.createdJobId);
+          }
+          if (from < 18) {
+            // Jobs gain a project link so change orders can be raised from a job.
+            await _addColumnIfMissing(m, 'jobs', 'project_id', jobs, jobs.projectId);
           }
         },
       );

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Quote {{ quote.revision_number }} — {{ company.name }}</title>
+  <title>{% if quote.quote_kind == 'change_order' %}Change Order CO-{{ quote.co_number }}{% else %}Quote {{ quote.revision_number }}{% endif %} — {{ company.name }}</title>
   <style>
     /* Reset and base styles — inline for WeasyPrint compatibility */
     * {
@@ -255,8 +255,13 @@
       {% if company.business_number %}<p>ABN: {{ company.business_number }}</p>{% endif %}
     </div>
     <div class="quote-title">
+      {% if quote.quote_kind == 'change_order' %}
+      <h2>CHANGE ORDER</h2>
+      <div class="revision">CO-{{ quote.co_number }}</div>
+      {% else %}
       <h2>QUOTE</h2>
       <div class="revision">Revision {{ quote.revision_number }}</div>
+      {% endif %}
     </div>
   </div>
 

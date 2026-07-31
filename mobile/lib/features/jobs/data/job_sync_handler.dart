@@ -78,6 +78,7 @@ class JobSyncHandler extends SyncHandler {
       companyId: Value(companyId),
       clientId: Value(data['client_id']?.toString()),
       contractorId: Value(data['contractor_id']?.toString()),
+      projectId: Value(data['project_id']?.toString()),
       description: Value((data['description'] ?? '') as String),
       tradeType: Value((data['trade_type'] ?? '') as String),
       status: data['status'] != null

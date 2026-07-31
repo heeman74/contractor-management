@@ -78,7 +78,11 @@ class _QuoteDetailContentState extends ConsumerState<_QuoteDetailContent> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Quote v${quote.revisionNumber}'),
+        title: Text(
+          quote.isChangeOrder
+              ? 'Change Order${quote.coNumber != null ? ' CO-${quote.coNumber}' : ''}'
+              : 'Quote v${quote.revisionNumber}',
+        ),
       ),
       body: Column(
         children: [
@@ -234,11 +238,43 @@ class _QuoteClientBody extends StatelessWidget {
       children: [
         // Quote title + status
         Text(
-          'Quote v${quote.revisionNumber}',
+          quote.isChangeOrder
+              ? 'Change Order${quote.coNumber != null ? ' CO-${quote.coNumber}' : ''}'
+              : 'Quote v${quote.revisionNumber}',
           style: theme.textTheme.headlineSmall,
         ),
         const SizedBox(height: 4),
         _StatusBadge(status: quote.status),
+
+        // Change-order context — why the change and its schedule impact.
+        if (quote.isChangeOrder) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (quote.changeReason != null && quote.changeReason!.isNotEmpty)
+                  Text(quote.changeReason!, style: theme.textTheme.bodyMedium),
+                if (quote.scheduleImpactDays != null &&
+                    quote.scheduleImpactDays! > 0) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'Schedule impact: +${quote.scheduleImpactDays} '
+                    'day${quote.scheduleImpactDays == 1 ? '' : 's'}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
 
         // Expiry date
         if (quote.expiryDate != null) ...[

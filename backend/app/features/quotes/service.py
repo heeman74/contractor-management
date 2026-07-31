@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 from fastapi import HTTPException, status
@@ -39,7 +39,7 @@ from app.features.jobs.mixins import JobEventsMixin
 from app.features.jobs.models import Job
 from app.features.jobs.schemas import JobCreate, JobStatus
 from app.features.jobs.service import JobService
-from app.features.projects.models import TradeScope
+from app.features.projects.models import Project, TradeScope
 from app.features.projects.schemas import ProjectCreate
 from app.features.projects.service import ProjectService
 from app.features.quotes.models import (
@@ -244,6 +244,10 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
                     ),
                 )
 
+        co_number = (
+            await self._prepare_change_order(data) if data.quote_kind == "change_order" else None
+        )
+
         company_id = self._require_tenant_id()
 
         quote = Quote(
@@ -258,6 +262,13 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
             discount_value=data.discount_value,
             expiry_date=data.expiry_date,
             admin_notes=data.admin_notes,
+            quote_kind=data.quote_kind,
+            project_id=data.project_id,
+            co_number=co_number,
+            change_reason=data.change_reason,
+            schedule_impact_days=data.schedule_impact_days,
+            originating_job_id=data.originating_job_id,
+            co_target=data.co_target,
         )
         self.db.add(quote)
         await self.db.flush()  # get quote.id
@@ -283,6 +294,33 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
             await self._append_job_status_event(data.job_id, "quote_created", user_id)
         await self.db.refresh(quote)
         return await self.repository.get_with_line_items(quote.id)  # type: ignore[return-value]
+
+    async def _prepare_change_order(self, data: QuoteCreate) -> int:
+        """Validate a change order's project + originating job; return its CO number."""
+        project = entity_or_404(
+            await self.db.get(Project, data.project_id),
+            f"Project {data.project_id} not found",
+        )
+        originating_job = entity_or_404(
+            await self.db.get(Job, data.originating_job_id),
+            f"Job {data.originating_job_id} not found",
+        )
+        if originating_job.project_id != project.id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Originating job must belong to the change order's project",
+            )
+        return await self._next_co_number(project.id)
+
+    async def _next_co_number(self, project_id: uuid.UUID) -> int:
+        """The next sequential change-order number for a project (CO-1, CO-2, …)."""
+        result = await self.db.execute(
+            select(func.max(Quote.co_number)).where(
+                Quote.project_id == project_id,
+                Quote.quote_kind == "change_order",
+            )
+        )
+        return (result.scalar_one_or_none() or 0) + 1
 
     async def update_quote(
         self,
@@ -385,7 +423,10 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
         quote.approved_at = datetime.now(UTC)
         await self.db.flush()
 
-        if quote.job_id is not None:
+        if quote.quote_kind == "change_order":
+            # Change order → add work to the existing project (new job or extend).
+            await self._execute_change_order(quote, client_user_id)
+        elif quote.job_id is not None:
             await self._append_job_status_event(quote.job_id, "quote_approved", client_user_id)
         elif quote.trade_scope_id is None and quote.project_id is None:
             # Project-level quote → create the project and its per-field jobs.
@@ -405,6 +446,127 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
         approved = await self.repository.get_with_line_items(quote_id)
         await BudgetService(self.db).apply_quote_delta(approved)
         return approved  # type: ignore[return-value]
+
+    async def _execute_change_order(self, quote: Quote, client_user_id: uuid.UUID) -> None:
+        """Apply an approved change order: add or extend a job, shift schedule, roll budget.
+
+        co_target='new_job' creates a job in the project (traced by created_job_id);
+        'existing_job' appends the change scope to the originating job's notes. Then
+        the schedule impact extends the project's completion and the full change-order
+        amount is added to the project budget.
+
+        Re-approving a REVISION of an already-approved change order takes the
+        amend path instead: the job it created and the scope it added already
+        exist, so only what actually changed is applied — the schedule-day
+        difference, and the money as a chain delta through the shipped
+        `apply_quote_delta`. Running the full path twice would add a second job
+        for the same work and count its amount into the budget twice.
+        """
+        previous = await self.repository.previous_approved_in_chain(quote)
+        if previous is not None:
+            await self._amend_change_order(quote, previous)
+            return
+
+        company_id = self._require_tenant_id()
+        originating_job = entity_or_404(
+            await self.db.get(Job, quote.originating_job_id),
+            "Originating job not found",
+        )
+
+        if quote.co_target == "new_job":
+            job = await JobService(self.db).create_job(
+                self._build_change_order_job(quote, originating_job),
+                user_id=client_user_id,
+                company_id=company_id,
+            )
+            quote.created_job_id = job.id
+        else:
+            self._append_change_order_to_job(quote, originating_job)
+
+        await self._apply_schedule_impact(quote)
+        await self.db.flush()
+
+        from app.features.finance.budget_service import BudgetService  # quotes -> finance
+
+        await BudgetService(self.db).apply_change_order(quote)
+
+    async def _amend_change_order(self, quote: Quote, previous: Quote) -> None:
+        """Apply only what a revised change order changed against its predecessor.
+
+        The budget is deliberately left to `apply_quote_delta`, which every
+        approval already runs: it applies this chain's revision delta, so adding
+        the full amount here as well would count the same scope twice.
+        """
+        await self._shift_schedule(quote, self._schedule_day_delta(quote, previous))
+        await self.db.flush()
+
+    @staticmethod
+    def _schedule_day_delta(quote: Quote, previous: Quote) -> int:
+        """Extra days this revision adds beyond what its predecessor already shifted."""
+        return (quote.schedule_impact_days or 0) - (previous.schedule_impact_days or 0)
+
+    def _build_change_order_job(self, quote: Quote, originating_job: Job) -> JobCreate:
+        """Assemble the new job an approved change order creates in the project."""
+        labor = [item for item in quote.line_items if item.item_type == "labor"]
+        description = (
+            (quote.change_reason or "").strip()
+            or "; ".join(item.description for item in labor).strip()
+            or f"Change order CO-{quote.co_number}"
+        )
+        return JobCreate(
+            description=description,
+            trade_type=originating_job.trade_type,
+            status=JobStatus.quote,
+            project_id=quote.project_id,
+            notes=self._change_order_note(quote),
+        )
+
+    def _append_change_order_to_job(self, quote: Quote, originating_job: Job) -> None:
+        """Fold an approved change order's scope + cost into the originating job's notes."""
+        summary = "; ".join(
+            item.description for item in quote.line_items if item.item_type == "labor"
+        )
+        total = self._line_items_total(quote)
+        addendum = (
+            f"[CO-{quote.co_number}] {quote.change_reason or 'Added scope'}"
+            f"{f': {summary}' if summary else ''}. Added ${total:.2f}."
+        )
+        originating_job.notes = (
+            f"{originating_job.notes}\n{addendum}" if originating_job.notes else addendum
+        )
+
+    def _change_order_note(self, quote: Quote) -> str:
+        """Notes for a change-order job: materials list + quoted total."""
+        materials = [item for item in quote.line_items if item.item_type == "material"]
+        lines = [f"Change order CO-{quote.co_number}."]
+        if materials:
+            lines.append(
+                "Materials: "
+                + ", ".join(f"{m.description} ({m.quantity} {m.unit})" for m in materials)
+            )
+        lines.append(f"Quoted total: ${self._line_items_total(quote):.2f}")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _line_items_total(quote: Quote) -> Decimal:
+        """Sum of quantity × unit price across the quote's line items."""
+        return sum((item.quantity * item.unit_price for item in quote.line_items), Decimal("0"))
+
+    async def _apply_schedule_impact(self, quote: Quote) -> None:
+        """Extend the project's target completion by the change order's schedule days."""
+        await self._shift_schedule(quote, quote.schedule_impact_days or 0)
+
+    async def _shift_schedule(self, quote: Quote, days: int) -> None:
+        """Move the project's target completion by `days` (negative moves it in).
+
+        A project with no target end date has nothing to shift — a change order
+        never invents a completion date the plan never had.
+        """
+        if not days or quote.project_id is None:
+            return
+        project = await self.db.get(Project, quote.project_id)
+        if project is not None and project.target_end_date is not None:
+            project.target_end_date = project.target_end_date + timedelta(days=days)
 
     async def _convert_project_quote(self, quote: Quote, client_user_id: uuid.UUID) -> None:
         """Create a project from an approved project-level quote — one job per field.
@@ -556,6 +718,19 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
             else old_quote.discount_value,
             expiry_date=data.expiry_date if data.expiry_date is not None else old_quote.expiry_date,
             admin_notes=data.admin_notes if data.admin_notes is not None else old_quote.admin_notes,
+            # Change-order identity survives revision for the same reason the
+            # anchors above do: a revised CO is still CO-N against the same
+            # project and originating job. Dropping these silently demoted the
+            # revision to a standard quote, so re-approving it added no job and
+            # shifted no schedule. created_job_id carries forward too — the work
+            # it points at was already created by the first approval.
+            quote_kind=old_quote.quote_kind,
+            co_number=old_quote.co_number,
+            change_reason=old_quote.change_reason,
+            schedule_impact_days=old_quote.schedule_impact_days,
+            originating_job_id=old_quote.originating_job_id,
+            co_target=old_quote.co_target,
+            created_job_id=old_quote.created_job_id,
         )
         self.db.add(new_quote)
         await self.db.flush()  # get new_quote.id

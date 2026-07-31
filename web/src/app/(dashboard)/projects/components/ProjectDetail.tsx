@@ -14,7 +14,84 @@ import { usePermissions } from "@/lib/hooks/usePermissions";
 import { TradeProgressCard } from "@/features/tasks/components/TradeProgressCard";
 import { ProjectCostsCard } from "@/features/finance/components/ProjectCostsCard";
 import type { ProjectResponse, TradeScopeResponse } from "@/types/projects";
-import type { Job } from "@/types/api";
+import type { Job, Quote } from "@/types/api";
+
+function _money(value: string | number): string {
+  return Number(value).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+/**
+ * Change orders raised against this project. Shows each CO with its status and
+ * amount, plus a running total of approved change orders (added contract value
+ * + schedule days).
+ */
+function ProjectChangeOrdersCard({ projectId }: { projectId: string }) {
+  const router = useRouter();
+  const { data: changeOrders } = useQuery({
+    queryKey: ["project-change-orders", projectId],
+    queryFn: () =>
+      apiGet<Quote[]>(
+        `/api/v1/quotes/change-orders?project_id=${encodeURIComponent(projectId)}`
+      ),
+  });
+
+  if (!changeOrders || changeOrders.length === 0) return null;
+
+  const approved = changeOrders.filter((co) => co.status === "approved");
+  const approvedTotal = approved.reduce((sum, co) => sum + Number(co.total), 0);
+  const approvedDays = approved.reduce(
+    (sum, co) => sum + (co.schedule_impact_days ?? 0),
+    0
+  );
+
+  return (
+    <div>
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700">
+          Change Orders ({changeOrders.length})
+        </h3>
+        {approved.length > 0 && (
+          <span className="text-xs text-gray-500">
+            Approved: ${_money(approvedTotal)}
+            {approvedDays > 0 ? ` · +${approvedDays}d` : ""}
+          </span>
+        )}
+      </div>
+      <div className="space-y-2">
+        {changeOrders.map((co) => (
+          <div
+            key={co.id}
+            role="button"
+            tabIndex={0}
+            onClick={() => router.push(`/quotes/${co.id}`)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                router.push(`/quotes/${co.id}`);
+              }
+            }}
+            className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-3 transition-colors hover:bg-gray-50"
+          >
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-gray-800">
+                CO-{co.co_number}
+                {co.change_reason ? ` — ${co.change_reason}` : ""}
+              </p>
+              <p className="text-xs text-gray-500">
+                ${_money(co.total)}
+                {co.schedule_impact_days ? ` · +${co.schedule_impact_days}d` : ""}
+              </p>
+            </div>
+            <StatusBadge status={co.status} size="sm" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 /**
  * Jobs belonging to this project (e.g. the per-field jobs created when a
@@ -184,6 +261,9 @@ export function ProjectDetail({ project, onSelectScope }: ProjectDetailProps) {
 
       {/* Jobs (e.g. per-field jobs created from an approved project quote) */}
       <ProjectJobsCard projectId={project.id} />
+
+      {/* Change orders raised against this project */}
+      <ProjectChangeOrdersCard projectId={project.id} />
 
       {/* Costs: aggregated rollup, hidden entirely without finance.view */}
       {can("finance.view") && (

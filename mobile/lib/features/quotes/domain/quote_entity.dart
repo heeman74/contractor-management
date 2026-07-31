@@ -34,6 +34,31 @@ class QuoteEntity {
   final String? declineReason;
   final String? declineDetail;
   final String? adminNotes;
+
+  /// Project a change order amends (set at draft) or a project quote creates.
+  final String? projectId;
+
+  /// 'standard' | 'change_order'.
+  final String quoteKind;
+
+  /// Sequential change-order number within a project (server-assigned).
+  final int? coNumber;
+
+  /// Justification for a change order.
+  final String? changeReason;
+
+  /// Days added to the project completion when a change order is approved.
+  final int? scheduleImpactDays;
+
+  /// The in-progress job a change order was raised from.
+  final String? originatingJobId;
+
+  /// 'new_job' | 'existing_job' — what an approved change order creates.
+  final String? coTarget;
+
+  /// The job created when a change order is approved.
+  final String? createdJobId;
+
   final List<LineItemEntity> lineItems;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -59,6 +84,14 @@ class QuoteEntity {
     this.declineReason,
     this.declineDetail,
     this.adminNotes,
+    this.projectId,
+    this.quoteKind = 'standard',
+    this.coNumber,
+    this.changeReason,
+    this.scheduleImpactDays,
+    this.originatingJobId,
+    this.coTarget,
+    this.createdJobId,
   });
 
   // ────────────────────────────────────────────────────────────────────────
@@ -103,6 +136,9 @@ class QuoteEntity {
   bool get isDeclined => status == 'declined';
   bool get isExpired => status == 'expired';
 
+  /// Whether this quote is a change order.
+  bool get isChangeOrder => quoteKind == 'change_order';
+
   /// Whether the quote is still awaiting a client decision.
   bool get isPending => status == 'sent' || status == 'viewed';
 
@@ -128,6 +164,14 @@ class QuoteEntity {
     String? declineReason,
     String? declineDetail,
     String? adminNotes,
+    String? projectId,
+    String? quoteKind,
+    int? coNumber,
+    String? changeReason,
+    int? scheduleImpactDays,
+    String? originatingJobId,
+    String? coTarget,
+    String? createdJobId,
     List<LineItemEntity>? lineItems,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -150,6 +194,14 @@ class QuoteEntity {
       declineReason: declineReason ?? this.declineReason,
       declineDetail: declineDetail ?? this.declineDetail,
       adminNotes: adminNotes ?? this.adminNotes,
+      projectId: projectId ?? this.projectId,
+      quoteKind: quoteKind ?? this.quoteKind,
+      coNumber: coNumber ?? this.coNumber,
+      changeReason: changeReason ?? this.changeReason,
+      scheduleImpactDays: scheduleImpactDays ?? this.scheduleImpactDays,
+      originatingJobId: originatingJobId ?? this.originatingJobId,
+      coTarget: coTarget ?? this.coTarget,
+      createdJobId: createdJobId ?? this.createdJobId,
       lineItems: lineItems ?? this.lineItems,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,

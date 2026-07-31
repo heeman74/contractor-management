@@ -1,6 +1,9 @@
 import {
   buildProjectQuotePayload,
+  defaultUnitFor,
   emptyFieldSection,
+  priceLabelFor,
+  quantityLabelFor,
   quoteTotal,
   sectionTotal,
   validateProjectQuote,
@@ -71,6 +74,23 @@ describe("totals", () => {
     expect(quoteTotal([s, section("P", [{ description: "c", quantity: "2", unit_price: "50" }])])).toBe(
       1220
     );
+  });
+});
+
+describe("type-driven units and labels", () => {
+  test("default unit is hr for labor, ea for material", () => {
+    expect(defaultUnitFor("labor")).toBe("hr");
+    expect(defaultUnitFor("material")).toBe("ea");
+  });
+
+  test("price label is a rate for labor, a unit price for material", () => {
+    expect(priceLabelFor("labor")).toMatch(/rate/i);
+    expect(priceLabelFor("material")).toMatch(/unit price/i);
+  });
+
+  test("quantity label is hours for labor, qty for material", () => {
+    expect(quantityLabelFor("labor")).toMatch(/hours/i);
+    expect(quantityLabelFor("material")).toMatch(/qty/i);
   });
 });
 

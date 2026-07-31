@@ -216,6 +216,20 @@ async def get_quote_for_job(
     return QuoteResponse.from_orm_with_totals(quote, include_finance=include_finance)
 
 
+@router.get("/change-orders", response_model=list[QuoteResponse])
+async def list_change_orders(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+    include_finance: bool = Depends(finance_view_granted),
+) -> list[QuoteResponse]:
+    """List a project's change orders (quote_kind='change_order'), ordered by CO number."""
+    await require_permission("quotes.view")(current_user, db)
+    svc = QuoteService(db)
+    quotes = await svc.repository.list_change_orders_for_project(project_id)
+    return [QuoteResponse.from_orm_with_totals(q, include_finance=include_finance) for q in quotes]
+
+
 # ---------------------------------------------------------------------------
 # Core quote routes
 # ---------------------------------------------------------------------------

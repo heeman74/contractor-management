@@ -45,6 +45,7 @@ import '../../features/projects/presentation/screens/project_list_screen.dart';
 import '../../features/projects/presentation/screens/task_detail_screen.dart';
 import '../../features/projects/presentation/screens/task_photo_viewer_screen.dart';
 import '../../features/projects/presentation/screens/trade_scope_detail_screen.dart';
+import '../../features/quotes/presentation/screens/change_order_builder_screen.dart';
 import '../../features/quotes/presentation/screens/quote_builder_screen.dart';
 import '../../features/quotes/presentation/screens/quote_detail_screen.dart';
 import '../../features/quotes/presentation/screens/quote_preview_screen.dart';
@@ -224,6 +225,23 @@ final routerProvider = Provider.autoDispose<GoRouter>((ref) {
             existingQuote: extra is Map<String, dynamic>
                 ? extra['existingQuote'] as dynamic
                 : null,
+          );
+        },
+      ),
+      // Change-order builder — raise a change order from an in-progress job.
+      // Push via: context.push(RouteNames.changeOrderBuilderPath(jobId),
+      //   extra: {'projectId': projectId})
+      GoRoute(
+        path: RouteNames.changeOrderBuilder,
+        builder: (context, state) {
+          final jobId = state.pathParameters['jobId']!;
+          final extra = state.extra;
+          final projectId = extra is Map<String, dynamic>
+              ? extra['projectId'] as String?
+              : null;
+          return ChangeOrderBuilderScreen(
+            projectId: projectId ?? '',
+            originatingJobId: jobId,
           );
         },
       ),

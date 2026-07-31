@@ -110,6 +110,25 @@ class Quote(TenantScopedModel):
     # items against, written once per run.
     ai_suggestion_payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
+    # Change-order fields (0038). A 'change_order' quote amends an existing
+    # project (project_id set at draft) raised from an in-progress job; on
+    # approval it adds a job or extends the originating job.
+    quote_kind: Mapped[str] = mapped_column(Text, nullable=False, server_default="standard")
+    co_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    change_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    schedule_impact_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    originating_job_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("jobs.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    co_target: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_job_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("jobs.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
     __table_args__ = (
         CheckConstraint(
             "status IN ('draft','sent','viewed','approved','declined','expired','revised')",
@@ -119,12 +138,30 @@ class Quote(TenantScopedModel):
             "discount_type IN ('percent','fixed')",
             name="quotes_discount_type_check",
         ),
+        CheckConstraint(
+            "quote_kind IN ('standard','change_order')",
+            name="quotes_quote_kind_check",
+        ),
+        CheckConstraint(
+            "co_target IS NULL OR co_target IN ('new_job','existing_job')",
+            name="quotes_co_target_check",
+        ),
     )
 
     # Relationships — lazy="raise" to surface accidental lazy loads loudly
     job: Mapped[Job | None] = relationship(  # type: ignore[name-defined]
         "Job",
         foreign_keys=[job_id],
+        lazy="raise",
+    )
+    originating_job: Mapped[Job | None] = relationship(  # type: ignore[name-defined]
+        "Job",
+        foreign_keys=[originating_job_id],
+        lazy="raise",
+    )
+    created_job: Mapped[Job | None] = relationship(  # type: ignore[name-defined]
+        "Job",
+        foreign_keys=[created_job_id],
         lazy="raise",
     )
     trade_scope: Mapped[TradeScope | None] = relationship(  # type: ignore[name-defined]
