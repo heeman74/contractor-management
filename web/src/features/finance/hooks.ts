@@ -24,6 +24,7 @@ import {
   fetchProjectMarginTrend,
   fetchProjectProfitabilityFinding,
   fetchQuoteVariance,
+  fetchProjectQuoteVariance,
 } from "./api";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { FINANCE_VIEW_PERMISSION, type TrendWindow } from "./types";
@@ -176,6 +177,23 @@ export function useQuoteVariance(quoteId: string, isApproved: boolean) {
     queryKey: ["cost-entries", "financials", "quote-variance", quoteId],
     queryFn: () => fetchQuoteVariance(quoteId),
     enabled: can(FINANCE_VIEW_PERMISSION) && !!quoteId && isApproved,
+  });
+}
+
+/**
+ * The project drill-down's per-trade quoted-vs-actual table (FINAI-05).
+ * A distinct key from `useQuoteVariance`'s so the two can never share a cache
+ * entry, sitting under the shared "cost-entries" prefix so a cost write
+ * refreshes it for free. `enabled` is the fetch-side half of the permission
+ * gate — FinanceGate stops the render, this stops the request — the same
+ * double-lock layering as every other drill-down query on this page.
+ */
+export function useProjectQuoteVariance(projectId: string) {
+  const { can } = usePermissions();
+  return useQuery({
+    queryKey: ["cost-entries", "financials", "quote-variance-project", projectId],
+    queryFn: () => fetchProjectQuoteVariance(projectId),
+    enabled: can(FINANCE_VIEW_PERMISSION) && !!projectId,
   });
 }
 

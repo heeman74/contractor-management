@@ -30,6 +30,7 @@ import type {
   ProfitabilityFinding,
   QuoteVariance,
   QuoteVarianceTrade,
+  ProjectQuoteVariance,
 } from "./types";
 import { FINDING_SEVERITIES, TREND_WINDOWS } from "./types";
 
@@ -686,4 +687,36 @@ const QUOTE_VARIANCE_PATH = (quoteId: string) =>
 export async function fetchQuoteVariance(quoteId: string): Promise<QuoteVariance> {
   const raw = await apiGet<QuoteVarianceApiResponse>(QUOTE_VARIANCE_PATH(quoteId));
   return mapQuoteVariance(raw);
+}
+
+interface ProjectQuoteVarianceApiResponse {
+  scopes: QuoteVarianceTradeApiResponse[];
+  total: QuoteVarianceTradeApiResponse;
+  labor_included: boolean;
+  has_scope_anchored_rows: boolean;
+}
+
+/** Reuses `mapQuoteVarianceTrade` — the same row mapper `fetchQuoteVariance`
+ *  uses — so a project row and a quote-detail row can never map differently. */
+function mapProjectQuoteVariance(
+  raw: ProjectQuoteVarianceApiResponse
+): ProjectQuoteVariance {
+  return {
+    scopes: raw.scopes.map(mapQuoteVarianceTrade),
+    total: mapQuoteVarianceTrade(raw.total),
+    laborIncluded: raw.labor_included,
+    hasScopeAnchoredRows: raw.has_scope_anchored_rows,
+  };
+}
+
+const PROJECT_QUOTE_VARIANCE_PATH = (projectId: string) =>
+  `${projectFinancialsPath(projectId)}/quote-variance`;
+
+export async function fetchProjectQuoteVariance(
+  projectId: string
+): Promise<ProjectQuoteVariance> {
+  const raw = await apiGet<ProjectQuoteVarianceApiResponse>(
+    PROJECT_QUOTE_VARIANCE_PATH(projectId)
+  );
+  return mapProjectQuoteVariance(raw);
 }

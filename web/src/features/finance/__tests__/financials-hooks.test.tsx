@@ -13,6 +13,7 @@ import {
   useProjectFinancials,
   useProjectMarginTrend,
   useProjectProfitabilityFinding,
+  useProjectQuoteVariance,
 } from "../hooks";
 import { formatFindingDate } from "../financials-format";
 import type { TrendWindow } from "../types";
@@ -266,6 +267,98 @@ describe("useProjectProfitabilityFinding", () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
 
     expect((result.current.error as Error).message).toMatch(/severity/i);
+  });
+});
+
+/**
+ * `fetchProjectQuoteVariance` is deliberately left REAL (like
+ * `fetchProjectProfitabilityFinding` above): the HTTP layer is mocked instead,
+ * so one test covers the gate, the request path and the snake_case mapping
+ * together — the 36-02 precedent.
+ */
+describe("useProjectQuoteVariance", () => {
+  const VARIANCE_PATH = `/api/v1/projects/${PROJECT_ID}/financials/quote-variance`;
+  const VARIANCE_RESPONSE = {
+    scopes: [
+      {
+        label: "Plumbing",
+        quoted: "8000.00",
+        actual: "8600.00",
+        variance: "600.00",
+        variance_percent: "7.5",
+      },
+    ],
+    total: {
+      label: "Project total",
+      quoted: "8000.00",
+      actual: "8600.00",
+      variance: "600.00",
+      variance_percent: "7.5",
+    },
+    labor_included: true,
+    has_scope_anchored_rows: true,
+  };
+
+  beforeEach(() => {
+    mockUsePermissions.mockReset();
+    mockApiGet.mockReset().mockResolvedValue(VARIANCE_RESPONSE);
+  });
+
+  test("issues exactly one GET to the project quote-variance path and maps it to camelCase", async () => {
+    grantPermission(true);
+    const { wrapper } = createWrapper();
+
+    const { result } = renderHook(() => useProjectQuoteVariance(PROJECT_ID), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(mockApiGet).toHaveBeenCalledTimes(1);
+    expect(mockApiGet).toHaveBeenCalledWith(VARIANCE_PATH);
+    expect(result.current.data).toEqual({
+      scopes: [
+        {
+          label: "Plumbing",
+          quoted: "8000.00",
+          actual: "8600.00",
+          variance: "600.00",
+          variancePercent: "7.5",
+        },
+      ],
+      total: {
+        label: "Project total",
+        quoted: "8000.00",
+        actual: "8600.00",
+        variance: "600.00",
+        variancePercent: "7.5",
+      },
+      laborIncluded: true,
+      hasScopeAnchoredRows: true,
+    });
+  });
+
+  test("is disabled and issues zero requests when the user lacks finance.view", async () => {
+    grantPermission(false);
+    const { wrapper } = createWrapper();
+
+    const { result } = renderHook(() => useProjectQuoteVariance(PROJECT_ID), { wrapper });
+
+    expect(mockApiGet).not.toHaveBeenCalled();
+    expect(result.current.fetchStatus).toBe("idle");
+  });
+
+  test("uses a query key distinct from the quote-detail variance key", async () => {
+    grantPermission(true);
+    const { queryClient, wrapper } = createWrapper();
+
+    const { result } = renderHook(() => useProjectQuoteVariance(PROJECT_ID), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    const keys = queryClient
+      .getQueryCache()
+      .getAll()
+      .map((query) => query.queryKey);
+    expect(keys).toEqual([
+      ["cost-entries", "financials", "quote-variance-project", PROJECT_ID],
+    ]);
   });
 });
 

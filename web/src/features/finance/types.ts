@@ -274,6 +274,18 @@ export interface QuoteVariance {
   trades: QuoteVarianceTrade[];
 }
 
+/** GET /projects/{projectId}/financials/quote-variance — the drill-down's
+ *  per-trade table. `scopes` is one row per invoiced, approved-quote anchor in
+ *  the project; `total` sums them. `hasScopeAnchoredRows` drives the
+ *  scope-labor caption (labor is structurally excluded from a scope anchor's
+ *  `actual`, Trap 6); `laborIncluded` drives the unburdened-labor caption. */
+export interface ProjectQuoteVariance {
+  scopes: QuoteVarianceTrade[];
+  total: QuoteVarianceTrade;
+  laborIncluded: boolean;
+  hasScopeAnchoredRows: boolean;
+}
+
 /** The latest OPEN AI profitability finding for one project (D-08).
  *  Money and percent never appear as bare fields: every figure the user sees is
  *  inside the grounded prose, already formatted and validated server-side. */
