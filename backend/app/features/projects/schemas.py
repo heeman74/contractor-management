@@ -167,6 +167,19 @@ class TradeCatalogResponse(TenantResponseSchema):
     color: str
 
 
+class TradeSpecialtyCreate(BaseModel):
+    """Schema for assigning a trade specialty (catalog entry) to a contractor."""
+
+    trade_catalog_id: uuid.UUID
+
+
+class TradeSpecialtyResponse(TenantResponseSchema):
+    """Response schema for a contractor's trade specialty."""
+
+    user_id: uuid.UUID
+    trade_catalog_id: uuid.UUID
+
+
 # ---------------------------------------------------------------------------
 # TradeScope schemas
 # ---------------------------------------------------------------------------

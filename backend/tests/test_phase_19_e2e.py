@@ -530,6 +530,50 @@ class TestContractorSpecialtyMatching:
         response = await async_client.get("/api/v1/contractors/")
         assert response.status_code == 401
 
+    async def test_assign_specialty_from_shared_catalog(
+        self, tenant_a_client: AsyncClient, seed_two_tenants: dict
+    ):
+        """Assigning a catalog trade to a contractor links them and drives matching."""
+        # A seeded default trade from the shared catalog
+        catalog = await tenant_a_client.get("/api/v1/trade-catalog/")
+        trade_id = catalog.json()[0]["id"]
+
+        # Create a contractor account (user + contractor role)
+        user_resp = await tenant_a_client.post(
+            "/api/v1/users/",
+            json={"email": "wire@a.com", "first_name": "Wire", "last_name": "Smith"},
+        )
+        assert user_resp.status_code == 201, user_resp.text
+        user_id = user_resp.json()["id"]
+        await tenant_a_client.post(
+            f"/api/v1/users/{user_id}/roles",
+            json={"user_id": user_id, "role": "contractor"},
+        )
+
+        # Assign the specialty
+        assign = await tenant_a_client.post(
+            f"/api/v1/contractors/{user_id}/specialties",
+            json={"trade_catalog_id": trade_id},
+        )
+        assert assign.status_code == 201, assign.text
+        assert assign.json()["trade_catalog_id"] == trade_id
+        assert assign.json()["user_id"] == user_id
+
+        # Idempotent: assigning the same trade again does not error or duplicate
+        again = await tenant_a_client.post(
+            f"/api/v1/contractors/{user_id}/specialties",
+            json={"trade_catalog_id": trade_id},
+        )
+        assert again.status_code == 201
+        assert again.json()["id"] == assign.json()["id"]
+
+        # The contractor now matches that trade
+        matched = await tenant_a_client.get(
+            "/api/v1/contractors/", params={"trade_catalog_id": trade_id}
+        )
+        me = next(c for c in matched.json() if c["id"] == user_id)
+        assert me["has_specialty_match"] is True
+
     async def test_contractor_specialty_matching_with_role(
         self, tenant_a_client: AsyncClient, seed_two_tenants: dict
     ):

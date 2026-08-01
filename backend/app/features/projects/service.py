@@ -39,6 +39,7 @@ from app.features.projects.models import (
     TaskNote,
     TradeCatalog,
     TradeScope,
+    UserTradeSpecialty,
 )
 from app.features.projects.repository import (
     ProjectRepository,
@@ -49,6 +50,7 @@ from app.features.projects.repository import (
     TaskRepository,
     TradeCatalogRepository,
     TradeScopeRepository,
+    UserTradeSpecialtyRepository,
 )
 from app.features.projects.schemas import (
     ProjectCreate,
@@ -200,6 +202,30 @@ class TradeCatalogService(TenantScopedService[TradeCatalog]):
         repo = TradeCatalogRepository(self.db)
         await repo.seed_defaults(company_id)
         return await repo.list_by_company()
+
+
+class UserTradeSpecialtyService(TenantScopedService[UserTradeSpecialty]):
+    """Assigns trade specialties (catalog entries) to contractors.
+
+    A specialty links a contractor to a trade in the shared catalog and feeds the
+    contractor-matching endpoint. Idempotent: assigning a trade the contractor
+    already has returns the existing link rather than violating the unique
+    (user_id, trade_catalog_id) constraint.
+    """
+
+    repository_class = UserTradeSpecialtyRepository
+
+    async def assign(self, user_id: uuid.UUID, trade_catalog_id: uuid.UUID) -> UserTradeSpecialty:
+        company_id = self._require_tenant_id()
+        existing = await self.repository.find(user_id, trade_catalog_id)
+        if existing is not None:
+            return existing
+        specialty = UserTradeSpecialty(
+            company_id=company_id,
+            user_id=user_id,
+            trade_catalog_id=trade_catalog_id,
+        )
+        return await self.repository.create(specialty)
 
 
 class TradeScopeService(TenantScopedService[TradeScope]):

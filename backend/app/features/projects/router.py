@@ -60,6 +60,8 @@ from app.features.projects.schemas import (
     TradeScopeCreate,
     TradeScopeResponse,
     TradeScopeUpdate,
+    TradeSpecialtyCreate,
+    TradeSpecialtyResponse,
 )
 from app.features.projects.service import (
     ConflictService,
@@ -70,6 +72,7 @@ from app.features.projects.service import (
     TaskService,
     TradeCatalogService,
     TradeScopeService,
+    UserTradeSpecialtyService,
 )
 
 logger = logging.getLogger(__name__)
@@ -782,6 +785,24 @@ async def list_contractors_by_specialty(
     """
     contractors = await ContractorMatchRepository(db).list_contractors(trade_catalog_id)
     return [ContractorMatchResponse.model_validate(contractor) for contractor in contractors]
+
+
+@contractors_router.post(
+    "/{user_id}/specialties",
+    response_model=TradeSpecialtyResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def assign_contractor_specialty(
+    user_id: uuid.UUID,
+    data: TradeSpecialtyCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> TradeSpecialtyResponse:
+    """Link a contractor to a trade in the shared catalog (idempotent)."""
+    await require_permission("roles.assign")(current_user, db)
+    svc = UserTradeSpecialtyService(db)
+    specialty = await svc.assign(user_id, data.trade_catalog_id)
+    return TradeSpecialtyResponse.model_validate(specialty)
 
 
 # ---------------------------------------------------------------------------

@@ -168,6 +168,24 @@ class TradeScopeRepository(BaseRepository[TradeScope]):
         return result.scalar_one()
 
 
+class UserTradeSpecialtyRepository(BaseRepository[UserTradeSpecialty]):
+    """Repository for contractor trade specialties (user ↔ trade_catalog join)."""
+
+    model = UserTradeSpecialty
+
+    async def find(
+        self, user_id: uuid.UUID, trade_catalog_id: uuid.UUID
+    ) -> UserTradeSpecialty | None:
+        """Return the specialty linking this user to this trade, if it exists."""
+        result = await self.db.execute(
+            select(UserTradeSpecialty).where(
+                UserTradeSpecialty.user_id == user_id,
+                UserTradeSpecialty.trade_catalog_id == trade_catalog_id,
+            )
+        )
+        return result.scalars().first()
+
+
 class TaskRepository(BaseRepository[Task]):
     """Repository for Task entities."""
 
