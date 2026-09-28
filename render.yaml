@@ -1,71 +1,68 @@
-# Render Blueprint — ContractorHub
+# Render Blueprint — ContractorHub (free tier)
 #
-# Topology mirrors docker-compose.prod.yml, with two deliberate differences:
+# Free-tier constraints this file works around:
 #
-# 1. The API is a PRIVATE service. Every browser request goes through the
-#    Next.js route handlers (src/app/api/**), which call the API server-side
-#    via FASTAPI_URL, so the API never needs a public hostname. This also
-#    means CORS_ORIGINS can stay empty.
+# - Private services (type: pserv) are paid-only, so the API runs as a public
+#   web service. The browser still only talks to the Next.js app; the API
+#   being reachable is a consequence of the plan, not the design.
+# - preDeployCommand is paid-only, so migrations run in the start command.
+# - Free instances have ~512MB RAM, so uvicorn runs 1 worker rather than 4.
+#   That also removes the migration race that preDeployCommand was avoiding.
+# - Free instances spin down when idle; the first request after a sleep is
+#   slow, and the API may need a moment before the web app can reach it.
 #
-# 2. There is no appuser role. docker/init.sql creates a non-owner role so
-#    row level security is enforced; Render's managed Postgres gives a single
-#    owning role instead. Migration 0041 FORCEs RLS on every policy-bearing
-#    table, which is what makes tenant isolation hold for an owner connection.
-#    Do not deploy this blueprint against a database below revision 0041.
+# Upgrading later: set plans to starter, change the API back to `type: pserv`,
+# move `alembic upgrade head` into preDeployCommand, and raise --workers.
 #
-# Values marked `sync: false` are intentionally not in git — set them in the
-# Render dashboard before the first deploy.
+# IMPORTANT: tenant isolation depends on migration 0041. Render gives a single
+# owning role, and Postgres exempts a table's owner from its own RLS policies
+# unless the table is FORCEd. See DEPLOY.md.
 
 databases:
   - name: contractorhub-db
     databaseName: contractorhub
     user: contractorhub
     postgresMajorVersion: "16"
-    plan: basic-256mb
+    plan: free
 
 services:
-  - type: keyvalue
-    name: contractorhub-redis
-    plan: starter
-    # Reachable only from services in this blueprint.
-    ipAllowList: []
-
-  - type: pserv
+  - type: web
     name: contractorhub-api
     runtime: docker
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
-    plan: starter
-    # Runs after the image builds, before traffic shifts to it. Applying
-    # migrations here (not in the container CMD) keeps the 4 uvicorn workers
-    # from racing to run alembic against the same database on every boot.
-    preDeployCommand: "alembic upgrade head"
+    plan: free
+    healthCheckPath: /health
+    # Migrations run here because preDeployCommand is paid-only. Safe with a
+    # single worker: nothing else is racing alembic for the same database.
+    dockerCommand: >-
+      sh -c "alembic upgrade head &&
+      uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1"
     envVars:
       - key: DATABASE_URL
         fromDatabase:
           name: contractorhub-db
           property: connectionString
-      - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: contractorhub-redis
-          property: connectionString
-      # Generated once by Render and then held stable. Rotating this
-      # invalidates every issued access and refresh token.
+      # Generated once and then held stable — rotating this invalidates every
+      # issued access and refresh token.
       - key: JWT_SECRET_KEY
         generateValue: true
       - key: DEBUG
         value: "false"
-      # Browser traffic is proxied through the web service, so no origin
-      # needs to be allowed at the API directly.
+      # Browser traffic is proxied through the web service, so the API does
+      # not need to allow any origin directly.
       - key: CORS_ORIGINS
         value: ""
-      # Public origin used to build password-reset links. Must be the web
-      # service's real URL; the default points reset links at localhost.
+      # Redis is lazy-initialised and only backs chat WebSocket fan-out, so
+      # the app boots without it. Leaving it unset means realtime chat relay
+      # is the one feature that will not work on free tier.
+      #
+      # Public origin used to build password-reset links. Set this to the web
+      # service's URL once it exists, then redeploy this service.
       - key: PUBLIC_WEB_URL
         sync: false
       # Transactional email. With SMTP_HOST unset the app runs in dev mode:
-      # it logs reset emails and sends nothing.
+      # it logs reset emails and sends nothing at all.
       - key: SMTP_HOST
         sync: false
       - key: SMTP_PORT
@@ -86,12 +83,12 @@ services:
     runtime: docker
     dockerfilePath: ./web/Dockerfile
     dockerContext: ./web
-    plan: starter
+    plan: free
     healthCheckPath: /login
     envVars:
-      # Internal address of the private API service. Confirm the port against
-      # the API service's "Connect" tab after the first deploy.
+      # Set to the API service's public URL (https://contractorhub-api.onrender.com).
+      # Free tier has no private networking, so this cannot be an internal address.
       - key: FASTAPI_URL
-        value: http://contractorhub-api:8000
+        sync: false
       - key: NODE_ENV
         value: production

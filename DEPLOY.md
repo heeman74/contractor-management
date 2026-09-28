@@ -1,74 +1,84 @@
-# Deploying ContractorHub to Render
+# Deploying ContractorHub to Render (free tier)
 
-`render.yaml` in the repo root is a Blueprint describing four resources:
-managed Postgres 16, a Key Value (Redis) instance, the FastAPI API as a
-**private** service, and the Next.js app as the only public web service.
+`render.yaml` is a Blueprint describing three resources: managed Postgres 16,
+the FastAPI API, and the Next.js app. Both services run on the free plan.
 
-Nothing here has been deployed yet — the blueprint has not been run against a
-real Render account, so treat the first deploy as a dry run and expect to
-confirm plan names and the internal API port in the dashboard.
+Nothing here has been deployed successfully yet. The start command and the
+migration step have been verified locally against the real production image,
+but the blueprint itself has not completed a run on Render.
 
-## Before the first deploy
+## Free-tier limitations, and what they cost you
 
-### 1. Set up an email provider
+| Limit | Consequence |
+|---|---|
+| Private services are paid-only | The API runs as a public web service. The browser still only talks to the Next.js app, but the API has a reachable URL. |
+| `preDeployCommand` is paid-only | Migrations run in the start command instead. Safe here because the service runs a single worker. |
+| ~512MB RAM | uvicorn runs 1 worker, not 4. |
+| Services sleep when idle | First request after a sleep is slow. If the API is asleep, the web app's first call can fail before it wakes. |
+| No private networking | `FASTAPI_URL` must be the API's **public** URL, not an internal hostname. |
+| No Redis in this blueprint | Redis is lazy-initialised and only backs chat WebSocket fan-out, so the app boots fine. Realtime chat relay is the one feature that will not work. |
+| Free Postgres expires | Render's free databases are time-limited. Plan to upgrade or migrate before it lapses — check the current expiry in your dashboard, as the policy has changed over time. |
 
-Password reset ships in this release and it is the one feature that fails
-*silently* when misconfigured. With `SMTP_HOST` unset, `EmailService` runs in
-dev mode: `/forgot-password` still returns 202, the UI still says "check your
-email", and nothing is ever sent.
+## Deploy order
 
-Pick a provider (SES, SendGrid, Mailgun — all expose plain SMTP), verify a
-sending domain, and collect host, port, username, password, and a From address
-on the verified domain.
+`PUBLIC_WEB_URL` and `FASTAPI_URL` each need a URL that does not exist until
+the other service is created, so the first pass is deliberately two-phase.
 
-### 2. Create the Blueprint
+1. **Render → New → Blueprint**, point at `heeman74/contractor-management`,
+   branch `master`. It reads `render.yaml`. Do **not** create services by hand —
+   a manually created Web Service defaults to the repo root, which has no
+   Dockerfile, and the build fails immediately.
+2. Let both services build. The web service will be unhealthy at this point;
+   that is expected, it has no `FASTAPI_URL` yet.
+3. Copy the two public URLs Render assigns.
+4. Set the `sync: false` values (table below), then redeploy both services.
 
-In Render: **New → Blueprint**, point it at `heeman74/contractor-management`,
-branch `master`. It will read `render.yaml`.
-
-### 3. Fill in the values marked `sync: false`
+## Values you must set
 
 | Variable | Service | Value |
 |---|---|---|
-| `PUBLIC_WEB_URL` | contractorhub-api | The web service's public URL, e.g. `https://contractorhub-web.onrender.com`. **Reset links are built from this** — a wrong value produces links that 404. |
+| `FASTAPI_URL` | contractorhub-web | The API's public URL, e.g. `https://contractorhub-api.onrender.com` |
+| `PUBLIC_WEB_URL` | contractorhub-api | The web app's public URL. **Reset links are built from this** — wrong value means links that 404. |
 | `SMTP_HOST` | contractorhub-api | Provider SMTP host |
 | `SMTP_USER` | contractorhub-api | Provider SMTP username |
 | `SMTP_PASSWORD` | contractorhub-api | Provider SMTP password |
-| `SMTP_FROM` | contractorhub-api | `ContractorHub <no-reply@yourdomain.com>` on the verified domain |
+| `SMTP_FROM` | contractorhub-api | `ContractorHub <no-reply@yourdomain.com>`, on a verified domain |
 | `ANTHROPIC_API_KEY` | contractorhub-api | Only needed for the AI features |
 
-`PUBLIC_WEB_URL` is circular on a first deploy — the web URL does not exist
-until the web service is created. Deploy once, copy the web URL, set it, and
-redeploy the API.
+### Email is the silent one
 
-### 4. Database extensions
+With `SMTP_HOST` unset, `EmailService` runs in dev mode: `/forgot-password`
+still returns 202, the UI still says "check your email", and nothing is sent.
+Password reset ships in this release, so set SMTP before real users touch it.
+
+## Database extensions
 
 Migrations create `uuid-ossp` and `btree_gist`. Both are on Render's supported
-list, but the migration runs as the database owner rather than a superuser, so
-if `preDeployCommand` fails on `CREATE EXTENSION`, create them once by hand
-from the Render Postgres shell and re-run the deploy.
+list, but the migration runs as the database owner rather than a superuser. If
+the deploy fails on `CREATE EXTENSION`, create them once by hand from the
+Render Postgres shell and redeploy.
 
 ## Why tenant isolation depends on migration 0041
 
 Locally, `docker/init.sql` creates `appuser`, a `NOSUPERUSER NOBYPASSRLS` role
-that is *not* the table owner in CI, so row level security is enforced.
+that does not own the tables, so row level security is enforced.
 
 Render gives you exactly one role and it owns every table. Postgres exempts a
 table's owner from its own RLS policies unless the table is set to **FORCE**.
 Four tables (`billing_milestones`, `punch_list_items`, `site_walk_flags`,
 `task_inspections`) only ever called `ENABLE`, and the drift differed between
 databases. Migration `0041_force_rls_missing_tables` forces RLS on every
-policy-bearing table it finds, and `tests/test_rls_forced.py` keeps the
-invariant from regressing.
+policy-bearing table it finds; `tests/test_rls_forced.py` keeps it from
+regressing.
 
-**Do not point this blueprint at a database that has not reached 0041.** On an
-owner connection, those four tables would serve rows from every company.
+**Do not point this blueprint at a database below revision 0041.** On an owner
+connection, those four tables would serve rows from every company.
 
 ## After deploying
 
 1. Register a company and confirm login works.
-2. Run the full reset flow against a **real inbox** — this is the check that
-   local testing cannot make, because locally the mail is only logged.
+2. Run the full reset flow against a **real inbox** — the check local testing
+   cannot make, because locally the mail is only logged.
 3. Confirm the reset link's host matches `PUBLIC_WEB_URL`.
 4. Change password from the topbar dialog; confirm the old password fails.
 5. Create a quote and confirm the quote number appears in list and detail.
@@ -77,5 +87,4 @@ owner connection, those four tables would serve rows from every company.
 
 `0041`'s downgrade is deliberately a no-op: the prior state was a
 tenant-isolation hole and it differed per database, so there is no correct set
-of tables to un-force. Roll back application code freely; do not try to reverse
-0041.
+of tables to un-force. Roll back application code freely; do not reverse 0041.
