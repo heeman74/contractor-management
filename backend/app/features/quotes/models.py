@@ -98,6 +98,9 @@ class Quote(TenantScopedModel):
         nullable=True,
     )
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="draft")
+    # Human-facing sequential number per company (e.g. Quote #1, #2, …). Shared
+    # across a quote's revisions so the number is stable as it's re-issued.
+    quote_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     revision_number: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
     tax_rate: Mapped[Decimal] = mapped_column(Numeric(5, 2), nullable=False, server_default="0")
     discount_type: Mapped[str | None] = mapped_column(Text, nullable=True)

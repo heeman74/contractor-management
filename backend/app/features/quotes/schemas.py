@@ -203,6 +203,7 @@ class QuoteResponse(BaseResponseSchema):
     co_target: str | None = None
     created_job_id: uuid.UUID | None = None
     status: str
+    quote_number: int | None = None
     revision_number: int
     tax_rate: Decimal
     discount_type: str | None

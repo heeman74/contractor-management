@@ -260,6 +260,7 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
             trade_scope_id=data.trade_scope_id,
             title=data.title,
             status="draft",
+            quote_number=await self._next_quote_number(company_id),
             revision_number=1,
             tax_rate=data.tax_rate,
             discount_type=data.discount_type,
@@ -323,6 +324,17 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
                 Quote.project_id == project_id,
                 Quote.quote_kind == QUOTE_KIND_CHANGE_ORDER,
             )
+        )
+        return (result.scalar_one_or_none() or 0) + 1
+
+    async def _next_quote_number(self, company_id: uuid.UUID) -> int:
+        """The next human-facing quote number for a company (#1, #2, …).
+
+        Revisions reuse their root's number, so the max never counts a chain
+        twice and the next original quote gets the following integer.
+        """
+        result = await self.db.execute(
+            select(func.max(Quote.quote_number)).where(Quote.company_id == company_id)
         )
         return (result.scalar_one_or_none() or 0) + 1
 
@@ -712,6 +724,8 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
             # when multiple independent chains exist at one anchor.
             revised_from_quote_id=old_quote.id,
             status="draft",
+            # A revision is the same quote re-issued — keep its number stable.
+            quote_number=old_quote.quote_number,
             revision_number=old_quote.revision_number + 1,
             tax_rate=data.tax_rate if data.tax_rate is not None else old_quote.tax_rate,
             discount_type=data.discount_type
@@ -871,6 +885,7 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
             job_id=None,
             trade_scope_id=trade_scope_id,
             status="draft",
+            quote_number=await self._next_quote_number(company_id),
             revision_number=1,
             tax_rate=data.tax_rate,
             discount_type=data.discount_type,

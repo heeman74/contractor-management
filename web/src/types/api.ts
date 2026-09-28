@@ -215,6 +215,7 @@ export interface Quote {
   co_target?: string | null;
   created_job_id?: string | null;
   status: QuoteStatus;
+  quote_number?: number | null;
   revision_number: number;
   tax_rate: string;
   discount_type: DiscountType | null;

@@ -76,7 +76,7 @@ export function QuotesTable({
               onClick={() => router.push(`/quotes/${quote.id}`)}
             >
               <TableCell className="py-3 px-4 font-mono text-sm text-gray-900">
-                {formatQuoteReference(quote.id)}
+                {formatQuoteReference(quote)}
               </TableCell>
               <TableCell className="py-3 px-4 text-sm text-gray-700 truncate max-w-[160px]">
                 {job?.description ?? quote.title ?? EMPTY_VALUE}

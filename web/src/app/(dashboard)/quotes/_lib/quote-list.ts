@@ -41,8 +41,13 @@ export function buildJobsById(jobs: Job[] | undefined): JobsById {
   return new Map((jobs ?? []).map((job) => [job.id, job]));
 }
 
-export function formatQuoteReference(quoteId: string): string {
-  return `QT-${quoteId.slice(0, QUOTE_REFERENCE_LENGTH).toUpperCase()}`;
+export function formatQuoteReference(
+  quote: Pick<Quote, "id" | "quote_number">
+): string {
+  if (quote.quote_number != null) {
+    return String(quote.quote_number).padStart(4, "0");
+  }
+  return `QT-${quote.id.slice(0, QUOTE_REFERENCE_LENGTH).toUpperCase()}`;
 }
 
 export const formatQuoteTotal = formatCurrency;
@@ -66,7 +71,7 @@ export function matchesQuoteSearch(
   const normalized = query.toLowerCase();
   const job = quote.job_id ? jobsById.get(quote.job_id) : undefined;
   return (
-    formatQuoteReference(quote.id).toLowerCase().includes(normalized) ||
+    formatQuoteReference(quote).toLowerCase().includes(normalized) ||
     (quote.title?.toLowerCase().includes(normalized) ?? false) ||
     (job?.description?.toLowerCase().includes(normalized) ?? false) ||
     (job?.client_name?.toLowerCase().includes(normalized) ?? false)
@@ -76,7 +81,8 @@ export function matchesQuoteSearch(
 function sortableValue(quote: Quote, column: SortColumn): string | number {
   switch (column) {
     case "id":
-      return quote.id;
+      // The "Quote #" column — sort by the human number, not the UUID.
+      return quote.quote_number ?? 0;
     case "total":
       return Number(quote.total);
     case "status":

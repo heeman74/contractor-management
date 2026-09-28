@@ -16,7 +16,6 @@ export function useQuoteDetail(id: string) {
   const queryClient = useQueryClient();
 
   const [isPdfDownloading, setPdfDownloading] = useState(false);
-  const quoteRef = `QT-${id.slice(0, 6).toUpperCase()}`;
 
   // Queries -----------------------------------------------------------------
 
@@ -29,6 +28,13 @@ export function useQuoteDetail(id: string) {
     queryFn: () => apiGet<Quote>(`/api/v1/quotes/${id}`),
     enabled: !isNew,
   });
+
+  // Prefer the human-facing sequential number (e.g. "0007"); fall back to a
+  // UUID slice only until the quote loads or for legacy rows without a number.
+  const quoteRef =
+    quote?.quote_number != null
+      ? String(quote.quote_number).padStart(4, "0")
+      : `QT-${id.slice(0, 6).toUpperCase()}`;
 
   const { data: job } = useQuery<Job>({
     queryKey: ["job", quote?.job_id],
