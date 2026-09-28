@@ -15,9 +15,12 @@ from app.core.database import get_db
 from app.core.rate_limit import limiter
 from app.core.security import CurrentUser, get_current_user
 from app.features.auth.schemas import (
+    ChangePasswordRequest,
+    ForgotPasswordRequest,
     LoginRequest,
     RefreshRequest,
     RegisterRequest,
+    ResetPasswordRequest,
     TokenResponse,
 )
 from app.features.auth.service import AuthService
@@ -102,3 +105,61 @@ async def logout_endpoint(
     """Revoke the refresh token family. Requires valid access token."""
     svc = AuthService(db)
     await svc.logout(refresh_token_str=data.refresh_token)
+
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit("5/minute")
+async def change_password_endpoint(
+    request: Request,
+    data: ChangePasswordRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> None:
+    """Change the signed-in user's password (verifies the current password)."""
+    svc = AuthService(db)
+    try:
+        await svc.change_password(
+            user_id=current_user.user_id,
+            current_password=data.current_password,
+            new_password=data.new_password,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+
+
+@router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED)
+@limiter.limit("3/minute")
+async def forgot_password_endpoint(
+    request: Request,
+    data: ForgotPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    """Email a reset link if the address has an account.
+
+    Always responds 202 with the same body so callers can't tell whether the
+    email is registered (no account enumeration).
+    """
+    svc = AuthService(db)
+    await svc.request_password_reset(email=data.email)
+    return {"detail": "If an account exists for that email, a reset link has been sent."}
+
+
+@router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit("5/minute")
+async def reset_password_endpoint(
+    request: Request,
+    data: ResetPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Set a new password using a valid reset token."""
+    svc = AuthService(db)
+    try:
+        await svc.reset_password(token=data.token, new_password=data.new_password)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e

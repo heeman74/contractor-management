@@ -195,6 +195,7 @@ async def clean_tables(test_engine):
                 "project_assignments, "
                 # Auth + core tables
                 "refresh_tokens, "
+                "password_reset_tokens, "
                 "user_roles, "
                 # Phase 27 RBAC (references companies)
                 "company_role_permissions, "

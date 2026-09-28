@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -9,7 +10,6 @@ import { Eye, EyeOff, AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
 import { useAppDispatch } from "@/store/hooks";
 import { setAuthUser } from "@/store/slices/auth-slice";
 import type { AuthUser } from "@/types/api";
@@ -202,17 +202,12 @@ export default function LoginPage() {
 
             {/* Forgot password */}
             <div className="flex justify-end">
-              <button
-                type="button"
+              <Link
+                href="/forgot-password"
                 className="text-sm font-medium text-muted-foreground hover:text-foreground"
-                onClick={() =>
-                  toast("Contact your administrator", {
-                    description: "Password reset is managed by your system administrator.",
-                  })
-                }
               >
                 Forgot password?
-              </button>
+              </Link>
             </div>
 
             {/* Submit button */}

@@ -28,6 +28,26 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+class ChangePasswordRequest(BaseModel):
+    """Authenticated self-service password change."""
+
+    current_password: str
+    new_password: str = Field(min_length=8)
+
+
+class ForgotPasswordRequest(BaseModel):
+    """Request a password-reset link by email."""
+
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    """Set a new password using a reset token."""
+
+    token: str
+    new_password: str = Field(min_length=8)
+
+
 class TokenResponse(BaseModel):
     """Access + refresh token pair returned on login/register/refresh."""
 

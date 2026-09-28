@@ -26,8 +26,18 @@ class Settings(BaseSettings):
     dropbox_sign_client_id: str | None = None
     dropbox_sign_test_mode: bool = True
 
-    # Public base URL for client-facing links (e.g. the magic-link /sign page).
+    # Public base URL for client-facing links (e.g. the magic-link /sign page,
+    # password-reset links).
     public_web_url: str = "http://localhost:3000"
+
+    # SMTP email transport. When smtp_host is unset the EmailService runs in dev
+    # mode: it logs messages (and captures them for tests) instead of sending.
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_use_tls: bool = True
+    smtp_from: str = "ContractorHub <no-reply@contractorhub.local>"
 
     # CORS origins (comma-separated in env, e.g. "http://localhost:3000,https://app.example.com")
     cors_origins: str = ""

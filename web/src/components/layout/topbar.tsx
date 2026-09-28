@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -19,9 +20,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { MobileSidebar } from "@/components/layout/sidebar";
+import { ChangePasswordDialog } from "@/components/layout/change-password-dialog";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { clearAuth } from "@/store/slices/auth-slice";
-import { LogOut, ChevronDown } from "lucide-react";
+import { LogOut, ChevronDown, KeyRound } from "lucide-react";
 
 // Map path segments to human-readable labels
 const SEGMENT_LABELS: Record<string, string> = {
@@ -69,6 +71,7 @@ export function Topbar() {
   const pageTitle = useAppSelector((state) => state.ui.pageTitle);
 
   const queryClient = useQueryClient();
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
 
   const breadcrumbs = buildBreadcrumbs(pathname);
 
@@ -146,6 +149,13 @@ export function Topbar() {
             <ChevronDown className="h-3 w-3 text-gray-400" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={() => setChangePasswordOpen(true)}
+              className="cursor-pointer"
+            >
+              <KeyRound className="mr-2 h-4 w-4" />
+              Change password
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
               <LogOut className="mr-2 h-4 w-4" />
               Log out
@@ -153,6 +163,11 @@ export function Topbar() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <ChangePasswordDialog
+        open={changePasswordOpen}
+        onOpenChange={setChangePasswordOpen}
+      />
     </header>
   );
 }
