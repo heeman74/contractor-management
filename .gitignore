@@ -18,3 +18,6 @@ backend/uploads/
 
 # Claude Code agent worktrees (temporary parallel execution copies)
 .claude/worktrees/
+
+# editor swap files
+*.swp
