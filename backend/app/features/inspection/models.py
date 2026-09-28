@@ -87,11 +87,11 @@ class SiteWalkFlag(TenantScopedModel):
         nullable=False,
     )
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    severity: Mapped[str] = mapped_column(Text, nullable=False, server_default="'medium'")
+    severity: Mapped[str] = mapped_column(Text, nullable=False, server_default="medium")
     location_label: Mapped[str | None] = mapped_column(Text, nullable=True)
     photo_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     annotation_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="'open'")
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="open")
 
     __table_args__ = (
         CheckConstraint(
@@ -138,8 +138,8 @@ class PunchListItem(TenantScopedModel):
         nullable=True,
     )
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    priority: Mapped[str] = mapped_column(Text, nullable=False, server_default="'medium'")
-    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="'open'")
+    priority: Mapped[str] = mapped_column(Text, nullable=False, server_default="medium")
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="open")
     photo_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     annotation_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     source_flag_id: Mapped[uuid.UUID | None] = mapped_column(
