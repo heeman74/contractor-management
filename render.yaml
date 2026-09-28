@@ -1,0 +1,97 @@
+# Render Blueprint — ContractorHub
+#
+# Topology mirrors docker-compose.prod.yml, with two deliberate differences:
+#
+# 1. The API is a PRIVATE service. Every browser request goes through the
+#    Next.js route handlers (src/app/api/**), which call the API server-side
+#    via FASTAPI_URL, so the API never needs a public hostname. This also
+#    means CORS_ORIGINS can stay empty.
+#
+# 2. There is no appuser role. docker/init.sql creates a non-owner role so
+#    row level security is enforced; Render's managed Postgres gives a single
+#    owning role instead. Migration 0041 FORCEs RLS on every policy-bearing
+#    table, which is what makes tenant isolation hold for an owner connection.
+#    Do not deploy this blueprint against a database below revision 0041.
+#
+# Values marked `sync: false` are intentionally not in git — set them in the
+# Render dashboard before the first deploy.
+
+databases:
+  - name: contractorhub-db
+    databaseName: contractorhub
+    user: contractorhub
+    postgresMajorVersion: "16"
+    plan: basic-256mb
+
+services:
+  - type: keyvalue
+    name: contractorhub-redis
+    plan: starter
+    # Reachable only from services in this blueprint.
+    ipAllowList: []
+
+  - type: pserv
+    name: contractorhub-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: starter
+    # Runs after the image builds, before traffic shifts to it. Applying
+    # migrations here (not in the container CMD) keeps the 4 uvicorn workers
+    # from racing to run alembic against the same database on every boot.
+    preDeployCommand: "alembic upgrade head"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: contractorhub-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: contractorhub-redis
+          property: connectionString
+      # Generated once by Render and then held stable. Rotating this
+      # invalidates every issued access and refresh token.
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "false"
+      # Browser traffic is proxied through the web service, so no origin
+      # needs to be allowed at the API directly.
+      - key: CORS_ORIGINS
+        value: ""
+      # Public origin used to build password-reset links. Must be the web
+      # service's real URL; the default points reset links at localhost.
+      - key: PUBLIC_WEB_URL
+        sync: false
+      # Transactional email. With SMTP_HOST unset the app runs in dev mode:
+      # it logs reset emails and sends nothing.
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_USE_TLS
+        value: "true"
+      - key: SMTP_FROM
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+
+  - type: web
+    name: contractorhub-web
+    runtime: docker
+    dockerfilePath: ./web/Dockerfile
+    dockerContext: ./web
+    plan: starter
+    healthCheckPath: /login
+    envVars:
+      # Internal address of the private API service. Confirm the port against
+      # the API service's "Connect" tab after the first deploy.
+      - key: FASTAPI_URL
+        value: http://contractorhub-api:8000
+      - key: NODE_ENV
+        value: production

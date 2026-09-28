@@ -1,6 +1,8 @@
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
+from app.core.db_url import normalize_async_dsn
+
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables.
@@ -41,6 +43,12 @@ class Settings(BaseSettings):
 
     # CORS origins (comma-separated in env, e.g. "http://localhost:3000,https://app.example.com")
     cors_origins: str = ""
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def normalize_database_url(cls, v: str) -> str:
+        """Accept the postgres:// URL managed platforms inject (see db_url)."""
+        return normalize_async_dsn(v)
 
     @field_validator("cors_origins", mode="before")
     @classmethod

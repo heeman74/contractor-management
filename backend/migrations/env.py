@@ -7,6 +7,8 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+from app.core.db_url import normalize_async_dsn
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
@@ -17,10 +19,12 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Override sqlalchemy.url from environment variable
-# This ensures migrations use the correct database URL in Docker and CI
+# This ensures migrations use the correct database URL in Docker and CI.
+# Normalised because managed platforms inject a postgres:// URL, which would
+# select the psycopg2 driver we do not install (see app.core.db_url).
 database_url = os.getenv("DATABASE_URL")
 if database_url:
-    config.set_main_option("sqlalchemy.url", database_url)
+    config.set_main_option("sqlalchemy.url", normalize_async_dsn(database_url))
 
 # Import all models so Alembic's autogenerate can detect them
 # IMPORTANT: Every new feature module must be imported here
