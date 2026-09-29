@@ -73,6 +73,24 @@ list, but the migration runs as the database owner rather than a superuser. If
 the deploy fails on `CREATE EXTENSION`, create them once by hand from the
 Render Postgres shell and redeploy.
 
+## Why the GRANTs are conditional
+
+Eleven migrations end with `GRANT ... TO appuser`. That role is created by
+`docker/init.sql`, which only runs for the local Docker Postgres — a managed
+database has no such role, and migration 0020 died on a fresh Render database
+with:
+
+    asyncpg.exceptions.UndefinedObjectError: role "appuser" does not exist
+    [SQL: GRANT SELECT, INSERT, UPDATE, DELETE ON chat_threads TO appuser]
+
+Each GRANT is now wrapped in a `pg_roles` existence check, so it applies
+locally and is skipped on a managed database — where it was redundant anyway,
+because the single owning role already holds those privileges.
+
+Verified both ways against a throwaway Postgres: with no `appuser` role and a
+non-superuser owner, the full 0001→0042 chain completes; with `appuser`
+present, the grants are still applied.
+
 ## Why tenant isolation depends on migration 0041
 
 Locally, `docker/init.sql` creates `appuser`, a `NOSUPERUSER NOBYPASSRLS` role

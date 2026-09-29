@@ -185,7 +185,13 @@ def upgrade() -> None:
             """)
         )
         op.execute(text(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY"))
-        op.execute(text(f"GRANT SELECT, INSERT, UPDATE, DELETE ON {table} TO appuser"))
+        op.execute(
+            text(
+                "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'appuser') "
+                f"THEN EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON {table} TO appuser'; "
+                "END IF; END $$;"
+            )
+        )
 
 
 def downgrade() -> None:

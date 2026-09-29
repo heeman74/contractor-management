@@ -71,7 +71,11 @@ def upgrade() -> None:
         "CREATE POLICY tenant_isolation ON billing_milestones "
         "USING (company_id = current_setting('app.current_company_id')::uuid)"
     )
-    op.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON billing_milestones TO appuser")
+    op.execute(
+        "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'appuser') "
+        "THEN EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON billing_milestones TO appuser'; "
+        "END IF; END $$;"
+    )
     op.execute(
         "CREATE TRIGGER set_updated_at "
         "BEFORE UPDATE ON billing_milestones "

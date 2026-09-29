@@ -104,7 +104,11 @@ def upgrade() -> None:
         ON ai_profitability_findings
         USING (company_id = current_setting('app.current_company_id')::uuid)
     """)
-    op.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ai_profitability_findings TO appuser")
+    op.execute(
+        "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'appuser') "
+        "THEN EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON ai_profitability_findings TO appuser'; "
+        "END IF; END $$;"
+    )
 
 
 def downgrade() -> None:

@@ -157,8 +157,11 @@ def upgrade() -> None:
         ON cost_categories
         USING (company_id = current_setting('app.current_company_id')::uuid)
     """)
-    op.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON cost_categories TO appuser")
-
+    op.execute(
+        "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'appuser') "
+        "THEN EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON cost_categories TO appuser'; "
+        "END IF; END $$;"
+    )
     op.execute("ALTER TABLE cost_entries ENABLE ROW LEVEL SECURITY")
     op.execute("ALTER TABLE cost_entries FORCE ROW LEVEL SECURITY")
     op.execute("""
@@ -166,8 +169,11 @@ def upgrade() -> None:
         ON cost_entries
         USING (company_id = current_setting('app.current_company_id')::uuid)
     """)
-    op.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON cost_entries TO appuser")
-
+    op.execute(
+        "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'appuser') "
+        "THEN EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON cost_entries TO appuser'; "
+        "END IF; END $$;"
+    )
     op.execute("ALTER TABLE labor_rates ENABLE ROW LEVEL SECURITY")
     op.execute("ALTER TABLE labor_rates FORCE ROW LEVEL SECURITY")
     op.execute("""
@@ -175,8 +181,11 @@ def upgrade() -> None:
         ON labor_rates
         USING (company_id = current_setting('app.current_company_id')::uuid)
     """)
-    op.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON labor_rates TO appuser")
-
+    op.execute(
+        "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'appuser') "
+        "THEN EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON labor_rates TO appuser'; "
+        "END IF; END $$;"
+    )
     op.execute("ALTER TABLE budgets ENABLE ROW LEVEL SECURITY")
     op.execute("ALTER TABLE budgets FORCE ROW LEVEL SECURITY")
     op.execute("""
@@ -184,8 +193,11 @@ def upgrade() -> None:
         ON budgets
         USING (company_id = current_setting('app.current_company_id')::uuid)
     """)
-    op.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON budgets TO appuser")
-
+    op.execute(
+        "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'appuser') "
+        "THEN EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON budgets TO appuser'; "
+        "END IF; END $$;"
+    )
     op.execute("ALTER TABLE budget_category_breakdowns ENABLE ROW LEVEL SECURITY")
     op.execute("ALTER TABLE budget_category_breakdowns FORCE ROW LEVEL SECURITY")
     op.execute("""
@@ -193,8 +205,11 @@ def upgrade() -> None:
         ON budget_category_breakdowns
         USING (company_id = current_setting('app.current_company_id')::uuid)
     """)
-    op.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON budget_category_breakdowns TO appuser")
-
+    op.execute(
+        "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'appuser') "
+        "THEN EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON budget_category_breakdowns TO appuser'; "
+        "END IF; END $$;"
+    )
     # -------------------------------------------------------------------
     # 8. Backfill existing companies' project_manager rows with the three
     #    finance.* keys. company_role_permissions has FORCE RLS (since 0027)

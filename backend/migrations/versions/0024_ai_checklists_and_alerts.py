@@ -85,7 +85,11 @@ def upgrade() -> None:
         "CREATE POLICY tenant_isolation_daily_checklists ON daily_checklists "
         "USING (company_id = current_setting('app.current_company_id')::uuid)"
     )
-    op.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON daily_checklists TO appuser")
+    op.execute(
+        "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'appuser') "
+        "THEN EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON daily_checklists TO appuser'; "
+        "END IF; END $$;"
+    )
     op.execute(
         "CREATE TRIGGER set_updated_at "
         "BEFORE UPDATE ON daily_checklists "
@@ -160,7 +164,11 @@ def upgrade() -> None:
         "CREATE POLICY tenant_isolation_dashboard_alerts ON dashboard_alerts "
         "USING (company_id = current_setting('app.current_company_id')::uuid)"
     )
-    op.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON dashboard_alerts TO appuser")
+    op.execute(
+        "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'appuser') "
+        "THEN EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON dashboard_alerts TO appuser'; "
+        "END IF; END $$;"
+    )
     op.execute(
         "CREATE TRIGGER set_updated_at "
         "BEFORE UPDATE ON dashboard_alerts "
