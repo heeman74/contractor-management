@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  UPSTREAM_MAX_DURATION_SECONDS,
   UPSTREAM_UNREACHABLE_DETAIL,
   fetchUpstream,
 } from "@/lib/server/upstream";
 
 const FASTAPI_URL = process.env.FASTAPI_URL ?? "http://localhost:8000";
 
-// The upstream may be cold; allow the wait rather than dying on a default.
-export const maxDuration = UPSTREAM_MAX_DURATION_SECONDS;
+// Next reads route segment config statically, so this must be a literal —
+// referencing an imported constant fails the build with "Invalid segment
+// configuration export". Keep in step with UPSTREAM_TIMEOUT_MS in
+// lib/server/upstream.ts, which allows one retry inside this budget.
+export const maxDuration = 90;
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   let body: unknown;

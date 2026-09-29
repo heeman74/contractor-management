@@ -14,8 +14,10 @@
 
 export const UPSTREAM_TIMEOUT_MS = 75_000;
 
-/** Long enough for a cold start plus a retry, for routes that set maxDuration. */
-export const UPSTREAM_MAX_DURATION_SECONDS = 90;
+// Route handlers declare `export const maxDuration = 90` as a literal rather
+// than importing it: Next evaluates segment config statically and rejects a
+// reference, so a shared constant here would be unusable by the very routes
+// that need it.
 
 export const UPSTREAM_UNREACHABLE_DETAIL =
   "The service is starting up. Please try again in a moment.";

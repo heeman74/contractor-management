@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import type { TokenResponse, AuthUser } from "@/types/api";
-import { UPSTREAM_MAX_DURATION_SECONDS, fetchUpstream } from "@/lib/server/upstream";
+import { fetchUpstream } from "@/lib/server/upstream";
 
 const FASTAPI_URL = process.env.FASTAPI_URL ?? "http://localhost:8000";
 
-// The upstream may be cold; allow the wait rather than dying on a default.
-export const maxDuration = UPSTREAM_MAX_DURATION_SECONDS;
+// Next reads route segment config statically, so this must be a literal —
+// referencing an imported constant fails the build with "Invalid segment
+// configuration export". Keep in step with UPSTREAM_TIMEOUT_MS in
+// lib/server/upstream.ts, which allows one retry inside this budget.
+export const maxDuration = 90;
 
 const IS_PROD = process.env.NODE_ENV === "production";
 
