@@ -50,7 +50,13 @@ CO_TARGET_NEW_JOB = "new_job"
 CO_TARGET_EXISTING_JOB = "existing_job"
 CO_TARGETS = (CO_TARGET_NEW_JOB, CO_TARGET_EXISTING_JOB)
 
-CONFIDENCE_BANDS = ("high", "medium", "low")
+# "rough" is not a fourth rung on the high/medium/low ladder — those three are
+# computed from comparable count and spread (D-05). "rough" means the opposite:
+# no history was available to ground the line at all, so the figure is the
+# model's own estimate. Kept as a distinct value rather than folded into "low"
+# so the send gate and the UI can tell "weakly grounded" from "not grounded".
+CONFIDENCE_BAND_ROUGH = "rough"
+CONFIDENCE_BANDS = ("high", "medium", "low", CONFIDENCE_BAND_ROUGH)
 
 # The UI-SPEC bound on a line item's `basis` text. Referenced by the migration's
 # CHECK constraint SQL via an f-string so the DB and this constant cannot diverge.

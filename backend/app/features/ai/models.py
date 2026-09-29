@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
 
 class AIConversation(TenantScopedModel):
-    """A chat session for project intake or contractor interview.
+    """A chat session for project intake, contractor interview, or quote interview.
 
     conv_type: 'intake' (GC describes project → AI creates trade scopes)
                or 'interview' (AI asks contractor questions → creates tasks)
@@ -66,7 +66,7 @@ class AIConversation(TenantScopedModel):
 
     __table_args__ = (
         CheckConstraint(
-            "conv_type IN ('intake','interview')",
+            "conv_type IN ('intake','interview','quote_interview')",
             name="ai_conversations_conv_type_check",
         ),
         CheckConstraint(

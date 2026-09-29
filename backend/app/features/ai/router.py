@@ -31,7 +31,7 @@ from app.core.base_service import entity_or_404
 from app.core.database import get_db
 from app.core.security import CurrentUser, get_current_user
 from app.features.ai.models import AIImageUpload
-from app.features.ai.prompts.tools import INTAKE_TOOLS, INTERVIEW_TOOLS
+from app.features.ai.prompts.tools import INTAKE_TOOLS, INTERVIEW_TOOLS, QUOTE_INTERVIEW_TOOLS
 from app.features.ai.repository import AIConversationRepository, AIMessageRepository
 from app.features.ai.schemas import (
     ChatTurnRequest,
@@ -39,6 +39,8 @@ from app.features.ai.schemas import (
     ImageUploadResponse,
     IntakeCompleteRequest,
     InterviewCompleteRequest,
+    QuoteInterviewCompleteRequest,
+    QuoteInterviewCompleteResponse,
 )
 from app.features.ai.service import AIService
 
@@ -386,3 +388,91 @@ async def get_conversation(
             for msg in messages
         ],
     }
+
+
+# ---------------------------------------------------------------------------
+# POST /ai/quote-interview/start
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/ai/quote-interview/start",
+    status_code=status.HTTP_201_CREATED,
+    response_model=ConversationResponse,
+)
+async def quote_interview_start(
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ConversationResponse:
+    """Start or resume an AI quote interview.
+
+    Takes no project or scope: a quote interview starts from nothing, which is
+    the whole point — the existing suggestion endpoint already covers the case
+    where a draft quote exists.
+    """
+    service = AIService(db)
+    conv = await service.get_or_create_conversation(
+        project_id=None,
+        scope_id=None,
+        conv_type="quote_interview",
+        user_id=current_user.user_id,
+    )
+    return ConversationResponse.model_validate(conv)
+
+
+# ---------------------------------------------------------------------------
+# POST /ai/quote-interview/message
+# ---------------------------------------------------------------------------
+
+
+@router.post("/ai/quote-interview/message")
+async def quote_interview_message(
+    req: ChatTurnRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    """Send a message in a quote interview and stream the AI response.
+
+    Same SSE envelope as intake. The model asks one question per turn and
+    calls `propose_quote` when the scope is clear enough to price.
+    """
+    service = AIService(db)
+    conv, messages, system_prompt = await service.load_conversation_context(
+        req.conversation_id, current_user.user_id
+    )
+
+    if conv.status != "active":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Conversation is not active",
+        )
+
+    await service.persist_user_message(req.conversation_id, req.message, current_user.user_id)
+    messages = messages + [{"role": "user", "content": [{"type": "text", "text": req.message}]}]
+
+    stream = service.stream_turn(conv, messages, system_prompt, QUOTE_INTERVIEW_TOOLS)
+    return _sse_response(stream)
+
+
+# ---------------------------------------------------------------------------
+# POST /ai/quote-interview/complete
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/ai/quote-interview/complete",
+    response_model=QuoteInterviewCompleteResponse,
+)
+async def quote_interview_complete(
+    req: QuoteInterviewCompleteRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> QuoteInterviewCompleteResponse:
+    """Create a draft quote from the interview and price its line items.
+
+    Prices are never taken from the request — they are produced server-side,
+    grounded in company history where there is enough of it and marked `rough`
+    where there is not. Either way every line lands unreviewed, so the Phase 37
+    send gate still applies.
+    """
+    return await AIService(db).commit_quote_interview(req)

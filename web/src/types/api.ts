@@ -182,7 +182,10 @@ export type ItemType = "labor" | "material";
 export type DiscountType = "percent" | "fixed";
 
 export type QuoteLineReviewState = "unreviewed" | "accepted" | "edited";
-export type QuoteConfidenceBand = "high" | "medium" | "low";
+// "rough" is not a rung below "low": high/medium/low grade how much history
+// stands behind a figure, while "rough" means none was available and the
+// number is the model's own estimate.
+export type QuoteConfidenceBand = "high" | "medium" | "low" | "rough";
 
 export interface QuoteLineItem {
   id: string;

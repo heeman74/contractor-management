@@ -62,6 +62,34 @@ class IntakeCompleteRequest(BaseModel):
     trade_scopes: list[dict[str, Any]] = Field(default_factory=list)
 
 
+class QuoteInterviewCompleteRequest(BaseModel):
+    """Request body for POST /ai/quote-interview/complete.
+
+    Carries what the model's `propose_quote` tool gathered, matching the
+    intake convention where the client submits the structured result. Nothing
+    priced is accepted from the client: the figures are produced server-side
+    by QuoteSuggestionService, so the worst a tampered brief can do is
+    describe a different job, which the user then reviews line by line.
+    """
+
+    conversation_id: uuid.UUID
+    trade: str = Field(min_length=1, max_length=100)
+    title: str = Field(min_length=1, max_length=200)
+    brief: str = Field(min_length=1, max_length=4000)
+
+
+class QuoteInterviewCompleteResponse(BaseModel):
+    """What the client needs to route the user onward and explain the result."""
+
+    quote_id: uuid.UUID
+    refusal_reason: str | None
+    trade_name: str | None
+    comparable_count: int | None
+    required_count: int | None
+    suggested_line_count: int
+    grounded: bool
+
+
 class InterviewCompleteRequest(BaseModel):
     """Request body for POST /ai/interview/complete."""
 

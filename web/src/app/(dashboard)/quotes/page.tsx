@@ -55,6 +55,13 @@ function QuotesPageContent() {
             />
           </div>
           <Link
+            href="/quotes/ai-interview"
+            className="inline-flex h-9 flex-shrink-0 items-center gap-1.5 rounded-lg border border-brand px-3 text-sm font-medium text-brand transition-colors hover:bg-brand/5"
+          >
+            <Bot className="h-4 w-4" />
+            AI Quote
+          </Link>
+          <Link
             href="/quotes/new-project"
             className="inline-flex h-9 flex-shrink-0 items-center gap-1.5 rounded-lg bg-brand px-3 text-sm font-medium text-brand-foreground transition-colors hover:bg-brand/90"
           >

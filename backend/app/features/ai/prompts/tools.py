@@ -138,3 +138,47 @@ INTERVIEW_TOOLS: list[dict[str, Any]] = [
         },
     },
 ]
+
+
+# QUOTE_INTERVIEW_TOOLS — used during AI quote interview sessions:
+#   - propose_quote: hand the gathered scope off for pricing
+#
+# There is deliberately no pricing tool. The interview gathers scope; figures
+# come from QuoteSuggestionService, which either grounds them in the company's
+# completed work or marks them rough. A tool that let the model state a price
+# would route a number around that gate.
+QUOTE_INTERVIEW_TOOLS: list[dict[str, Any]] = [
+    {
+        "name": "propose_quote",
+        "description": (
+            "Call once the job's scope is clear enough to price. Hands the "
+            "gathered scope off for estimating. Do not include any prices."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "trade": {
+                    "type": "string",
+                    "description": (
+                        "The single trade this job belongs to — match the company's "
+                        "trade catalog naming where one fits (e.g. 'Plumbing')."
+                    ),
+                },
+                "title": {
+                    "type": "string",
+                    "description": "Short name for the quote, e.g. '3-bath rough-in, Elm St'.",
+                },
+                "brief": {
+                    "type": "string",
+                    "description": (
+                        "The job's scope in a few sentences: what the work is, its "
+                        "size, the conditions, and anything that changes the effort. "
+                        "This is the sole input to the estimate, so state what was "
+                        "learned and say plainly when something was not established."
+                    ),
+                },
+            },
+            "required": ["trade", "title", "brief"],
+        },
+    },
+]

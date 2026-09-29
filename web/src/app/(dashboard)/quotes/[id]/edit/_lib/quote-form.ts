@@ -16,7 +16,10 @@ export const lineItemSchema = z.object({
   field: z.string().nullable().optional(),
   ai_origin: z.boolean().optional(),
   review_state: z.enum(["unreviewed", "accepted", "edited"]).optional(),
-  confidence_band: z.enum(["high", "medium", "low"]).nullable().optional(),
+  // Mirrors QuoteConfidenceBand. "rough" belongs here too: an AI line from
+  // the quote interview carries it, and omitting it made the form reject
+  // the very quotes that feature creates.
+  confidence_band: z.enum(["high", "medium", "low", "rough"]).nullable().optional(),
   basis: z.string().nullable().optional(),
 });
 

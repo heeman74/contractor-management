@@ -16,6 +16,9 @@ export const QUOTE_CONFIDENCE_CHIP: Record<
   high: { label: "Strong history", className: FINANCE_OUTLINE_CHIP_CLASS },
   medium: { label: "Limited history", className: FINANCE_NOTE_CHIP_CLASS },
   low: { label: "Thin history", className: FINANCE_FLAG_CHIP_CLASS },
+  // Loudest of the four, because it is the only one with no evidence at all
+  // behind it. Sharing "low"'s class would imply thin history rather than none.
+  rough: { label: "No history", className: FINANCE_FLAG_CHIP_CLASS },
 };
 
 export const REVIEW_MARKER: Record<QuoteLineReviewState, string> = {

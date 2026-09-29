@@ -38,6 +38,7 @@ from app.core.base_service import TenantScopedService, entity_or_404
 from app.core.logging_config import get_logger
 from app.features.projects.models import TradeScope
 from app.features.quotes.models import (
+    CONFIDENCE_BAND_ROUGH,
     MAX_BASIS_LENGTH,
     REVIEW_STATE_UNREVIEWED,
     Quote,
@@ -50,6 +51,7 @@ from app.features.quotes.prompts.quote_planning_system import (
     SERVER_BASIS_PREFIX_TEMPLATE,
     SUGGESTED_LINES_MAX,
 )
+from app.features.quotes.prompts.quote_rough_system import QUOTE_ROUGH_SYSTEM_PROMPT
 from app.features.quotes.quote_history_math import (
     MIN_COMPARABLES_FOR_SUGGESTION,
     ComparableSummary,
@@ -106,11 +108,26 @@ class QuoteSuggestionService(TenantScopedService[Quote]):
     repository_class = QuoteRepository
     repository: QuoteRepository
 
-    async def suggest(self, quote_id: uuid.UUID) -> SuggestionOutcome:
+    async def suggest(
+        self,
+        quote_id: uuid.UUID,
+        *,
+        trade_override: str | None = None,
+        rough_brief: str | None = None,
+    ) -> SuggestionOutcome:
+        """Grounded suggestions for one draft quote.
+
+        ``trade_override`` names the trade directly, for a quote too new to
+        carry a line whose field could be read (the AI quote interview creates
+        exactly that). ``rough_brief`` opts into the ungrounded fallback: when
+        the trade has too little history, estimate from the brief instead of
+        refusing. The `/suggest-line-items` endpoint passes neither and so
+        still refuses, unchanged.
+        """
         quote = await self._get_quote_or_404(quote_id)
         self._require_draft(quote)
 
-        trade = await self._resolve_trade(quote)
+        trade = trade_override or await self._resolve_trade(quote)
         if trade is None:
             return _refusal(REFUSAL_TRADE_UNRESOLVED)
 
@@ -118,12 +135,14 @@ class QuoteSuggestionService(TenantScopedService[Quote]):
         summary = summarize_comparables(trade, rows.anchors, rows.lines)
 
         if summary.comparable_count < MIN_COMPARABLES_FOR_SUGGESTION:
-            return _refusal(
-                REFUSAL_INSUFFICIENT_HISTORY,
-                trade_name=trade,
-                comparable_count=summary.comparable_count,
-                required_count=MIN_COMPARABLES_FOR_SUGGESTION,
-            )
+            if rough_brief is None:
+                return _refusal(
+                    REFUSAL_INSUFFICIENT_HISTORY,
+                    trade_name=trade,
+                    comparable_count=summary.comparable_count,
+                    required_count=MIN_COMPARABLES_FOR_SUGGESTION,
+                )
+            return await self._suggest_rough(quote, trade, rough_brief, summary.comparable_count)
 
         payload = build_suggestion_payload(summary)
         lines = await self._draft_lines(quote_id, payload, summary)
@@ -143,6 +162,86 @@ class QuoteSuggestionService(TenantScopedService[Quote]):
             required_count=MIN_COMPARABLES_FOR_SUGGESTION,
             suggested_line_count=len(lines),
         )
+
+    async def _suggest_rough(
+        self, quote: Quote, trade: str, brief: str, comparable_count: int
+    ) -> SuggestionOutcome:
+        """The ungrounded fallback: estimate from the interview brief.
+
+        No payload exists to validate against, so there is no closed set and no
+        grounding retry — the shape is checked and that is all that honestly
+        can be. Every line is stamped CONFIDENCE_BAND_ROUGH in code, so a
+        model that tried to claim a better band could not be believed, and the
+        review gate still blocks sending until each line is seen.
+        """
+        response = await ai_utils.call_claude_json_strict(
+            QUOTE_ROUGH_SYSTEM_PROMPT,
+            [{"role": "user", "content": brief}],
+            max_tokens=SUGGESTION_MAX_OUTPUT_TOKENS,
+        )
+        lines = response.data.get("lines")
+        if not isinstance(lines, list) or not lines or len(lines) > SUGGESTED_LINES_MAX:
+            logger.warning(DROPPED_ROUGH_LOG_TEMPLATE, quote.id, "lines")
+            return _refusal(
+                REFUSAL_UNGROUNDED,
+                trade_name=trade,
+                comparable_count=comparable_count,
+                required_count=MIN_COMPARABLES_FOR_SUGGESTION,
+            )
+        usable = [line for line in lines if _rough_line_is_well_formed(line)]
+        if not usable:
+            logger.warning(DROPPED_ROUGH_LOG_TEMPLATE, quote.id, "line shape")
+            return _refusal(
+                REFUSAL_UNGROUNDED,
+                trade_name=trade,
+                comparable_count=comparable_count,
+                required_count=MIN_COMPARABLES_FOR_SUGGESTION,
+            )
+
+        await self._persist_rough(quote, trade, usable)
+        await self.db.flush()
+        self.db.expire(quote, ["line_items"])
+        return SuggestionOutcome(
+            refusal_reason=None,
+            trade_name=trade,
+            comparable_count=comparable_count,
+            required_count=MIN_COMPARABLES_FOR_SUGGESTION,
+            suggested_line_count=len(usable),
+        )
+
+    async def _persist_rough(
+        self, quote: Quote, trade: str, lines: list[dict[str, object]]
+    ) -> None:
+        """Same replace-only-unreviewed-AI-rows rule as the grounded path, so a
+        regenerated rough estimate never disturbs a line the user has touched.
+        """
+        kept: list[QuoteLineItem] = []
+        for item in quote.line_items:
+            if item.ai_origin and item.review_state == REVIEW_STATE_UNREVIEWED:
+                await self.db.delete(item)
+            else:
+                kept.append(item)
+        next_sort_order = max((item.sort_order for item in kept), default=-1) + 1
+        suggested_at = datetime.now(UTC)
+        for offset, line in enumerate(lines):
+            self.db.add(
+                QuoteLineItem(
+                    quote_id=quote.id,
+                    company_id=quote.company_id,
+                    item_type=line["item_type"],
+                    description=str(line["description"])[:MAX_DESCRIPTION_FOR_ROUGH],
+                    quantity=Decimal(str(line["quantity"])),
+                    unit=str(line["unit"]),
+                    unit_price=Decimal(str(line["unit_price"])),
+                    sort_order=next_sort_order + offset,
+                    field=trade,
+                    ai_origin=True,
+                    review_state=REVIEW_STATE_UNREVIEWED,
+                    confidence_band=CONFIDENCE_BAND_ROUGH,
+                    basis=_rough_basis(str(line.get("basis", ""))),
+                    suggested_at=suggested_at,
+                )
+            )
 
     async def _get_quote_or_404(self, quote_id: uuid.UUID) -> Quote:
         return entity_or_404(await self.repository.get_with_line_items(quote_id), "Quote not found")
@@ -267,6 +366,47 @@ class QuoteSuggestionService(TenantScopedService[Quote]):
         if quote.job_id is None and quote.trade_scope_id is None:
             return trade
         return None
+
+
+DROPPED_ROUGH_LOG_TEMPLATE = "Dropped rough estimate for quote %s: malformed %s"
+
+# A rough description is truncated rather than rejected: the figure is the point
+# and an over-long description is the model being chatty, not being wrong.
+MAX_DESCRIPTION_FOR_ROUGH = DESCRIPTION_MAX_CHARS
+
+_ROUGH_REQUIRED_KEYS = ("item_type", "description", "quantity", "unit", "unit_price")
+_ROUGH_ITEM_TYPES = ("labor", "material")
+
+# Prefixed onto whatever the model offered, so a rough line can never read as
+# though history backed it even if the model ignored the instruction not to say so.
+ROUGH_BASIS_PREFIX = "No company history — "
+
+
+def _rough_line_is_well_formed(line: object) -> bool:
+    """Shape only. There is no closed set to check values against here, so
+    pretending to validate them would be theatre — what matters is that the
+    row can be stored and that the numbers are numbers."""
+    if not isinstance(line, dict):
+        return False
+    if any(key not in line for key in _ROUGH_REQUIRED_KEYS):
+        return False
+    if line["item_type"] not in _ROUGH_ITEM_TYPES:
+        return False
+    if not str(line["description"]).strip() or not str(line["unit"]).strip():
+        return False
+    try:
+        quantity = Decimal(str(line["quantity"]))
+        unit_price = Decimal(str(line["unit_price"]))
+    except (ArithmeticError, ValueError, TypeError):
+        return False
+    return quantity > 0 and unit_price >= 0
+
+
+def _rough_basis(model_basis: str) -> str:
+    """The model's reasoning behind an unambiguous disclaimer, clipped to the
+    column's CHECK bound."""
+    tail = model_basis.strip() or "typical figures for this trade"
+    return f"{ROUGH_BASIS_PREFIX}{tail}"[:MAX_BASIS_LENGTH]
 
 
 def _refusal(

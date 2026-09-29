@@ -38,12 +38,18 @@ from app.core.config import settings
 from app.features.ai.models import AIConversation, AIImageUpload, AIMessage, AITokenUsage
 from app.features.ai.prompts.intake_system import INTAKE_SYSTEM_PROMPT
 from app.features.ai.prompts.interview_system import INTERVIEW_SYSTEM_PROMPT
+from app.features.ai.prompts.quote_interview_system import QUOTE_INTERVIEW_SYSTEM_PROMPT
 from app.features.ai.repository import (
     AIConversationRepository,
     AIMessageRepository,
     AITokenUsageRepository,
 )
-from app.features.ai.schemas import IntakeCompleteRequest, InterviewCompleteRequest
+from app.features.ai.schemas import (
+    IntakeCompleteRequest,
+    InterviewCompleteRequest,
+    QuoteInterviewCompleteRequest,
+    QuoteInterviewCompleteResponse,
+)
 from app.features.projects.models import Task
 from app.features.projects.schemas import (
     ProjectCreate,
@@ -57,6 +63,8 @@ from app.features.projects.service import (
     TaskService,
     TradeScopeService,
 )
+from app.features.quotes.models import Quote
+from app.features.quotes.suggestion_service import QuoteSuggestionService
 
 logger = logging.getLogger(__name__)
 
@@ -166,6 +174,10 @@ class AIService(TenantScopedService[AIConversation]):
                 trade_catalog="(No trade catalog entries available — use standard trade names)",
                 project_context="(No existing project context — this is a new conversation)",
             )
+        # Explicit, for the reason given in build_system_prompt_with_context:
+        # the fall-through below would serve the contractor-interview prompt.
+        if conv.conv_type == "quote_interview":
+            return QUOTE_INTERVIEW_SYSTEM_PROMPT
         return INTERVIEW_SYSTEM_PROMPT.format(
             project_description="(Project description not provided)",
             trade_scope="(Trade scope details not provided)",
@@ -190,6 +202,12 @@ class AIService(TenantScopedService[AIConversation]):
                 trade_catalog=trade_catalog_text or "(No trade catalog entries)",
                 project_context=project_context_text or "(New conversation — no existing context)",
             )
+        # A quote interview starts from nothing, so it takes no runtime context
+        # and needs no formatting. Checked explicitly rather than left to the
+        # fall-through below, which would hand it the contractor-interview
+        # prompt and quietly interview it about the wrong thing.
+        if conv.conv_type == "quote_interview":
+            return QUOTE_INTERVIEW_SYSTEM_PROMPT
         return INTERVIEW_SYSTEM_PROMPT.format(
             project_description=project_description_text or "(Not provided)",
             trade_scope=trade_scope_text or "(Not provided)",
@@ -748,6 +766,50 @@ class AIService(TenantScopedService[AIConversation]):
                 successor_id,
                 TaskDependencyCreate(predecessor_task_id=predecessor_id),
             )
+
+    async def commit_quote_interview(
+        self, request: QuoteInterviewCompleteRequest
+    ) -> QuoteInterviewCompleteResponse:
+        """Turn a finished interview into a draft quote with priced lines.
+
+        Creates a project-level draft quote — no job, no trade scope — because
+        an interview starts from nothing and has no existing work to attach to.
+        Pricing is delegated, with the trade passed explicitly: a quote created
+        moments ago carries no line whose `field` the suggestion service could
+        read a trade from.
+
+        `rough_brief` opts into the ungrounded fallback, so a company with no
+        comparable history gets an estimate marked `rough` instead of a
+        refusal. Every line still lands unreviewed and the send gate still
+        holds.
+        """
+        conv = await self._require_active_conversation(request.conversation_id)
+
+        # status defaults to "draft" in the column — no constant to import,
+        # and spelling it here would be a second source of truth.
+        quote = Quote(company_id=self._require_tenant_id(), title=request.title)
+        self.db.add(quote)
+        await self.db.flush()
+
+        outcome = await QuoteSuggestionService(self.db).suggest(
+            quote.id,
+            trade_override=request.trade,
+            rough_brief=request.brief,
+        )
+
+        await self.mark_complete(conv.id)
+        return QuoteInterviewCompleteResponse(
+            quote_id=quote.id,
+            refusal_reason=outcome.refusal_reason,
+            trade_name=outcome.trade_name,
+            comparable_count=outcome.comparable_count,
+            required_count=outcome.required_count,
+            suggested_line_count=outcome.suggested_line_count,
+            grounded=(
+                outcome.refusal_reason is None
+                and (outcome.comparable_count or 0) >= (outcome.required_count or 0)
+            ),
+        )
 
     async def commit_interview(self, request: InterviewCompleteRequest) -> dict[str, list[str]]:
         """Replace a scope's tasks with the AI-suggested tasks and complete the conversation."""
