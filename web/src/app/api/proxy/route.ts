@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
+import {
+  UPSTREAM_MAX_DURATION_SECONDS,
+  UPSTREAM_UNREACHABLE_DETAIL,
+  fetchUpstream,
+} from "@/lib/server/upstream";
+
 const FASTAPI_URL = process.env.FASTAPI_URL ?? "http://localhost:8000";
+
+// The upstream may be cold; allow the wait rather than dying on a default.
+export const maxDuration = UPSTREAM_MAX_DURATION_SECONDS;
 
 // Statuses the Fetch spec forbids from carrying a body.
 const NULL_BODY_STATUSES = new Set([204, 205, 304]);
@@ -64,18 +73,9 @@ async function handleProxy(request: NextRequest): Promise<NextResponse> {
     body = isMultipart ? await request.formData() : await request.text();
   }
 
-  let upstreamRes: Response;
-  try {
-    upstreamRes = await fetch(upstreamUrl, {
-      method,
-      headers,
-      body,
-    });
-  } catch {
-    return NextResponse.json(
-      { detail: "Unable to reach backend service" },
-      { status: 502 }
-    );
+  const upstreamRes = await fetchUpstream(upstreamUrl, { method, headers, body });
+  if (upstreamRes === null) {
+    return NextResponse.json({ detail: UPSTREAM_UNREACHABLE_DETAIL }, { status: 502 });
   }
 
   // 204/205/304 are "null body status" codes: the Response constructor throws

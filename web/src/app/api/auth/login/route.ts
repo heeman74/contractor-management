@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import type { TokenResponse, AuthUser } from "@/types/api";
+import {
+  UPSTREAM_MAX_DURATION_SECONDS,
+  UPSTREAM_UNREACHABLE_DETAIL,
+  fetchUpstream,
+} from "@/lib/server/upstream";
 
 const FASTAPI_URL = process.env.FASTAPI_URL ?? "http://localhost:8000";
+
+// The upstream may be cold; allow the wait rather than dying on a default.
+export const maxDuration = UPSTREAM_MAX_DURATION_SECONDS;
 
 const IS_PROD = process.env.NODE_ENV === "production";
 
@@ -14,16 +22,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ detail: "Invalid JSON body" }, { status: 400 });
   }
 
-  let fastapiRes: Response;
-  try {
-    fastapiRes = await fetch(`${FASTAPI_URL}/api/v1/auth/login`, {
+  const fastapiRes = await fetchUpstream(`${FASTAPI_URL}/api/v1/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-  } catch {
+  if (fastapiRes === null) {
     return NextResponse.json(
-      { detail: "Unable to reach authentication service" },
+      { detail: UPSTREAM_UNREACHABLE_DETAIL },
       { status: 502 }
     );
   }

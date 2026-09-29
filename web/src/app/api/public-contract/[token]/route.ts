@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  UPSTREAM_MAX_DURATION_SECONDS,
+  UPSTREAM_UNREACHABLE_DETAIL,
+  fetchUpstream,
+} from "@/lib/server/upstream";
 
 const FASTAPI_URL = process.env.FASTAPI_URL ?? "http://localhost:8000";
+
+// The upstream may be cold; allow the wait rather than dying on a default.
+export const maxDuration = UPSTREAM_MAX_DURATION_SECONDS;
 
 /**
  * Public, cookie-free proxy for the tokenized contract view.
@@ -20,17 +28,12 @@ export async function GET(
     return NextResponse.json({ detail: "Missing token" }, { status: 400 });
   }
 
-  let upstream: Response;
-  try {
-    upstream = await fetch(
-      `${FASTAPI_URL}/api/v1/public/contracts/${encodeURIComponent(token)}`,
-      { headers: { Accept: "application/json" }, cache: "no-store" }
-    );
-  } catch {
-    return NextResponse.json(
-      { detail: "Unable to reach the contract service" },
-      { status: 502 }
-    );
+  const upstream = await fetchUpstream(
+    `${FASTAPI_URL}/api/v1/public/contracts/${encodeURIComponent(token)}`,
+    { headers: { Accept: "application/json" }, cache: "no-store" }
+  );
+  if (upstream === null) {
+    return NextResponse.json({ detail: UPSTREAM_UNREACHABLE_DETAIL }, { status: 502 });
   }
 
   const body = await upstream.text();
