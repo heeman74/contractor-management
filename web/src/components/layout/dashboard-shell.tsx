@@ -4,12 +4,17 @@ import { useAppSelector } from "@/store/hooks";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { cn } from "@/lib/utils";
+import { useSessionWatchdog } from "@/features/auth/hooks/useSessionWatchdog";
 
 interface DashboardShellProps {
   children: React.ReactNode;
 }
 
 export function DashboardShell({ children }: DashboardShellProps) {
+  // Returning to a tab whose session died sends the user to login rather than
+  // leaving them reading data loaded before it expired.
+  useSessionWatchdog();
+
   const collapsed = useAppSelector((state) => state.ui.sidebarCollapsed);
 
   return (

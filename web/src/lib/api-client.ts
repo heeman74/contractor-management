@@ -234,3 +234,24 @@ export async function aiChatFetch(
 
   return resp;
 }
+
+/**
+ * Confirm the session is still alive, and end it locally if it is not.
+ *
+ * Used by the session watchdog when the tab regains focus. Returns true when
+ * the session survived; on failure it clears the session the same way a
+ * terminal 401 does and returns false.
+ *
+ * Deliberately NOT called on a timer. A successful refresh rotates the token
+ * and extends the session, so polling would keep an unattended tab signed in
+ * indefinitely — the opposite of expiring it. Tying the check to the user
+ * coming back means it only extends a session someone is actually using.
+ */
+export async function verifySession(): Promise<boolean> {
+  const alive = await ensureRefreshed();
+  if (alive) return true;
+
+  logger.warn(TAG, "Session verification failed, redirecting to login", {});
+  window.location.href = "/login?reason=session_expired";
+  return false;
+}
