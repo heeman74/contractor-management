@@ -33,11 +33,11 @@ services:
     dockerContext: ./backend
     plan: free
     healthCheckPath: /health
-    # Migrations run here because preDeployCommand is paid-only. Safe with a
-    # single worker: nothing else is racing alembic for the same database.
-    dockerCommand: >-
-      sh -c "alembic upgrade head &&
-      uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1"
+    # start.sh runs migrations then execs uvicorn. It is a script rather than
+    # an inline command because Render wraps dockerCommand in its own shell,
+    # which re-quotes an inline `sh -c "a && b"` into a single command name.
+    # It also binds $PORT, which Render assigns and is not necessarily 8000.
+    dockerCommand: ./start.sh
     envVars:
       - key: DATABASE_URL
         fromDatabase:

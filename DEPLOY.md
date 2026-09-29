@@ -12,12 +12,27 @@ but the blueprint itself has not completed a run on Render.
 | Limit | Consequence |
 |---|---|
 | Private services are paid-only | The API runs as a public web service. The browser still only talks to the Next.js app, but the API has a reachable URL. |
-| `preDeployCommand` is paid-only | Migrations run in the start command instead. Safe here because the service runs a single worker. |
+| `preDeployCommand` is paid-only | Migrations run in `backend/start.sh` instead, which then execs uvicorn. Safe here because the service runs a single worker. |
 | ~512MB RAM | uvicorn runs 1 worker, not 4. |
 | Services sleep when idle | First request after a sleep is slow. If the API is asleep, the web app's first call can fail before it wakes. |
 | No private networking | `FASTAPI_URL` must be the API's **public** URL, not an internal hostname. |
 | No Redis in this blueprint | Redis is lazy-initialised and only backs chat WebSocket fan-out, so the app boots fine. Realtime chat relay is the one feature that will not work. |
 | Free Postgres expires | Render's free databases are time-limited. Plan to upgrade or migrate before it lapses — check the current expiry in your dashboard, as the policy has changed over time. |
+
+## Why there is a start.sh
+
+`dockerCommand` cannot be an inline `sh -c "a && b"`. Render wraps the command
+in a shell of its own, which re-quotes the string so the whole thing becomes a
+single command name:
+
+    sh: 1: alembic upgrade head && uvicorn ...: not found
+    ==> Exited with status 127
+
+`backend/start.sh` avoids every layer of that quoting. It also binds `$PORT`,
+which Render assigns and which is **not** 8000 — binding the wrong port fails
+the health check. Verified locally with `PORT=10000`: `/health` returned 200.
+Next's standalone server already honours `$PORT` on its own, so the web service
+needs no equivalent.
 
 ## Deploy order
 
