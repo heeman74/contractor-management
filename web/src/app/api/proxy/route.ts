@@ -3,6 +3,9 @@ import { cookies } from "next/headers";
 
 const FASTAPI_URL = process.env.FASTAPI_URL ?? "http://localhost:8000";
 
+// Statuses the Fetch spec forbids from carrying a body.
+const NULL_BODY_STATUSES = new Set([204, 205, 304]);
+
 async function handleProxy(request: NextRequest): Promise<NextResponse> {
   const cookieStore = await cookies();
   const accessToken = cookieStore.get("access_token")?.value;
@@ -73,6 +76,15 @@ async function handleProxy(request: NextRequest): Promise<NextResponse> {
       { detail: "Unable to reach backend service" },
       { status: 502 }
     );
+  }
+
+  // 204/205/304 are "null body status" codes: the Response constructor throws
+  // `TypeError: Invalid response status code` if handed any body at all — an
+  // empty string included. Every DELETE in the API and change-password return
+  // 204, so forwarding them as text turned a successful call into a 500 while
+  // the write had already committed.
+  if (NULL_BODY_STATUSES.has(upstreamRes.status)) {
+    return new NextResponse(null, { status: upstreamRes.status });
   }
 
   // Forward FastAPI response (status + body) back to client
