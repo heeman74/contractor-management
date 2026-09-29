@@ -52,7 +52,7 @@ the other service is created, so the first pass is deliberately two-phase.
 
 | Variable | Service | Value |
 |---|---|---|
-| `FASTAPI_URL` | contractorhub-web | The API's public URL, e.g. `https://contractorhub-api.onrender.com` |
+| `FASTAPI_URL` | contractorhub-web | The API's public URL. **Render appends a random suffix**, so it is `https://contractorhub-api-XXXX.onrender.com`, not the bare service name. Copy it from the dashboard. |
 | `PUBLIC_WEB_URL` | contractorhub-api | The web app's public URL. **Reset links are built from this** — wrong value means links that 404. |
 | `SMTP_HOST` | contractorhub-api | Provider SMTP host |
 | `SMTP_USER` | contractorhub-api | Provider SMTP username |
@@ -72,6 +72,30 @@ Migrations create `uuid-ossp` and `btree_gist`. Both are on Render's supported
 list, but the migration runs as the database owner rather than a superuser. If
 the deploy fails on `CREATE EXTENSION`, create them once by hand from the
 Render Postgres shell and redeploy.
+
+## Why the web Dockerfile forces HOSTNAME
+
+Next's standalone server binds `process.env.HOSTNAME || "0.0.0.0"`. Container
+runtimes set `HOSTNAME` to the instance name — Render uses `srv-xxxxxxxx` —
+which does not resolve, so the server dies before opening a port:
+
+    ⨯ Failed to start server
+    Error: getaddrinfo ENOTFOUND srv-xxxxxxxx
+
+Render then reports `Port scan timeout reached, no open ports detected`, the
+service never goes live, and **its URL returns 404** — which looks like a
+routing problem but is a crashed process.
+
+The web Dockerfile's CMD sets `HOSTNAME=0.0.0.0` at runtime, so it overrides
+whatever the platform injects. Verified by running the image with
+`HOSTNAME=srv-d3f4g5h6i7`: it crashed before the fix, and serves `/login` 200
+after it.
+
+## A 404 on the API is not a failure
+
+The API has no route at `/` — only `/health` and `/api/v1/*`. Opening the API
+URL in a browser returns 404 and that is correct. Check `<api-url>/health`
+instead; 200 means the service is healthy.
 
 ## Why the GRANTs are conditional
 

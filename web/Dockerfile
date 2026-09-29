@@ -21,4 +21,9 @@ COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 USER nextjs
 EXPOSE 3000
-CMD ["node", "server.js"]
+
+# Next's standalone server binds `process.env.HOSTNAME || "0.0.0.0"`. Container
+# runtimes set HOSTNAME to the instance name (Render uses srv-xxxxxxxx), which
+# does not resolve, so the server dies on boot with getaddrinfo ENOTFOUND and
+# never opens a port. Forcing it here overrides whatever the platform injects.
+CMD ["sh", "-c", "HOSTNAME=0.0.0.0 exec node server.js"]
