@@ -477,6 +477,17 @@ export interface RolePermissionsUpdate {
   permissions: string[];
 }
 
+// Identity for a reloaded page — the session cookie is httpOnly, so the browser
+// can prove it is signed in but cannot read as whom.
+export interface MeResponse {
+  user_id: string;
+  company_id: string;
+  email: string;
+  display_name: string;
+  company_name: string | null;
+  roles: string[];
+}
+
 export interface MyPermissionsResponse {
   permissions: string[];
 }

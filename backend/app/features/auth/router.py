@@ -18,6 +18,7 @@ from app.features.auth.schemas import (
     ChangePasswordRequest,
     ForgotPasswordRequest,
     LoginRequest,
+    MeResponse,
     RefreshRequest,
     RegisterRequest,
     ResetPasswordRequest,
@@ -163,3 +164,26 @@ async def reset_password_endpoint(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         ) from e
+
+
+# ---------------------------------------------------------------------------
+# GET /auth/me
+# ---------------------------------------------------------------------------
+
+
+@router.get("/me", response_model=MeResponse)
+async def me_endpoint(
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> MeResponse:
+    """The signed-in user's identity and roles.
+
+    Exists so a reloaded page can recover who it is signed in as. The session
+    lives in httpOnly cookies, which the browser can send but not read, so
+    without this the UI knew it was authenticated and nothing else.
+    """
+    try:
+        identity = await AuthService(db).current_identity(current_user.user_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    return MeResponse(**identity)

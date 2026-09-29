@@ -15,6 +15,17 @@ class RegisterRequest(BaseModel):
     last_name: str | None = None
 
 
+class MeResponse(BaseModel):
+    """Who the current session belongs to, for rehydrating the UI after a reload."""
+
+    user_id: uuid.UUID
+    company_id: uuid.UUID
+    email: EmailStr
+    display_name: str
+    company_name: str | None
+    roles: list[str]
+
+
 class LoginRequest(BaseModel):
     """Email + password login."""
 

@@ -147,13 +147,7 @@ class AuthService:
         ]
 
         # Human-readable identity for the UI (avoids showing raw UUIDs).
-        company = (
-            (await self.db.execute(select(Company).where(Company.id == user.company_id)))
-            .scalars()
-            .first()
-        )
-        company_name = company.name if company else None
-        display_name = f"{user.first_name or ''} {user.last_name or ''}".strip() or user.email
+        display_name, company_name = await self._identity_labels(user)
 
         # Generate tokens
         access_token = create_access_token(user.id, user.company_id, roles)
@@ -275,6 +269,52 @@ class AuthService:
                 .where(RefreshToken.family_id == stored_token.family_id)
                 .values(revoked=True)
             )
+
+    async def _identity_labels(self, user: User) -> tuple[str, str | None]:
+        """The two labels the UI shows instead of UUIDs.
+
+        Shared by login and by current_identity so a refreshed page cannot
+        render a different name than the one login put there.
+        """
+        company = (
+            (await self.db.execute(select(Company).where(Company.id == user.company_id)))
+            .scalars()
+            .first()
+        )
+        display_name = f"{user.first_name or ''} {user.last_name or ''}".strip() or user.email
+        return display_name, (company.name if company else None)
+
+    async def current_identity(self, user_id: UUID) -> dict:
+        """Who the bearer of this session is, for rehydrating the UI on load.
+
+        The browser holds the session in httpOnly cookies, so after a refresh
+        the page knows it is signed in but not as whom — without this the UI
+        fell back to a generic label and, worse, treated the user as
+        unauthenticated for permission purposes.
+
+        Roles come from the database rather than the access token so a role
+        changed mid-session takes effect on the next load instead of lingering
+        until the token rotates.
+        """
+        result = await self.db.execute(
+            select(User).where(User.id == user_id).options(selectinload(User.roles))
+        )
+        user = result.scalars().first()
+        if user is None:
+            raise ValueError("User not found")
+
+        roles = [
+            r.role for r in user.roles if r.company_id == user.company_id and r.deleted_at is None
+        ]
+        display_name, company_name = await self._identity_labels(user)
+        return {
+            "user_id": user.id,
+            "company_id": user.company_id,
+            "email": user.email,
+            "display_name": display_name,
+            "company_name": company_name,
+            "roles": roles,
+        }
 
     async def change_password(
         self, user_id: UUID, current_password: str, new_password: str
