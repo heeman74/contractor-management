@@ -50,6 +50,10 @@ from app.features.companies.models import Company
 from app.features.users.models import User, UserRole
 
 MIN_PASSWORD_LENGTH = 8
+# The one role that needs a record beyond user_roles: a client is also a CRM
+# entity, and the parts of the app that address a customer read that, not the role.
+CLIENT_ROLE = "client"
+
 VALID_ROLES = (
     "owner",
     "admin",
@@ -179,6 +183,28 @@ async def add_user(args: argparse.Namespace) -> None:
                 role=args.role,
             )
         )
+
+        # A client also needs the CRM record, or they can sign in and still be
+        # invisible to the business: the roster and the quote client picker both
+        # read client_profiles, and a quote cannot be sent without a client. The
+        # role alone produced a customer nobody could address.
+        if args.role == CLIENT_ROLE:
+            # Inserted directly rather than through the ORM: importing
+            # ClientProfile pulls in Job, whose relationships reference models
+            # this CLI never loads, and SQLAlchemy fails configuring the mapper.
+            # The row is three columns; the rest carry database defaults.
+            await session.execute(
+                text(
+                    "INSERT INTO client_profiles (id, user_id, company_id) "
+                    "VALUES (:id, :user_id, :company_id)"
+                ),
+                {
+                    "id": str(uuid.uuid4()),
+                    "user_id": str(user.id),
+                    "company_id": str(company.id),
+                },
+            )
+
         await session.commit()
 
     print("Added user:")
@@ -186,6 +212,8 @@ async def add_user(args: argparse.Namespace) -> None:
     print(f"  email      : {args.email}")
     print(f"  user_id    : {user.id}")
     print(f"  role       : {args.role}")
+    if args.role == CLIENT_ROLE:
+        print("  client     : added to the client roster, so quotes can be addressed here")
     print("\nThe user can now sign in with these credentials.")
 
 
