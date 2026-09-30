@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { useAppDispatch } from "@/store/hooks";
 import { setAuthUser } from "@/store/slices/auth-slice";
 import type { AuthUser } from "@/types/api";
+import { submitLogin } from "@/features/auth/lib/submitLogin";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -20,6 +21,8 @@ const loginSchema = z.object({
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
+
+const WAKING_MESSAGE = "Waking the server — this can take up to a minute.";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -58,11 +61,14 @@ export default function LoginPage() {
     setLoginError(null);
 
     try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: data.email, password: data.password }),
-      });
+      const response = await submitLogin(
+        { email: data.email, password: data.password },
+        {
+          // The backend idles on the free plan and its first request pays the
+          // cold start. Say so, rather than leaving a spinner to look stuck.
+          onRetry: () => setLoginError(WAKING_MESSAGE),
+        }
+      );
 
       if (response.ok) {
         const userMeta = (await response.json()) as AuthUser;
@@ -81,7 +87,11 @@ export default function LoginPage() {
         setLoginError("Something went wrong. Please try again.");
       }
     } catch {
-      setLoginError("Something went wrong. Please try again.");
+      // Every attempt failed to get any answer at all, which on this hosting
+      // means the server never finished waking.
+      setLoginError(
+        "The server is still starting up. Wait a moment and try again."
+      );
     } finally {
       setIsSubmitting(false);
     }
