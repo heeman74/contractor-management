@@ -46,7 +46,7 @@ export function JobRequestsTable({
             <TableCell className="py-3 px-4 font-medium text-sm text-gray-900">
               {request.client_name}
             </TableCell>
-            <TableCell className="py-3 px-4 text-sm text-gray-700 truncate max-w-xs">
+            <TableCell className="py-3 px-4 text-sm text-gray-700 whitespace-normal break-words">
               {request.description}
             </TableCell>
             <TableCell className="py-3 px-4 text-sm text-gray-500">

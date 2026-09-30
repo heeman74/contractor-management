@@ -49,7 +49,7 @@ function InvoiceRow({
       <TableCell className="py-3 px-4 font-mono text-sm text-gray-900">
         {invoice.invoice_number}
       </TableCell>
-      <TableCell className="py-3 px-4 text-sm text-gray-700 truncate max-w-[140px]">
+      <TableCell className="py-3 px-4 text-sm text-gray-700 whitespace-normal break-words">
         {job?.description ?? EMPTY_VALUE}
       </TableCell>
       <TableCell className="py-3 px-4 text-sm text-gray-700">

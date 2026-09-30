@@ -60,7 +60,9 @@ export function QuotesTable({
       <TableHeader>
         <TableRow>
           {sortableHeader("id", "Quote #")}
-          <PlainTableHeader label="Job" />
+          {/* w-full makes this the column that absorbs leftover width, so the table
+              tracks the viewport instead of every column being content-sized. */}
+          <PlainTableHeader label="Job" className="w-full min-w-[12rem]" />
           <PlainTableHeader label="Client" />
           {sortableHeader("total", "Total", "text-right")}
           {sortableHeader("status", "Status")}
@@ -80,7 +82,10 @@ export function QuotesTable({
               <TableCell className="py-3 px-4 font-mono text-sm text-gray-900">
                 {formatQuoteReference(quote)}
               </TableCell>
-              <TableCell className="py-3 px-4 text-sm text-gray-700 truncate max-w-[160px]">
+              {/* TableCell is whitespace-nowrap by default, which is why this column was
+                  clipped rather than wrapped. Normal wrapping plus break-words lets a
+                  long description use as many lines as the width needs. */}
+              <TableCell className="py-3 px-4 text-sm text-gray-700 whitespace-normal break-words">
                 {job?.description ?? quote.title ?? EMPTY_VALUE}
               </TableCell>
               <TableCell className="py-3 px-4 text-sm text-gray-700">

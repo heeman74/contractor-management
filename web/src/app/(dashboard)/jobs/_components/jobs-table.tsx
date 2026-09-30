@@ -58,7 +58,7 @@ export function JobsTable({
             <TableCell className="py-3 px-4 font-mono text-sm text-gray-900">
               {job.id.slice(0, 8).toUpperCase()}
             </TableCell>
-            <TableCell className="py-3 px-4 text-sm text-gray-700 truncate max-w-xs">
+            <TableCell className="py-3 px-4 text-sm text-gray-700 whitespace-normal break-words">
               {job.description}
             </TableCell>
             <TableCell className="py-3 px-4">
