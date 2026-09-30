@@ -179,6 +179,22 @@ async def delete_template(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
 
 
+@router.delete("/{quote_id}", response_model=None, status_code=204)
+async def delete_quote(
+    quote_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> None:
+    """Delete a quote that produced nothing (admin only).
+
+    Soft delete: the row is hidden from every list, which already filters on
+    deleted_at, and kept for audit. Refused for an approved quote or one with an
+    invoice, contract, or later revision attached — see QuoteService.delete_quote.
+    """
+    await require_permission("quotes.delete")(current_user, db)
+    await QuoteService(db).delete_quote(quote_id)
+
+
 @router.get("/", response_model=list[QuoteResponse])
 async def list_quotes(
     status: str | None = None,

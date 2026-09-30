@@ -5,6 +5,7 @@ import {
   SortableTableHeader,
 } from "@/components/shared/sortable-table-header";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { DeleteQuoteButton } from "./delete-quote-button";
 import {
   Table,
   TableBody,
@@ -64,6 +65,7 @@ export function QuotesTable({
           {sortableHeader("total", "Total", "text-right")}
           {sortableHeader("status", "Status")}
           {sortableHeader("created_at", "Date")}
+          <PlainTableHeader label="" />
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -92,6 +94,12 @@ export function QuotesTable({
               </TableCell>
               <TableCell className="py-3 px-4 text-sm text-gray-500">
                 {formatDate(quote.created_at)}
+              </TableCell>
+              <TableCell className="py-3 px-2 text-right">
+                <DeleteQuoteButton
+                  quoteId={quote.id}
+                  quoteReference={formatQuoteReference(quote)}
+                />
               </TableCell>
             </TableRow>
           );

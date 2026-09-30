@@ -35,6 +35,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.base_service import TenantScopedService, entity_or_404
+from app.features.contracts.models import Contract
+from app.features.invoices.models import Invoice
 from app.features.jobs.mixins import JobEventsMixin
 from app.features.jobs.models import Job
 from app.features.jobs.schemas import JobCreate, JobStatus
@@ -890,6 +892,78 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
     async def list_templates(self) -> list[QuoteTemplate]:
         """Return all templates for the current tenant."""
         return await self._template_repo.list_templates()
+
+    async def delete_quote(self, quote_id: uuid.UUID) -> None:
+        """Soft-delete a quote, refusing when something downstream depends on it.
+
+        Soft because the house pattern is `deleted_at` and every list query
+        already filters on it, so hiding the row needs no read-path changes and
+        the record survives for audit.
+
+        An approved quote is refused outright: approval is what creates the jobs
+        or project, so deleting it would hide the origin of work that exists.
+        Invoices, contracts and later revisions are refused for the same reason —
+        each is a row that points here, and the quote is the explanation for it.
+        A draft, or a quote that went nowhere, has no such dependents and is the
+        case this exists for.
+        """
+        quote = await self._get_quote_or_404(quote_id)
+
+        if quote.status == "approved":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "This quote was approved, so the work it created would lose its "
+                    "origin. Delete is only for quotes that produced nothing."
+                ),
+            )
+
+        blocker = await self._first_dependent(quote_id)
+        if blocker is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"This quote has {blocker} attached, so it cannot be deleted.",
+            )
+
+        quote.deleted_at = datetime.now(UTC)
+        await self.db.flush()
+
+    async def _first_dependent(self, quote_id: uuid.UUID) -> str | None:
+        """The name of the first thing still pointing at this quote, if any."""
+        invoice = (
+            await self.db.execute(
+                select(Invoice.id)
+                .where(Invoice.quote_id == quote_id)
+                .where(Invoice.deleted_at.is_(None))
+                .limit(1)
+            )
+        ).first()
+        if invoice is not None:
+            return "an invoice"
+
+        revision = (
+            await self.db.execute(
+                select(Quote.id)
+                .where(Quote.revised_from_quote_id == quote_id)
+                .where(Quote.deleted_at.is_(None))
+                .limit(1)
+            )
+        ).first()
+        if revision is not None:
+            return "a later revision"
+
+        contract = (
+            await self.db.execute(
+                select(Contract.id)
+                .where(Contract.quote_id == quote_id)
+                .where(Contract.deleted_at.is_(None))
+                .limit(1)
+            )
+        ).first()
+        if contract is not None:
+            return "a contract"
+
+        return None
 
     async def delete_template(self, template_id: uuid.UUID) -> bool:
         """Delete a template. Returns False if not found."""

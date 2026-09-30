@@ -49,10 +49,16 @@ class QuoteRepository(TenantScopedRepository[Quote]):
     ]
 
     async def get_with_line_items(self, quote_id: uuid.UUID) -> Quote | None:
-        """Return a quote with line_items and job eagerly loaded."""
+        """Return a live quote with line_items and job eagerly loaded.
+
+        Soft-deleted quotes are excluded here as well as in the list queries.
+        Filtering only the lists left a half-delete: the quote vanished from the
+        UI and was still served by id, so every operation on it still worked.
+        """
         result = await self.db.execute(
             select(Quote)
             .where(Quote.id == quote_id)
+            .where(Quote.deleted_at.is_(None))
             .options(
                 selectinload(Quote.line_items),
                 joinedload(Quote.job),
