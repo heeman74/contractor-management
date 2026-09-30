@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/di/service_locator.dart';
+import '../../../../core/network/api_error_message.dart';
 import '../../../../core/network/dio_client.dart';
 import '../../domain/quote_entity.dart';
 import '../providers/quote_providers.dart';
@@ -165,7 +166,7 @@ class _QuoteDetailContentState extends ConsumerState<_QuoteDetailContent> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to approve: $e'),
+            content: Text(apiErrorMessage(e)),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -211,7 +212,7 @@ class _QuoteDetailContentState extends ConsumerState<_QuoteDetailContent> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to decline: $e'),
+            content: Text(apiErrorMessage(e)),
             behavior: SnackBarBehavior.floating,
           ),
         );

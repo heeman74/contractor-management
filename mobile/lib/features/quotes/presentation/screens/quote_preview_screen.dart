@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/di/service_locator.dart';
+import '../../../../core/network/api_error_message.dart';
 import '../../../../core/network/dio_client.dart';
 import '../../domain/quote_entity.dart';
 import '../providers/quote_providers.dart';
@@ -129,9 +130,12 @@ class _PreviewContentState extends ConsumerState<_PreviewContent> {
       }
     } catch (e) {
       if (mounted) {
+        // The backend refuses a send it cannot address — a quote with no client
+        // reaches nobody — and says so in `detail`. That sentence tells the user
+        // what to fix; a stringified DioException does not.
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to send quote: $e'),
+            content: Text(apiErrorMessage(e)),
             behavior: SnackBarBehavior.floating,
           ),
         );
