@@ -91,7 +91,11 @@ export function QuoteLineItemsCard({ quote }: { quote: Quote }) {
                     <TableCell className={`${CELL_CLASS} text-xs capitalize text-gray-600`}>
                       {item.item_type}
                     </TableCell>
-                    <TableCell className={`${CELL_CLASS} text-sm text-gray-700`}>
+                    {/* TableCell is whitespace-nowrap by default, so a long line-item
+                        description widened the table instead of wrapping. */}
+                    <TableCell
+                      className={`${CELL_CLASS} w-full min-w-[12rem] whitespace-normal break-words text-sm text-gray-700`}
+                    >
                       {item.description}
                     </TableCell>
                     <TableCell className={`${CELL_CLASS} font-mono text-sm text-gray-900 text-right`}>

@@ -37,7 +37,11 @@ function ReadOnlyLineItems({ invoice }: { invoice: Invoice }) {
             <TableCell className={`${CELL_CLASS} text-sm text-gray-600 capitalize`}>
               {item.item_type}
             </TableCell>
-            <TableCell className={`${CELL_CLASS} text-sm text-gray-700`}>
+            {/* Same default as every TableCell: nowrap, which widened the table
+                  rather than letting a long description wrap. */}
+            <TableCell
+              className={`${CELL_CLASS} w-full min-w-[12rem] whitespace-normal break-words text-sm text-gray-700`}
+            >
               {item.description}
             </TableCell>
             <TableCell className={`${CELL_CLASS} font-mono text-sm text-gray-900 text-right`}>
