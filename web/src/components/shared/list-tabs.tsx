@@ -50,7 +50,10 @@ export function ListStatusTabs({
   getTabCount,
 }: ListStatusTabsProps) {
   return (
-    <div className="flex items-center border-b border-gray-200">
+    // The tabs are whitespace-nowrap and there can be seven of them, so on a
+    // phone they widened the page instead of wrapping. Scrolling the strip
+    // keeps every tab reachable without the whole page sliding sideways.
+    <div className="flex items-center overflow-x-auto border-b border-gray-200">
       {tabs.map((tab) => (
         <TabButton
           key={tab.value}

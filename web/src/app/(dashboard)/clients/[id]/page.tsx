@@ -98,7 +98,7 @@ function InfoRow({ label, children }: { label: string; children: React.ReactNode
 
 function LoadingSkeleton() {
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+    <div className="space-y-6">
       <Skeleton className="h-8 w-48" />
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-8">
         <div className="space-y-6">
@@ -136,7 +136,7 @@ export default function ClientDetailPage() {
 
   if (isError || !client) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div>
         <p className="text-center py-12 text-muted-foreground">
           Failed to load client profile. Please refresh the page.
         </p>
@@ -147,7 +147,7 @@ export default function ClientDetailPage() {
   const fullName = [client.first_name, client.last_name].filter(Boolean).join(" ") || client.email;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+    <div className="space-y-6">
       {/* Page header */}
       <div className="space-y-1">
         <Link

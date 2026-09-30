@@ -13,7 +13,9 @@ export function JobsStatusTabs({
   getTabCount,
 }: JobsStatusTabsProps) {
   return (
-    <div className="flex items-center border-b border-gray-200">
+    // Scrolls for the same reason as the shared list-tabs strip: the tabs are
+    // whitespace-nowrap, so on a phone they widened the whole page.
+    <div className="flex items-center overflow-x-auto border-b border-gray-200">
       {STATUS_TABS.map((tab) => (
         <TabButton
           key={tab.value}
