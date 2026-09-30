@@ -37,7 +37,13 @@ async def test_new_company_seeded_with_default_matrix(tenant_a_client, seed_two_
     assert set(body["roles"]) == _ALL_ROLES
     assert body["roles"]["owner"] == ["*"]
     assert "roles.permissions.manage" in body["roles"]["admin"]
-    assert "company.settings.manage" not in body["roles"]["admin"]
+    # Admin holds company settings. It was owner-only, which made it unreachable:
+    # no code path assigns the owner role, so the key governing company details
+    # was held by nobody and the profile could not be edited at all.
+    assert "company.settings.manage" in body["roles"]["admin"]
+    # Billing is a separate concern — the subscription, not the business — and
+    # stays with the owner.
+    assert "company.billing.manage" not in body["roles"]["admin"]
 
 
 @pytest.mark.asyncio

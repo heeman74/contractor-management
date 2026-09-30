@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { useCompany, useUpdateCompany } from "@/lib/api/contracts";
+import { CompanyProfileForm } from "./company-profile-form";
 import { ContractTermsEditor } from "./contract-terms-editor";
 
 interface CompanySettingsFormProps {
@@ -31,15 +32,7 @@ export function CompanySettingsForm({ companyId }: CompanySettingsFormProps) {
     return <div className="h-64 animate-pulse rounded-xl bg-muted" />;
   }
 
-  if (!can("contracts.manage")) {
-    return (
-      <div className="rounded-xl border border-yellow-200 bg-yellow-50 px-6 py-12 text-center">
-        <p className="text-sm font-medium text-yellow-700">
-          You do not have permission to manage company contract settings.
-        </p>
-      </div>
-    );
-  }
+  const canManageContracts = can("contracts.manage");
 
   const currentLicense = company?.license_number ?? "";
   const isDirty = licenseNumber.trim() !== currentLicense;
@@ -68,10 +61,14 @@ export function CompanySettingsForm({ companyId }: CompanySettingsFormProps) {
           Company &amp; Contracts
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Your contractor license and the terms that appear on client contracts.
+          Your company details, contractor license, and the terms that appear on
+          client contracts.
         </p>
       </div>
 
+      <CompanyProfileForm companyId={companyId} />
+
+      {canManageContracts ? (
       <section className="rounded-xl bg-card px-5 py-5 ring-1 ring-foreground/10">
         <p className="eyebrow text-brand">Licensing</p>
         <h2 className="font-display text-lg font-bold tracking-tight text-foreground">
@@ -106,8 +103,9 @@ export function CompanySettingsForm({ companyId }: CompanySettingsFormProps) {
           </Button>
         </div>
       </section>
+      ) : null}
 
-      <ContractTermsEditor />
+      {canManageContracts ? <ContractTermsEditor /> : null}
     </div>
   );
 }

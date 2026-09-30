@@ -509,7 +509,16 @@ export interface Company {
 }
 
 // Fields the company-settings form may update (Phase 29 scope: license_number).
+// Mirrors the backend CompanyUpdate, which has always accepted the whole
+// profile — only license_number was ever declared here, because only that field
+// had a form.
 export interface CompanyUpdate {
+  name?: string;
+  address?: string | null;
+  phone?: string | null;
+  trade_types?: string[] | null;
+  logo_url?: string | null;
+  business_number?: string | null;
   license_number?: string | null;
 }
 

@@ -26,6 +26,10 @@ class CompanyRouter(CRUDRouter):
     create_schema = CompanyCreate
     update_schema = CompanyUpdate
     response_schema = CompanyResponse
+    # Company details appear on every quote, invoice and contract a client
+    # sees. Without this the endpoint took any authenticated caller, so a
+    # worker could rename the company or change the licence number on it.
+    update_permission = "company.settings.manage"
 
     def _register_routes(self) -> None:
         """Company uses create + get + update (no list endpoint)."""

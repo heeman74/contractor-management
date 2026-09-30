@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.base_schemas import BaseResponseSchema
 from app.core.base_service import BaseService
 from app.core.database import get_db
-from app.core.security import CurrentUser, get_current_user
+from app.core.security import CurrentUser, get_current_user, require_permission
 
 
 class CRUDRouter:
@@ -29,6 +29,9 @@ class CRUDRouter:
     create_schema: type[BaseModel]
     update_schema: type[BaseModel] | None = None
     response_schema: type[BaseResponseSchema]
+    # Permission key required to PATCH. None keeps the previous behaviour —
+    # authentication only — for routers that have not been reviewed yet.
+    update_permission: str | None = None
 
     def __init__(self) -> None:
         self.router = APIRouter(prefix=self.prefix, tags=self.tags)
@@ -115,12 +118,16 @@ class CRUDRouter:
         resp_schema = self.response_schema
         not_found = self._not_found
 
+        update_permission = self.update_permission
+
         async def update_endpoint(
             entity_id: uuid.UUID,
             data: self.update_schema,  # type: ignore[valid-type]
             db: AsyncSession = Depends(get_db),
             _current_user: CurrentUser = Depends(get_current_user),
         ):
+            if update_permission is not None:
+                await require_permission(update_permission)(_current_user, db)
             svc = svc_cls(db)
             entity = await svc.update(entity_id, data)
             if entity is None:

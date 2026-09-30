@@ -22,6 +22,7 @@ import {
   UserCheck,
   ClipboardList,
   Smartphone,
+  Building2,
   ShieldCheck,
   FileSignature,
   Wallet,
@@ -86,6 +87,14 @@ const navItems: NavItem[] = [
   },
   { label: "Reports", href: "/reports", icon: BarChart3 },
   { label: "Financials", href: "/financials", icon: Wallet, permission: "finance.view" },
+  // Company settings — the page existed but nothing linked to it, so the only
+  // way in was typing the URL.
+  {
+    label: "Company Profile",
+    href: "/settings/company",
+    icon: Building2,
+    permission: "company.settings.manage",
+  },
   // Access control — only visible to roles that can edit permissions
   {
     label: "Roles & Permissions",

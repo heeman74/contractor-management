@@ -15,8 +15,13 @@ from __future__ import annotations
 WILDCARD = "*"
 PERMISSIONS_MANAGE = "roles.permissions.manage"
 
-# Company-level keys reserved for the owner; admins deliberately do NOT get these.
-_OWNER_ONLY_KEYS = ("company.settings.manage", "company.billing.manage")
+# Billing stays with the owner — it touches the subscription, not the business.
+#
+# company.settings.manage used to sit here too, which made it unreachable: no
+# code path ever assigns the `owner` role (registration and the provisioning
+# script both create an admin), so the key governing company details was held by
+# nobody, and the company profile could not be edited by anyone who existed.
+_OWNER_ONLY_KEYS = ("company.billing.manage",)
 
 # The single public home for the finance-view key — Phase 30/36 each carried a
 # private duplicate of this literal (profitability_service.py, budget_service.py);
