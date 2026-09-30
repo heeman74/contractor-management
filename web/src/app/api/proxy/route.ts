@@ -89,13 +89,21 @@ async function handleProxy(request: NextRequest): Promise<NextResponse> {
     return new NextResponse(null, { status: upstreamRes.status });
   }
 
-  // Forward FastAPI response (status + body) back to client
-  const responseBody = await upstreamRes.text();
-  return new NextResponse(responseBody, {
+  // Stream the body through rather than reading it as text. `text()` decodes
+  // bytes as UTF-8, so every byte sequence that is not valid UTF-8 became a
+  // replacement character — which inflated a 13KB quote PDF to 23KB and left a
+  // file no reader would open. Streaming also avoids buffering a whole document
+  // in memory on an instance that does not have much.
+  const responseHeaders = new Headers({
+    "Content-Type": upstreamRes.headers.get("content-type") ?? "application/json",
+  });
+  // Carried so a download keeps the filename the backend chose.
+  const disposition = upstreamRes.headers.get("content-disposition");
+  if (disposition) responseHeaders.set("Content-Disposition", disposition);
+
+  return new NextResponse(upstreamRes.body, {
     status: upstreamRes.status,
-    headers: {
-      "Content-Type": upstreamRes.headers.get("content-type") ?? "application/json",
-    },
+    headers: responseHeaders,
   });
 }
 
