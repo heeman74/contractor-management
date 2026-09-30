@@ -11,13 +11,24 @@ import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-jest.mock("@/lib/api-client", () => ({ apiDelete: jest.fn() }));
+jest.mock("@/lib/api-client", () => {
+  class ApiError extends Error {
+    status: number;
+    detail: string;
+    constructor(status: number, detail: string) {
+      super(detail);
+      this.status = status;
+      this.detail = detail;
+    }
+  }
+  return { apiDelete: jest.fn(), ApiError };
+});
 const mockCan = jest.fn();
 jest.mock("@/lib/hooks/usePermissions", () => ({
   usePermissions: () => ({ can: mockCan, permissions: new Set(), isLoading: false }),
 }));
 
-import { apiDelete } from "@/lib/api-client";
+import { ApiError, apiDelete } from "@/lib/api-client";
 import { DeleteQuoteButton } from "../delete-quote-button";
 
 const mockDelete = apiDelete as jest.MockedFunction<typeof apiDelete>;
@@ -98,4 +109,32 @@ it("cancels without deleting", async () => {
   await waitFor(() =>
     expect(screen.queryByText(/Delete quote Q-1001\?/)).not.toBeInTheDocument()
   );
+});
+
+it("treats a 404 as already deleted rather than an error", async () => {
+  // The list can be stale — the quote may have gone in an earlier click or
+  // another tab. That is the outcome the user asked for, so showing a failure
+  // (and leaving the row on screen) would invite yet another click.
+  mockDelete.mockRejectedValue(new ApiError(404, "Quote not found"));
+  renderButton();
+
+  fireEvent.click(screen.getByRole("button", { name: /Delete quote Q-1001/ }));
+  fireEvent.click(await screen.findByRole("button", { name: /^Delete quote$/ }));
+
+  await waitFor(() =>
+    expect(screen.queryByText(/Delete quote Q-1001\?/)).not.toBeInTheDocument()
+  );
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it("still reports a refusal that is not a 404", async () => {
+  mockDelete.mockRejectedValue(
+    new ApiError(409, "This quote has an invoice attached, so it cannot be deleted.")
+  );
+  renderButton();
+
+  fireEvent.click(screen.getByRole("button", { name: /Delete quote Q-1001/ }));
+  fireEvent.click(await screen.findByRole("button", { name: /^Delete quote$/ }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(/invoice/);
 });

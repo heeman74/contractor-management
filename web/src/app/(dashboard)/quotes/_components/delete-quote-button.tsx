@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { apiDelete } from "@/lib/api-client";
+import { ApiError, apiDelete } from "@/lib/api-client";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 
 /**
@@ -36,14 +36,23 @@ export function DeleteQuoteButton({ quoteId, quoteReference }: DeleteQuoteButton
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const settle = () => {
+    void queryClient.invalidateQueries({ queryKey: ["quotes"] });
+    setOpen(false);
+    setError(null);
+  };
+
   const remove = useMutation({
     mutationFn: () => apiDelete<void>(`/api/v1/quotes/${quoteId}`),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["quotes"] });
-      setOpen(false);
-      setError(null);
-    },
+    onSuccess: settle,
     onError: (err: unknown) => {
+      // A 404 means the quote is already gone, which is the outcome asked for.
+      // Reporting it as a failure would show an error for a list that is merely
+      // stale — and leave the stale row on screen, inviting another click.
+      if (err instanceof ApiError && err.status === 404) {
+        settle();
+        return;
+      }
       const detail =
         err && typeof err === "object" && "detail" in err
           ? String((err as { detail: unknown }).detail)
