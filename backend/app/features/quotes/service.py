@@ -189,6 +189,43 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
         """Fetch a quote with line items eager-loaded, or raise 404."""
         return entity_or_404(await self.repository.get_with_line_items(quote_id), "Quote not found")
 
+    async def _resolve_client_id(self, quote: Quote) -> uuid.UUID | None:
+        """Who this quote is addressed to, or None when nothing names them.
+
+        The quote's own client wins. job.client_id is the fallback for quotes
+        raised before the column existed, and originating_job_id covers a change
+        order, which amends an existing job and so is addressed to that job's
+        client by definition.
+        """
+        client_id = quote.client_id
+        for job_id in (quote.job_id, quote.originating_job_id):
+            if client_id is not None:
+                break
+            if job_id is None:
+                continue
+            job = await self.db.get(Job, job_id)
+            client_id = job.client_id if job is not None else None
+        return client_id
+
+    async def _require_is_the_client(self, quote: Quote, user_id: uuid.UUID) -> None:
+        """403 unless this user is the client the quote is addressed to.
+
+        Row level security scopes a client to their company, not to their own
+        quotes, so without this any client of the company could open, view,
+        approve or decline a quote priced for somebody else — approval being the
+        one that creates the jobs and commits the work.
+
+        A quote naming no client at all is refused rather than allowed. Sending
+        already requires one, so anything a client can reach resolves; failing
+        closed keeps an unaddressed quote from being approvable by anyone.
+        """
+        client_id = await self._resolve_client_id(quote)
+        if client_id is None or client_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This quote is addressed to a different client.",
+            )
+
     async def _require_client(self, quote: Quote) -> uuid.UUID:
         """The client this quote is addressed to, or 400 if there is none.
 
@@ -435,6 +472,7 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
         Appends 'quote_viewed' to job.status_history.
         """
         quote = await self._get_quote_or_404(quote_id)
+        await self._require_is_the_client(quote, viewer_id)
 
         if quote.status not in {"sent", "viewed"}:
             # Silently skip — view recording is best-effort
@@ -461,6 +499,7 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
         Triggers FCM notification to admin.
         """
         quote = await self._get_quote_or_404(quote_id)
+        await self._require_is_the_client(quote, client_user_id)
         self._require_quote_status(quote, {"sent", "viewed"}, "approve")
 
         # Check expiry
@@ -708,6 +747,7 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
         Triggers FCM notification to admin.
         """
         quote = await self._get_quote_or_404(quote_id)
+        await self._require_is_the_client(quote, client_user_id)
         self._require_quote_status(quote, {"sent", "viewed"}, "decline")
 
         quote.status = "declined"

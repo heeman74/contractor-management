@@ -132,6 +132,12 @@ async def _create_invoice_via_generate(
         base_url="http://test",
         headers={"Authorization": f"Bearer {admin_token}"},
     ) as ac:
+        # Address the quote to the user who approves it below — approval is
+        # restricted to the quote's client. Done before sending, because a sent
+        # quote is no longer editable.
+        addressed = await ac.patch(f"/api/v1/quotes/{quote_id}", json={"client_id": user_id})
+        assert addressed.status_code == 200, addressed.text
+
         # Send the quote
         send_resp = await ac.post(f"/api/v1/quotes/{quote_id}/send")
         assert send_resp.status_code == 200, f"Quote send failed: {send_resp.text}"

@@ -115,6 +115,11 @@ async def _setup_invoice(client: AsyncClient, user_id: str) -> dict:
     quote = await _create_quote(client, job_id)
     quote_id = quote["id"]
 
+    # Address the quote to the user who approves it below. Approval is restricted
+    # to the quote's client, so carrying the client role is no longer enough.
+    addressed = await client.patch(f"/api/v1/quotes/{quote_id}", json={"client_id": user_id})
+    assert addressed.status_code == 200, addressed.text
+
     # Send quote to client (admin operation)
     resp = await client.post(f"/api/v1/quotes/{quote_id}/send")
     assert resp.status_code == 200, f"Send quote failed: {resp.text}"

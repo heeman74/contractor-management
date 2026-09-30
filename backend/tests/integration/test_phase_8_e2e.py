@@ -29,7 +29,6 @@ from app.main import app as _fastapi_app
 # isort: split
 # Side-effect: register all mappers before tests run — same pattern as Phase 4
 import app.features.scheduling.models  # noqa: F401
-from tests.quote_client_helpers import ensure_client
 
 TRANSPORT = ASGITransport(app=_fastapi_app)
 
@@ -58,7 +57,10 @@ async def _create_job(admin_client: AsyncClient) -> dict:
             "priority": "medium",
             "urgency": "standard",
             "trade_type": "plumbing",
-            "client_id": await ensure_client(admin_client),
+            # These tests grant the admin user the client role and approve as
+            # themselves. Approval is restricted to the quote's client, so the
+            # job names that same user rather than a separate CRM client.
+            "client_id": (await admin_client.get("/api/v1/auth/me")).json()["user_id"],
         },
     )
     assert resp.status_code == 201, resp.text

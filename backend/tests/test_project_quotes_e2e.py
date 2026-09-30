@@ -11,7 +11,6 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app as fastapi_app
-from tests.quote_client_helpers import ensure_client
 
 _ADMIN_EMAIL = "admin@tenant-a.com"
 _ADMIN_PASSWORD = "TestPass123!"
@@ -75,7 +74,9 @@ async def test_project_quote_converts_to_project_with_per_field_jobs(
     create = await tenant_a_client.post(
         "/api/v1/quotes/",
         # A project-level quote has no job, so it carries its own client.
-        json={**_PROJECT_QUOTE_BODY, "client_id": await ensure_client(tenant_a_client)},
+        # Addressed to the user who approves it below: approval is restricted to
+        # the quote's client, so carrying the client role is not enough.
+        json={**_PROJECT_QUOTE_BODY, "client_id": user_id},
     )
     assert create.status_code == 201, create.text
     quote_id = create.json()["id"]

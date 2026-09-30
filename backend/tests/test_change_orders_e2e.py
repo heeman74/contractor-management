@@ -118,6 +118,13 @@ async def _client_role_token(admin_client: AsyncClient, user_id: str) -> str:
 
 
 async def _send_and_approve(admin_client: AsyncClient, user_id: str, quote_id: str) -> dict:
+    # Address the quote to the user who is about to approve it. Approval is
+    # restricted to the quote's client, so a token that merely carries the client
+    # role is no longer enough — which is the point: before, any client of the
+    # company could approve a quote priced for somebody else.
+    addressed = await admin_client.patch(f"/api/v1/quotes/{quote_id}", json={"client_id": user_id})
+    assert addressed.status_code == 200, addressed.text
+
     send = await admin_client.post(f"/api/v1/quotes/{quote_id}/send")
     assert send.status_code == 200, send.text
     token = await _client_role_token(admin_client, user_id)

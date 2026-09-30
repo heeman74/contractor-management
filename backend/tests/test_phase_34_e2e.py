@@ -30,7 +30,7 @@ from app.features.finance.budget_service import BudgetService
 from app.features.finance.models import CostCategory
 from app.features.finance.service import FinanceService
 from app.features.rbac.repository import RbacRepository
-from tests.quote_client_helpers import ensure_client
+from tests.quote_client_helpers import client_headers_for_quote, ensure_client
 
 _BUDGETS_URL = "/api/v1/budgets/"
 _SECONDS_PER_HOUR = 3600
@@ -1655,8 +1655,11 @@ async def _send_quote(client: AsyncClient, quote_id: str) -> None:
 
 async def _approve_quote(client: AsyncClient, company_id: str, quote_id: str) -> dict:
     """Approve a sent quote through the REAL endpoint — the hook under test lives here."""
+    # The quote's own client, not a synthetic one: approval is restricted to the
+    # client the quote is addressed to.
     resp = await client.post(
-        f"/api/v1/quotes/{quote_id}/approve", headers=_client_headers(company_id)
+        f"/api/v1/quotes/{quote_id}/approve",
+        headers=await client_headers_for_quote(client, quote_id, company_id),
     )
     assert resp.status_code == 200, resp.text
     return resp.json()
@@ -2022,8 +2025,11 @@ async def test_quote_delta_failure_rolls_back_the_approval(
     _, quote_id = await _sent_scope_quote(tenant_a_client, project_id, unit_price="100.00")
 
     with patch(_APPLY_QUOTE_DELTA_TARGET, side_effect=RuntimeError("simulated delta failure")):
+        # The quote's real client: a synthetic one is now refused before reaching
+        # the failure this test is about.
         resp = await async_client.post(
-            f"/api/v1/quotes/{quote_id}/approve", headers=_client_headers(company_id)
+            f"/api/v1/quotes/{quote_id}/approve",
+            headers=await client_headers_for_quote(async_client, quote_id, company_id),
         )
 
     assert resp.status_code == 500, resp.text

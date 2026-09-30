@@ -31,3 +31,42 @@ async def ensure_client(client: AsyncClient, email: str | None = None) -> str:
     )
     assert resp.status_code == 201, f"client setup failed: {resp.text}"
     return resp.json()["user_id"]
+
+
+async def client_headers_for_quote(_client: AsyncClient, quote_id: str, company_id: str) -> dict:
+    """Authorization header for the client a quote is actually addressed to.
+
+    Approving, declining and viewing are restricted to that client — before, any
+    client of the company could approve a quote priced for somebody else. Tests
+    that minted a synthetic client token were relying on that, so they need the
+    real recipient.
+
+    Read from the database rather than over HTTP: call sites pass whichever
+    client is to hand, and some of those are unauthenticated, which would make
+    the lookup silently return nothing. Resolves the quote's own client first and
+    falls back to the job's, matching the ladder the service uses.
+    """
+    from uuid import UUID
+
+    from sqlalchemy import text
+
+    from app.core.database import async_session_factory
+    from app.core.security import create_access_token
+
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        row = (
+            await session.execute(
+                text(
+                    "SELECT COALESCE(q.client_id, j.client_id) AS client_id "
+                    "FROM quotes q LEFT JOIN jobs j ON j.id = q.job_id "
+                    "WHERE q.id = CAST(:qid AS uuid)"
+                ),
+                {"qid": quote_id},
+            )
+        ).first()
+
+    client_id = row[0] if row is not None else None
+    assert client_id is not None, f"quote {quote_id} names no client, so no one can approve it"
+    token = create_access_token(UUID(str(client_id)), UUID(company_id), ["client"])
+    return {"Authorization": f"Bearer {token}"}
