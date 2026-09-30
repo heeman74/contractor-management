@@ -20,10 +20,17 @@
     }
 
     /* ---- Page Layout ---- */
+    /* The margin belongs to the page, not to a block inside it. A 210mm-wide
+       box is the FULL width of A4, so with any page margin at all it ran off
+       the right edge — the subtotal column and the total were cut in half.
+       Declaring the margin here also gives every page the same inset; padding
+       on a block that spans two pages only insets the first. */
+    @page {
+      size: A4;
+      margin: 15mm 18mm;
+    }
     .page {
-      width: 210mm;
-      min-height: 297mm;
-      padding: 15mm 18mm;
+      width: 100%;
     }
 
     /* ---- Header ---- */
