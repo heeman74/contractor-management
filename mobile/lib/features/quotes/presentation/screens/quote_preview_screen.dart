@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/di/service_locator.dart';
 import '../../../../core/network/api_error_message.dart';
 import '../../../../core/network/dio_client.dart';
+import '../../data/quote_client_repository.dart';
 import '../../domain/quote_entity.dart';
 import '../providers/quote_providers.dart';
+import '../widgets/client_picker_sheet.dart';
 import '../widgets/quote_summary_card.dart';
 
 /// Admin preview screen — shows the quote as the client will see it.
@@ -133,16 +135,66 @@ class _PreviewContentState extends ConsumerState<_PreviewContent> {
         // The backend refuses a send it cannot address — a quote with no client
         // reaches nobody — and says so in `detail`. That sentence tells the user
         // what to fix; a stringified DioException does not.
+        //
+        // The offer to choose a client rides on the snackbar rather than being
+        // triggered by matching the message text: the reason is shown either
+        // way, and the user decides whether it applies, so nothing depends on
+        // the wording of a sentence the backend is free to reword.
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(apiErrorMessage(e)),
             behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 8),
+            action: SnackBarAction(
+              label: 'Choose client',
+              onPressed: _chooseClientAndRetry,
+            ),
           ),
         );
       }
     } finally {
       if (mounted) setState(() => _isSending = false);
     }
+  }
+
+  /// Attach a client to this quote, then send it.
+  ///
+  /// A quote raised against a job with no client assigned cannot be sent, and
+  /// mobile had no way to name one — so the refusal was a dead end rather than
+  /// something the user could act on.
+  Future<void> _chooseClientAndRetry() async {
+    final repository = QuoteClientRepository(
+      dio: getIt<DioClient>().instance,
+    );
+
+    final chosen = await ClientPickerSheet.show(
+      context,
+      repository: repository,
+    );
+    if (chosen == null || !mounted) return;
+
+    setState(() => _isSending = true);
+    try {
+      await repository.assignClient(
+        quoteId: widget.quote.id,
+        clientId: chosen.userId,
+      );
+    } on QuoteClientException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.message),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        setState(() => _isSending = false);
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() => _isSending = false);
+    await _sendToClient();
   }
 }
 
