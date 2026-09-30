@@ -98,6 +98,17 @@ class Quote(TenantScopedModel):
     # Project-level quote: neither job_id nor trade_scope_id is set. `title` names
     # the project it becomes; `project_id` is set once approval creates that project.
     title: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # The client this quote is addressed to. Nullable because a draft can precede
+    # knowing the client, but required to send — a job-level quote could only
+    # reach a client through job.client_id, which is itself nullable, and a
+    # project-level quote has no job at all.
+    client_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        nullable=True,
+        index=True,
+    )
+
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("projects.id", ondelete="SET NULL"),

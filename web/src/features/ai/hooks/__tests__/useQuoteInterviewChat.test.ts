@@ -133,6 +133,7 @@ it("sends no prices when creating the quote", async () => {
       trade: "Plumbing",
       title: "3-bath rough-in",
       brief: "Three bathrooms.",
+      client_id: "client-1",
     });
   });
 
@@ -140,9 +141,12 @@ it("sends no prices when creating the quote", async () => {
   const body = JSON.parse(
     (mockFetch.mock.calls[1][1] as { body: string }).body
   ) as Record<string, unknown>;
+  // client_id is the one addition: the send gate requires a client, and still
+  // no prices cross this boundary.
   expect(Object.keys(body).sort()).toEqual(
-    ["brief", "conversation_id", "title", "trade"].sort()
+    ["brief", "client_id", "conversation_id", "title", "trade"].sort()
   );
+  expect(body.client_id).toBe("client-1");
 });
 
 it("surfaces a failure to create rather than pretending it worked", async () => {
@@ -151,7 +155,12 @@ it("surfaces a failure to create rather than pretending it worked", async () => 
 
   let created: unknown = "unset";
   await act(async () => {
-    created = await result.current.createQuote({ trade: "P", title: "T", brief: "B" });
+    created = await result.current.createQuote({
+      trade: "P",
+      title: "T",
+      brief: "B",
+      client_id: "client-1",
+    });
   });
 
   expect(created).toBeNull();

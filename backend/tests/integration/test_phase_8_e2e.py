@@ -29,6 +29,7 @@ from app.main import app as _fastapi_app
 # isort: split
 # Side-effect: register all mappers before tests run — same pattern as Phase 4
 import app.features.scheduling.models  # noqa: F401
+from tests.quote_client_helpers import ensure_client
 
 TRANSPORT = ASGITransport(app=_fastapi_app)
 
@@ -48,7 +49,7 @@ async def _add_client_role(admin_client: AsyncClient, user_id: str) -> None:
 
 
 async def _create_job(admin_client: AsyncClient) -> dict:
-    """Create a job (no client required for quote testing)."""
+    """Create a job with a client, so quotes raised against it can be sent."""
     resp = await admin_client.post(
         "/api/v1/jobs/",
         json={
@@ -57,6 +58,7 @@ async def _create_job(admin_client: AsyncClient) -> dict:
             "priority": "medium",
             "urgency": "standard",
             "trade_type": "plumbing",
+            "client_id": await ensure_client(admin_client),
         },
     )
     assert resp.status_code == 201, resp.text

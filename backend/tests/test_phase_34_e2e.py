@@ -30,6 +30,7 @@ from app.features.finance.budget_service import BudgetService
 from app.features.finance.models import CostCategory
 from app.features.finance.service import FinanceService
 from app.features.rbac.repository import RbacRepository
+from tests.quote_client_helpers import ensure_client
 
 _BUDGETS_URL = "/api/v1/budgets/"
 _SECONDS_PER_HOUR = 3600
@@ -139,7 +140,12 @@ async def _create_trade_scope(
 
 async def _create_job(client: AsyncClient, project_id: str | None = None) -> str:
     """Create a job through the API, optionally linked to a project, and return its id."""
-    payload: dict = {"description": "Budget test job", "trade_type": "general"}
+    payload: dict = {
+        "description": "Budget test job",
+        "trade_type": "general",
+        # Quotes raised against this job get sent, which now requires a client.
+        "client_id": await ensure_client(client),
+    }
     if project_id is not None:
         payload["project_id"] = project_id
     resp = await client.post("/api/v1/jobs/", json=payload)
@@ -1606,6 +1612,8 @@ async def _create_scope_quote(client: AsyncClient, scope_id: str, *, unit_price:
         json={
             "trade_scope_id": scope_id,
             "tax_rate": "0",
+            # No job to inherit a client from, so name one here — sending requires it.
+            "client_id": await ensure_client(client),
             "line_items": _labor_line_items(unit_price),
         },
     )
@@ -1627,7 +1635,13 @@ async def _create_project_level_quote(client: AsyncClient, title: str, *, unit_p
     """Create a draft project-level quote (no job, no scope) and return the response body."""
     resp = await client.post(
         "/api/v1/quotes/",
-        json={"title": title, "tax_rate": "0", "line_items": _labor_line_items(unit_price)},
+        json={
+            "title": title,
+            "tax_rate": "0",
+            # A project-level quote has no job at all, so the client goes here.
+            "client_id": await ensure_client(client),
+            "line_items": _labor_line_items(unit_price),
+        },
     )
     assert resp.status_code == 201, resp.text
     return resp.json()

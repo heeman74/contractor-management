@@ -27,6 +27,7 @@ from app.main import app as _fastapi_app
 import app.features.invoices.models
 import app.features.quotes.models
 import app.features.scheduling.models  # noqa: F401
+from tests.quote_client_helpers import ensure_client
 
 TRANSPORT = ASGITransport(app=_fastapi_app)
 
@@ -66,6 +67,7 @@ async def _create_job(client: AsyncClient) -> dict:
             "description": f"Phase 9 sync test job {uuid.uuid4().hex[:6]}",
             "trade_type": "plumbing",
             "priority": "medium",
+            "client_id": await ensure_client(client),
         },
     )
     assert resp.status_code == 201, f"Job create failed: {resp.text}"

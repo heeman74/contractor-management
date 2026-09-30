@@ -22,7 +22,7 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
 from app.core.base_schemas import BaseResponseSchema
 
@@ -427,6 +427,20 @@ class TimeEntryResponse(BaseResponseSchema):
 # ---------------------------------------------------------------------------
 # Phase 17 — CRM list and detail schemas
 # ---------------------------------------------------------------------------
+
+
+class ClientCreateRequest(BaseModel):
+    """Add a client to this company's roster.
+
+    No password: a contractor adds a client to quote them, which is not the same
+    as inviting them to sign in. `users.password_hash` is nullable and login
+    rejects a null hash, so such a record cannot be used to authenticate.
+    """
+
+    email: EmailStr
+    first_name: str | None = Field(default=None, max_length=100)
+    last_name: str | None = Field(default=None, max_length=100)
+    phone: str | None = Field(default=None, max_length=40)
 
 
 class ClientListResponse(BaseModel):

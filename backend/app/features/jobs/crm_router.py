@@ -14,15 +14,16 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import get_current_user
+from app.core.security import CurrentUser, get_current_user, require_permission
 from app.core.tenant import get_current_tenant_id
 from app.features.jobs.crm_service import CrmService
 from app.features.jobs.router import _job_with_client_name
 from app.features.jobs.schemas import (
+    ClientCreateRequest,
     ClientDetailResponse,
     ClientListResponse,
     ClientPropertyResponse,
@@ -91,3 +92,24 @@ async def get_client(
         jobs=job_responses,
         properties=property_responses,
     )
+
+
+@router.post(
+    "/clients",
+    response_model=ClientListResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_client(
+    data: ClientCreateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> ClientListResponse:
+    """Add a client to this company's roster.
+
+    Exists so a quote can be addressed to someone before they have ever signed
+    in — the send gate requires a client, and until now there was no way to
+    create one from the app at all.
+    """
+    await require_permission("clients.create")(current_user, db)
+    profile = await CrmService(db).create_client(data)
+    return ClientListResponse.from_profile(profile, jobs_count=0)

@@ -21,6 +21,7 @@ from httpx import AsyncClient
 
 # Side-effect: register all mappers before tests run.
 import app.features.scheduling.models  # noqa: F401
+from tests.quote_client_helpers import ensure_client
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -35,6 +36,7 @@ async def _create_job(client: AsyncClient) -> dict:
             "description": "Phase 16 E2E Test Job",
             "trade_type": "plumbing",
             "priority": "medium",
+            "client_id": await ensure_client(client),
         },
     )
     assert resp.status_code == 201, f"Job creation failed: {resp.text}"

@@ -19,12 +19,19 @@ import uuid
 from typing import TYPE_CHECKING
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_service import TenantScopedService
 from app.features.jobs.crm_repository import CrmRepository
 from app.features.jobs.models import ClientProfile, ClientProperty
-from app.features.jobs.schemas import ClientProfileCreate, ClientProfileUpdate
+from app.features.jobs.schemas import (
+    ClientCreateRequest,
+    ClientProfileCreate,
+    ClientProfileUpdate,
+)
+from app.features.users.models import User, UserRole
 
 if TYPE_CHECKING:
     from app.features.jobs.models import Job
@@ -65,6 +72,57 @@ class CrmService(TenantScopedService[ClientProfile]):
         await self.db.flush()
         await self.db.refresh(profile)
         return profile
+
+    async def create_client(self, data: ClientCreateRequest) -> ClientProfile:
+        """Add a client to this company's roster.
+
+        Creates the user, grants the `client` role, and creates the CRM profile,
+        so a contractor can address a quote to someone who has never signed in.
+        No password is set — login rejects a null hash, so this cannot be used
+        to authenticate.
+
+        `users.email` is globally unique, so an address already in use is
+        handled rather than left to surface as an integrity error: the same
+        company gets the existing client back (idempotent), and an address owned
+        by another company is refused.
+        """
+        company_id = self._require_tenant_id()
+        existing = (
+            (await self.db.execute(select(User).where(User.email == data.email))).scalars().first()
+        )
+
+        if existing is not None:
+            if existing.company_id != company_id:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="That email address already belongs to another account.",
+                )
+            return await self.crm_repo.get_or_create_profile(existing.id, company_id)
+
+        user = User(
+            company_id=company_id,
+            email=data.email,
+            first_name=data.first_name,
+            last_name=data.last_name,
+            phone=data.phone,
+        )
+        self.db.add(user)
+        try:
+            await self.db.flush()
+        except IntegrityError as exc:
+            # users.email is unique GLOBALLY, but the lookup above runs under row
+            # level security and cannot see a user owned by another company. So
+            # the address can be taken by someone invisible to this query, and
+            # the constraint is the only thing that knows. Without this the
+            # caller got a 500 for a case this method already handles.
+            await self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="That email address already belongs to another account.",
+            ) from exc
+        self.db.add(UserRole(user_id=user.id, company_id=company_id, role="client"))
+        await self.db.flush()
+        return await self.crm_repo.get_or_create_profile(user.id, company_id)
 
     async def list_clients(
         self,

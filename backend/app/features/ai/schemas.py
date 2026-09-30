@@ -73,6 +73,9 @@ class QuoteInterviewCompleteRequest(BaseModel):
     """
 
     conversation_id: uuid.UUID
+    # The client the quote is for. Optional here because the draft is created
+    # before sending, but the send gate requires one, so the UI collects it now.
+    client_id: uuid.UUID | None = None
     trade: str = Field(min_length=1, max_length=100)
     title: str = Field(min_length=1, max_length=200)
     brief: str = Field(min_length=1, max_length=4000)

@@ -787,7 +787,11 @@ class AIService(TenantScopedService[AIConversation]):
 
         # status defaults to "draft" in the column — no constant to import,
         # and spelling it here would be a second source of truth.
-        quote = Quote(company_id=self._require_tenant_id(), title=request.title)
+        quote = Quote(
+            company_id=self._require_tenant_id(),
+            title=request.title,
+            client_id=request.client_id,
+        )
         self.db.add(quote)
         await self.db.flush()
 

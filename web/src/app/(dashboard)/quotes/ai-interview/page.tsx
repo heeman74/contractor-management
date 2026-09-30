@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Bot, Loader2, Send } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
+import { ClientPicker } from "@/features/clients/components/ClientPicker";
 import {
   type QuoteInterviewResult,
   useQuoteInterviewChat,
@@ -35,6 +36,8 @@ export default function QuoteInterviewPage() {
 
   const [draft, setDraft] = useState("");
   const [creating, setCreating] = useState(false);
+  const [clientId, setClientId] = useState<string | null>(null);
+  const [clientLabel, setClientLabel] = useState<string | null>(null);
   const [result, setResult] = useState<QuoteInterviewResult | null>(null);
   const startedRef = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -60,7 +63,7 @@ export default function QuoteInterviewPage() {
   async function onCreate() {
     if (!proposal) return;
     setCreating(true);
-    const created = await createQuote(proposal);
+    const created = await createQuote({ ...proposal, client_id: clientId });
     setCreating(false);
     if (created) {
       setResult(created);
@@ -140,10 +143,30 @@ export default function QuoteInterviewPage() {
             onChange={(event) => setProposal({ ...proposal, trade: event.target.value })}
           />
           <p className="mt-3 whitespace-pre-wrap text-xs text-gray-700">{proposal.brief}</p>
+
+          <p className="mt-4 text-xs font-medium text-gray-700">Client</p>
+          <p className="mb-2 text-xs text-gray-600">
+            A quote cannot be sent without one, so pick the client now.
+          </p>
+          <ClientPicker
+            value={clientId}
+            onChange={(id, label) => {
+              setClientId(id);
+              setClientLabel(label);
+            }}
+          />
+          {clientLabel ? (
+            <p className="mt-2 text-xs text-gray-700">Quoting for {clientLabel}</p>
+          ) : null}
           <button
             type="button"
             onClick={onCreate}
-            disabled={creating || !proposal.title.trim() || !proposal.trade.trim()}
+            disabled={
+              creating ||
+              !proposal.title.trim() ||
+              !proposal.trade.trim() ||
+              !clientId
+            }
             className="mt-3 inline-flex h-9 items-center gap-1.5 rounded-lg bg-brand px-3 text-sm font-medium text-brand-foreground transition-colors hover:bg-brand/90 disabled:opacity-50"
           >
             {creating ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}

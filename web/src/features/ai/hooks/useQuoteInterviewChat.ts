@@ -151,7 +151,9 @@ export function useQuoteInterviewChat() {
   );
 
   const createQuote = useCallback(
-    async (edited: QuoteProposal): Promise<QuoteInterviewResult | null> => {
+    async (
+      edited: QuoteProposal & { client_id: string | null }
+    ): Promise<QuoteInterviewResult | null> => {
       if (!conversationId) return null;
       setError(null);
       const res = await aiChatFetch("/api/v1/ai/quote-interview/complete", {

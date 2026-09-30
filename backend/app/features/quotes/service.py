@@ -187,6 +187,38 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
         """Fetch a quote with line items eager-loaded, or raise 404."""
         return entity_or_404(await self.repository.get_with_line_items(quote_id), "Quote not found")
 
+    async def _require_client(self, quote: Quote) -> uuid.UUID:
+        """The client this quote is addressed to, or 400 if there is none.
+
+        Server-side for the same reason as the AI-line gate: a hidden button is
+        not a guarantee. Without this a quote moved to `sent` addressed to
+        nobody — status flipped, an expiry was stamped, no client was ever
+        notified, and it read as sent.
+
+        The quote's own client wins. job.client_id is the fallback for quotes
+        raised before the column existed, and originating_job_id covers a change
+        order, which amends an existing job and so is addressed to that job's
+        client by definition — asking the user to name them again would be
+        asking a question the data already answers.
+        """
+        client_id = quote.client_id
+        for job_id in (quote.job_id, quote.originating_job_id):
+            if client_id is not None:
+                break
+            if job_id is None:
+                continue
+            job = await self.db.get(Job, job_id)
+            client_id = job.client_id if job is not None else None
+        if client_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "This quote has no client. Add a client before sending it, "
+                    "so it reaches someone."
+                ),
+            )
+        return client_id
+
     def _require_no_unreviewed_ai_lines(self, quote: Quote) -> None:
         """409 while any AI-originated line is still unreviewed (D-07, SC2).
 
@@ -258,6 +290,7 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
             company_id=company_id,
             job_id=data.job_id,
             trade_scope_id=data.trade_scope_id,
+            client_id=data.client_id,
             title=data.title,
             status="draft",
             quote_number=await self._next_quote_number(company_id),
@@ -357,6 +390,8 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
             quote.expiry_date = data.expiry_date
         if data.admin_notes is not None:
             quote.admin_notes = data.admin_notes
+        if data.client_id is not None:
+            quote.client_id = data.client_id
 
         if data.line_items is not None:
             await self._reconcile_line_items(quote, data.line_items)
@@ -377,6 +412,7 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
         quote = await self._get_quote_or_404(quote_id)
         self._require_quote_status(quote, {"draft"}, "send")
         self._require_no_unreviewed_ai_lines(quote)
+        await self._require_client(quote)
 
         quote.status = "sent"
         quote.sent_at = datetime.now(UTC)
@@ -715,6 +751,7 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
         new_quote = Quote(
             company_id=company_id,
             job_id=old_quote.job_id,
+            client_id=old_quote.client_id,
             # Anchors must survive revision: dropping them orphaned revised scope
             # quotes (both anchors null), breaking D-06 budget linkage AND the
             # Phase 33 approved-quote revenue leg. Pre-existing bug, fixed here.
@@ -884,6 +921,9 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
             company_id=company_id,
             job_id=None,
             trade_scope_id=trade_scope_id,
+            # A scope quote has no job to inherit a client from, so it must carry
+            # its own — and sending requires one.
+            client_id=data.client_id,
             status="draft",
             quote_number=await self._next_quote_number(company_id),
             revision_number=1,

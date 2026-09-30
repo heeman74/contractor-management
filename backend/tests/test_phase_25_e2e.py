@@ -18,6 +18,8 @@ scope_id in the body (matching the URL) to satisfy the Pydantic model_validator.
 import pytest
 from httpx import AsyncClient
 
+from tests.quote_client_helpers import ensure_client
+
 # ---------------------------------------------------------------------------
 # Helper: build a complete test dataset (project + 2 scopes + tasks)
 # ---------------------------------------------------------------------------
@@ -150,7 +152,13 @@ async def _post_scope_quote(
         ]
     resp = await client.post(
         f"/api/v1/trade-scopes/{scope_id}/quotes",
-        json={"trade_scope_id": scope_id, "tax_rate": tax_rate, "line_items": items},
+        json={
+            "trade_scope_id": scope_id,
+            "tax_rate": tax_rate,
+            # A scope quote has no job to inherit a client from; sending needs one.
+            "client_id": await ensure_client(client),
+            "line_items": items,
+        },
     )
     assert resp.status_code == 201, f"POST scope quote failed: {resp.text}"
     return resp.json()

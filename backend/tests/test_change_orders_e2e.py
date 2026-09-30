@@ -16,6 +16,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.core.security import create_access_token
 from app.main import app as fastapi_app
+from tests.quote_client_helpers import ensure_client
 
 _ADMIN_EMAIL = "admin@tenant-a.com"
 _ADMIN_PASSWORD = "TestPass123!"
@@ -63,8 +64,9 @@ async def _create_job(
         "trade_type": trade_type,
         "project_id": project_id,
     }
-    if client_id:
-        body["client_id"] = client_id
+    # Defaulted rather than left unset: a change-order quote gets sent, and
+    # sending now requires a client.
+    body["client_id"] = client_id or await ensure_client(client)
     resp = await client.post("/api/v1/jobs/", json=body)
     assert resp.status_code == 201, resp.text
     return resp.json()

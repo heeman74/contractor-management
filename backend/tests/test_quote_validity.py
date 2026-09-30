@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.features.pdf.service import pdf_service
+from tests.quote_client_helpers import ensure_client
 
 _LINE_ITEM = {
     "item_type": "labor",
@@ -18,7 +19,12 @@ _LINE_ITEM = {
 
 async def _create_job(client) -> str:
     resp = await client.post(
-        "/api/v1/jobs/", json={"description": "Validity job", "trade_type": "plumbing"}
+        "/api/v1/jobs/",
+        json={
+            "description": "Validity job",
+            "trade_type": "plumbing",
+            "client_id": await ensure_client(client),
+        },
     )
     assert resp.status_code == 201, resp.text
     return resp.json()["id"]

@@ -455,8 +455,11 @@ async def create_scope_quote(
     await require_permission("quotes.create")(current_user, db)
     # Provide a dummy trade_scope_id to satisfy the QuoteCreate model_validator;
     # create_for_scope overrides it with the URL scope_id anyway.
+    # Rebuilt field by field rather than copied, so every field this route
+    # should forward has to be named — client_id was dropped here once already.
     data_with_scope = QuoteCreate(
         trade_scope_id=scope_id,
+        client_id=data.client_id,
         tax_rate=data.tax_rate,
         discount_type=data.discount_type,
         discount_value=data.discount_value,

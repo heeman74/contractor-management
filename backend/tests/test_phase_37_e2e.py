@@ -49,6 +49,7 @@ from app.features.quotes.suggestion_payload import build_suggestion_payload, jso
 from app.features.quotes.suggestion_repository import ComparableRows, QuoteComparableRepository
 from app.features.quotes.suggestion_service import DROPPED_SUGGESTION_LOG_TEMPLATE
 from app.features.quotes.variance_service import QuoteVarianceService
+from tests.quote_client_helpers import ensure_client
 
 _QUOTES_URL = "/api/v1/quotes/"
 _PROJECTS_URL = "/api/v1/projects/"
@@ -119,6 +120,8 @@ async def _create_job(
         "description": "Phase 37 E2E Test Job",
         "trade_type": trade_type,
         "priority": "medium",
+        # Quotes here get sent, and sending requires a client.
+        "client_id": await ensure_client(client),
     }
     if project_id is not None:
         payload["project_id"] = project_id
@@ -154,7 +157,13 @@ async def _create_project_quote(client: AsyncClient, line_items: list[dict]) -> 
     """Create a project-level draft quote (no job_id, no trade_scope_id)."""
     resp = await client.post(
         _QUOTES_URL,
-        json={"title": "Phase 37 project quote", "tax_rate": "0", "line_items": line_items},
+        json={
+            "title": "Phase 37 project quote",
+            "tax_rate": "0",
+            # No job to inherit a client from; sending requires one.
+            "client_id": await ensure_client(client),
+            "line_items": line_items,
+        },
     )
     assert resp.status_code == 201, f"Quote creation failed: {resp.text}"
     return resp.json()
@@ -292,7 +301,11 @@ async def _create_quote_for_scope(
     """Create a draft quote scoped to a trade scope through the API."""
     resp = await client.post(
         f"/api/v1/trade-scopes/{trade_scope_id}/quotes",
-        json={"tax_rate": "0", "line_items": line_items},
+        json={
+            "tax_rate": "0",
+            "client_id": await ensure_client(client),
+            "line_items": line_items,
+        },
     )
     assert resp.status_code == 201, resp.text
     return resp.json()

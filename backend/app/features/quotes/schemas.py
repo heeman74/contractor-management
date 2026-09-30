@@ -99,6 +99,8 @@ class QuoteCreate(BaseModel):
 
     job_id: uuid.UUID | None = None
     trade_scope_id: uuid.UUID | None = None
+    # Who the quote is for. Optional on a draft, required to send.
+    client_id: uuid.UUID | None = None
     title: str | None = Field(default=None, max_length=200)
     tax_rate: Decimal = Field(default=Decimal("0"), ge=0, le=100, decimal_places=2)
     discount_type: Literal["percent", "fixed"] | None = None
@@ -160,6 +162,8 @@ class QuoteUpdate(BaseModel):
     discount_value: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     expiry_date: date | None = None
     admin_notes: str | None = Field(default=None, max_length=2000)
+    # Settable on a draft so a quote can acquire its client after creation.
+    client_id: uuid.UUID | None = None
     line_items: list[QuoteLineItemCreate] | None = None
 
     @model_validator(mode="after")
@@ -193,6 +197,7 @@ class QuoteResponse(BaseResponseSchema):
     company_id: uuid.UUID
     job_id: uuid.UUID | None
     trade_scope_id: uuid.UUID | None = None
+    client_id: uuid.UUID | None = None
     title: str | None = None
     project_id: uuid.UUID | None = None
     quote_kind: str = QUOTE_KIND_STANDARD
