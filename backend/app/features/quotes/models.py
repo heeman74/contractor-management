@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from app.features.invoices.models import Invoice
     from app.features.jobs.models import Job
     from app.features.projects.models import Project, TradeScope
+    from app.features.users.models import User
 
 # Review-state values a quote line item can carry (Phase 37, D-07/D-08). Only an
 # AI-originated line has review state that matters — a hand-built line stays
@@ -187,6 +188,14 @@ class Quote(TenantScopedModel):
     job: Mapped[Job | None] = relationship(  # type: ignore[name-defined]
         "Job",
         foreign_keys=[job_id],
+        lazy="raise",
+    )
+    # The client this quote is addressed to. Eager-loaded wherever a quote is
+    # serialised, so the UI can name the recipient — a project-level quote has no
+    # job, so the job's client is not a substitute.
+    client: Mapped[User | None] = relationship(  # type: ignore[name-defined]
+        "User",
+        foreign_keys=[client_id],
         lazy="raise",
     )
     originating_job: Mapped[Job | None] = relationship(  # type: ignore[name-defined]

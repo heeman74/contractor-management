@@ -204,3 +204,49 @@ async def test_email_owned_by_another_company_is_refused_cleanly(
     )
     assert second.status_code == 409, second.text
     assert "another account" in second.json()["detail"]
+
+
+# ---------------------------------------------------------------------------
+# The UI has to be able to NAME the client, not just hold its id.
+#
+# The quote list and detail both read the job's client, which a project-level
+# quote does not have — so a quote addressed directly to someone showed a dash
+# where the client belongs, and the client picker's work was invisible.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_quote_reports_the_name_of_its_client(tenant_a_client: AsyncClient):
+    created = await tenant_a_client.post(
+        "/api/v1/crm/clients",
+        json={"email": "named@example.com", "first_name": "Nora", "last_name": "Client"},
+    )
+    assert created.status_code == 201, created.text
+    quote = await _create_quote(tenant_a_client, title="Named", client_id=created.json()["user_id"])
+
+    assert quote["client_name"] == "Nora Client"
+
+    fetched = await tenant_a_client.get(f"/api/v1/quotes/{quote['id']}")
+    assert fetched.json()["client_name"] == "Nora Client"
+
+    listed = await tenant_a_client.get("/api/v1/quotes/")
+    match = next(q for q in listed.json() if q["id"] == quote["id"])
+    assert match["client_name"] == "Nora Client", "the list must name the client too"
+
+
+@pytest.mark.asyncio
+async def test_a_nameless_client_falls_back_to_their_email(tenant_a_client: AsyncClient):
+    """A contractor can add a client before knowing their name."""
+    created = await tenant_a_client.post(
+        "/api/v1/crm/clients", json={"email": "nameless@example.com"}
+    )
+    quote = await _create_quote(
+        tenant_a_client, title="Nameless", client_id=created.json()["user_id"]
+    )
+    assert quote["client_name"] == "nameless@example.com"
+
+
+@pytest.mark.asyncio
+async def test_a_quote_with_no_client_reports_no_name(tenant_a_client: AsyncClient):
+    quote = await _create_quote(tenant_a_client, title="Unaddressed")
+    assert quote["client_name"] is None

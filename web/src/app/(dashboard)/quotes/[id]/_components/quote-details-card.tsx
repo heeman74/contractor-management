@@ -10,22 +10,28 @@ interface QuoteDetailsCardProps {
 }
 
 export function QuoteDetailsCard({ quote, job }: QuoteDetailsCardProps) {
+  const clientId = quote.client_id ?? job?.client_id ?? null;
+  const clientName = quote.client_name ?? job?.client_name ?? null;
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Quote Details</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
+        {/* The quote's own client wins over the job's. A project-level quote has
+            no job at all, so reading only the job left every directly-addressed
+            quote showing a dash. */}
         <DetailField label="Client">
-          {job?.client_id ? (
+          {clientId ? (
             <Link
-              href={`/clients/${job.client_id}`}
+              href={`/clients/${clientId}`}
               className="text-sm text-foreground hover:text-foreground hover:underline"
             >
-              {job.client_name ?? job.client_id.slice(0, 8)}
+              {clientName ?? clientId.slice(0, 8)}
             </Link>
           ) : (
-            <p className="text-sm text-gray-900">{job?.client_name ?? "—"}</p>
+            <p className="text-sm text-gray-900">{clientName ?? "—"}</p>
           )}
         </DetailField>
 

@@ -88,8 +88,11 @@ export function QuotesTable({
               <TableCell className="py-3 px-4 text-sm text-gray-700 whitespace-normal break-words">
                 {job?.description ?? quote.title ?? EMPTY_VALUE}
               </TableCell>
+              {/* The quote's own client first: a project-level quote has no job,
+                  so reading only the job's client left every directly-addressed
+                  quote showing a dash. */}
               <TableCell className="py-3 px-4 text-sm text-gray-700">
-                {job?.client_name ?? EMPTY_VALUE}
+                {quote.client_name ?? job?.client_name ?? EMPTY_VALUE}
               </TableCell>
               <TableCell className="py-3 px-4 font-mono text-sm text-gray-900 text-right">
                 {formatQuoteTotal(quote.total)}

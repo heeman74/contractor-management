@@ -219,6 +219,9 @@ export interface Quote {
   created_job_id?: string | null;
   status: QuoteStatus;
   quote_number?: number | null;
+  client_id?: string | null;
+  // Derived server-side from the quote's client, falling back to the job's.
+  client_name?: string | null;
   revision_number: number;
   tax_rate: string;
   discount_type: DiscountType | null;

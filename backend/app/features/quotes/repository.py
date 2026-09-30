@@ -46,6 +46,7 @@ class QuoteRepository(TenantScopedRepository[Quote]):
     eager_load_options = [
         selectinload(Quote.line_items),
         joinedload(Quote.job),
+        joinedload(Quote.client),
     ]
 
     async def get_with_line_items(self, quote_id: uuid.UUID) -> Quote | None:
@@ -62,6 +63,7 @@ class QuoteRepository(TenantScopedRepository[Quote]):
             .options(
                 selectinload(Quote.line_items),
                 joinedload(Quote.job),
+                joinedload(Quote.client),
             )
         )
         return result.scalars().first()
@@ -109,6 +111,7 @@ class QuoteRepository(TenantScopedRepository[Quote]):
             .options(
                 selectinload(Quote.line_items),
                 joinedload(Quote.job),
+                joinedload(Quote.client),
             )
             .order_by(Quote.created_at.desc())
         )
@@ -128,6 +131,7 @@ class QuoteRepository(TenantScopedRepository[Quote]):
             .options(
                 selectinload(Quote.line_items),
                 joinedload(Quote.job),
+                joinedload(Quote.client),
             )
             .order_by(Quote.co_number)
         )
@@ -146,6 +150,7 @@ class QuoteRepository(TenantScopedRepository[Quote]):
             .options(
                 selectinload(Quote.line_items),
                 joinedload(Quote.job),
+                joinedload(Quote.client),
             )
             .order_by(Quote.created_at.desc())
         )

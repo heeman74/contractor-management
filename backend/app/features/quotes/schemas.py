@@ -191,6 +191,41 @@ class DeclineQuoteRequest(BaseModel):
     detail: str | None = Field(default=None, max_length=1000)
 
 
+def _client_display_name(quote: object) -> str | None:
+    """The name of the client a quote is addressed to, or None.
+
+    Prefers the quote's own client and falls back to the job's, which is where
+    quotes raised before quotes.client_id existed still carry their recipient.
+
+    Relationships are read only when already loaded — they are declared
+    lazy="raise", so touching an unloaded one would raise rather than quietly
+    querying, and a serialiser is the wrong place to discover that.
+    """
+    from sqlalchemy import inspect as sa_inspect
+
+    unloaded = sa_inspect(quote).unloaded
+
+    candidates = []
+    if "client" not in unloaded:
+        candidates.append(getattr(quote, "client", None))
+    if "job" not in unloaded:
+        job = getattr(quote, "job", None)
+        if job is not None and "client" not in sa_inspect(job).unloaded:
+            candidates.append(getattr(job, "client", None))
+
+    for user in candidates:
+        if user is None:
+            continue
+        name = " ".join(
+            part for part in (user.first_name, user.last_name) if part and part.strip()
+        ).strip()
+        if name:
+            return name
+        if user.email:
+            return user.email
+    return None
+
+
 class QuoteResponse(BaseResponseSchema):
     """Full quote response including all audit fields and computed totals."""
 
@@ -198,6 +233,10 @@ class QuoteResponse(BaseResponseSchema):
     job_id: uuid.UUID | None
     trade_scope_id: uuid.UUID | None = None
     client_id: uuid.UUID | None = None
+    # Who the quote is addressed to, by name. Derived rather than stored: the
+    # UI had only the job's client to fall back on, which a project-level quote
+    # does not have, so an attached client never appeared anywhere.
+    client_name: str | None = None
     title: str | None = None
     project_id: uuid.UUID | None = None
     quote_kind: str = QUOTE_KIND_STANDARD
@@ -249,6 +288,7 @@ class QuoteResponse(BaseResponseSchema):
         client must never receive data it is expected to hide.
         """
         obj = cls.model_validate(quote)
+        obj.client_name = _client_display_name(quote)
 
         if not include_finance:
             for item in obj.line_items:
