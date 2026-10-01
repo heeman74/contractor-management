@@ -37,6 +37,9 @@ class RefreshToken(Base):
     token_hash: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     family_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     revoked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # When the token was revoked — powers the concurrent-refresh grace window
+    # (a token revoked moments ago is a racing tab, not a replayed stolen token).
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

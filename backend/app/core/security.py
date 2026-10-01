@@ -49,7 +49,12 @@ def hash_refresh_token(token: str) -> str:
 # ---------------------------------------------------------------------------
 _ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 15
-REFRESH_TOKEN_EXPIRE_DAYS = 30
+REFRESH_TOKEN_EXPIRE_DAYS = 60
+# Grace window after a refresh token is rotated during which re-using it is
+# treated as a concurrent refresh (e.g. two browser tabs) rather than token
+# theft. Without it, a second tab racing the first trips family revocation and
+# logs everyone out.
+REFRESH_REUSE_GRACE_SECONDS = 15
 
 
 def create_access_token(

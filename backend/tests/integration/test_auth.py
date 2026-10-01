@@ -116,19 +116,20 @@ async def test_refresh_token_rotation(async_client):
     refresh_token_2 = data["refresh_token"]
     assert refresh_token_2 != refresh_token_1
 
-    # Old refresh token should be revoked — reuse triggers family revocation
+    # Within the grace window, re-using the just-rotated token is treated as a
+    # concurrent refresh (a second tab), not theft — it returns a fresh pair.
     resp = await async_client.post(
         "/api/v1/auth/refresh",
         json={"refresh_token": refresh_token_1},
     )
-    assert resp.status_code == 401
+    assert resp.status_code == 200
 
-    # New refresh token should also be revoked (family revocation)
+    # The rotated-to token stays valid and rotates normally.
     resp = await async_client.post(
         "/api/v1/auth/refresh",
         json={"refresh_token": refresh_token_2},
     )
-    assert resp.status_code == 401
+    assert resp.status_code == 200
 
 
 @pytest.mark.asyncio

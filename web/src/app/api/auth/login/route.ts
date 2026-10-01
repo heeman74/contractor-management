@@ -58,7 +58,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     secure: IS_PROD,
     sameSite: "lax",
     path: "/api/auth/refresh",
-    maxAge: 2592000, // 30 days
+    maxAge: 5184000, // 60 days
   });
 
   // Return only user metadata — NEVER return tokens to client

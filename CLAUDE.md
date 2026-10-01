@@ -3,7 +3,7 @@
 ## Architecture
 - **Backend**: FastAPI + SQLAlchemy async + PostgreSQL with Row Level Security
 - **Mobile**: Flutter + Riverpod + Drift + Dio + GetIt
-- **Auth**: JWT access tokens (15 min) + refresh token rotation (30 days)
+- **Auth**: JWT access tokens (15 min) + refresh token rotation (60 days, sliding) with a short concurrent-refresh grace window
 - **Multi-tenant**: company_id in JWT drives RLS via ContextVar + SET LOCAL
 
 ## Python / Backend Rules

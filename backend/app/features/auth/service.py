@@ -13,6 +13,7 @@ from sqlalchemy.orm import selectinload
 from app.core.config import settings
 from app.core.email import EmailService
 from app.core.security import (
+    REFRESH_REUSE_GRACE_SECONDS,
     REFRESH_TOKEN_EXPIRE_DAYS,
     create_access_token,
     create_refresh_token_jwt,
@@ -197,8 +198,17 @@ class AuthService:
         if stored_token is None:
             raise ValueError("Refresh token not found")
 
-        # Reuse detection: if token is already revoked, revoke entire family
+        now = datetime.now(UTC)
+
         if stored_token.revoked:
+            # Concurrent-refresh grace: a token revoked moments ago by a routine
+            # rotation is almost certainly a second tab refreshing at the same
+            # time, not a replayed stolen token — issue a fresh pair instead of
+            # nuking the family.
+            if await self._is_concurrent_refresh(stored_token, now):
+                return await self._issue_token_pair(payload)
+
+            # Genuine reuse of a long-dead token: revoke the entire family.
             await self.db.execute(
                 update(RefreshToken)
                 .where(RefreshToken.family_id == stored_token.family_id)
@@ -212,18 +222,42 @@ class AuthService:
             raise ValueError("Token reuse detected — family revoked")
 
         # Check expiration
-        if stored_token.expires_at < datetime.now(UTC):
+        if stored_token.expires_at < now:
             raise ValueError("Refresh token expired")
 
-        # Revoke the current token
+        # Revoke the current token and rotate into a new pair.
         stored_token.revoked = True
+        stored_token.revoked_at = now
+        return await self._issue_token_pair(payload)
 
-        # Issue new token pair in the same family
+    async def _is_concurrent_refresh(self, token: RefreshToken, now: datetime) -> bool:
+        """Whether reusing this revoked token is a benign concurrent refresh.
+
+        True only when it was revoked by a routine rotation moments ago AND its
+        family still has a live token. Logout and theft-revocation mark every
+        token in the family revoked, leaving none live — so those correctly fall
+        through to the reuse path rather than being granted a new pair.
+        """
+        if token.revoked_at is None:
+            return False
+        if (now - token.revoked_at) > timedelta(seconds=REFRESH_REUSE_GRACE_SECONDS):
+            return False
+        live = await self.db.execute(
+            select(RefreshToken.id)
+            .where(
+                RefreshToken.family_id == token.family_id,
+                RefreshToken.revoked.is_(False),
+            )
+            .limit(1)
+        )
+        return live.scalars().first() is not None
+
+    async def _issue_token_pair(self, payload: dict) -> dict:
+        """Mint a fresh access + refresh pair for the token's user and family."""
         user_id = UUID(payload["sub"])
         company_id = UUID(payload["company_id"])
         family_id = payload["family_id"]
 
-        # Get current roles
         roles_result = await self.db.execute(
             select(UserRole.role).where(
                 UserRole.user_id == user_id,
@@ -236,14 +270,14 @@ class AuthService:
         access_token = create_access_token(user_id, company_id, roles)
         new_refresh_token = create_refresh_token_jwt(user_id, company_id, family_id)
 
-        # Store new refresh token hash
-        new_rt = RefreshToken(
-            user_id=user_id,
-            token_hash=hash_refresh_token(new_refresh_token),
-            family_id=family_id,
-            expires_at=datetime.now(UTC) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
+        self.db.add(
+            RefreshToken(
+                user_id=user_id,
+                token_hash=hash_refresh_token(new_refresh_token),
+                family_id=family_id,
+                expires_at=datetime.now(UTC) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
+            )
         )
-        self.db.add(new_rt)
 
         return {
             "access_token": access_token,

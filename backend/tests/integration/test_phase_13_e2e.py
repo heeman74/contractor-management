@@ -156,13 +156,14 @@ async def test_refresh_rotates_tokens_and_revokes_old(async_client):
     assert new_refresh != old_refresh, "Refresh token should rotate to a new value"
     assert "access_token" in new_data
 
-    # Using old refresh token again should fail (revoked on rotation)
+    # Re-using the old token within the grace window is treated as a concurrent
+    # refresh (second tab), not theft — it returns a fresh pair rather than 401.
     resp2 = await async_client.post(
         "/api/v1/auth/refresh",
         json={"refresh_token": old_refresh},
     )
-    assert resp2.status_code in (401, 400), (
-        f"Expected 401/400 for reused refresh token, got {resp2.status_code}: {resp2.text}"
+    assert resp2.status_code == 200, (
+        f"Expected 200 for a within-grace concurrent refresh, got {resp2.status_code}: {resp2.text}"
     )
 
 
