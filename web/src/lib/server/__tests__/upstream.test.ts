@@ -9,6 +9,9 @@
  * error response is a real answer and must pass through untouched — retrying a
  * 401 would be wrong, and masking it would be worse.
  */
+import { type RequestListener, type Server, createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+
 import { UPSTREAM_TIMEOUT_MS, fetchUpstream } from "../upstream";
 
 const originalFetch = global.fetch;
@@ -76,4 +79,134 @@ it("allows enough time for an observed cold start", () => {
   // The deployed API took ~62s to wake. A budget under that would reintroduce
   // the exact failure this helper exists to prevent.
   expect(UPSTREAM_TIMEOUT_MS).toBeGreaterThan(62_000);
+});
+
+/**
+ * The production 401: a trailing-slash redirect that lost the credentials.
+ *
+ * These run against real servers rather than a fetch mock, because the bug was
+ * in fetch's own redirect handling — a mock would have happily "passed" the
+ * header through and proved nothing.
+ */
+describe("redirects", () => {
+  const servers: Server[] = [];
+
+  const listen = (handler: RequestListener): Promise<number> => {
+    const server = createServer(handler);
+    servers.push(server);
+    return new Promise((resolve) => {
+      server.listen(0, "127.0.0.1", () => {
+        resolve((server.address() as AddressInfo).port);
+      });
+    });
+  };
+
+  afterEach(async () => {
+    await Promise.all(
+      servers.splice(0).map((s) => new Promise((done) => s.close(() => done(null))))
+    );
+  });
+
+  it("re-issues a scheme-downgraded hop on the origin it started from", async () => {
+    // The production shape exactly: same host, Location downgraded to http
+    // because that is what the upstream received behind the TLS terminator.
+    // Re-issuing on the original origin is what keeps the hop same-origin, and
+    // same-origin is the only reason the credentials survive — proven against
+    // real servers in the sibling test below, where a cross-origin hop arrives
+    // with no Authorization at all.
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 307,
+          headers: { Location: "http://api.test/api/v1/jobs/?limit=10" },
+        })
+      )
+      .mockResolvedValueOnce(new Response("ok", { status: 200 }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const res = await fetchUpstream("https://api.test/api/v1/jobs?limit=10", {
+      headers: { Authorization: "Bearer the-real-token" },
+    });
+
+    expect(res?.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][0]).toBe("https://api.test/api/v1/jobs/?limit=10");
+    const followInit = fetchMock.mock.calls[1][1] as RequestInit;
+    expect(followInit.headers).toEqual({ Authorization: "Bearer the-real-token" });
+  });
+
+  it("confirms a cross-origin hop is what loses the header", async () => {
+    // Not a test of our code — a check that the premise still holds in this
+    // runtime. If fetch ever stops stripping Authorization across origins, the
+    // origin-rewriting above becomes unnecessary rather than load-bearing.
+    let authSeen: string | undefined = "header never arrived";
+    const targetPort = await listen((req, res) => {
+      authSeen = req.headers.authorization;
+      res.end("ok");
+    });
+    const sourcePort = await listen((_req, res) => {
+      res.writeHead(307, { Location: `http://127.0.0.1:${targetPort}/api/v1/jobs/` });
+      res.end();
+    });
+
+    await fetch(`http://127.0.0.1:${sourcePort}/api/v1/jobs`, {
+      headers: { Authorization: "Bearer the-real-token" },
+    });
+
+    expect(authSeen).toBeUndefined();
+  });
+
+  it("preserves the method and body through a 307", async () => {
+    // A same-origin hop, which fetch already followed correctly — this guards
+    // our own following against regressing what it replaced.
+    let seen: { method?: string; body: string } = { body: "" };
+    const port = await listen((req, res) => {
+      if (req.url === "/api/v1/quotes") {
+        res.writeHead(307, { Location: "/api/v1/quotes/" });
+        res.end();
+        return;
+      }
+      let body = "";
+      req.on("data", (chunk) => (body += chunk));
+      req.on("end", () => {
+        seen = { method: req.method, body };
+        res.end("ok");
+      });
+    });
+
+    await fetchUpstream(`http://127.0.0.1:${port}/api/v1/quotes`, {
+      method: "POST",
+      body: '{"title":"x"}',
+    });
+
+    expect(seen.method).toBe("POST");
+    expect(seen.body).toBe('{"title":"x"}');
+  });
+
+  it("refuses to carry credentials to a different host", async () => {
+    // A redirect off-host must not hand our token to whoever answers there.
+    const sourcePort = await listen((_req, res) => {
+      res.writeHead(307, { Location: "http://attacker.example/api/v1/jobs/" });
+      res.end();
+    });
+
+    const res = await fetchUpstream(`http://127.0.0.1:${sourcePort}/api/v1/jobs`, {
+      headers: { Authorization: "Bearer the-real-token" },
+    });
+
+    // The hop is not taken; the redirect itself comes back.
+    expect(res?.status).toBe(307);
+  });
+
+  it("does not follow a redirect loop forever", async () => {
+    const sourcePort = await listen((_req, res) => {
+      res.writeHead(307, { Location: "/api/v1/jobs/" });
+      res.end();
+    });
+
+    const res = await fetchUpstream(`http://127.0.0.1:${sourcePort}/api/v1/jobs`);
+
+    expect(res?.status).toBe(307);
+  });
 });
