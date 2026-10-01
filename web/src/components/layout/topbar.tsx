@@ -25,42 +25,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { clearAuth } from "@/store/slices/auth-slice";
 import { LogOut, ChevronDown, KeyRound } from "lucide-react";
 
-// Map path segments to human-readable labels
-const SEGMENT_LABELS: Record<string, string> = {
-  jobs: "Jobs",
-  schedule: "Schedule",
-  quotes: "Quotes",
-  invoices: "Invoices",
-  clients: "Clients",
-  contractors: "Contractors",
-  reports: "Reports",
-  requests: "Requests",
-  download: "Get Mobile App",
-};
-
-interface BreadcrumbSegment {
-  label: string;
-  href: string | null;
-}
-
-function buildBreadcrumbs(pathname: string): BreadcrumbSegment[] {
-  const segments = pathname.split("/").filter(Boolean);
-
-  if (segments.length === 0) {
-    return [{ label: "Dashboard", href: null }];
-  }
-
-  const crumbs: BreadcrumbSegment[] = [{ label: "Dashboard", href: "/" }];
-
-  segments.forEach((segment, index) => {
-    const href = "/" + segments.slice(0, index + 1).join("/");
-    const isLast = index === segments.length - 1;
-    const label = SEGMENT_LABELS[segment] ?? segment.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-    crumbs.push({ label, href: isLast ? null : href });
-  });
-
-  return crumbs;
-}
+import { SEGMENT_LABELS, buildBreadcrumbs } from "@/components/layout/breadcrumbs";
 
 export function Topbar() {
   const pathname = usePathname();
