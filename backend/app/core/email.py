@@ -33,9 +33,21 @@ class EmailService:
         """Send one message. Falls back to the dev outbox when SMTP is unset."""
         if settings.smtp_host:
             await asyncio.to_thread(self._send_smtp, to, subject, text_body, html_body)
-        else:
-            sent_emails.append({"to": to, "subject": subject, "text": text_body, "html": html_body})
+            return
+
+        sent_emails.append({"to": to, "subject": subject, "text": text_body, "html": html_body})
+        if settings.debug:
             logger.info("Email (dev mode, not sent) to=%s subject=%s\n%s", to, subject, text_body)
+        else:
+            # Dev mode on a deployed instance is almost certainly unintended: the
+            # caller is told the message was sent and nothing leaves the box. Say
+            # so at a level that shows up, rather than filing it under info.
+            logger.error(
+                "Email NOT sent: SMTP_HOST is unset, so this instance is in dev mode "
+                "and the message was discarded. to=%s subject=%s",
+                to,
+                subject,
+            )
 
     def _send_smtp(self, to: str, subject: str, text_body: str, html_body: str) -> None:
         message = EmailMessage()
@@ -65,5 +77,37 @@ class EmailService:
             f'<p><a href="{reset_url}">Reset your password</a> '
             "(the link expires in 1 hour).</p>"
             "<p>If you didn't request this, you can safely ignore this email.</p>"
+        )
+        await self.send(to=to, subject=subject, text_body=text_body, html_body=html_body)
+
+    async def send_quote_to_client(
+        self,
+        *,
+        to: str,
+        quote_number: str,
+        company_name: str,
+        total: str,
+        quote_url: str,
+        expiry_date: str | None,
+    ) -> None:
+        """Send a quote to the client it is addressed to."""
+        subject = f"Quote {quote_number} from {company_name}"
+        validity = (
+            f"This quote is valid through {expiry_date}.\n\n" if expiry_date is not None else ""
+        )
+        text_body = (
+            f"{company_name} has sent you quote {quote_number}.\n\n"
+            f"Total: {total}\n\n"
+            f"{validity}"
+            f"Review and approve it here:\n{quote_url}\n"
+        )
+        html_validity = (
+            f"<p>This quote is valid through {expiry_date}.</p>" if expiry_date is not None else ""
+        )
+        html_body = (
+            f"<p>{company_name} has sent you quote {quote_number}.</p>"
+            f"<p><strong>Total: {total}</strong></p>"
+            f"{html_validity}"
+            f'<p><a href="{quote_url}">Review and approve this quote</a></p>'
         )
         await self.send(to=to, subject=subject, text_body=text_body, html_body=html_body)

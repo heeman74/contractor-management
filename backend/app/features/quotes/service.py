@@ -35,6 +35,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.base_service import TenantScopedService, entity_or_404
+from app.core.config import settings
+from app.core.email import EmailService
+from app.core.logging_config import get_logger
+from app.features.companies.models import Company
 from app.features.contracts.models import Contract
 from app.features.invoices.models import Invoice
 from app.features.jobs.mixins import JobEventsMixin
@@ -59,9 +63,13 @@ from app.features.quotes.schemas import (
     DeclineQuoteRequest,
     QuoteCreate,
     QuoteLineItemCreate,
+    QuoteResponse,
     QuoteTemplateCreate,
     QuoteUpdate,
 )
+from app.features.users.models import User
+
+logger = get_logger(__name__)
 
 # Fallbacks when an approved project-level quote is converted into a project.
 _DEFAULT_PROJECT_NAME = "New Project"
@@ -451,7 +459,7 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
         quote = await self._get_quote_or_404(quote_id)
         self._require_quote_status(quote, {"draft"}, "send")
         self._require_no_unreviewed_ai_lines(quote)
-        await self._require_client(quote)
+        client_id = await self._require_client(quote)
 
         quote.status = "sent"
         quote.sent_at = datetime.now(UTC)
@@ -461,9 +469,56 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
         await self.db.flush()
         await self._append_job_status_event(quote.job_id, "quote_sent", None)
 
+        sent = await self.repository.get_with_line_items(quote_id)
+        await self._email_quote_to_client(sent, client_id)  # type: ignore[arg-type]
         await self._notify_job_client(quote.job_id, "quote_sent")
 
-        return await self.repository.get_with_line_items(quote_id)  # type: ignore[return-value]
+        return sent  # type: ignore[return-value]
+
+    async def _email_quote_to_client(self, quote: Quote, client_id: uuid.UUID) -> None:
+        """Email the quote to the client it is addressed to.
+
+        Sending is part of the operation rather than fire-and-forget. A push
+        notification was the only thing a send ever produced, so a quote could be
+        marked sent, answer 200, and reach the client's inbox never — which is
+        indistinguishable from success to whoever pressed the button. If the mail
+        cannot go out the request fails, the transaction rolls back, and the
+        quote stays a draft that can be sent again.
+        """
+        client = await self.db.get(User, client_id)
+        if client is None or not client.email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This quote's client has no email address to send to.",
+            )
+
+        company = await self.db.get(Company, quote.company_id)
+        quote_url = f"{settings.public_web_url.rstrip('/')}/quotes/{quote.id}"
+        # The same total the API returns, not a second implementation of it.
+        # model_validate alone leaves the totals on their zero defaults — they
+        # are computed, and from_orm_with_totals is what computes them.
+        total = QuoteResponse.from_orm_with_totals(quote).total
+
+        try:
+            await EmailService().send_quote_to_client(
+                to=client.email,
+                quote_number=f"#{quote.quote_number}",
+                company_name=company.name if company is not None else "Your contractor",
+                total=f"${total:,.2f}",
+                quote_url=quote_url,
+                expiry_date=quote.expiry_date.isoformat() if quote.expiry_date else None,
+            )
+        except Exception as exc:
+            logger.error(
+                "Quote email failed, send aborted: quote_id=%s to=%s error=%s",
+                quote.id,
+                client.email,
+                exc,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Could not email the quote to the client. The quote is still a draft.",
+            ) from exc
 
     async def record_view(self, quote_id: uuid.UUID, viewer_id: uuid.UUID) -> Quote:
         """Record client's first view of a sent quote (read receipt).

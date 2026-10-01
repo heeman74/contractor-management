@@ -29,15 +29,24 @@ class JobEventsMixin:
 
     async def _append_job_status_event(
         self,
-        job_id: uuid.UUID,
+        job_id: uuid.UUID | None,
         event_type: str,
         user_id: uuid.UUID | None = None,
     ) -> None:
         """Append a {type, user_id, timestamp} event to a job's status_history.
 
         Replaces the JSONB list entirely (never mutates in-place — Pitfall 3).
-        No-op if the job no longer exists.
+        No-op if there is no job, or if the job no longer exists.
+
+        The id is optional because quote events pass `quote.job_id`, and a
+        project-level quote has no job. Declaring it non-null did not make it so:
+        the None reached `db.get(Job, None)`, which SQLAlchemy answers with
+        "fully NULL primary key identity cannot load any object" and warns may
+        become an error in a future release.
         """
+        if job_id is None:
+            return
+
         job = await self.db.get(Job, job_id)
         if job is None:
             return

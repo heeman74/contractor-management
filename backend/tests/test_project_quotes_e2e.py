@@ -7,8 +7,11 @@ approval it creates a Project (named by the quote title) plus one Job per line-i
 
 from __future__ import annotations
 
+import warnings
+
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.exc import SAWarning
 
 from app.main import app as fastapi_app
 
@@ -152,3 +155,34 @@ async def test_quote_cannot_attach_to_both_job_and_scope(
         },
     )
     assert resp.status_code == 422, resp.text
+
+
+@pytest.mark.asyncio
+async def test_sending_a_project_quote_does_not_look_up_a_null_job(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    """A project-level quote has no job, so no job lookup should be attempted.
+
+    Quote events pass `quote.job_id` straight through, and sending a quote with
+    no job reached `db.get(Job, None)` — which SQLAlchemy answers with "fully
+    NULL primary key identity cannot load any object" and warns may become an
+    error in a future release. Escalating that warning here turns the silent
+    version into a failure: the send returns 500 without the guard.
+    """
+    create = await tenant_a_client.post(
+        "/api/v1/quotes/",
+        json={
+            **_PROJECT_QUOTE_BODY,
+            "client_id": seed_two_tenants["tenant_a_user_id"],
+        },
+    )
+    assert create.status_code == 201, create.text
+    quote = create.json()
+    assert quote["job_id"] is None, "this test is only meaningful without a job"
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", SAWarning)
+        send = await tenant_a_client.post(f"/api/v1/quotes/{quote['id']}/send")
+
+    assert send.status_code == 200, send.text
+    assert send.json()["status"] == "sent"
