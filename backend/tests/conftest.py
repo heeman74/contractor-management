@@ -39,6 +39,7 @@ from sqlalchemy.pool import NullPool
 import app.core.database as db_module
 import app.core.email as email_module
 from app.core.email import EmailService, sent_emails
+from app.core.login_throttle import login_throttle
 from app.core.rate_limit import limiter
 from app.main import app
 
@@ -240,6 +241,7 @@ async def clean_tables(test_engine):
         )
         await conn.commit()
     limiter.reset()
+    login_throttle.reset()
     yield
 
 

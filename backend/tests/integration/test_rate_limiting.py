@@ -8,10 +8,12 @@ all requests come from the same "client", so the limiter applies.
 import pytest
 from httpx import AsyncClient
 
-# Matches @limiter.limit on /auth/login. Raised from five, which refused a person
-# who mistyped a password twice and reloaded the page — the limit is there to slow
-# credential stuffing, which needs orders of magnitude more than that.
-_LOGIN_ATTEMPTS_PER_MINUTE = 10
+# Matches @limiter.limit on /auth/login, which is now only a flood guard: it is
+# keyed on the caller, and every browser reaches this API through the web app, so
+# it must not be able to lock anyone out for long if that key collapses. Guessing
+# at an account is stopped by the per-account failure throttle instead — see
+# tests/test_login_throttle_e2e.py.
+_LOGIN_ATTEMPTS_PER_MINUTE = 60
 
 
 @pytest.mark.asyncio

@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.login_throttle import login_throttle
 from app.core.rate_limit import limiter
 from app.core.security import CurrentUser, get_current_user
 from app.features.auth.schemas import (
@@ -55,23 +56,45 @@ async def register_endpoint(
     return TokenResponse(**result)
 
 
+# A flood guard only. The real protection is the per-account failure throttle
+# below: this one is keyed on the caller, and every browser reaches this API
+# through the web app, so if that key ever collapses to one value it must not be
+# able to lock anybody out for long. A minute is the whole exposure.
 @router.post("/login", response_model=TokenResponse)
-@limiter.limit("10/minute;100/hour")
+@limiter.limit("60/minute")
 async def login_endpoint(
     request: Request,
     data: LoginRequest,
     db: AsyncSession = Depends(get_db),
 ) -> TokenResponse:
-    """Authenticate with email + password. Returns token pair."""
+    """Authenticate with email + password. Returns token pair.
+
+    Repeated failures against one account are throttled; success is not. Someone
+    who logs in correctly can do it as often as they like — rate limiting a
+    correct password protects nobody, and doing it locked a user out of their own
+    account after they came back from an hour away.
+    """
+    wait = login_throttle.retry_after(data.email)
+    if wait is not None:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=(f"Too many failed attempts for this account. Try again in {wait} seconds."),
+            headers={"Retry-After": str(wait)},
+        )
+
     try:
         svc = AuthService(db)
         result = await svc.login(email=data.email, password=data.password)
     except ValueError as e:
+        login_throttle.record_failure(data.email)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e),
         ) from e
 
+    # The password was right, so whatever came before it is no longer evidence
+    # of anything.
+    login_throttle.clear(data.email)
     return TokenResponse(**result)
 
 
