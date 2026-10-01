@@ -62,6 +62,33 @@ class _IPv4SMTP(smtplib.SMTP):
         raise last_exc or OSError(f"No IPv4 address found for {host}")
 
 
+class _IPv4SMTPS(smtplib.SMTP_SSL, _IPv4SMTP):
+    """Implicit-TLS SMTP, also pinned to IPv4.
+
+    Port 465 speaks TLS from the first byte rather than upgrading with STARTTLS.
+    Worth supporting because a network that silently drops 587 sometimes leaves
+    465 alone, and the only alternative is telling someone their mail cannot be
+    sent from here. SMTP_SSL builds its socket through super(), so the IPv4
+    resolution above is what it gets.
+    """
+
+
+class MailTransportError(RuntimeError):
+    """A mail server could not be reached, with the reason a person can act on.
+
+    "TimeoutError: timed out" names neither the host nor what was being
+    attempted, so it cannot distinguish a blocked port from a wrong password.
+    """
+
+
+# Implicit TLS rather than STARTTLS, by long-standing convention.
+IMPLICIT_TLS_PORT = 465
+
+# A cold free instance plus DNS, TCP and a TLS handshake does not always fit in
+# fifteen seconds, and a timeout that is really just slowness reads as a block.
+SMTP_TIMEOUT_SECONDS = 30
+
+
 # Named in logs so a send that reached nobody is distinguishable from one that
 # left the building. The three are otherwise identical from the outside.
 TRANSPORT_COMPANY = "company-smtp"
@@ -226,12 +253,43 @@ class EmailService:
         message.set_content(text_body)
         message.add_alternative(html_body, subtype="html")
 
-        with _IPv4SMTP(transport.host, transport.port, timeout=15) as server:
-            if transport.use_tls:
+        with self._connect(transport) as server:
+            # 465 is already encrypted; STARTTLS on top of it is an error.
+            if transport.use_tls and transport.port != IMPLICIT_TLS_PORT:
                 server.starttls()
             if transport.user and transport.password:
                 server.login(transport.user, transport.password)
             server.send_message(message)
+
+    @staticmethod
+    def _connect(transport: MailTransport) -> smtplib.SMTP:
+        """Open the connection, reporting a failure in terms of what was tried.
+
+        A refusal and a silent drop mean different things — the first says
+        nothing is listening, the second usually says something between here and
+        there is discarding the packets — and neither is a credential problem.
+        Saying which happened is the difference between a fixable report and
+        "timed out".
+        """
+        where = f"{transport.host}:{transport.port}"
+        client = _IPv4SMTPS if transport.port == IMPLICIT_TLS_PORT else _IPv4SMTP
+        try:
+            return client(transport.host, transport.port, timeout=SMTP_TIMEOUT_SECONDS)
+        except TimeoutError as exc:
+            raise MailTransportError(
+                f"No answer from {where} within {SMTP_TIMEOUT_SECONDS}s. The "
+                "server never replied, which usually means outbound mail on "
+                "this port is blocked between here and there rather than "
+                "anything being wrong with the address or password. Port 465 is "
+                "worth trying, or a provider that sends over HTTPS."
+            ) from exc
+        except ConnectionRefusedError as exc:
+            raise MailTransportError(
+                f"{where} refused the connection — nothing is listening there. "
+                "Check the server address and port."
+            ) from exc
+        except OSError as exc:
+            raise MailTransportError(f"Could not reach {where}: {exc}") from exc
 
     async def send_password_reset(self, *, to: str, reset_url: str) -> None:
         """Send the password-reset link email."""

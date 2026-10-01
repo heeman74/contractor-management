@@ -230,6 +230,10 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
               onChange={(event) => setSmtpPort(event.target.value)}
               placeholder="587"
             />
+            <p className="text-xs text-muted-foreground">
+              587 for STARTTLS, 465 if the connection times out — some networks
+              drop 587 without answering.
+            </p>
           </div>
 
           <div className="space-y-1.5">
