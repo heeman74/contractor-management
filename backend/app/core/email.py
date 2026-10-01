@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import smtplib
+import socket
 from dataclasses import dataclass
 from email.message import EmailMessage
 from email.utils import formataddr, parseaddr
@@ -39,6 +40,27 @@ logger = logging.getLogger(__name__)
 sent_emails: list[dict[str, str]] = []
 
 _DEFAULT_SMTP_PORT = 587
+
+
+class _IPv4SMTP(smtplib.SMTP):
+    """SMTP client that connects over IPv4 only.
+
+    Some container hosts (notably Render) advertise an IPv6 address but have no
+    route to the IPv6 internet. smtplib's default dual-stack connect then tries
+    the server's IPv6 address and fails with "[Errno 101] Network is unreachable"
+    before it ever falls back to IPv4. Pinning to IPv4 sidesteps that — every
+    provider we target (Gmail included) publishes an IPv4 endpoint.
+    """
+
+    def _get_socket(self, host: str, port: int, timeout: float) -> socket.socket:
+        last_exc: OSError | None = None
+        for *_meta, sockaddr in socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM):
+            try:
+                return socket.create_connection(sockaddr, timeout, self.source_address)
+            except OSError as exc:
+                last_exc = exc
+        raise last_exc or OSError(f"No IPv4 address found for {host}")
+
 
 # Named in logs so a send that reached nobody is distinguishable from one that
 # left the building. The three are otherwise identical from the outside.
@@ -204,7 +226,7 @@ class EmailService:
         message.set_content(text_body)
         message.add_alternative(html_body, subtype="html")
 
-        with smtplib.SMTP(transport.host, transport.port, timeout=15) as server:
+        with _IPv4SMTP(transport.host, transport.port, timeout=15) as server:
             if transport.use_tls:
                 server.starttls()
             if transport.user and transport.password:
