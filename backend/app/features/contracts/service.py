@@ -104,12 +104,18 @@ class ContractService(TenantScopedService[Contract]):
                 "company_name": company.name or "",
                 "company_address": company.address or "",
                 "company_license_number": company.license_number or "________",
-                "company_phone": company.phone or "",
+                "company_phone": company.phone or "________",
+                # CSLB requires an address a cancellation can be emailed to, so
+                # this is a blank to fill rather than an empty string that reads
+                # as though none is needed.
+                "company_email": company.email_from_address or "________",
                 "client_name": client_name or "________",
                 "client_address": client_address or "",
                 "client_email": (getattr(client, "email", "") or ""),
                 "project_description": (getattr(job, "description", "") or ""),
-                "quote_number": str(quote.id),
+                # The number a person can refer to, not the row id: a contract
+                # that cites "Quote 9f3c…" cites something nobody can look up.
+                "quote_number": f"#{quote.quote_number}" if quote.quote_number else "________",
                 "quote_total": f"${total:.2f}",
                 "today": datetime.now(UTC).date().strftime("%B %d, %Y"),
                 "validity_statement": validity_statement,

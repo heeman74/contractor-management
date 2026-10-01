@@ -28,6 +28,42 @@
      Rendered small/light so they do not distract on the printed copy. */
   .sigtag { color: #ffffff; font-size: 6px; }
   .footer { margin-top: 24px; font-size: 10px; color: #888; text-align: center; }
+
+  /* CSLB sample contract structure. The statutory blocks are set apart because
+     they are the parts a contractor may not paraphrase, and a reader is
+     entitled to find them without hunting. */
+  .terms .statutory {
+    font-weight: bold; text-align: center; text-transform: uppercase;
+    margin: 14px 0; padding: 8px 10px; border: 1px solid #333; line-height: 1.4;
+  }
+  .terms .centered { text-align: center; }
+  .terms .contractor-block { text-align: center; margin: 4px 0 14px; }
+  .terms .contractor-block p { margin: 2px 0; }
+  .terms .contractor-block .contractor-name { font-size: 14px; }
+  /* A square that prints, rather than a glyph that depends on the font having it. */
+  .terms .checkbox {
+    display: inline-block; width: 9px; height: 9px;
+    border: 1px solid #333; vertical-align: -1px; margin-right: 3px;
+  }
+  /* Something to write on: a fill-in blank has to survive printing. */
+  .terms .blank {
+    display: inline-block; min-width: 150px;
+    border-bottom: 1px solid #333; vertical-align: -2px;
+  }
+  .terms .fill { border-bottom: 1px solid #333; }
+  .terms .blank-lines { border-bottom: 1px solid #333; height: 48px; margin-bottom: 10px; }
+  .terms table.payments th { width: 30%; }
+  .terms table.payments td { height: 20px; border-bottom: 1px solid #333; }
+  .terms table.signatures { margin-top: 18px; page-break-inside: avoid; }
+  .terms table.signatures th { width: 50%; border: 1px solid #333; }
+  .terms table.signatures td.sig-cell {
+    height: 34px; border: 1px solid #333; vertical-align: bottom;
+    font-size: 10px; color: #555;
+  }
+  .terms .sig-right { text-align: right; font-size: 10px; color: #555; margin-top: 26px; }
+  .terms .page-break { page-break-before: always; }
+  .terms ol, .terms ul { margin: 6px 0 6px 18px; padding-left: 8px; }
+  .terms li { margin-bottom: 4px; }
 </style>
 </head>
 <body>

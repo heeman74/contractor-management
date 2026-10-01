@@ -159,7 +159,9 @@ async def test_public_view_with_token(async_client, tenant_a_client, seed_two_te
     assert resp.status_code == 200, resp.text
     view = resp.json()
     assert view["contract_id"] == result["contract"]["id"]
-    assert "ATTORNEY REVIEW REQUIRED" in view["terms_snapshot"]
+    # The snapshot the signer sees is the merged CSLB contract, caveat included.
+    assert "HOME IMPROVEMENT CONTRACT" in view["terms_snapshot"]
+    assert "have your attorney review this" in view["terms_snapshot"]
     assert view["sign_url"]
 
     bad = await async_client.get("/api/v1/public/contracts/not-a-valid-token")

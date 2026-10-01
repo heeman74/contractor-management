@@ -4,6 +4,8 @@ WeasyPrint is not installed in this environment, so PDF rendering is patched; th
 template still renders (so template errors surface), only the HTML->PDF step is stubbed.
 """
 
+import re
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -105,5 +107,110 @@ async def test_new_company_gets_default_terms_template(tenant_a_client, seed_two
     resp = await tenant_a_client.get("/api/v1/contract-template")
     assert resp.status_code == 200, resp.text
     body = resp.json()["body"]
-    assert "ATTORNEY REVIEW REQUIRED" in body
+    assert "HOME IMPROVEMENT CONTRACT" in body
     assert "{{client_name}}" in body
+
+
+# ---------------------------------------------------------------------------
+# The CSLB sample contract
+#
+# The template follows the Contractors State License Board's published sample,
+# which is the structure California expects. The statutory notices are the part
+# a contractor may not paraphrase, so their presence is asserted rather than
+# assumed: a contract that quietly lost the mechanics lien warning or the
+# downpayment cap is worse than one that was never generated.
+# ---------------------------------------------------------------------------
+
+_REQUIRED_STATUTORY_TEXT = [
+    "THE DOWNPAYMENT MAY NOT EXCEED $1,000 OR 10 PERCENT",
+    "IT IS AGAINST THE LAW FOR A CONTRACTOR TO COLLECT PAYMENT",
+    "MECHANICS LIEN WARNING",
+    "YOU ARE ENTITLED TO A COMPLETELY FILLED IN COPY",
+    "THREE-DAY RIGHT TO CANCEL",
+    "NOTICE OF CANCELLATION",
+    "CONTRACTORS STATE LICENSE BOARD",
+    "800-321-CSLB",
+    "Sections 8400 and 8404 of the Civil Code",
+    "Sections 1689.5 to 1689.14",
+]
+
+
+@pytest.mark.parametrize("required", _REQUIRED_STATUTORY_TEXT)
+async def test_generated_contract_carries_the_statutory_notices(
+    tenant_a_client, seed_two_tenants, required
+):
+    quote = await _approved_quote(tenant_a_client, seed_two_tenants)
+    gen = await tenant_a_client.post("/api/v1/contracts", json={"quote_id": quote["id"]})
+    assert gen.status_code == 201, gen.text
+
+    assert required in gen.json()["terms_snapshot"]
+
+
+async def test_generated_contract_resolves_every_merge_field(tenant_a_client, seed_two_tenants):
+    """An unresolved {{field}} would be printed to a client as-is."""
+    quote = await _approved_quote(tenant_a_client, seed_two_tenants)
+    gen = await tenant_a_client.post("/api/v1/contracts", json={"quote_id": quote["id"]})
+    assert gen.status_code == 201, gen.text
+
+    terms = gen.json()["terms_snapshot"]
+    assert "{{" not in terms, "a placeholder reached the contract"
+    assert "}}" not in terms
+
+
+async def test_the_contract_cites_a_quote_number_a_person_can_look_up(
+    tenant_a_client, seed_two_tenants
+):
+    """It cited the row id, so the contract referred to a quote nobody could find."""
+    quote = await _approved_quote(tenant_a_client, seed_two_tenants)
+    gen = await tenant_a_client.post("/api/v1/contracts", json={"quote_id": quote["id"]})
+    assert gen.status_code == 201, gen.text
+
+    terms = gen.json()["terms_snapshot"]
+    assert f"Quote #{quote['quote_number']}" in terms
+    assert quote["id"] not in terms, "the uuid is not a reference a client can use"
+
+
+async def test_the_contract_gives_an_address_a_cancellation_can_be_sent_to(
+    tenant_a_client, seed_two_tenants
+):
+    """CSLB requires one: the notice of cancellation may be emailed to it."""
+    company_id = seed_two_tenants["tenant_a_id"]
+    await tenant_a_client.patch(
+        f"/api/v1/companies/{company_id}",
+        json={"email_from_address": "cancel@acme.com"},
+    )
+    quote = await _approved_quote(tenant_a_client, seed_two_tenants)
+
+    gen = await tenant_a_client.post("/api/v1/contracts", json={"quote_id": quote["id"]})
+    assert gen.status_code == 201, gen.text
+
+    assert "cancel@acme.com" in gen.json()["terms_snapshot"]
+
+
+async def test_an_unconfigured_email_shows_a_blank_not_an_empty_space(
+    tenant_a_client, seed_two_tenants
+):
+    """A missing required field has to look missing, so it gets filled in by hand."""
+    quote = await _approved_quote(tenant_a_client, seed_two_tenants)
+    gen = await tenant_a_client.post("/api/v1/contracts", json={"quote_id": quote["id"]})
+    assert gen.status_code == 201, gen.text
+
+    terms = gen.json()["terms_snapshot"]
+    # Whitespace-tolerant: the template wraps, so the value may begin a new line.
+    assert re.search(r"email:\s*_{4,}", terms), "the blank should be visible"
+
+
+async def test_the_three_cancellation_periods_are_each_labelled_with_when_to_use_them(
+    tenant_a_client, seed_two_tenants
+):
+    """Only one applies to a given contract, so the conditions stay attached."""
+    quote = await _approved_quote(tenant_a_client, seed_two_tenants)
+    gen = await tenant_a_client.post("/api/v1/contracts", json={"quote_id": quote["id"]})
+    terms = gen.json()["terms_snapshot"]
+
+    assert "USE THESE NOTICES IF EITHER CONTRACTING OWNER IS\n65 YEARS OR OLDER" in terms or (
+        "USE THESE NOTICES IF EITHER CONTRACTING OWNER IS" in terms
+    )
+    assert "FIVE-DAY RIGHT TO CANCEL" in terms
+    assert "SEVEN-DAY RIGHT TO CANCEL" in terms
+    assert "STATE OF EMERGENCY HAS BEEN DECLARED" in terms

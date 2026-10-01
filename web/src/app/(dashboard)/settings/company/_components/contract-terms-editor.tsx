@@ -69,10 +69,11 @@ export function ContractTermsEditor() {
             Attorney review required
           </p>
           <p className="mt-0.5 text-sm text-foreground/80">
-            This template ships as placeholder legal text structured around
-            California statute. It is <strong>not legal advice</strong>. Have a
-            licensed attorney review and finalize it before sending contracts to
-            clients.
+            This template follows the CSLB sample Home Improvement Contract, which
+            CSLB publishes for information only. It is{" "}
+            <strong>not legal advice</strong>. Fill in every blank — scope, dates,
+            payment schedule, insurance answers — and have a licensed attorney
+            review it before sending contracts to clients.
           </p>
         </div>
       </div>

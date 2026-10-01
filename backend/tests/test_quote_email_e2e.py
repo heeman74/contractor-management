@@ -154,20 +154,26 @@ async def test_the_recipient_is_the_quotes_client_not_the_sender(
 
 
 @pytest.mark.asyncio
-async def test_a_company_with_no_mail_configured_still_sends_the_quote(
-    tenant_a_client: AsyncClient,
+async def test_a_company_with_no_mail_configured_cannot_send(
+    tenant_a_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ):
-    """Nothing is delivered, and the send is not blocked.
+    """A 200 means the client was emailed, so this cannot be a 200.
 
-    Refusing would stop a company that has not finished setting up from using
-    the app at all. Tests run with no SMTP anywhere, which is that case.
+    Letting it through was the same silent success in a different disguise —
+    status flipped, nobody emailed.
     """
+    # No relay and no mailbox: the state a company is in before it sets mail up.
+    monkeypatch.setattr(email_module.settings, "smtp_host", None)
+
     client_id = await ensure_client(tenant_a_client, email="nobody@example.com")
     quote = await _draft_quote_for(tenant_a_client, str(client_id))
 
     send = await tenant_a_client.post(f"/api/v1/quotes/{quote['id']}/send")
-    assert send.status_code == 200, send.text
-    assert send.json()["status"] == "sent"
+    assert send.status_code == 502, send.text
+    assert "No email is configured" in send.json()["detail"]
+
+    after = await tenant_a_client.get(f"/api/v1/quotes/{quote['id']}")
+    assert after.json()["status"] == "draft", "it stays sendable once mail works"
 
 
 @pytest.mark.asyncio

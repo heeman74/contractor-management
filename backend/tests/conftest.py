@@ -37,6 +37,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import NullPool
 
 import app.core.database as db_module
+import app.core.email as email_module
+from app.core.email import EmailService, sent_emails
 from app.core.rate_limit import limiter
 from app.main import app
 
@@ -98,6 +100,30 @@ async def test_engine():
 # ---------------------------------------------------------------------------
 # Per-test table truncation — prevents cross-test data pollution
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def mail_transport(monkeypatch):
+    """Give every test a mail transport that delivers into the outbox.
+
+    Sending is part of sending a quote: with nothing configured anywhere the
+    send fails, because a 200 that emailed nobody is the bug this all started
+    from. A deployed instance has a relay, so the default here is one too —
+    stubbed, so nothing leaves the process, and recorded in ``sent_emails`` so
+    tests can read what would have gone out.
+
+    A test about having no transport opts out by unsetting smtp_host itself,
+    which states its own precondition instead of relying on a global absence.
+    """
+    monkeypatch.setattr(email_module.settings, "smtp_host", "smtp.test.invalid")
+
+    def _collect(_self, to, subject, text_body, html_body):
+        sent_emails.append({"to": to, "subject": subject, "text": text_body, "html": html_body})
+
+    monkeypatch.setattr(EmailService, "_send_smtp", _collect)
+    sent_emails.clear()
+    yield
+    sent_emails.clear()
 
 
 @pytest_asyncio.fixture(autouse=True)

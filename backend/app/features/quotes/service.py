@@ -464,9 +464,11 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
         emailed — if the mail cannot go out the request fails, the transaction
         rolls back, and the quote stays a draft that can be sent again.
 
-        A company with no mail configured anywhere is the one case that sends
-        nothing and still succeeds, because refusing would make the app unusable
-        for a company mid-setup. That case is logged, and the response says so.
+        A company with no mail configured anywhere fails too. Letting that one
+        through was the same silent success in a different disguise: status
+        flipped, 200 returned, nobody emailed. The settings screen says up front
+        whether anything can carry a message, so this is a state the user has
+        been warned about rather than discovered here.
         """
         quote = await self._get_quote_or_404(quote_id)
         self._require_quote_status(quote, {"draft"}, "send")
@@ -560,16 +562,24 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
         if not email_service.delivers:
-            # No mailbox and no relay. Saying so at error level is the whole
-            # point: the alternative is a send that looks identical to one that
-            # worked.
+            # Nothing can carry the message. Succeeding here would mark the quote
+            # sent, answer 200, and reach nobody — which is the exact complaint
+            # that started this work, so it fails like any other undeliverable
+            # send and the quote stays a draft.
             logger.error(
                 "quote_email_not_delivered_no_transport",
                 quote_id=str(quote.id),
                 recipient=client.email,
                 company_id=str(company.id),
             )
-            return
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=(
+                    "No email is configured for this company, so the quote was not "
+                    "sent and is still a draft. Set it up under Settings → Company "
+                    "→ Sending email."
+                ),
+            )
 
         quote_url = f"{settings.public_web_url.rstrip('/')}/quotes/{quote.id}"
         # The same total the API returns, not a second implementation of it.

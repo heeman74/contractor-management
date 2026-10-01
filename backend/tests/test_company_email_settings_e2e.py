@@ -203,9 +203,10 @@ async def test_the_test_send_goes_to_the_caller_not_an_address_they_supply(
 
 @pytest.mark.asyncio
 async def test_the_test_send_reports_that_nothing_was_delivered_without_a_server(
-    tenant_a_client: AsyncClient, seed_two_tenants: dict
+    tenant_a_client: AsyncClient, seed_two_tenants: dict, monkeypatch: pytest.MonkeyPatch
 ):
-    """Tests run with no SMTP anywhere, which is the dev-outbox case."""
+    """With no mail anywhere, the test reports it rather than claiming success."""
+    monkeypatch.setattr(email_module.settings, "smtp_host", None)
     company_id = seed_two_tenants["tenant_a_id"]
 
     resp = await tenant_a_client.post(f"/api/v1/companies/{company_id}/email/test")
@@ -346,13 +347,11 @@ async def test_a_rotated_key_asks_for_the_password_again(
 
 @pytest.mark.asyncio
 async def test_status_says_the_mailbox_is_the_only_option_without_a_relay(
-    tenant_a_client: AsyncClient, seed_two_tenants: dict
+    tenant_a_client: AsyncClient, seed_two_tenants: dict, monkeypatch: pytest.MonkeyPatch
 ):
-    """Tests run with no server mail account, which is exactly that case.
-
-    The settings screen calls this to decide whether its own mailbox section is
-    optional or the only way this company can send anything.
-    """
+    """The settings screen calls this to decide whether its own mailbox section
+    is optional or the only way this company can send anything."""
+    monkeypatch.setattr(email_module.settings, "smtp_host", None)
     company_id = seed_two_tenants["tenant_a_id"]
 
     resp = await tenant_a_client.get(f"/api/v1/companies/{company_id}/email/status")
