@@ -475,6 +475,40 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
 
         return sent  # type: ignore[return-value]
 
+    async def revert_to_draft(self, quote_id: uuid.UUID) -> Quote:
+        """Put a sent quote back to draft so it can be corrected and sent again.
+
+        Allowed from sent and viewed only. An approved quote has already created
+        work and a declined one carries the client's answer, so neither is a
+        draft that merely went out too early.
+
+        Clears the send receipts, since a draft has not been sent or seen. The
+        expiry is cleared only when it matches the day the quote went out: that
+        is the "valid today only" default the send stamps on, so keeping it would
+        leave the next send carrying a date nobody chose — and once that date is
+        in the past, the client cannot approve. An expiry the user picked
+        deliberately is left alone.
+        """
+        quote = await self._get_quote_or_404(quote_id)
+        self._require_quote_status(quote, {"sent", "viewed"}, "revert to draft")
+
+        was_auto_expiry = (
+            quote.expiry_date is not None
+            and quote.sent_at is not None
+            and quote.expiry_date == quote.sent_at.date()
+        )
+
+        quote.status = "draft"
+        quote.sent_at = None
+        quote.viewed_at = None
+        if was_auto_expiry:
+            quote.expiry_date = None
+
+        await self.db.flush()
+        await self._append_job_status_event(quote.job_id, "quote_reverted_to_draft", None)
+
+        return await self.repository.get_with_line_items(quote_id)  # type: ignore[return-value]
+
     async def _email_quote_to_client(self, quote: Quote, client_id: uuid.UUID) -> None:
         """Email the quote to the client it is addressed to.
 

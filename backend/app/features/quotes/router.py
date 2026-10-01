@@ -316,6 +316,20 @@ async def send_quote(
     return QuoteResponse.from_orm_with_totals(quote, include_finance=include_finance)
 
 
+@router.post("/{quote_id}/revert-to-draft", response_model=QuoteResponse)
+async def revert_quote_to_draft(
+    quote_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+    include_finance: bool = Depends(finance_view_granted),
+) -> QuoteResponse:
+    """Put a sent quote back to draft (admin only) — the inverse of sending."""
+    await require_permission("quotes.edit")(current_user, db)
+    svc = QuoteService(db)
+    quote = await svc.revert_to_draft(quote_id)
+    return QuoteResponse.from_orm_with_totals(quote, include_finance=include_finance)
+
+
 @router.post("/{quote_id}/approve", response_model=QuoteResponse)
 async def approve_quote(
     quote_id: uuid.UUID,

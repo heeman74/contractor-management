@@ -76,7 +76,7 @@ export function useQuoteDetail(id: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["quote", id] });
       queryClient.invalidateQueries({ queryKey: ["quotes"] });
-      toast.success(`Quote sent to ${job?.client_name ?? "client"}`);
+      toast.success(`Quote sent to ${quote?.client_name ?? job?.client_name ?? "client"}`);
     },
     // A 409 here means the server's D-07 unreviewed-AI-lines check fired on a
     // stale client — its detail is user-facing copy the backend owns and
@@ -85,6 +85,24 @@ export function useQuoteDetail(id: string) {
     onError: (err) =>
       toast.error(
         err instanceof ApiError ? err.detail : `${SEND_FAILED_PREFIX} Try again.`,
+        { duration: Infinity }
+      ),
+  });
+
+  const revertMutation = useMutation<Quote, Error, void>({
+    mutationFn: () => apiPost<Quote>(`/api/v1/quotes/${id}/revert-to-draft`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["quote", id] });
+      queryClient.invalidateQueries({ queryKey: ["quotes"] });
+      toast.success("Quote is a draft again. Edit it and send it when ready.");
+    },
+    // A 409 names the status it refused — approved and declined quotes are not
+    // sends that went out early — so show what the server said.
+    onError: (err) =>
+      toast.error(
+        err instanceof ApiError
+          ? err.detail
+          : "Failed to revert the quote. Try again.",
         { duration: Infinity }
       ),
   });
@@ -142,9 +160,11 @@ export function useQuoteDetail(id: string) {
     quoteRef,
     isPdfDownloading,
     isSending: sendMutation.isPending,
+    isReverting: revertMutation.isPending,
     isExtending: extendMutation.isPending,
     isGeneratingInvoice: generateInvoiceMutation.isPending,
     sendQuote: () => sendMutation.mutate(),
+    revertToDraft: () => revertMutation.mutate(),
     extendExpiry: (date: string) => extendMutation.mutate(date),
     generateInvoice: () => generateInvoiceMutation.mutate(),
     downloadPdf,

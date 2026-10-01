@@ -10,8 +10,10 @@ interface QuoteActionsCardProps {
   job: Job | undefined;
   isPdfDownloading: boolean;
   isSending: boolean;
+  isReverting: boolean;
   isGeneratingInvoice: boolean;
   onSend: () => void;
+  onRevertToDraft: () => void;
   onEdit: () => void;
   onRevise: () => void;
   onExtendExpiry: () => void;
@@ -24,8 +26,10 @@ export function QuoteActionsCard({
   job,
   isPdfDownloading,
   isSending,
+  isReverting,
   isGeneratingInvoice,
   onSend,
+  onRevertToDraft,
   onEdit,
   onRevise,
   onExtendExpiry,
@@ -49,6 +53,19 @@ export function QuoteActionsCard({
   const reviseButton = (
     <Button size="sm" variant="outline" onClick={onRevise}>
       Revise
+    </Button>
+  );
+
+  // A send is otherwise one-way: a quote that went out too early, or with the
+  // wrong number on it, had no way back to being editable.
+  const revertButton = (
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={onRevertToDraft}
+      disabled={isReverting}
+    >
+      {isReverting ? "Reverting…" : "Back to draft"}
     </Button>
   );
 
@@ -95,6 +112,7 @@ export function QuoteActionsCard({
             <>
               {reviseButton}
               {extendButton}
+              {revertButton}
               {downloadPdfButton}
             </>
           )}

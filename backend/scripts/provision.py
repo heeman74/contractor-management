@@ -40,6 +40,7 @@ from getpass import getpass
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy import select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import settings
@@ -250,6 +251,129 @@ async def list_companies(_args: argparse.Namespace) -> None:
         print(f"{company.id!s:38}  {company.name}")
 
 
+# ---------------------------------------------------------------------------
+# Status changes
+# ---------------------------------------------------------------------------
+
+
+async def _tables_with_a_status_column(session: AsyncSession) -> list[str]:
+    """Every public table carrying a `status` column, from the database itself.
+
+    Doubles as the allowlist for the table name: asyncpg cannot parameterize an
+    identifier, so the name interpolated into the UPDATE has to be one the
+    database handed back rather than one the caller typed.
+    """
+    result = await session.execute(
+        text(
+            "SELECT table_name FROM information_schema.columns "
+            "WHERE table_schema = 'public' AND column_name = 'status' "
+            "ORDER BY table_name"
+        )
+    )
+    return [row[0] for row in result]
+
+
+async def _columns_of(session: AsyncSession, table: str) -> set[str]:
+    result = await session.execute(
+        text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema = 'public' AND table_name = :table"
+        ),
+        {"table": table},
+    )
+    return {row[0] for row in result}
+
+
+async def _status_check_clauses(session: AsyncSession, table: str) -> list[str]:
+    """The CHECK constraints mentioning status — i.e. the values it accepts."""
+    result = await session.execute(
+        text(
+            "SELECT pg_get_constraintdef(c.oid) FROM pg_constraint c "
+            "JOIN pg_class t ON t.oid = c.conrelid "
+            "WHERE t.relname = :table AND c.contype = 'c' "
+            "AND pg_get_constraintdef(c.oid) LIKE '%status%'"
+        ),
+        {"table": table},
+    )
+    return [row[0] for row in result]
+
+
+async def set_status(args: argparse.Namespace) -> None:
+    """Set the `status` column on one row of any table that has one.
+
+    An operator-level escape hatch, deliberately outside the API: it bypasses
+    every lifecycle rule the services enforce — the allowed transitions, the
+    side effects a transition fires, the permission checks. Use it to put a row
+    back into a state for testing, not to drive the application. Anything a
+    client should be able to do belongs behind an endpoint, where the rules
+    apply. The database's own CHECK constraint is the one guard that still
+    holds, and a rejected value is reported with the constraint that rejected it.
+    """
+    async with _db_session() as session:
+        company = await _find_company(session, args.company)
+        if company is None:
+            sys.exit(f"Error: no company matching {args.company!r}.")
+        await _set_tenant_context(session, company.id)
+
+        allowed_tables = await _tables_with_a_status_column(session)
+        if args.table not in allowed_tables:
+            sys.exit(
+                f"Error: {args.table!r} has no status column. "
+                f"Tables that do: {', '.join(allowed_tables)}"
+            )
+
+        try:
+            row_id = uuid.UUID(args.id)
+        except ValueError:
+            sys.exit(f"Error: {args.id!r} is not a UUID.")
+
+        current = await session.execute(
+            text(f"SELECT status FROM {args.table} WHERE id = :id"),
+            {"id": row_id},
+        )
+        before = current.scalar_one_or_none()
+        if before is None:
+            sys.exit(
+                f"Error: no row {row_id} in {args.table} for company "
+                f"{company.name!r}. A row in another company is invisible here, "
+                "so check --company too."
+            )
+
+        if before == args.status:
+            print(f"{args.table}.{row_id} is already {args.status!r} — nothing to do.")
+            return
+
+        # Keep the bookkeeping columns honest: a stale version would let an
+        # optimistic-locking client overwrite this change without noticing it.
+        columns = await _columns_of(session, args.table)
+        assignments = ["status = :status"]
+        if "updated_at" in columns:
+            assignments.append("updated_at = now()")
+        if "version" in columns:
+            assignments.append("version = version + 1")
+
+        statement = text(f"UPDATE {args.table} SET {', '.join(assignments)} WHERE id = :id")
+
+        try:
+            await session.execute(statement, {"status": args.status, "id": row_id})
+            await session.commit()
+        except IntegrityError:
+            await session.rollback()
+            clauses = await _status_check_clauses(session, args.table)
+            detail = f" Allowed by: {clauses[0]}" if clauses else ""
+            sys.exit(f"Error: {args.status!r} rejected by the database.{detail}")
+
+        print(f"{args.table}.{row_id}: {before!r} -> {args.status!r}")
+
+
+async def list_status_tables(args: argparse.Namespace) -> None:
+    """Show which tables have a status column, and what each one accepts."""
+    async with _db_session() as session:
+        for table in await _tables_with_a_status_column(session):
+            clauses = await _status_check_clauses(session, table)
+            print(f"{table}: {clauses[0] if clauses else '(no CHECK constraint)'}")
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="provision",
@@ -283,6 +407,24 @@ def _build_parser() -> argparse.ArgumentParser:
 
     listing = sub.add_parser("list-companies", help="List all companies with their IDs.")
     listing.set_defaults(func=list_companies)
+
+    status_cmd = sub.add_parser(
+        "set-status",
+        help="Set the status of one row (bypasses lifecycle rules — operator use).",
+    )
+    status_cmd.add_argument("--company", required=True, help="Owning company: UUID or exact name.")
+    status_cmd.add_argument(
+        "--table", required=True, help="Table to update, e.g. quotes. See list-status-tables."
+    )
+    status_cmd.add_argument("--id", required=True, help="Row UUID.")
+    status_cmd.add_argument("--status", required=True, help="New status value.")
+    status_cmd.set_defaults(func=set_status)
+
+    status_tables = sub.add_parser(
+        "list-status-tables",
+        help="List tables with a status column and the values each accepts.",
+    )
+    status_tables.set_defaults(func=list_status_tables)
 
     return parser
 

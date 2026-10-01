@@ -1,5 +1,6 @@
 import React from "react";
 import { render, screen, renderHook, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api-client";
@@ -179,8 +180,10 @@ describe("send button gating", () => {
   const cardProps = {
     job: undefined,
     isPdfDownloading: false,
+    isReverting: false,
     isGeneratingInvoice: false,
     onSend: jest.fn(),
+    onRevertToDraft: jest.fn(),
     onEdit: jest.fn(),
     onRevise: jest.fn(),
     onExtendExpiry: jest.fn(),
@@ -376,5 +379,83 @@ describe("detail line items", () => {
     expect(screen.getByTestId("quote-ai-disclosure")).toHaveTextContent(
       "AI-suggested from your own completed work"
     );
+  });
+});
+
+/**
+ * Sending was one-way in the UI: nothing offered a way back to a draft, so a
+ * quote that went out too early could only be revised or left alone.
+ */
+describe("back to draft", () => {
+  const BUTTON = { name: "Back to draft" };
+
+  const cardProps = {
+    job: undefined,
+    isPdfDownloading: false,
+    isReverting: false,
+    isGeneratingInvoice: false,
+    onSend: jest.fn(),
+    onRevertToDraft: jest.fn(),
+    onEdit: jest.fn(),
+    onRevise: jest.fn(),
+    onExtendExpiry: jest.fn(),
+    onDownloadPdf: jest.fn(),
+    onGenerateInvoice: jest.fn(),
+  };
+
+  it.each(["sent", "viewed"] as const)("is offered on a %s quote", (status) => {
+    render(
+      <QuoteActionsCard
+        quote={makeQuote({ status })}
+        isSending={false}
+        {...cardProps}
+      />
+    );
+
+    expect(screen.getByRole("button", BUTTON)).toBeEnabled();
+  });
+
+  it.each(["draft", "approved", "declined"] as const)(
+    "is not offered on a %s quote",
+    (status) => {
+      render(
+        <QuoteActionsCard
+          quote={makeQuote({ status })}
+          isSending={false}
+          {...cardProps}
+        />
+      );
+
+      expect(screen.queryByRole("button", BUTTON)).not.toBeInTheDocument();
+    }
+  );
+
+  it("reverts when pressed", async () => {
+    const onRevertToDraft = jest.fn();
+    render(
+      <QuoteActionsCard
+        quote={makeQuote({ status: "sent" })}
+        isSending={false}
+        {...cardProps}
+        onRevertToDraft={onRevertToDraft}
+      />
+    );
+
+    await userEvent.click(screen.getByRole("button", BUTTON));
+
+    expect(onRevertToDraft).toHaveBeenCalledTimes(1);
+  });
+
+  it("is disabled while the revert is in flight", () => {
+    render(
+      <QuoteActionsCard
+        quote={makeQuote({ status: "sent" })}
+        isSending={false}
+        {...cardProps}
+        isReverting
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Reverting…" })).toBeDisabled();
   });
 });

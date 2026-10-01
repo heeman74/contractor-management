@@ -126,8 +126,10 @@ export default function QuoteDetailPage({
             job={job}
             isPdfDownloading={detail.isPdfDownloading}
             isSending={detail.isSending}
+            isReverting={detail.isReverting}
             isGeneratingInvoice={detail.isGeneratingInvoice}
             onSend={() => setSendOpen(true)}
+            onRevertToDraft={detail.revertToDraft}
             onEdit={detail.goToEdit}
             onRevise={detail.goToRevise}
             onExtendExpiry={() => setExtendOpen(true)}

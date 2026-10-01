@@ -10,7 +10,7 @@ import argparse
 import pytest
 from httpx import AsyncClient
 
-from scripts.provision import add_user, create_company, set_password
+from scripts.provision import add_user, create_company, set_password, set_status
 
 pytestmark = pytest.mark.asyncio
 
@@ -216,3 +216,107 @@ async def test_non_client_roles_stay_off_the_client_roster(async_client: AsyncCl
     )
     assert roster.status_code == 200, roster.text
     assert roster.json() == []
+
+
+# ---------------------------------------------------------------------------
+# set-status
+# ---------------------------------------------------------------------------
+
+_QUOTE_BODY = {
+    "title": "Script status test",
+    "tax_rate": "0.00",
+    "line_items": [
+        {
+            "item_type": "labor",
+            "description": "Work",
+            "quantity": "2.000",
+            "unit": "hr",
+            "unit_price": "50.00",
+            "sort_order": 0,
+            "field": "General",
+        }
+    ],
+}
+
+
+async def _sent_quote(client: AsyncClient) -> str:
+    """A quote in 'sent', created through the API so every rule applied first."""
+    me = (await client.get("/api/v1/auth/me")).json()
+    create = await client.post("/api/v1/quotes/", json={**_QUOTE_BODY, "client_id": me["user_id"]})
+    assert create.status_code == 201, create.text
+    quote_id = create.json()["id"]
+
+    send = await client.post(f"/api/v1/quotes/{quote_id}/send")
+    assert send.status_code == 200, send.text
+    return quote_id
+
+
+async def test_set_status_puts_a_sent_quote_back_to_draft(
+    tenant_a_client: AsyncClient,
+):
+    quote_id = await _sent_quote(tenant_a_client)
+
+    await set_status(_ns(company="Tenant A Corp", table="quotes", id=quote_id, status="draft"))
+
+    after = await tenant_a_client.get(f"/api/v1/quotes/{quote_id}")
+    assert after.status_code == 200, after.text
+    assert after.json()["status"] == "draft"
+
+
+async def test_set_status_rejects_a_value_the_database_will_not_accept(
+    tenant_a_client: AsyncClient,
+):
+    """The CHECK constraint is the one rule still standing, so report it."""
+    quote_id = await _sent_quote(tenant_a_client)
+
+    with pytest.raises(SystemExit) as exit_info:
+        await set_status(_ns(company="Tenant A Corp", table="quotes", id=quote_id, status="bogus"))
+
+    message = str(exit_info.value)
+    assert "rejected by the database" in message
+    assert "draft" in message, "the allowed values should be in the message"
+
+    unchanged = await tenant_a_client.get(f"/api/v1/quotes/{quote_id}")
+    assert unchanged.json()["status"] == "sent"
+
+
+async def test_set_status_refuses_a_table_with_no_status_column(
+    tenant_a_client: AsyncClient,
+):
+    quote_id = await _sent_quote(tenant_a_client)
+
+    with pytest.raises(SystemExit) as exit_info:
+        await set_status(_ns(company="Tenant A Corp", table="users", id=quote_id, status="draft"))
+
+    message = str(exit_info.value)
+    assert "no status column" in message
+    assert "quotes" in message, "it should name the tables that do have one"
+
+
+async def test_set_status_will_not_reach_another_companys_row(
+    tenant_a_client: AsyncClient, tenant_b_client: AsyncClient
+):
+    """Row level security applies to the script too, so say so plainly."""
+    quote_id = await _sent_quote(tenant_a_client)
+
+    with pytest.raises(SystemExit) as exit_info:
+        await set_status(_ns(company="Tenant B Corp", table="quotes", id=quote_id, status="draft"))
+
+    assert "check --company" in str(exit_info.value)
+
+    untouched = await tenant_a_client.get(f"/api/v1/quotes/{quote_id}")
+    assert untouched.json()["status"] == "sent"
+
+
+async def test_set_status_on_an_unknown_company_stops(tenant_a_client: AsyncClient):
+    with pytest.raises(SystemExit) as exit_info:
+        await set_status(
+            _ns(
+                company="No Such Company",
+                table="quotes",
+                id="00000000-0000-0000-0000-000000000000",
+                status="draft",
+            )
+        )
+
+    assert "no company matching" in str(exit_info.value)
