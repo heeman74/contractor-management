@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  UPSTREAM_UNREACHABLE_DETAIL,
+UPSTREAM_UNREACHABLE_DETAIL,
+  clientIpHeaders,
   fetchUpstream,
 } from "@/lib/server/upstream";
 
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const fastapiRes = await fetchUpstream(`${FASTAPI_URL}/api/v1/auth/forgot-password`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...clientIpHeaders(request) },
       body: JSON.stringify(body),
     });
   if (fastapiRes === null) {

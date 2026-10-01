@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import type { TokenResponse, AuthUser } from "@/types/api";
-import { fetchUpstream } from "@/lib/server/upstream";
+import { clientIpHeaders, fetchUpstream } from "@/lib/server/upstream";
 
 const FASTAPI_URL = process.env.FASTAPI_URL ?? "http://localhost:8000";
 
@@ -13,7 +13,7 @@ export const maxDuration = 90;
 
 const IS_PROD = process.env.NODE_ENV === "production";
 
-export async function POST(): Promise<NextResponse> {
+export async function POST(request: Request): Promise<NextResponse> {
   const cookieStore = await cookies();
   const refreshToken = cookieStore.get("refresh_token")?.value;
 
@@ -28,7 +28,7 @@ export async function POST(): Promise<NextResponse> {
   // start on tab focus was a spurious logout waiting to happen.
   const fastapiRes = await fetchUpstream(`${FASTAPI_URL}/api/v1/auth/refresh`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...clientIpHeaders(request) },
     body: JSON.stringify({ refresh_token: refreshToken }),
   });
   if (fastapiRes === null) {

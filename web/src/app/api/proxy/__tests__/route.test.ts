@@ -199,3 +199,51 @@ describe("upstream failures are attributable", () => {
     expect((await res.json()).detail).toBe("Cannot send quote in status 'sent'.");
   });
 });
+
+/**
+ * Rate limits are counted per browser, and the API only sees this app — so the
+ * browser's address has to travel with the request or every user shares one
+ * bucket.
+ */
+describe("the browser's address reaches the API", () => {
+  beforeEach(() => {
+    jest.restoreAllMocks();
+    mockCookieGet.mockReturnValue({ value: "test-access-token" });
+  });
+
+  it("forwards it alongside the credentials", async () => {
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValue(new Response("{}", { status: 200 }));
+    global.fetch = fetchMock as never;
+
+    await GET(
+      new NextRequest("http://localhost:3000/api/proxy?path=%2Fapi%2Fv1%2Fjobs", {
+        headers: { "x-forwarded-for": "203.0.113.9, 10.0.0.4" },
+      })
+    );
+
+    const sent = (fetchMock.mock.calls[0][1] as RequestInit).headers as Record<
+      string,
+      string
+    >;
+    expect(sent["x-client-ip"]).toBe("203.0.113.9");
+    expect(sent.Authorization).toBe("Bearer test-access-token");
+  });
+
+  it("omits it when the address is unknowable", async () => {
+    // Better than sending a placeholder every unknown caller would share.
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValue(new Response("{}", { status: 200 }));
+    global.fetch = fetchMock as never;
+
+    await GET(new NextRequest("http://localhost:3000/api/proxy?path=%2Fapi%2Fv1%2Fjobs"));
+
+    const sent = (fetchMock.mock.calls[0][1] as RequestInit).headers as Record<
+      string,
+      string
+    >;
+    expect(sent["x-client-ip"]).toBeUndefined();
+  });
+});

@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
 import {
-  UPSTREAM_ERROR_HEADER,
+UPSTREAM_ERROR_HEADER,
   UPSTREAM_UNREACHABLE_DETAIL,
+  clientIpHeaders,
   fetchUpstream,
 } from "@/lib/server/upstream";
 
@@ -57,6 +58,7 @@ async function handleProxy(request: NextRequest): Promise<NextResponse> {
 
   const headers: HeadersInit = {
     Authorization: `Bearer ${accessToken}`,
+    ...clientIpHeaders(request),
   };
 
   const contentType = request.headers.get("content-type") ?? "";

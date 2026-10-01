@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  UPSTREAM_UNREACHABLE_DETAIL,
+UPSTREAM_UNREACHABLE_DETAIL,
+  clientIpHeaders,
   fetchUpstream,
 } from "@/lib/server/upstream";
 
@@ -21,7 +22,7 @@ export const maxDuration = 90;
  * route through /api/proxy (which requires the authenticated cookie).
  */
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ): Promise<NextResponse> {
   const { token } = await params;
@@ -32,7 +33,10 @@ export async function GET(
 
   const upstream = await fetchUpstream(
     `${FASTAPI_URL}/api/v1/public/contracts/${encodeURIComponent(token)}`,
-    { headers: { Accept: "application/json" }, cache: "no-store" }
+    {
+      headers: { Accept: "application/json", ...clientIpHeaders(request) },
+      cache: "no-store",
+    }
   );
   if (upstream === null) {
     return NextResponse.json({ detail: UPSTREAM_UNREACHABLE_DETAIL }, { status: 502 });

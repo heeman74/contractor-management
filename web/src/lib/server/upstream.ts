@@ -36,6 +36,48 @@ export const UPSTREAM_TIMEOUT_MS = 75_000;
  */
 export const UPSTREAM_ERROR_HEADER = "x-upstream-error";
 
+/**
+ * Carries the browser's address to the API.
+ *
+ * Every browser request reaches the API through this app, so without it the API
+ * sees one caller for the whole world: `5/minute` on login became five logins a
+ * minute across all users, not per user, and anyone testing hit 429s that had
+ * nothing to do with them.
+ *
+ * Deliberately not X-Forwarded-For. The platform sets that on its own hop, and
+ * which entry of the resulting chain uvicorn treats as the client varies by
+ * version — a header nothing else writes has one unambiguous meaning.
+ *
+ * It is a throttling key, not an identity. The API is publicly reachable, so a
+ * caller that skips this app can set it to anything; what stands between an
+ * attacker and an account is the password hashing and refresh-token reuse
+ * detection, not this.
+ */
+export const CLIENT_IP_HEADER = "x-client-ip";
+
+/**
+ * The browser's address, from the hop between it and this app.
+ *
+ * Returns null when it cannot be determined, so the caller omits the header and
+ * the API falls back to the connecting address rather than keying every request
+ * on the word "unknown".
+ */
+export function clientIpOf(request: Request): string | null {
+  // The platform's proxy writes the browser first in the chain.
+  const forwarded = request.headers.get("x-forwarded-for");
+  if (forwarded) {
+    const first = forwarded.split(",")[0]?.trim();
+    if (first) return first;
+  }
+  return request.headers.get("x-real-ip");
+}
+
+/** Headers identifying the browser, for a request this app makes on its behalf. */
+export function clientIpHeaders(request: Request): Record<string, string> {
+  const ip = clientIpOf(request);
+  return ip === null ? {} : { [CLIENT_IP_HEADER]: ip };
+}
+
 export const UPSTREAM_UNREACHABLE_DETAIL =
   "The service is starting up. Please try again in a moment.";
 
