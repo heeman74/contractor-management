@@ -18,6 +18,20 @@ from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
+async def _company_names(company_ids: set[str]) -> dict[str, str]:
+    """Names of the given companies, read straight from the database."""
+    from sqlalchemy import text
+
+    from app.core.database import async_session_factory
+
+    async with async_session_factory() as session:
+        rows = await session.execute(
+            text("SELECT id, name FROM companies WHERE id = ANY(CAST(:ids AS uuid[]))"),
+            {"ids": list(company_ids)},
+        )
+        return {str(row[0]): row[1] for row in rows}
+
+
 async def test_duplicate_company_uuid_returns_existing(
     tenant_a_client: AsyncClient,
 ) -> None:
@@ -99,12 +113,14 @@ async def test_different_uuid_creates_new(
     assert resp_b.status_code == 201
     assert resp_b.json()["id"] == uuid_b
 
-    company_a = (await tenant_a_client.get(f"/api/v1/companies/{uuid_a}")).json()
-    company_b = (await tenant_a_client.get(f"/api/v1/companies/{uuid_b}")).json()
+    # Read back from the database, not through GET /companies/{id}: that
+    # endpoint only serves the caller's own company now, and these two are
+    # neither. The claim under test is about what POST created.
+    names = await _company_names({uuid_a, uuid_b})
 
-    assert company_a["name"] == "Company Alpha"
-    assert company_b["name"] == "Company Beta"
-    assert company_a["id"] != company_b["id"]
+    assert names[uuid_a] == "Company Alpha"
+    assert names[uuid_b] == "Company Beta"
+    assert uuid_a != uuid_b
 
 
 # ---------------------------------------------------------------------------

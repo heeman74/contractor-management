@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { useCompany, useUpdateCompany } from "@/lib/api/contracts";
+import { CompanyEmailForm } from "./company-email-form";
 import { CompanyProfileForm } from "./company-profile-form";
 import { ContractTermsEditor } from "./contract-terms-editor";
 
@@ -67,6 +68,8 @@ export function CompanySettingsForm({ companyId }: CompanySettingsFormProps) {
       </div>
 
       <CompanyProfileForm companyId={companyId} />
+
+      <CompanyEmailForm companyId={companyId} />
 
       {canManageContracts ? (
       <section className="rounded-xl bg-card px-5 py-5 ring-1 ring-foreground/10">

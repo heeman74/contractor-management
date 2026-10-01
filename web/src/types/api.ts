@@ -505,6 +505,15 @@ export interface Company {
   logo_url: string | null;
   business_number: string | null;
   license_number: string | null;
+  // Who this company's mail is from. The password is never returned — only
+  // whether a mailbox is configured.
+  email_from_name: string | null;
+  email_from_address: string | null;
+  smtp_host: string | null;
+  smtp_port: number | null;
+  smtp_use_tls: boolean;
+  smtp_user: string | null;
+  smtp_configured: boolean;
   version: number;
   created_at: string;
   updated_at: string;
@@ -523,6 +532,22 @@ export interface CompanyUpdate {
   logo_url?: string | null;
   business_number?: string | null;
   license_number?: string | null;
+  email_from_name?: string | null;
+  email_from_address?: string | null;
+  smtp_host?: string | null;
+  smtp_port?: number | null;
+  smtp_use_tls?: boolean | null;
+  smtp_user?: string | null;
+  // Write-only: sent in plaintext, stored encrypted, never returned.
+  smtp_password?: string | null;
+}
+
+/** What happened when a company's mail settings were exercised. */
+export interface EmailTestResult {
+  delivered: boolean;
+  transport: string;
+  recipient: string;
+  detail: string;
 }
 
 // Contracts & e-signature (Phase 29) --------------------------------------

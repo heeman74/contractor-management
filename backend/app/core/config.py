@@ -14,6 +14,12 @@ class Settings(BaseSettings):
 
     database_url: str  # No default — must be set via env
     jwt_secret_key: str  # No default — must be set via env
+    # Fernet key protecting third-party credentials the app stores for a tenant
+    # (per-company SMTP passwords). Separate from jwt_secret_key on purpose:
+    # rotating that one only signs everyone out, while rotating this one makes
+    # every stored credential unreadable. Unset means per-company credentials
+    # cannot be saved at all — never that they are saved in the clear.
+    credentials_encryption_key: str | None = None
     redis_url: str = "redis://localhost:6379/0"
     debug: bool = False
     ors_api_key: str | None = None  # OpenRouteService API key; omit to disable travel time

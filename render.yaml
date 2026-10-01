@@ -47,6 +47,17 @@ services:
       # issued access and refresh token.
       - key: JWT_SECRET_KEY
         generateValue: true
+      # Encrypts the SMTP passwords companies enter for their own mailboxes.
+      # Deliberately separate from JWT_SECRET_KEY: rotating that one only signs
+      # everyone out, while rotating this one makes every stored mail credential
+      # unreadable and each company has to enter theirs again. Not generateValue,
+      # because it must be a Fernet key:
+      #   python -c "from cryptography.fernet import Fernet; \
+      #              print(Fernet.generate_key().decode())"
+      # Unset means companies cannot save a mailbox at all — never that the
+      # password is stored in the clear.
+      - key: CREDENTIALS_ENCRYPTION_KEY
+        sync: false
       - key: DEBUG
         value: "false"
       # Browser traffic is proxied through the web service, so the API does

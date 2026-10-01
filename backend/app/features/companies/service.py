@@ -2,10 +2,12 @@
 
 import uuid
 
+from fastapi import HTTPException, status
 from sqlalchemy.dialects.postgresql import insert
 
 from app.core.base_repository import BaseRepository
 from app.core.base_service import BaseService
+from app.core.secrets import encrypt_secret, encryption_available
 from app.features.companies.models import Company
 from app.features.companies.schemas import CompanyCreate, CompanyUpdate
 
@@ -103,4 +105,42 @@ class CompanyService(BaseService[Company]):
     ) -> Company | None:
         """Partially update a company. Only non-None fields are updated."""
         update_data = data.model_dump(exclude_none=True)
+        self._encrypt_smtp_password(update_data)
         return await self.repository.update(entity_id, update_data)
+
+    @staticmethod
+    def _encrypt_smtp_password(update_data: dict) -> None:
+        """Turn an incoming plaintext password into the stored ciphertext.
+
+        The column is named for what it holds, so the translation happens in one
+        place and a plaintext write would have to be written deliberately.
+
+        With no key configured the write is refused rather than performed in the
+        clear — this is a customer's mailbox password, not ours.
+        """
+        password = update_data.pop("smtp_password", None)
+        if password is None:
+            return
+
+        if not encryption_available():
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=(
+                    "This server has no credential encryption key configured, so "
+                    "mail passwords cannot be stored. Ask an administrator to set "
+                    "CREDENTIALS_ENCRYPTION_KEY."
+                ),
+            )
+        update_data["smtp_password_encrypted"] = encrypt_secret(password)
+
+    async def clear_smtp(self, entity_id: uuid.UUID) -> Company | None:
+        """Forget a company's own mailbox, falling back to the instance relay.
+
+        A separate operation rather than nulls in an update: the three columns
+        are constrained to travel together, so clearing them one at a time
+        through a partial update would be rejected by the database.
+        """
+        return await self.repository.update(
+            entity_id,
+            {"smtp_host": None, "smtp_user": None, "smtp_password_encrypted": None},
+        )

@@ -1,6 +1,6 @@
 import uuid
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
 from app.core.base_schemas import BaseResponseSchema
 
@@ -36,6 +36,22 @@ class CompanyUpdate(BaseModel):
     business_number: str | None = None
     license_number: str | None = None
 
+    # Who this company's mail is from. The address is used as Reply-To when the
+    # instance relay carries the message, and as the sender once the company's
+    # own mailbox is configured below.
+    email_from_name: str | None = None
+    email_from_address: EmailStr | None = None
+
+    # The company's own mailbox. Write-only: smtp_password arrives in plaintext
+    # and is stored encrypted, and no response ever returns it. Clearing the
+    # mailbox is a separate endpoint rather than a null here, because the three
+    # columns are constrained to travel together.
+    smtp_host: str | None = None
+    smtp_port: int | None = Field(default=None, ge=1, le=65535)
+    smtp_use_tls: bool | None = None
+    smtp_user: str | None = None
+    smtp_password: str | None = Field(default=None, min_length=1)
+
 
 class CompanyResponse(BaseResponseSchema):
     """Schema for company API responses.
@@ -50,3 +66,26 @@ class CompanyResponse(BaseResponseSchema):
     logo_url: str | None
     business_number: str | None
     license_number: str | None = None
+
+    email_from_name: str | None = None
+    email_from_address: str | None = None
+    smtp_host: str | None = None
+    smtp_port: int | None = None
+    smtp_use_tls: bool = True
+    smtp_user: str | None = None
+    # Whether a mailbox is configured, rather than the credential itself —
+    # the password is never returned, in any form.
+    smtp_configured: bool = False
+
+
+class EmailTestResult(BaseModel):
+    """What happened when a company's mail settings were exercised.
+
+    A failure is reported here rather than raised: the caller asked a question
+    about their configuration, and the provider's own refusal is the answer.
+    """
+
+    delivered: bool
+    transport: str
+    recipient: str
+    detail: str

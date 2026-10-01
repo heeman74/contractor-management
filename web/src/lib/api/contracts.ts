@@ -1,13 +1,14 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiGet, apiPost, apiPatch, apiPut } from "@/lib/api-client";
+import { apiDelete, apiGet, apiPost, apiPatch, apiPut } from "@/lib/api-client";
 import type {
   Company,
   CompanyUpdate,
   Contract,
   ContractTemplate,
   ContractTemplateUpdate,
+  EmailTestResult,
   SendContractResponse,
 } from "@/types/api";
 
@@ -106,6 +107,32 @@ export function useCompany(companyId: string) {
     queryKey: companyKey(companyId),
     queryFn: () => apiGet<Company>(`/api/v1/companies/${companyId}`),
     enabled: Boolean(companyId),
+  });
+}
+
+/**
+ * Exercise the company's mail settings, to the caller's own address.
+ *
+ * A failure comes back as `delivered: false` with the provider's own words
+ * rather than as a thrown error: the operator asked a question about their
+ * configuration, and the refusal is the answer.
+ */
+export function useTestCompanyEmail(companyId: string) {
+  return useMutation<EmailTestResult, Error, void>({
+    mutationFn: () =>
+      apiPost<EmailTestResult>(`/api/v1/companies/${companyId}/email/test`, {}),
+  });
+}
+
+/** Forget the company's own mailbox, reverting to the server's mail account. */
+export function useClearCompanySmtp(companyId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<Company, Error, void>({
+    mutationFn: () =>
+      apiDelete<Company>(`/api/v1/companies/${companyId}/email/smtp`),
+    onSuccess: (company) => {
+      queryClient.setQueryData(companyKey(companyId), company);
+    },
   });
 }
 

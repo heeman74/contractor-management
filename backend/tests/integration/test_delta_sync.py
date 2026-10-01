@@ -194,15 +194,16 @@ async def test_delta_sync_returns_server_timestamp(
 async def test_delta_sync_updated_at_advances_on_update(
     tenant_a_client: AsyncClient, seed_two_tenants: dict
 ) -> None:
-    """Update a company -> updated_at advances -> appears in delta."""
-    resp = await tenant_a_client.post(
-        "/api/v1/companies/",
-        json={"name": "Original Name"},
-    )
-    assert resp.status_code == 201
-    company = resp.json()
-    company_id = company["id"]
-    original_updated_at = company["updated_at"]
+    """Update a company -> updated_at advances -> appears in delta.
+
+    On the caller's own company, which is the only one a client syncs — and
+    since the company endpoints became tenant-scoped, the only one it can read
+    or write.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    resp = await tenant_a_client.get(f"/api/v1/companies/{company_id}")
+    assert resp.status_code == 200, resp.text
+    original_updated_at = resp.json()["updated_at"]
 
     await asyncio.sleep(0.01)
 
