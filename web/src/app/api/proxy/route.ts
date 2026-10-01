@@ -130,6 +130,10 @@ async function handleProxy(request: NextRequest): Promise<NextResponse> {
   // Carried so a download keeps the filename the backend chose.
   const disposition = upstreamRes.headers.get("content-disposition");
   if (disposition) responseHeaders.set("Content-Disposition", disposition);
+  // Carried so a throttled caller can wait the right amount of time. Dropping it
+  // leaves "too many attempts" with no way to know how long too many lasts.
+  const retryAfter = upstreamRes.headers.get("retry-after");
+  if (retryAfter) responseHeaders.set("Retry-After", retryAfter);
 
   return new NextResponse(upstreamRes.body, {
     status: upstreamRes.status,

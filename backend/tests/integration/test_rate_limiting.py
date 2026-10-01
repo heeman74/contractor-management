@@ -8,25 +8,28 @@ all requests come from the same "client", so the limiter applies.
 import pytest
 from httpx import AsyncClient
 
+# Matches @limiter.limit on /auth/login. Raised from five, which refused a person
+# who mistyped a password twice and reloaded the page — the limit is there to slow
+# credential stuffing, which needs orders of magnitude more than that.
+_LOGIN_ATTEMPTS_PER_MINUTE = 10
+
 
 @pytest.mark.asyncio
 async def test_login_rate_limit_429(async_client: AsyncClient):
-    """The 6th rapid login attempt within a minute returns 429.
-
-    Rate limit: 5/minute on /auth/login.
-    """
-    for i in range(5):
-        await async_client.post(
+    """One attempt past the limit, within a minute, is refused."""
+    for i in range(_LOGIN_ATTEMPTS_PER_MINUTE):
+        resp = await async_client.post(
             "/api/v1/auth/login",
             json={"email": f"user{i}@test.com", "password": "WrongPass1!"},
         )
+        assert resp.status_code != 429, f"refused early, on attempt {i + 1}"
 
-    # 6th attempt should be rate-limited
     resp = await async_client.post(
         "/api/v1/auth/login",
-        json={"email": "user5@test.com", "password": "WrongPass1!"},
+        json={"email": "over@test.com", "password": "WrongPass1!"},
     )
     assert resp.status_code == 429
+    assert resp.headers.get("Retry-After") == "60", resp.headers
 
 
 @pytest.mark.asyncio

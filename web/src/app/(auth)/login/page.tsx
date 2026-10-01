@@ -83,6 +83,15 @@ export default function LoginPage() {
         router.push("/");
       } else if (response.status === 401 || response.status === 422) {
         setLoginError("Invalid email or password");
+      } else if (response.status === 429) {
+        // "Please try again" was actively wrong here: trying again immediately
+        // is what earns the next refusal. The API names the wait, so show it.
+        const body = await response.json().catch(() => null);
+        const detail =
+          body && typeof body.detail === "string" ? body.detail : null;
+        setLoginError(
+          detail ?? "Too many attempts. Wait a minute and try again."
+        );
       } else {
         setLoginError("Something went wrong. Please try again.");
       }

@@ -16,7 +16,7 @@ import pytest
 from httpx import AsyncClient
 
 _LOGIN = "/api/v1/auth/login"
-_LOGIN_LIMIT_PER_MINUTE = 5
+_LOGIN_LIMIT_PER_MINUTE = 10
 
 
 async def _register(client: AsyncClient, email: str, company: str) -> dict:
@@ -85,3 +85,43 @@ async def test_a_caller_that_sends_no_address_is_still_limited(
 
     refused = await async_client.post(_LOGIN, json=creds)
     assert refused.status_code == 429, refused.text
+
+
+@pytest.mark.asyncio
+async def test_a_refusal_says_how_long_to_wait(async_client: AsyncClient):
+    """ "Try again later" is not actionable.
+
+    The window might be a minute or an hour and the caller cannot tell which, so
+    the refusal names the wait and sets Retry-After for anything reading headers.
+    """
+    creds = await _register(async_client, "retryafter@example.com", "RetryAfter Co")
+    headers = {"X-Client-IP": "203.0.113.99"}
+
+    refused = None
+    for _ in range(_LOGIN_LIMIT_PER_MINUTE + 2):
+        resp = await async_client.post(_LOGIN, json=creds, headers=headers)
+        if resp.status_code == 429:
+            refused = resp
+            break
+
+    assert refused is not None, "the limit should still bite"
+    assert refused.headers.get("Retry-After") == "60", refused.headers
+    assert "Try again in 60 seconds" in refused.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_the_limit_leaves_room_for_someone_mistyping_a_password(
+    async_client: AsyncClient,
+):
+    """Five a minute refused a person who typed it wrong twice and reloaded.
+
+    The limit exists to slow credential stuffing, which needs orders of magnitude
+    more than this; punishing a legitimate user was never its purpose.
+    """
+    await _register(async_client, "typo@example.com", "Typo Co")
+    wrong = {"email": "typo@example.com", "password": "WrongPass123!"}
+    headers = {"X-Client-IP": "203.0.113.77"}
+
+    for attempt in range(6):
+        resp = await async_client.post(_LOGIN, json=wrong, headers=headers)
+        assert resp.status_code == 401, f"attempt {attempt + 1}: {resp.status_code}"

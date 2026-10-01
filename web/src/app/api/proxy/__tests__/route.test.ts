@@ -247,3 +247,25 @@ describe("the browser's address reaches the API", () => {
     expect(sent["x-client-ip"]).toBeUndefined();
   });
 });
+
+/**
+ * A throttled caller needs to know how long to wait. The API says so; losing it
+ * in the proxy would leave the only actionable number on the floor.
+ */
+it("carries Retry-After back from a throttled upstream", async () => {
+  jest.restoreAllMocks();
+  mockCookieGet.mockReturnValue({ value: "test-access-token" });
+  global.fetch = jest.fn().mockResolvedValue(
+    new Response(JSON.stringify({ detail: "Too many attempts." }), {
+      status: 429,
+      headers: { "content-type": "application/json", "retry-after": "60" },
+    })
+  ) as never;
+
+  const res = await GET(
+    new NextRequest("http://localhost:3000/api/proxy?path=%2Fapi%2Fv1%2Fjobs")
+  );
+
+  expect(res.status).toBe(429);
+  expect(res.headers.get("retry-after")).toBe("60");
+});

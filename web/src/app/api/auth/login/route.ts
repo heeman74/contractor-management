@@ -39,7 +39,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   if (!fastapiRes.ok) {
     const errorBody = await fastapiRes.json().catch(() => ({ detail: "Login failed" }));
-    return NextResponse.json(errorBody, { status: fastapiRes.status });
+    // Carried through so a throttled caller can wait the right amount of time
+    // rather than guess — the API states it, and dropping it here would lose
+    // the only number that makes the refusal actionable.
+    const retryAfter = fastapiRes.headers.get("retry-after");
+    return NextResponse.json(errorBody, {
+      status: fastapiRes.status,
+      headers: retryAfter ? { "Retry-After": retryAfter } : undefined,
+    });
   }
 
   const tokenData = (await fastapiRes.json()) as TokenResponse;

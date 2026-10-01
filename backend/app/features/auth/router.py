@@ -56,7 +56,7 @@ async def register_endpoint(
 
 
 @router.post("/login", response_model=TokenResponse)
-@limiter.limit("5/minute")
+@limiter.limit("10/minute;100/hour")
 async def login_endpoint(
     request: Request,
     data: LoginRequest,
@@ -76,7 +76,7 @@ async def login_endpoint(
 
 
 @router.post("/refresh", response_model=TokenResponse)
-@limiter.limit("10/minute")
+@limiter.limit("30/minute")
 async def refresh_endpoint(
     request: Request,
     data: RefreshRequest,

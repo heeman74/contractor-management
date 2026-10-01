@@ -72,11 +72,27 @@ app = FastAPI(
 app.state.limiter = limiter
 
 
+def _retry_after_seconds(exc: RateLimitExceeded) -> int:
+    """How long the caller must wait, from the limit that refused them.
+
+    "Try again later" is not actionable — the window might be a minute or an
+    hour, and the caller cannot tell which. Falls back to a minute if the
+    exception does not carry a parseable limit.
+    """
+    try:
+        return int(exc.limit.limit.get_expiry())
+    except (AttributeError, TypeError, ValueError):
+        return 60
+
+
 @app.exception_handler(RateLimitExceeded)
 async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    retry_after = _retry_after_seconds(exc)
     return JSONResponse(
         status_code=429,
-        content={"detail": "Rate limit exceeded. Try again later."},
+        content={"detail": (f"Too many attempts. Try again in {retry_after} seconds.")},
+        # Standard, so a client can wait the right amount rather than guess.
+        headers={"Retry-After": str(retry_after)},
     )
 
 
