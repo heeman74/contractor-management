@@ -76,7 +76,13 @@ export function useQuoteDetail(id: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["quote", id] });
       queryClient.invalidateQueries({ queryKey: ["quotes"] });
-      toast.success(`Quote sent to ${quote?.client_name ?? job?.client_name ?? "client"}`);
+      // The quote's own client first: a project-level quote has no job, so the
+      // job's client_name left it reading "sent to client". No address here —
+      // a send does not email anyone yet, and naming one would promise a
+      // delivery that does not happen.
+      toast.success(
+        `Quote sent to ${quote?.client_name ?? job?.client_name ?? "client"}`
+      );
     },
     // A 409 here means the server's D-07 unreviewed-AI-lines check fired on a
     // stale client — its detail is user-facing copy the backend owns and

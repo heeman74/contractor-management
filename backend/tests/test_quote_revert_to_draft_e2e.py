@@ -2,8 +2,8 @@
 
 Sending is one-way otherwise: a quote that went out too early, or went out with
 the wrong number on it, had no way back. Reverting restores the pre-send state so
-it can be corrected and sent again — which also makes the send path, email
-included, repeatable against one quote.
+it can be corrected and sent again, which also makes the send path repeatable
+against one quote.
 """
 
 from __future__ import annotations
@@ -11,7 +11,6 @@ from __future__ import annotations
 import pytest
 from httpx import AsyncClient
 
-from app.core.email import sent_emails
 from tests.quote_client_helpers import client_headers_for_quote, ensure_client
 
 _QUOTE_BODY = {
@@ -29,13 +28,6 @@ _QUOTE_BODY = {
         }
     ],
 }
-
-
-@pytest.fixture(autouse=True)
-def _clear_outbox():
-    sent_emails.clear()
-    yield
-    sent_emails.clear()
 
 
 async def _sent_quote(client: AsyncClient) -> dict:
@@ -103,16 +95,15 @@ async def test_an_expiry_the_user_chose_survives(tenant_a_client: AsyncClient):
 async def test_reverting_lets_the_quote_be_sent_again(tenant_a_client: AsyncClient):
     """The point of the whole thing: the send path becomes repeatable."""
     quote = await _sent_quote(tenant_a_client)
-    first_emails = len(sent_emails)
-    assert first_emails == 1, sent_emails
 
     revert = await tenant_a_client.post(f"/api/v1/quotes/{quote['id']}/revert-to-draft")
     assert revert.status_code == 200, revert.text
+    assert revert.json()["status"] == "draft"
 
     resend = await tenant_a_client.post(f"/api/v1/quotes/{quote['id']}/send")
     assert resend.status_code == 200, resend.text
     assert resend.json()["status"] == "sent"
-    assert len(sent_emails) == 2, "re-sending emails the client again"
+    assert resend.json()["sent_at"] is not None
 
 
 @pytest.mark.asyncio

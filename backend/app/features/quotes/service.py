@@ -28,7 +28,6 @@ import json
 import uuid
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-from smtplib import SMTPAuthenticationError
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
@@ -36,10 +35,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.base_service import TenantScopedService, entity_or_404
-from app.core.config import settings
-from app.core.email import EmailService
-from app.core.logging_config import get_logger
-from app.features.companies.models import Company
 from app.features.contracts.models import Contract
 from app.features.invoices.models import Invoice
 from app.features.jobs.mixins import JobEventsMixin
@@ -64,13 +59,9 @@ from app.features.quotes.schemas import (
     DeclineQuoteRequest,
     QuoteCreate,
     QuoteLineItemCreate,
-    QuoteResponse,
     QuoteTemplateCreate,
     QuoteUpdate,
 )
-from app.features.users.models import User
-
-logger = get_logger(__name__)
 
 # Fallbacks when an approved project-level quote is converted into a project.
 _DEFAULT_PROJECT_NAME = "New Project"
@@ -456,11 +447,21 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
 
         Transitions draft -> sent. Appends 'quote_sent' to job.status_history.
         Triggers FCM notification to the job's client (fire-and-forget).
+
+        Deliberately does NOT email the quote. A send briefly did, through one
+        instance-wide SMTP account, which meant every company's quotes went out
+        from the operator's address — and a provider will not let you put a
+        company's address in From unless that company authenticated it. The
+        sender has to be resolved per company, which needs company email
+        settings this schema does not have yet. Until then a send is a status
+        change and a push, and nothing here should grow a global sender again:
+        the client is still required (`_require_client`), so the recipient is
+        known and the delivery is what is missing.
         """
         quote = await self._get_quote_or_404(quote_id)
         self._require_quote_status(quote, {"draft"}, "send")
         self._require_no_unreviewed_ai_lines(quote)
-        client_id = await self._require_client(quote)
+        await self._require_client(quote)
 
         quote.status = "sent"
         quote.sent_at = datetime.now(UTC)
@@ -470,11 +471,9 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
         await self.db.flush()
         await self._append_job_status_event(quote.job_id, "quote_sent", None)
 
-        sent = await self.repository.get_with_line_items(quote_id)
-        await self._email_quote_to_client(sent, client_id)  # type: ignore[arg-type]
         await self._notify_job_client(quote.job_id, "quote_sent")
 
-        return sent  # type: ignore[return-value]
+        return await self.repository.get_with_line_items(quote_id)  # type: ignore[return-value]
 
     async def revert_to_draft(self, quote_id: uuid.UUID) -> Quote:
         """Put a sent quote back to draft so it can be corrected and sent again.
@@ -509,71 +508,6 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
         await self._append_job_status_event(quote.job_id, "quote_reverted_to_draft", None)
 
         return await self.repository.get_with_line_items(quote_id)  # type: ignore[return-value]
-
-    async def _email_quote_to_client(self, quote: Quote, client_id: uuid.UUID) -> None:
-        """Email the quote to the client it is addressed to.
-
-        Sending is part of the operation rather than fire-and-forget. A push
-        notification was the only thing a send ever produced, so a quote could be
-        marked sent, answer 200, and reach the client's inbox never — which is
-        indistinguishable from success to whoever pressed the button. If the mail
-        cannot go out the request fails, the transaction rolls back, and the
-        quote stays a draft that can be sent again.
-        """
-        client = await self.db.get(User, client_id)
-        if client is None or not client.email:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="This quote's client has no email address to send to.",
-            )
-
-        company = await self.db.get(Company, quote.company_id)
-        quote_url = f"{settings.public_web_url.rstrip('/')}/quotes/{quote.id}"
-        # The same total the API returns, not a second implementation of it.
-        # model_validate alone leaves the totals on their zero defaults — they
-        # are computed, and from_orm_with_totals is what computes them.
-        total = QuoteResponse.from_orm_with_totals(quote).total
-
-        try:
-            await EmailService().send_quote_to_client(
-                to=client.email,
-                quote_number=f"#{quote.quote_number}",
-                company_name=company.name if company is not None else "Your contractor",
-                total=f"${total:,.2f}",
-                quote_url=quote_url,
-                expiry_date=quote.expiry_date.isoformat() if quote.expiry_date else None,
-            )
-        except SMTPAuthenticationError as exc:
-            # The mail provider rejected our credentials: nobody can fix this by
-            # pressing the button again, so do not invite them to. Gmail answers
-            # 535 5.7.8 here when given an account password instead of an app
-            # password.
-            logger.error(
-                "quote_email_credentials_rejected",
-                quote_id=str(quote.id),
-                recipient=client.email,
-                smtp_code=exc.smtp_code,
-                smtp_error=str(exc.smtp_error),
-            )
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=(
-                    "The email service rejected our sign-in, so the quote was not "
-                    "sent and is still a draft. An administrator needs to fix the "
-                    "mail settings — retrying will not help."
-                ),
-            ) from exc
-        except Exception as exc:
-            logger.error(
-                "quote_email_failed",
-                quote_id=str(quote.id),
-                recipient=client.email,
-                error=repr(exc),
-            )
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="Could not email the quote to the client. The quote is still a draft.",
-            ) from exc
 
     async def record_view(self, quote_id: uuid.UUID, viewer_id: uuid.UUID) -> Quote:
         """Record client's first view of a sent quote (read receipt).
