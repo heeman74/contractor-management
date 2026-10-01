@@ -28,6 +28,7 @@ import json
 import uuid
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from smtplib import SMTPAuthenticationError
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
@@ -542,12 +543,32 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
                 quote_url=quote_url,
                 expiry_date=quote.expiry_date.isoformat() if quote.expiry_date else None,
             )
+        except SMTPAuthenticationError as exc:
+            # The mail provider rejected our credentials: nobody can fix this by
+            # pressing the button again, so do not invite them to. Gmail answers
+            # 535 5.7.8 here when given an account password instead of an app
+            # password.
+            logger.error(
+                "quote_email_credentials_rejected",
+                quote_id=str(quote.id),
+                recipient=client.email,
+                smtp_code=exc.smtp_code,
+                smtp_error=str(exc.smtp_error),
+            )
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=(
+                    "The email service rejected our sign-in, so the quote was not "
+                    "sent and is still a draft. An administrator needs to fix the "
+                    "mail settings — retrying will not help."
+                ),
+            ) from exc
         except Exception as exc:
             logger.error(
-                "Quote email failed, send aborted: quote_id=%s to=%s error=%s",
-                quote.id,
-                client.email,
-                exc,
+                "quote_email_failed",
+                quote_id=str(quote.id),
+                recipient=client.email,
+                error=repr(exc),
             )
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,

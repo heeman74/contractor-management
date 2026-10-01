@@ -116,3 +116,36 @@ async def test_send_fails_and_rolls_back_when_the_email_cannot_go_out(
     after = await tenant_a_client.get(f"/api/v1/quotes/{quote['id']}")
     assert after.status_code == 200, after.text
     assert after.json()["status"] == "draft", "a failed send must not leave it sent"
+
+
+@pytest.mark.asyncio
+async def test_rejected_mail_credentials_say_so_rather_than_suggest_a_retry(
+    tenant_a_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+):
+    """Bad SMTP credentials are a configuration fault, not a transient one.
+
+    Gmail answers 535 5.7.8 when handed an account password instead of an app
+    password. Telling the user to try again would be telling them to do
+    something that cannot work.
+    """
+    from smtplib import SMTPAuthenticationError
+
+    from app.core.email import EmailService
+
+    async def _reject(*_args, **_kwargs) -> None:
+        raise SMTPAuthenticationError(535, b"5.7.8 Username and Password not accepted.")
+
+    monkeypatch.setattr(EmailService, "send_quote_to_client", _reject)
+
+    client_id = await ensure_client(tenant_a_client, email="rejected@example.com")
+    quote = await _draft_quote_for(tenant_a_client, str(client_id))
+
+    send = await tenant_a_client.post(f"/api/v1/quotes/{quote['id']}/send")
+    assert send.status_code == 502, send.text
+
+    detail = send.json()["detail"]
+    assert "rejected our sign-in" in detail, detail
+    assert "retrying will not help" in detail, detail
+
+    after = await tenant_a_client.get(f"/api/v1/quotes/{quote['id']}")
+    assert after.json()["status"] == "draft"
