@@ -29,6 +29,13 @@ export const UPSTREAM_TIMEOUT_MS = 75_000;
 // reference, so a shared constant here would be unusable by the very routes
 // that need it.
 
+/**
+ * Set on a response the proxy generated about the upstream, rather than one the
+ * upstream produced. The platform answers 502 when this app fails to respond
+ * too, so without a marker there is no way to tell which end broke.
+ */
+export const UPSTREAM_ERROR_HEADER = "x-upstream-error";
+
 export const UPSTREAM_UNREACHABLE_DETAIL =
   "The service is starting up. Please try again in a moment.";
 

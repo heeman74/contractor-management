@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
 import {
+  UPSTREAM_ERROR_HEADER,
   UPSTREAM_UNREACHABLE_DETAIL,
   fetchUpstream,
 } from "@/lib/server/upstream";
@@ -77,7 +78,13 @@ async function handleProxy(request: NextRequest): Promise<NextResponse> {
 
   const upstreamRes = await fetchUpstream(upstreamUrl, { method, headers, body });
   if (upstreamRes === null) {
-    return NextResponse.json({ detail: UPSTREAM_UNREACHABLE_DETAIL }, { status: 502 });
+    // Marked, because the platform also answers 502 when THIS app is the one
+    // not responding. The two are identical in devtools otherwise, and knowing
+    // which end failed is the whole question when a request dies.
+    return NextResponse.json(
+      { detail: UPSTREAM_UNREACHABLE_DETAIL },
+      { status: 502, headers: { [UPSTREAM_ERROR_HEADER]: "unreachable" } }
+    );
   }
 
   // 204/205/304 are "null body status" codes: the Response constructor throws
@@ -87,6 +94,27 @@ async function handleProxy(request: NextRequest): Promise<NextResponse> {
   // the write had already committed.
   if (NULL_BODY_STATUSES.has(upstreamRes.status)) {
     return new NextResponse(null, { status: upstreamRes.status });
+  }
+
+  // An error whose body is not JSON did not come from the API — it is the
+  // platform's own page, served when the service is asleep, suspended, or
+  // restarting. Forwarded as-is it reaches the client as HTML it cannot read,
+  // and every such failure surfaces as "An unexpected error occurred", which
+  // names neither the cause nor the end it came from.
+  const upstreamContentType = upstreamRes.headers.get("content-type") ?? "";
+  if (!upstreamRes.ok && !upstreamContentType.includes("json")) {
+    return NextResponse.json(
+      {
+        detail:
+          `The API answered ${upstreamRes.status} without a message, which means ` +
+          "the request never reached the application. It may be asleep, " +
+          "restarting, or suspended.",
+      },
+      {
+        status: upstreamRes.status,
+        headers: { [UPSTREAM_ERROR_HEADER]: "platform-page" },
+      }
+    );
   }
 
   // Stream the body through rather than reading it as text. `text()` decodes

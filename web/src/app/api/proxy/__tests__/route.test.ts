@@ -136,3 +136,66 @@ describe("binary responses", () => {
     );
   });
 });
+
+/**
+ * Whose failure was it?
+ *
+ * The platform answers 502 when this app is the one not responding, so a 502 in
+ * devtools says nothing about which end broke — which is exactly the question
+ * when a request dies. And a suspended or sleeping API answers with its own HTML
+ * page, which reaches the client as a body it cannot read and surfaces as
+ * "An unexpected error occurred".
+ */
+describe("upstream failures are attributable", () => {
+  const proxyRequest = (path: string) =>
+    new NextRequest(
+      `http://localhost:3000/api/proxy?path=${encodeURIComponent(path)}`
+    );
+
+  beforeEach(() => {
+    jest.restoreAllMocks();
+    mockCookieGet.mockReturnValue({ value: "test-access-token" });
+  });
+
+  it("marks its own 502 when the upstream never answered", async () => {
+    global.fetch = jest.fn().mockRejectedValue(new Error("ECONNREFUSED")) as never;
+
+    const res = await GET(proxyRequest("/api/v1/quotes"));
+
+    expect(res.status).toBe(502);
+    expect(res.headers.get("x-upstream-error")).toBe("unreachable");
+  });
+
+  it("translates a platform error page into a message naming the cause", async () => {
+    // What a suspended service actually returns: an HTML page, not JSON.
+    global.fetch = jest.fn().mockResolvedValue(
+      new Response("<html><title>Service Suspended</title></html>", {
+        status: 503,
+        headers: { "content-type": "text/html" },
+      })
+    ) as never;
+
+    const res = await GET(proxyRequest("/api/v1/quotes"));
+
+    expect(res.status).toBe(503);
+    expect(res.headers.get("x-upstream-error")).toBe("platform-page");
+    const body = await res.json();
+    expect(body.detail).toContain("503");
+    expect(body.detail).toContain("suspended");
+  });
+
+  it("leaves a real API error untouched, so its detail still reaches the user", async () => {
+    global.fetch = jest.fn().mockResolvedValue(
+      new Response(JSON.stringify({ detail: "Cannot send quote in status 'sent'." }), {
+        status: 409,
+        headers: { "content-type": "application/json" },
+      })
+    ) as never;
+
+    const res = await GET(proxyRequest("/api/v1/quotes"));
+
+    expect(res.status).toBe(409);
+    expect(res.headers.get("x-upstream-error")).toBeNull();
+    expect((await res.json()).detail).toBe("Cannot send quote in status 'sent'.");
+  });
+});
