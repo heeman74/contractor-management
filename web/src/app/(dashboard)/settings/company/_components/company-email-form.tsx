@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import {
   useClearCompanySmtp,
   useCompany,
+  useCompanyEmailStatus,
   useTestCompanyEmail,
   useUpdateCompany,
 } from "@/lib/api/contracts";
@@ -35,9 +36,11 @@ interface CompanyEmailFormProps {
   companyId: string;
 }
 
-const GMAIL_APP_PASSWORD_HELP =
-  "Gmail needs an app password here, not your account password — generate one " +
-  "with 2-step verification enabled. An account password is rejected.";
+const PASSWORD_HELP =
+  "Your provider's key goes here — SMTP has no separate key field. Gmail needs " +
+  "an app password, not your account password (generate one with 2-step " +
+  "verification on). SendGrid uses the username \u201capikey\u201d with the API " +
+  "key as the password.";
 
 function emptyToNull(value: string): string | null {
   const trimmed = value.trim();
@@ -47,6 +50,7 @@ function emptyToNull(value: string): string | null {
 export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
   const { can, isLoading: permissionsLoading } = usePermissions();
   const { data: company } = useCompany(companyId);
+  const { data: emailStatus } = useCompanyEmailStatus(companyId);
   const updateCompany = useUpdateCompany(companyId);
   const testEmail = useTestCompanyEmail(companyId);
   const clearSmtp = useClearCompanySmtp(companyId);
@@ -162,14 +166,48 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
         </div>
       </div>
 
+      {emailStatus && !emailStatus.can_send ? (
+        <div
+          role="status"
+          className="mt-5 rounded-lg bg-amber-500/10 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-500/30 dark:text-amber-200"
+        >
+          <p className="font-semibold">Quotes cannot be emailed yet</p>
+          <p className="mt-0.5">
+            This server has no mail account of its own, so the only way to send
+            is through your own mailbox below.
+          </p>
+        </div>
+      ) : null}
+
+      {emailStatus?.can_send ? (
+        <p className="mt-5 text-sm text-muted-foreground">
+          Clients currently see{" "}
+          <span className="font-medium text-foreground">{emailStatus.sender}</span>
+          {emailStatus.reply_to ? (
+            <>
+              , with replies going to{" "}
+              <span className="font-medium text-foreground">
+                {emailStatus.reply_to}
+              </span>
+            </>
+          ) : null}
+          .
+        </p>
+      ) : null}
+
       <div className="mt-6 border-t border-foreground/10 pt-5">
         <h3 className="font-display text-sm font-bold tracking-tight text-foreground">
           Send through your own mailbox
+          {emailStatus && !emailStatus.relay_available ? (
+            <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-xs font-semibold text-amber-800 dark:text-amber-200">
+              Required
+            </span>
+          ) : null}
         </h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          Optional. With this set, mail is sent from your address and appears in
-          your Sent folder. Without it, the server sends on your behalf and
-          replies still reach you.
+          {emailStatus && !emailStatus.relay_available
+            ? "This server has no mail account, so these details are what send your quotes. Mail goes out from your address and appears in your Sent folder."
+            : "Optional. With this set, mail is sent from your address and appears in your Sent folder. Without it, the server sends on your behalf and replies still reach you."}
         </p>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -217,7 +255,7 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
               placeholder={company?.smtp_configured ? "Leave blank to keep" : ""}
             />
             <p className="text-xs text-muted-foreground">
-              {GMAIL_APP_PASSWORD_HELP}
+              {PASSWORD_HELP}
             </p>
           </div>
         </div>

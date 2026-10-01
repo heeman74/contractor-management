@@ -89,3 +89,24 @@ class EmailTestResult(BaseModel):
     transport: str
     recipient: str
     detail: str
+
+
+class EmailStatus(BaseModel):
+    """What would actually happen if this company sent mail right now.
+
+    The company's own mailbox is optional only when the server has a mail
+    account of its own to fall back on. Without one it is the single thing
+    standing between a company and being able to email a quote, and calling it
+    optional would be false — so whether it is required is a fact about the
+    server, reported here rather than guessed at in the UI.
+    """
+
+    mailbox_configured: bool
+    relay_available: bool
+    # False when neither exists: a send would report success and reach nobody.
+    can_send: bool
+    # "company-smtp", "relay", or "dev-outbox".
+    transport: str
+    # The From a client would see, so the sender is never a guess.
+    sender: str
+    reply_to: str | None

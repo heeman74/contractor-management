@@ -8,6 +8,7 @@ import type {
   Contract,
   ContractTemplate,
   ContractTemplateUpdate,
+  EmailStatus,
   EmailTestResult,
   SendContractResponse,
 } from "@/types/api";
@@ -107,6 +108,21 @@ export function useCompany(companyId: string) {
     queryKey: companyKey(companyId),
     queryFn: () => apiGet<Company>(`/api/v1/companies/${companyId}`),
     enabled: Boolean(companyId),
+  });
+}
+
+/**
+ * What would happen if this company sent mail right now.
+ *
+ * The company's own mailbox is optional only when the server has a mail account
+ * to fall back on, so whether that section is required is a fact about the
+ * server — asked for rather than assumed.
+ */
+export function useCompanyEmailStatus(companyId: string) {
+  return useQuery<EmailStatus>({
+    queryKey: [...companyKey(companyId), "email-status"],
+    queryFn: () =>
+      apiGet<EmailStatus>(`/api/v1/companies/${companyId}/email/status`),
   });
 }
 

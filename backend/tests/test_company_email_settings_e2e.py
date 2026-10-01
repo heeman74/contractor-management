@@ -342,3 +342,84 @@ async def test_a_rotated_key_asks_for_the_password_again(
     resp = await tenant_a_client.post(f"/api/v1/companies/{company_id}/email/test")
     assert resp.status_code == 400, resp.text
     assert "entered again" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_status_says_the_mailbox_is_the_only_option_without_a_relay(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    """Tests run with no server mail account, which is exactly that case.
+
+    The settings screen calls this to decide whether its own mailbox section is
+    optional or the only way this company can send anything.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+
+    resp = await tenant_a_client.get(f"/api/v1/companies/{company_id}/email/status")
+    assert resp.status_code == 200, resp.text
+
+    body = resp.json()
+    assert body["relay_available"] is False
+    assert body["mailbox_configured"] is False
+    assert body["can_send"] is False, "nothing could carry a quote right now"
+    assert body["transport"] == TRANSPORT_DEV
+
+
+@pytest.mark.asyncio
+async def test_status_reports_the_relay_when_the_server_has_one(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict, monkeypatch: pytest.MonkeyPatch
+):
+    company_id = seed_two_tenants["tenant_a_id"]
+    await tenant_a_client.patch(
+        f"/api/v1/companies/{company_id}", json={"email_from_address": "q@acme.com"}
+    )
+    monkeypatch.setattr(email_module.settings, "smtp_host", "smtp.relay.test")
+    monkeypatch.setattr(email_module.settings, "smtp_from", "ContractorHub <ops@relay.test>")
+
+    resp = await tenant_a_client.get(f"/api/v1/companies/{company_id}/email/status")
+    assert resp.status_code == 200, resp.text
+
+    body = resp.json()
+    assert body["relay_available"] is True
+    assert body["can_send"] is True, "their own mailbox is genuinely optional here"
+    assert body["transport"] == TRANSPORT_RELAY
+    assert body["sender"] == "Tenant A Corp <ops@relay.test>"
+    assert body["reply_to"] == "q@acme.com"
+
+
+@pytest.mark.asyncio
+async def test_status_reports_the_companys_own_mailbox_once_set(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    company_id = seed_two_tenants["tenant_a_id"]
+    await tenant_a_client.patch(
+        f"/api/v1/companies/{company_id}",
+        json={
+            "email_from_address": "steve@acme.com",
+            "smtp_host": "smtp.gmail.com",
+            "smtp_user": "steve@acme.com",
+            "smtp_password": _APP_PASSWORD,
+        },
+    )
+
+    resp = await tenant_a_client.get(f"/api/v1/companies/{company_id}/email/status")
+    assert resp.status_code == 200, resp.text
+
+    body = resp.json()
+    assert body["mailbox_configured"] is True
+    assert body["can_send"] is True
+    assert body["transport"] == TRANSPORT_COMPANY
+    assert body["sender"] == "Tenant A Corp <steve@acme.com>"
+    assert body["reply_to"] is None, "the sender is already theirs"
+    # Still never the credential.
+    assert _APP_PASSWORD not in resp.text
+
+
+@pytest.mark.asyncio
+async def test_status_is_not_readable_by_another_tenant(
+    tenant_b_client: AsyncClient, seed_two_tenants: dict
+):
+    resp = await tenant_b_client.get(
+        f"/api/v1/companies/{seed_two_tenants['tenant_a_id']}/email/status"
+    )
+    assert resp.status_code == 404, resp.text

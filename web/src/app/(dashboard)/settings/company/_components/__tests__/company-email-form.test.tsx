@@ -19,8 +19,10 @@ const mockUpdate = jest.fn();
 const mockTest = jest.fn();
 const mockClear = jest.fn();
 const mockUseCompany = jest.fn();
+const mockUseEmailStatus = jest.fn();
 jest.mock("@/lib/api/contracts", () => ({
   useCompany: (...args: unknown[]) => mockUseCompany(...args),
+  useCompanyEmailStatus: (...args: unknown[]) => mockUseEmailStatus(...args),
   useUpdateCompany: () => ({ mutate: mockUpdate, isPending: false }),
   useTestCompanyEmail: () => ({ mutate: mockTest, isPending: false }),
   useClearCompanySmtp: () => ({ mutate: mockClear, isPending: false }),
@@ -29,7 +31,7 @@ jest.mock("@/lib/api/contracts", () => ({
 jest.mock("sonner", () => ({ toast: { success: jest.fn(), error: jest.fn() } }));
 
 import { CompanyEmailForm } from "../company-email-form";
-import type { Company } from "@/types/api";
+import type { Company, EmailStatus } from "@/types/api";
 
 const COMPANY: Company = {
   id: "c-1",
@@ -60,9 +62,26 @@ function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
 }
 
-function renderForm(company: Partial<Company> = {}) {
+/** A server that has its own mail account, so the mailbox is genuinely optional. */
+const STATUS_WITH_RELAY: EmailStatus = {
+  mailbox_configured: false,
+  relay_available: true,
+  can_send: true,
+  transport: "relay",
+  sender: "Acme Trades <ops@relay.test>",
+  reply_to: "quotes@acme.com",
+};
+
+function renderForm(
+  company: Partial<Company> = {},
+  status: Partial<EmailStatus> | null = {}
+) {
   mockUseCompany.mockReturnValue({
     data: { ...COMPANY, ...company },
+    isLoading: false,
+  });
+  mockUseEmailStatus.mockReturnValue({
+    data: status === null ? undefined : { ...STATUS_WITH_RELAY, ...status },
     isLoading: false,
   });
   return render(<CompanyEmailForm companyId="c-1" />, { wrapper });
@@ -154,13 +173,6 @@ it("offers to stop using the mailbox only once one is configured", () => {
   ).toBeInTheDocument();
 });
 
-it("explains that Gmail needs an app password", () => {
-  // The deployed failure was a 535 from handing Gmail an account password.
-  renderForm();
-
-  expect(screen.getByText(/app password/)).toBeInTheDocument();
-});
-
 it("reports a delivered test with the address it reached", async () => {
   renderForm();
   mockTest.mockImplementation((_arg, options) =>
@@ -200,4 +212,66 @@ it("shows a refusal in full rather than as a generic failure", async () => {
     expect(screen.getByText("Nothing was sent")).toBeInTheDocument()
   );
   expect(screen.getByText(/5\.7\.8/)).toBeInTheDocument();
+});
+
+
+/**
+ * "It says optional — should that be a requirement?"
+ *
+ * It is optional only when the server has a mail account to fall back on. On a
+ * server without one, the company's mailbox is the single thing standing between
+ * them and being able to email a quote, and calling it optional is false.
+ */
+describe("whether the mailbox is optional", () => {
+  it("says optional when the server can send on their behalf", () => {
+    renderForm({}, { relay_available: true, can_send: true });
+
+    expect(screen.getByText(/^Optional\./)).toBeInTheDocument();
+    expect(screen.queryByText("Required")).not.toBeInTheDocument();
+  });
+
+  it("marks it required when the server has no mail account", () => {
+    renderForm({}, { relay_available: false, can_send: false });
+
+    expect(screen.getByText("Required")).toBeInTheDocument();
+    expect(screen.getByText("Quotes cannot be emailed yet")).toBeInTheDocument();
+    expect(screen.queryByText(/^Optional\./)).not.toBeInTheDocument();
+  });
+
+  it("shows the address clients will actually see", () => {
+    renderForm(
+      {},
+      {
+        can_send: true,
+        sender: "Acme Trades <steve@acme.com>",
+        reply_to: null,
+      }
+    );
+
+    expect(screen.getByText("Acme Trades <steve@acme.com>")).toBeInTheDocument();
+  });
+
+  it("names where replies go when that differs from the sender", () => {
+    renderForm({}, { can_send: true, reply_to: "quotes@acme.com" });
+
+    expect(screen.getByText("quotes@acme.com")).toBeInTheDocument();
+  });
+
+  it("says nothing either way until the status is known", () => {
+    renderForm({}, null);
+
+    expect(screen.queryByText("Required")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Quotes cannot be emailed yet")
+    ).not.toBeInTheDocument();
+  });
+});
+
+it("explains that the provider's key goes in the password field", () => {
+  // "Where is the SMTP key?" — there is no such field: SMTP authenticates with
+  // a username and a password, and the key is the password.
+  renderForm();
+
+  expect(screen.getByText(/no separate key field/)).toBeInTheDocument();
+  expect(screen.getByText(/app password/)).toBeInTheDocument();
 });

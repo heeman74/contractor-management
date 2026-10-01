@@ -161,6 +161,16 @@ class EmailService:
         """False when a send would report success and reach nobody."""
         return self._sender.delivers
 
+    @property
+    def sender_header(self) -> str:
+        """The From a recipient would see."""
+        return self._sender.from_header
+
+    @property
+    def reply_to(self) -> str | None:
+        """Where a reply would go, when that differs from the sender."""
+        return self._sender.reply_to
+
     async def send(self, *, to: str, subject: str, text_body: str, html_body: str) -> None:
         """Send one message. Falls back to the dev outbox when no SMTP is set."""
         if self._sender.transport is not None:

@@ -25,6 +25,7 @@ from app.features.companies.schemas import (
     CompanyCreate,
     CompanyResponse,
     CompanyUpdate,
+    EmailStatus,
     EmailTestResult,
 )
 from app.features.companies.service import CompanyService
@@ -86,6 +87,13 @@ class CompanyRouter(CRUDRouter):
             methods=["POST"],
             response_model=EmailTestResult,
             summary="Send a test message using this company's mail settings",
+        )
+        self.router.add_api_route(
+            "/{company_id}/email/status",
+            get_email_status,
+            methods=["GET"],
+            response_model=EmailStatus,
+            summary="What would happen if this company sent mail now",
         )
         self.router.add_api_route(
             "/{company_id}/email/smtp",
@@ -218,6 +226,46 @@ async def send_test_email(
         transport=service.transport_label,
         recipient=user.email,
         detail=f"Sent via {sending_as}.",
+    )
+
+
+async def get_email_status(
+    company_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> EmailStatus:
+    """Report the sender and transport this company's mail would use.
+
+    Lets the settings screen say whether its own mailbox is optional or the only
+    way this company can send anything, instead of claiming optional and being
+    wrong on a server with no mail account.
+    """
+    company = await _company_for_settings(company_id, current_user, db)
+
+    try:
+        service = EmailService.for_company(company)
+    except SecretDecryptionError:
+        # The stored credential is unreadable, so the mailbox cannot carry mail
+        # even though it is configured. Report the relay that would be used
+        # instead, and let the test send explain the credential.
+        service = EmailService()
+        return EmailStatus(
+            mailbox_configured=company.smtp_configured,
+            relay_available=service.delivers,
+            can_send=service.delivers,
+            transport=service.transport_label,
+            sender=service.sender_header,
+            reply_to=company.email_from_address,
+        )
+
+    relay_available = EmailService().delivers
+    return EmailStatus(
+        mailbox_configured=company.smtp_configured,
+        relay_available=relay_available,
+        can_send=service.delivers,
+        transport=service.transport_label,
+        sender=service.sender_header,
+        reply_to=service.reply_to,
     )
 
 

@@ -542,6 +542,16 @@ export interface CompanyUpdate {
   smtp_password?: string | null;
 }
 
+/** What would happen if this company sent mail right now. */
+export interface EmailStatus {
+  mailbox_configured: boolean;
+  relay_available: boolean;
+  can_send: boolean;
+  transport: string;
+  sender: string;
+  reply_to: string | null;
+}
+
 /** What happened when a company's mail settings were exercised. */
 export interface EmailTestResult {
   delivered: boolean;
