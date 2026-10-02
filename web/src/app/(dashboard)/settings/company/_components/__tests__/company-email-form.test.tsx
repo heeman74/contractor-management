@@ -346,3 +346,65 @@ describe("testing what is on screen", () => {
     expect(screen.getByText(/unsaved changes/)).toBeInTheDocument();
   });
 });
+
+describe("the port stays editable after it has been saved", () => {
+  const SAVED: Partial<Company> = {
+    smtp_configured: true,
+    smtp_host: "smtp.gmail.com",
+    smtp_port: 587,
+    smtp_user: "steve@acme.com",
+  };
+
+  it("accepts a new value", () => {
+    renderForm(SAVED);
+    const port = screen.getByLabelText("Port");
+    expect(port).toHaveValue("587");
+    expect(port).not.toBeDisabled();
+
+    fireEvent.change(port, { target: { value: "465" } });
+
+    expect(port).toHaveValue("465");
+  });
+
+  it("sends the new value even though the password is left blank", async () => {
+    // After a save the password field is empty by design, which must not stop
+    // the rest of the mailbox from being edited.
+    renderForm(SAVED);
+    mockUpdate.mockImplementation((_payload, options) => options.onSuccess());
+
+    fireEvent.change(screen.getByLabelText("Port"), { target: { value: "465" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save email settings" }));
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
+    const payload = mockUpdate.mock.calls[0][0];
+    expect(payload.smtp_port).toBe(465);
+    expect(payload).not.toHaveProperty("smtp_password");
+  });
+
+  it("ignores anything that is not a digit", () => {
+    renderForm(SAVED);
+
+    fireEvent.change(screen.getByLabelText("Port"), { target: { value: "4a6b5" } });
+
+    expect(screen.getByLabelText("Port")).toHaveValue("465");
+  });
+});
+
+it("lets a saved mailbox be edited even if smtp_configured is missing", () => {
+  // A backend that does not report that flag must not strand the form: the
+  // password field is blank by design after a save, and treating that as
+  // incomplete greys out Save and makes the port impossible to change.
+  renderForm({
+    smtp_configured: false,
+    smtp_host: "smtp.gmail.com",
+    smtp_port: 587,
+    smtp_user: "steve@acme.com",
+  });
+
+  fireEvent.change(screen.getByLabelText("Port"), { target: { value: "465" } });
+
+  expect(screen.getByRole("button", { name: "Save email settings" })).toBeEnabled();
+  expect(
+    screen.queryByText("A mailbox needs a server, a username and a password.")
+  ).not.toBeInTheDocument();
+});

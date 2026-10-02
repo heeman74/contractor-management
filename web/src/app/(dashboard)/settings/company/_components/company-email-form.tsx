@@ -101,10 +101,17 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
   // database rejection, since the columns are constrained to travel together.
   const wantsMailbox =
     smtpHost.trim() !== "" || smtpUser.trim() !== "" || smtpPassword.trim() !== "";
+  // A password already stored counts as present. Without this, a saved mailbox
+  // whose password field is blank by design reads as incomplete, Save goes grey,
+  // and the port cannot be changed — the field looks editable and nothing can be
+  // done with it. A stored host is evidence enough, so a backend that does not
+  // report smtp_configured cannot cause that either.
+  const passwordAlreadyStored =
+    company?.smtp_configured === true || (company?.smtp_host ?? "") !== "";
   const mailboxIsComplete =
     smtpHost.trim() !== "" &&
     smtpUser.trim() !== "" &&
-    (smtpPassword.trim() !== "" || company?.smtp_configured === true);
+    (smtpPassword.trim() !== "" || passwordAlreadyStored);
   const canSave = !wantsMailbox || mailboxIsComplete;
 
   function handleSave(afterSaved?: () => void) {
@@ -237,11 +244,17 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
 
           <div className="space-y-1.5">
             <Label htmlFor="smtp-port">Port</Label>
+            {/* Not type="number": its spinner changes the value on a stray
+                scroll, and browsers differ on what they accept typed or pasted.
+                The port is three digits — a plain field with a numeric keypad
+                hint is less to go wrong. */}
             <Input
               id="smtp-port"
-              type="number"
+              inputMode="numeric"
               value={smtpPort}
-              onChange={(event) => setSmtpPort(event.target.value)}
+              onChange={(event) =>
+                setSmtpPort(event.target.value.replace(/[^0-9]/g, ""))
+              }
               placeholder="587"
             />
             <p className="text-xs text-muted-foreground">
