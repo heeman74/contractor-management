@@ -86,11 +86,37 @@ export async function upstreamErrorBody(
   response: Response,
   fallbackDetail: string
 ): Promise<{ detail: string }> {
+  let raw: string;
   try {
-    const parsed = await response.json();
+    raw = await response.text();
+  } catch {
+    raw = "";
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
     if (parsed && typeof parsed.detail === "string") return { detail: parsed.detail };
   } catch {
-    // Not JSON, so not the API's own answer — say so below.
+    // Not JSON, so not the API's own answer. Everything needed to identify who
+    // did answer goes to the log: which intermediary, and what it said. Two
+    // rounds were spent guessing at this from the outside, and the guesses were
+    // wrong both times — the sender puts its name in these headers.
+    console.error(
+      JSON.stringify({
+        event: "upstream_error_not_from_api",
+        // Which address was called, in case the answer is that it is not the
+        // one anybody expected.
+        url: response.url,
+        status: response.status,
+        contentType: response.headers.get("content-type"),
+        server: response.headers.get("server"),
+        cfRay: response.headers.get("cf-ray"),
+        renderId: response.headers.get("rndr-id"),
+        retryAfter: response.headers.get("retry-after"),
+        cfMitigated: response.headers.get("cf-mitigated"),
+        body: raw.slice(0, 400),
+      })
+    );
   }
   return {
     detail:

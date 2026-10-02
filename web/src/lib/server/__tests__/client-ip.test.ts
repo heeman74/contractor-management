@@ -97,3 +97,49 @@ describe("upstreamErrorBody", () => {
     expect(detail).toContain("502");
   });
 });
+
+it("logs who answered when the refusal is not the API's", async () => {
+  // Two rounds were spent guessing at this from outside. The sender puts its
+  // name in these headers, so the next occurrence names itself.
+  const logged: string[] = [];
+  const spy = jest
+    .spyOn(console, "error")
+    .mockImplementation((line) => logged.push(String(line)));
+
+  const response = new Response("<html>too many requests</html>", {
+    status: 429,
+    headers: {
+      "content-type": "text/html",
+      server: "cloudflare",
+      "cf-ray": "a44584d7baf751ae-LAX",
+      "retry-after": "30",
+    },
+  });
+
+  await upstreamErrorBody(response, "Login failed.");
+
+  spy.mockRestore();
+  expect(logged).toHaveLength(1);
+  const entry = JSON.parse(logged[0]);
+  expect(entry.event).toBe("upstream_error_not_from_api");
+  expect(entry.status).toBe(429);
+  expect(entry.server).toBe("cloudflare");
+  expect(entry.cfRay).toBe("a44584d7baf751ae-LAX");
+  expect(entry.retryAfter).toBe("30");
+  expect(entry.body).toContain("too many requests");
+});
+
+it("logs nothing when the API answered for itself", async () => {
+  const spy = jest.spyOn(console, "error").mockImplementation(() => {});
+
+  await upstreamErrorBody(
+    new Response(JSON.stringify({ detail: "Invalid email or password" }), {
+      status: 401,
+      headers: { "content-type": "application/json" },
+    }),
+    "Login failed."
+  );
+
+  expect(spy).not.toHaveBeenCalled();
+  spy.mockRestore();
+});
