@@ -118,7 +118,24 @@ export const UPSTREAM_UNREACHABLE_DETAIL =
 // Waiting and trying once more gets a person in during a brief throttle. Only
 // once, and only for a refusal that is not ours: retrying our own rate limit
 // would be arguing with a decision the API already made.
-const PLATFORM_THROTTLE_RETRY_MS = 1_500;
+// Measured: these bursts clear within seconds — a login refused three times in
+// a row answered normally moments later. Two waits spanning that is the
+// difference between a person getting in and being told to try again.
+const PLATFORM_THROTTLE_WAITS_MS = [1_500, 4_000];
+
+// Honoured when the refusal names one, but only within reach of the waits
+// above: a person is holding a login form, not a background job.
+const MAX_HONOURED_RETRY_AFTER_MS = 10_000;
+
+function throttleWaitMs(response: Response, attempt: number): number {
+  const header = response.headers.get("retry-after");
+  const seconds = header === null ? NaN : Number(header);
+  if (Number.isFinite(seconds) && seconds > 0) {
+    const asMs = seconds * 1_000;
+    if (asMs <= MAX_HONOURED_RETRY_AFTER_MS) return asMs;
+  }
+  return PLATFORM_THROTTLE_WAITS_MS[attempt] ?? 0;
+}
 
 function isPlatformThrottle(response: Response): boolean {
   if (response.status !== 429) return false;
@@ -199,21 +216,29 @@ export async function fetchUpstream(
   url: string,
   init: RequestInit = {}
 ): Promise<Response | null> {
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  // Two failure counters, because the two failures cost different amounts. An
+  // attempt that never lands has already spent the full timeout, so a second is
+  // all the budget allows; a throttled one came back immediately and can afford
+  // to wait and ask again.
+  let failures = 0;
+  let throttles = 0;
+
+  while (true) {
     try {
       const response = await fetchFollowingRedirects(url, init);
-      if (attempt === 0 && isPlatformThrottle(response)) {
+      if (isPlatformThrottle(response) && throttles < PLATFORM_THROTTLE_WAITS_MS.length) {
         await new Promise((resolve) =>
-          setTimeout(resolve, PLATFORM_THROTTLE_RETRY_MS)
+          setTimeout(resolve, throttleWaitMs(response, throttles))
         );
+        throttles += 1;
         continue;
       }
       return response;
     } catch {
-      // Retry once. A body that is a stream could not be re-sent, but every
-      // caller here passes a string or FormData, both of which can.
-      if (attempt === 1) return null;
+      // A body that is a stream could not be re-sent, but every caller here
+      // passes a string or FormData, both of which can.
+      failures += 1;
+      if (failures >= 2) return null;
     }
   }
-  return null;
 }

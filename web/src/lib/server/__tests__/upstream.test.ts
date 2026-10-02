@@ -228,7 +228,7 @@ describe("a throttle that is not the API's", () => {
       headers: { "content-type": "text/html" },
     });
 
-  it("waits and tries once more", async () => {
+  it("waits and tries again", async () => {
     const fetchMock = jest
       .fn()
       .mockResolvedValueOnce(platform429())
@@ -241,17 +241,47 @@ describe("a throttle that is not the API's", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it("gives up after the second refusal rather than looping", async () => {
+  it("tries a second time, since these bursts clear within seconds", async () => {
     const fetchMock = jest
       .fn()
       .mockResolvedValueOnce(platform429())
-      .mockResolvedValueOnce(platform429());
+      .mockResolvedValueOnce(platform429())
+      .mockResolvedValueOnce(new Response("{}", { status: 200 }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const res = await fetchUpstream("https://api.test/api/v1/auth/login");
+
+    expect(res?.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("gives up rather than looping", async () => {
+    const fetchMock = jest.fn().mockResolvedValue(platform429());
     global.fetch = fetchMock as unknown as typeof fetch;
 
     const res = await fetchUpstream("https://api.test/api/v1/auth/login");
 
     expect(res?.status).toBe(429);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("waits what the refusal asks for, when that is a short wait", async () => {
+    const withRetryAfter = new Response("<html>slow down</html>", {
+      status: 429,
+      headers: { "content-type": "text/html", "retry-after": "1" },
+    });
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce(withRetryAfter)
+      .mockResolvedValueOnce(new Response("{}", { status: 200 }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const started = Date.now();
+    const res = await fetchUpstream("https://api.test/api/v1/auth/login");
+
+    expect(res?.status).toBe(200);
+    // A second, as asked — not the longer default it would otherwise have used.
+    expect(Date.now() - started).toBeLessThan(1_400);
   });
 
   it("does not retry the API's own rate limit", async () => {

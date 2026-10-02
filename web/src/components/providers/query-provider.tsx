@@ -10,7 +10,14 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 60_000,
+            // Every browser request reaches the API through this app, over a
+            // hop the platform rate limits in bursts. Refetching all of a
+            // dashboard's queries each time the tab regains focus is the
+            // largest avoidable source of that traffic, and none of this data
+            // changes second to second — a job does not become a different job
+            // because somebody switched windows.
+            refetchOnWindowFocus: false,
+            staleTime: 120_000,
             retry: (failureCount, error) => {
               // Client errors (4xx) won't succeed on retry — retrying only
               // doubles the error logs. Retry once for everything else (5xx,
