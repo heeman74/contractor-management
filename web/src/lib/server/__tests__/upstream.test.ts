@@ -210,3 +210,64 @@ describe("redirects", () => {
     expect(res?.status).toBe(307);
   });
 });
+
+/**
+ * A 429 the API did not write.
+ *
+ * Everything the API sends is JSON, so a refusal without a JSON body came from
+ * the platform in front of it — which sees a single address posting every user's
+ * login and reads that as credential stuffing. Free web services cannot receive
+ * private-network requests, so this hop has to cross the public edge and the
+ * throttle cannot be designed away; waiting briefly and trying once more gets a
+ * person in during a short one.
+ */
+describe("a throttle that is not the API's", () => {
+  const platform429 = () =>
+    new Response("<html>too many requests</html>", {
+      status: 429,
+      headers: { "content-type": "text/html" },
+    });
+
+  it("waits and tries once more", async () => {
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce(platform429())
+      .mockResolvedValueOnce(new Response("{}", { status: 200 }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const res = await fetchUpstream("https://api.test/api/v1/auth/login");
+
+    expect(res?.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives up after the second refusal rather than looping", async () => {
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce(platform429())
+      .mockResolvedValueOnce(platform429());
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const res = await fetchUpstream("https://api.test/api/v1/auth/login");
+
+    expect(res?.status).toBe(429);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry the API's own rate limit", async () => {
+    // Arguing with a decision the API already made, and spending someone's
+    // remaining budget to do it.
+    const fetchMock = jest.fn().mockResolvedValue(
+      new Response(JSON.stringify({ detail: "Too many attempts." }), {
+        status: 429,
+        headers: { "content-type": "application/json" },
+      })
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const res = await fetchUpstream("https://api.test/api/v1/auth/login");
+
+    expect(res?.status).toBe(429);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});

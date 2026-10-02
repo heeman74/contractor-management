@@ -109,6 +109,22 @@ export function clientIpHeaders(request: Request): Record<string, string> {
 export const UPSTREAM_UNREACHABLE_DETAIL =
   "The service is starting up. Please try again in a moment.";
 
+// A 429 the API did not write. Everything it sends is JSON, so a refusal
+// without a JSON body came from the platform in front of it — which sees one
+// address posting every user's login and reads that as credential stuffing.
+// Free web services cannot receive private-network requests, so this hop has to
+// cross the public edge and the throttle cannot be designed away.
+//
+// Waiting and trying once more gets a person in during a brief throttle. Only
+// once, and only for a refusal that is not ours: retrying our own rate limit
+// would be arguing with a decision the API already made.
+const PLATFORM_THROTTLE_RETRY_MS = 1_500;
+
+function isPlatformThrottle(response: Response): boolean {
+  if (response.status !== 429) return false;
+  return !(response.headers.get("content-type") ?? "").includes("json");
+}
+
 const MAX_UPSTREAM_REDIRECTS = 3;
 
 // 307/308 keep the method and body; the older codes are followed as GET, which
@@ -185,7 +201,14 @@ export async function fetchUpstream(
 ): Promise<Response | null> {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      return await fetchFollowingRedirects(url, init);
+      const response = await fetchFollowingRedirects(url, init);
+      if (attempt === 0 && isPlatformThrottle(response)) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, PLATFORM_THROTTLE_RETRY_MS)
+        );
+        continue;
+      }
+      return response;
     } catch {
       // Retry once. A body that is a stream could not be re-sent, but every
       // caller here passes a string or FormData, both of which can.
