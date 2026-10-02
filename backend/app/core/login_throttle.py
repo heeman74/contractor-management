@@ -45,8 +45,19 @@ class LoginThrottle:
         self._lock = threading.Lock()
 
     @staticmethod
-    def _key(email: str) -> str:
-        return email.strip().lower()
+    def _key(email: str, caller: str = "") -> str:
+        """Which account, as seen from which caller.
+
+        Counting an account's failures regardless of who made them means a
+        stranger failing against a known address locks its owner out — the
+        throttle becomes a way to deny someone their own account. Pairing it
+        with the caller keeps a guesser's failures to themselves.
+
+        When the caller cannot be told apart — every browser reaches this API
+        through the web app, so that happens — this collapses back to counting
+        per account, which is where it started and no worse.
+        """
+        return f"{email.strip().lower()}|{caller}"
 
     def _recent(self, key: str, now: float) -> list[float]:
         """Failures still inside the window, dropping the ones that aged out."""
@@ -57,9 +68,9 @@ class LoginThrottle:
             self._failures.pop(key, None)
         return kept
 
-    def retry_after(self, email: str) -> int | None:
+    def retry_after(self, email: str, caller: str = "") -> int | None:
         """Seconds to wait, or None when an attempt is allowed."""
-        key = self._key(email)
+        key = self._key(email, caller)
         now = time.monotonic()
         with self._lock:
             recent = self._recent(key, now)
@@ -68,17 +79,17 @@ class LoginThrottle:
             # Free again when the oldest failure in the window ages out.
             return max(1, int(self._window - (now - recent[0])))
 
-    def record_failure(self, email: str) -> None:
-        key = self._key(email)
+    def record_failure(self, email: str, caller: str = "") -> None:
+        key = self._key(email, caller)
         now = time.monotonic()
         with self._lock:
             self._recent(key, now)
             self._failures[key].append(now)
 
-    def clear(self, email: str) -> None:
+    def clear(self, email: str, caller: str = "") -> None:
         """Forget an account's failures — called when a password proves correct."""
         with self._lock:
-            self._failures.pop(self._key(email), None)
+            self._failures.pop(self._key(email, caller), None)
 
     def reset(self) -> None:
         """Drop all state. For tests, which must not inherit each other's."""

@@ -115,3 +115,40 @@ async def test_the_account_key_ignores_case_and_padding(async_client: AsyncClien
         _LOGIN, json={"email": "CASING@example.com", "password": "WrongPass123!"}
     )
     assert evaded.status_code == 429, evaded.text
+
+
+@pytest.mark.asyncio
+async def test_a_stranger_guessing_cannot_lock_the_owner_out(
+    async_client: AsyncClient,
+):
+    """Counting an account's failures regardless of who made them turns the
+    throttle into a way to deny somebody their own account."""
+    await _register(async_client, "owner@example.com")
+
+    for _ in range(MAX_FAILURES + 2):
+        await async_client.post(
+            _LOGIN,
+            json={"email": "owner@example.com", "password": "WrongPass123!"},
+            headers={"X-Client-IP": "203.0.113.50"},
+        )
+
+    owner = await async_client.post(
+        _LOGIN,
+        json={"email": "owner@example.com", "password": _PASSWORD},
+        headers={"X-Client-IP": "198.51.100.60"},
+    )
+    assert owner.status_code == 200, owner.text
+
+
+@pytest.mark.asyncio
+async def test_the_guesser_is_still_refused(async_client: AsyncClient):
+    """The other half: narrowing the key must not stop it working."""
+    await _register(async_client, "guessed-again@example.com")
+    attacker = {"X-Client-IP": "203.0.113.51"}
+    wrong = {"email": "guessed-again@example.com", "password": "WrongPass123!"}
+
+    for _ in range(MAX_FAILURES):
+        assert (await async_client.post(_LOGIN, json=wrong, headers=attacker)).status_code == 401
+
+    refused = await async_client.post(_LOGIN, json=wrong, headers=attacker)
+    assert refused.status_code == 429, refused.text

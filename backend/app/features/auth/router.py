@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.login_throttle import login_throttle
-from app.core.rate_limit import limiter
+from app.core.rate_limit import client_identity, limiter
 from app.core.security import CurrentUser, get_current_user
 from app.features.auth.schemas import (
     ChangePasswordRequest,
@@ -74,7 +74,8 @@ async def login_endpoint(
     correct password protects nobody, and doing it locked a user out of their own
     account after they came back from an hour away.
     """
-    wait = login_throttle.retry_after(data.email)
+    caller = client_identity(request)
+    wait = login_throttle.retry_after(data.email, caller)
     if wait is not None:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -86,7 +87,7 @@ async def login_endpoint(
         svc = AuthService(db)
         result = await svc.login(email=data.email, password=data.password)
     except ValueError as e:
-        login_throttle.record_failure(data.email)
+        login_throttle.record_failure(data.email, caller)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e),
@@ -94,7 +95,7 @@ async def login_endpoint(
 
     # The password was right, so whatever came before it is no longer evidence
     # of anything.
-    login_throttle.clear(data.email)
+    login_throttle.clear(data.email, caller)
     return TokenResponse(**result)
 
 
