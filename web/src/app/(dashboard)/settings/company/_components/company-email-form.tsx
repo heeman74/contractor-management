@@ -84,6 +84,19 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
     return null;
   }
 
+  // The test exercises what the server has stored, not what is on screen. Typing
+  // a new port and pressing test reported a failure against the old one, naming
+  // a port the user could see they had just changed — so unsaved changes have to
+  // be visible, and the test has to save first.
+  const storedPort = company?.smtp_port ? String(company.smtp_port) : "";
+  const isDirty =
+    fromName !== (company?.email_from_name ?? "") ||
+    fromAddress !== (company?.email_from_address ?? "") ||
+    smtpHost !== (company?.smtp_host ?? "") ||
+    smtpPort !== storedPort ||
+    smtpUser !== (company?.smtp_user ?? "") ||
+    smtpPassword.trim() !== "";
+
   // A mailbox needs all three. Offering a partial save would only surface as a
   // database rejection, since the columns are constrained to travel together.
   const wantsMailbox =
@@ -94,7 +107,7 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
     (smtpPassword.trim() !== "" || company?.smtp_configured === true);
   const canSave = !wantsMailbox || mailboxIsComplete;
 
-  function handleSave() {
+  function handleSave(afterSaved?: () => void) {
     if (updateCompany.isPending || !canSave) return;
     updateCompany.mutate(
       {
@@ -117,6 +130,7 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
           setSmtpPassword("");
           setLastTest(null);
           toast.success("Email settings saved.");
+          afterSaved?.();
         },
         onError: (error) =>
           toast.error(error.message || "Could not save the email settings.", {
@@ -307,11 +321,17 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
               : "Nothing was sent"}
           </p>
           <p className="mt-0.5">{lastTest.detail}</p>
+          {isDirty ? (
+            <p className="mt-1 font-medium">
+              You have unsaved changes — this result describes the settings as
+              they were saved.
+            </p>
+          ) : null}
         </div>
       ) : null}
 
       <div className="mt-5 flex flex-wrap items-center gap-3">
-        <Button onClick={handleSave} disabled={updateCompany.isPending || !canSave}>
+        <Button onClick={() => handleSave()} disabled={updateCompany.isPending || !canSave}>
           {updateCompany.isPending ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -324,18 +344,23 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
 
         <Button
           variant="outline"
-          disabled={testEmail.isPending}
-          onClick={() =>
-            testEmail.mutate(undefined, {
-              onSuccess: setLastTest,
-              onError: (error) =>
-                toast.error(error.message || "Could not run the test.", {
-                  duration: Infinity,
-                }),
-            })
-          }
+          disabled={testEmail.isPending || updateCompany.isPending || !canSave}
+          onClick={() => {
+            const runTest = () =>
+              testEmail.mutate(undefined, {
+                onSuccess: setLastTest,
+                onError: (error) =>
+                  toast.error(error.message || "Could not run the test.", {
+                    duration: Infinity,
+                  }),
+              });
+            // Saving first, because the test reads stored settings — otherwise it
+            // reports on a configuration the screen no longer shows.
+            if (isDirty) handleSave(runTest);
+            else runTest();
+          }}
         >
-          {testEmail.isPending ? (
+          {testEmail.isPending || updateCompany.isPending ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Sending…
@@ -343,7 +368,7 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
           ) : (
             <>
               <Send className="mr-2 h-4 w-4" />
-              Send a test to myself
+              {isDirty ? "Save and send a test" : "Send a test to myself"}
             </>
           )}
         </Button>

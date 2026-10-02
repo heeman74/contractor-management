@@ -275,3 +275,74 @@ it("explains that the provider's key goes in the password field", () => {
   expect(screen.getByText(/no separate key field/)).toBeInTheDocument();
   expect(screen.getByText(/app password/)).toBeInTheDocument();
 });
+
+/**
+ * The test exercises what the server has stored, not what is on screen.
+ *
+ * Changing the port and pressing test reported a failure against the *old* port
+ * — naming a number the user could see they had just changed. So the test saves
+ * first, and unsaved changes say so.
+ */
+describe("testing what is on screen", () => {
+  const CONFIGURED: Partial<Company> = {
+    smtp_configured: true,
+    smtp_host: "smtp.gmail.com",
+    smtp_port: 587,
+    smtp_user: "steve@acme.com",
+  };
+
+  it("saves first when something has been changed", async () => {
+    renderForm(CONFIGURED);
+    mockUpdate.mockImplementation((_payload, options) => options.onSuccess());
+
+    fireEvent.change(screen.getByLabelText("Port"), { target: { value: "465" } });
+    fireEvent.click(screen.getByRole("button", { name: /Save and send a test/ }));
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
+    expect(mockUpdate.mock.calls[0][0].smtp_port).toBe(465);
+    // And only then does it test, so the result describes the new port.
+    await waitFor(() => expect(mockTest).toHaveBeenCalled());
+  });
+
+  it("tests directly when nothing has been changed", async () => {
+    renderForm(CONFIGURED);
+
+    fireEvent.click(screen.getByRole("button", { name: /Send a test to myself/ }));
+
+    await waitFor(() => expect(mockTest).toHaveBeenCalled());
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("renames the button while there are unsaved changes", () => {
+    renderForm(CONFIGURED);
+
+    expect(
+      screen.getByRole("button", { name: /Send a test to myself/ })
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Port"), { target: { value: "465" } });
+
+    expect(
+      screen.getByRole("button", { name: /Save and send a test/ })
+    ).toBeInTheDocument();
+  });
+
+  it("warns that an old result does not describe the current screen", async () => {
+    renderForm(CONFIGURED);
+    mockTest.mockImplementation((_arg, options) =>
+      options.onSuccess({
+        delivered: false,
+        transport: "company-smtp",
+        recipient: "admin@acme.com",
+        detail: "No answer from smtp.gmail.com:587 within 30s.",
+      })
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Send a test to myself/ }));
+    await waitFor(() => expect(screen.getByText("Nothing was sent")).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText("Port"), { target: { value: "465" } });
+
+    expect(screen.getByText(/unsaved changes/)).toBeInTheDocument();
+  });
+});
