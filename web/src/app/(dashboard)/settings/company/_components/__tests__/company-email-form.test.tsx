@@ -20,8 +20,10 @@ const mockTest = jest.fn();
 const mockClear = jest.fn();
 const mockUseCompany = jest.fn();
 const mockUseEmailStatus = jest.fn();
+const mockClearApi = jest.fn();
 jest.mock("@/lib/api/contracts", () => ({
   useCompany: (...args: unknown[]) => mockUseCompany(...args),
+  useClearCompanyEmailApi: () => ({ mutate: mockClearApi, isPending: false }),
   useCompanyEmailStatus: (...args: unknown[]) => mockUseEmailStatus(...args),
   useUpdateCompany: () => ({ mutate: mockUpdate, isPending: false }),
   useTestCompanyEmail: () => ({ mutate: mockTest, isPending: false }),
@@ -49,6 +51,8 @@ const COMPANY: Company = {
   smtp_use_tls: true,
   smtp_user: null,
   smtp_configured: false,
+  email_api_provider: null,
+  email_api_configured: false,
   version: 1,
   created_at: "",
   updated_at: "",
@@ -65,6 +69,7 @@ function wrapper({ children }: { children: ReactNode }) {
 /** A server that has its own mail account, so the mailbox is genuinely optional. */
 const STATUS_WITH_RELAY: EmailStatus = {
   mailbox_configured: false,
+  api_configured: false,
   relay_available: true,
   can_send: true,
   transport: "relay",
@@ -407,4 +412,81 @@ it("lets a saved mailbox be edited even if smtp_configured is missing", () => {
   expect(
     screen.queryByText("A mailbox needs a server, a username and a password.")
   ).not.toBeInTheDocument();
+});
+
+/**
+ * Sending over HTTPS, for a host that blocks outgoing SMTP.
+ *
+ * Both 587 and 465 time out from the deployed instance with no answer at all,
+ * so a provider's API is the only way mail can leave. The key is a customer's
+ * credential and is treated like the SMTP password beside it.
+ */
+describe("the email provider", () => {
+  it("is not used until one is chosen", () => {
+    renderForm();
+
+    expect(screen.getByLabelText("Provider")).toHaveValue("");
+    expect(screen.getByLabelText("API key")).toBeDisabled();
+  });
+
+  it("sends the provider and key once both are given", async () => {
+    renderForm();
+    mockUpdate.mockImplementation((_payload, options) => options.onSuccess());
+
+    fireEvent.change(screen.getByLabelText("Provider"), {
+      target: { value: "resend" },
+    });
+    fireEvent.change(screen.getByLabelText("API key"), {
+      target: { value: "re_secret_key" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save email settings" }));
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
+    const payload = mockUpdate.mock.calls[0][0];
+    expect(payload.email_api_provider).toBe("resend");
+    expect(payload.email_api_key).toBe("re_secret_key");
+  });
+
+  it("will not save a provider with no key", () => {
+    renderForm();
+
+    fireEvent.change(screen.getByLabelText("Provider"), {
+      target: { value: "sendgrid" },
+    });
+
+    expect(screen.getByRole("button", { name: "Save email settings" })).toBeDisabled();
+    expect(screen.getByText("A provider needs an API key.")).toBeInTheDocument();
+  });
+
+  it("never prefills the key, and leaves it alone when blank", async () => {
+    renderForm({ email_api_provider: "postmark", email_api_configured: true });
+    mockUpdate.mockImplementation((_payload, options) => options.onSuccess());
+
+    expect(screen.getByLabelText("Replace API key")).toHaveValue("");
+
+    fireEvent.click(screen.getByRole("button", { name: "Save email settings" }));
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
+    const payload = mockUpdate.mock.calls[0][0];
+    expect(payload.email_api_provider).toBe("postmark");
+    expect(payload).not.toHaveProperty("email_api_key");
+  });
+
+  it("offers to stop only once a provider is configured", () => {
+    renderForm();
+    expect(
+      screen.queryByRole("button", { name: "Stop using this provider" })
+    ).not.toBeInTheDocument();
+
+    renderForm({ email_api_provider: "resend", email_api_configured: true });
+    expect(
+      screen.getByRole("button", { name: "Stop using this provider" })
+    ).toBeInTheDocument();
+  });
+
+  it("explains when this is the option to reach for", () => {
+    renderForm();
+
+    expect(screen.getByText(/when SMTP times out/)).toBeInTheDocument();
+  });
 });

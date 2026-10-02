@@ -140,6 +140,18 @@ export function useTestCompanyEmail(companyId: string) {
   });
 }
 
+/** Stop sending through an HTTPS provider, reverting to SMTP or the server. */
+export function useClearCompanyEmailApi(companyId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<Company, Error, void>({
+    mutationFn: () =>
+      apiDelete<Company>(`/api/v1/companies/${companyId}/email/api`),
+    onSuccess: (company) => {
+      queryClient.setQueryData(companyKey(companyId), company);
+    },
+  });
+}
+
 /** Forget the company's own mailbox, reverting to the server's mail account. */
 export function useClearCompanySmtp(companyId: string) {
   const queryClient = useQueryClient();

@@ -1,4 +1,5 @@
 import uuid
+from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -52,6 +53,12 @@ class CompanyUpdate(BaseModel):
     smtp_user: str | None = None
     smtp_password: str | None = Field(default=None, min_length=1)
 
+    # A provider that sends over HTTPS, for hosts that block outgoing SMTP.
+    # Write-only like the SMTP password: the key is stored encrypted and no
+    # response returns it.
+    email_api_provider: Literal["resend", "sendgrid", "postmark"] | None = None
+    email_api_key: str | None = Field(default=None, min_length=1)
+
 
 class CompanyResponse(BaseResponseSchema):
     """Schema for company API responses.
@@ -76,6 +83,9 @@ class CompanyResponse(BaseResponseSchema):
     # Whether a mailbox is configured, rather than the credential itself —
     # the password is never returned, in any form.
     smtp_configured: bool = False
+    email_api_provider: str | None = None
+    # Whether a key is stored, never the key.
+    email_api_configured: bool = False
 
 
 class EmailTestResult(BaseModel):
@@ -102,6 +112,7 @@ class EmailStatus(BaseModel):
     """
 
     mailbox_configured: bool
+    api_configured: bool
     relay_available: bool
     # False when neither exists: a send would report success and reach nobody.
     can_send: bool

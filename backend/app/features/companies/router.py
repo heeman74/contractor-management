@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_router import CRUDRouter
 from app.core.database import get_db
-from app.core.email import TRANSPORT_COMPANY, EmailService
+from app.core.email import TRANSPORT_API, TRANSPORT_COMPANY, EmailService
 from app.core.secrets import SecretDecryptionError
 from app.core.security import CurrentUser, get_current_user, require_permission
 from app.features.companies.models import Company
@@ -94,6 +94,13 @@ class CompanyRouter(CRUDRouter):
             methods=["GET"],
             response_model=EmailStatus,
             summary="What would happen if this company sent mail now",
+        )
+        self.router.add_api_route(
+            "/{company_id}/email/api",
+            clear_company_email_api,
+            methods=["DELETE"],
+            response_model=CompanyResponse,
+            summary="Stop sending through an HTTPS provider",
         )
         self.router.add_api_route(
             "/{company_id}/email/smtp",
@@ -216,11 +223,12 @@ async def send_test_email(
             detail=f"{type(exc).__name__}: {exc}",
         )
 
-    sending_as = (
-        "this company's own mailbox"
-        if service.transport_label == TRANSPORT_COMPANY
-        else "the server's mail account, with your address as the reply-to"
-    )
+    if service.transport_label == TRANSPORT_API:
+        sending_as = "this company's email provider"
+    elif service.transport_label == TRANSPORT_COMPANY:
+        sending_as = "this company's own mailbox"
+    else:
+        sending_as = "the server's mail account, with your address as the reply-to"
     return EmailTestResult(
         delivered=True,
         transport=service.transport_label,
@@ -251,6 +259,7 @@ async def get_email_status(
         service = EmailService()
         return EmailStatus(
             mailbox_configured=company.smtp_configured,
+            api_configured=company.email_api_configured,
             relay_available=service.delivers,
             can_send=service.delivers,
             transport=service.transport_label,
@@ -261,12 +270,24 @@ async def get_email_status(
     relay_available = EmailService().delivers
     return EmailStatus(
         mailbox_configured=company.smtp_configured,
+        api_configured=company.email_api_configured,
         relay_available=relay_available,
         can_send=service.delivers,
         transport=service.transport_label,
         sender=service.sender_header,
         reply_to=service.reply_to,
     )
+
+
+async def clear_company_email_api(
+    company_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> CompanyResponse:
+    """Forget the HTTPS provider, reverting to SMTP or the server's account."""
+    await _company_for_settings(company_id, current_user, db)
+    company = await CompanyService(db).clear_email_api(company_id)
+    return CompanyResponse.model_validate(company)
 
 
 async def clear_company_smtp(

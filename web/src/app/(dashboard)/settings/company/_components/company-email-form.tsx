@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  useClearCompanyEmailApi,
   useClearCompanySmtp,
   useCompany,
   useCompanyEmailStatus,
@@ -54,6 +55,7 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
   const updateCompany = useUpdateCompany(companyId);
   const testEmail = useTestCompanyEmail(companyId);
   const clearSmtp = useClearCompanySmtp(companyId);
+  const clearEmailApi = useClearCompanyEmailApi(companyId);
 
   const [fromName, setFromName] = useState("");
   const [fromAddress, setFromAddress] = useState("");
@@ -61,6 +63,8 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
   const [smtpPort, setSmtpPort] = useState("");
   const [smtpUser, setSmtpUser] = useState("");
   const [smtpPassword, setSmtpPassword] = useState("");
+  const [apiProvider, setApiProvider] = useState("");
+  const [apiKey, setApiKey] = useState("");
   const [lastTest, setLastTest] = useState<EmailTestResult | null>(null);
 
   // Render-time sync, matching the profile form: seed the fields once the
@@ -74,6 +78,8 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
     setSmtpPort(company.smtp_port ? String(company.smtp_port) : "");
     setSmtpUser(company.smtp_user ?? "");
     setSmtpPassword("");
+    setApiProvider(company.email_api_provider ?? "");
+    setApiKey("");
   }
 
   if (permissionsLoading) {
@@ -95,7 +101,9 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
     smtpHost !== (company?.smtp_host ?? "") ||
     smtpPort !== storedPort ||
     smtpUser !== (company?.smtp_user ?? "") ||
-    smtpPassword.trim() !== "";
+    smtpPassword.trim() !== "" ||
+    apiProvider !== (company?.email_api_provider ?? "") ||
+    apiKey.trim() !== "";
 
   // A mailbox needs all three. Offering a partial save would only surface as a
   // database rejection, since the columns are constrained to travel together.
@@ -112,7 +120,11 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
     smtpHost.trim() !== "" &&
     smtpUser.trim() !== "" &&
     (smtpPassword.trim() !== "" || passwordAlreadyStored);
-  const canSave = !wantsMailbox || mailboxIsComplete;
+  // A provider needs a key, unless one is already stored.
+  const wantsApi = apiProvider !== "";
+  const apiIsComplete =
+    !wantsApi || apiKey.trim() !== "" || company?.email_api_configured === true;
+  const canSave = (!wantsMailbox || mailboxIsComplete) && apiIsComplete;
 
   function handleSave(afterSaved?: () => void) {
     if (updateCompany.isPending || !canSave) return;
@@ -131,10 +143,18 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
                 : { smtp_password: smtpPassword.trim() }),
             }
           : {}),
+        ...(wantsApi
+          ? {
+              email_api_provider: apiProvider,
+              // Omitted when blank: the stored key stays as it is.
+              ...(apiKey.trim() === "" ? {} : { email_api_key: apiKey.trim() }),
+            }
+          : {}),
       },
       {
         onSuccess: () => {
           setSmtpPassword("");
+          setApiKey("");
           setLastTest(null);
           toast.success("Email settings saved.");
           afterSaved?.();
@@ -215,6 +235,81 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
           .
         </p>
       ) : null}
+
+      <div className="mt-6 border-t border-foreground/10 pt-5">
+        <h3 className="font-display text-sm font-bold tracking-tight text-foreground">
+          Send through an email provider
+        </h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Sends over HTTPS instead of SMTP. Use this when SMTP times out — some
+          hosts block outgoing mail on every port, and then this is the only way
+          mail can leave. Your sending domain has to be verified with the
+          provider.
+        </p>
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="email-api-provider">Provider</Label>
+            <select
+              id="email-api-provider"
+              value={apiProvider}
+              onChange={(event) => setApiProvider(event.target.value)}
+              className="h-11 w-full rounded-lg border border-input bg-transparent px-2.5 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm"
+            >
+              <option value="">Not used</option>
+              <option value="resend">Resend</option>
+              <option value="sendgrid">SendGrid</option>
+              <option value="postmark">Postmark</option>
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="email-api-key">
+              {company?.email_api_configured ? "Replace API key" : "API key"}
+            </Label>
+            <Input
+              id="email-api-key"
+              type="password"
+              autoComplete="off"
+              value={apiKey}
+              onChange={(event) => setApiKey(event.target.value)}
+              placeholder={
+                company?.email_api_configured ? "Leave blank to keep" : ""
+              }
+              disabled={apiProvider === ""}
+            />
+            <p className="text-xs text-muted-foreground">
+              Postmark calls this a server API token; the others call it an API
+              key.
+            </p>
+          </div>
+        </div>
+
+        {company?.email_api_configured ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-4"
+            disabled={clearEmailApi.isPending}
+            onClick={() =>
+              clearEmailApi.mutate(undefined, {
+                onSuccess: () => {
+                  setApiProvider("");
+                  setApiKey("");
+                  setLastTest(null);
+                  toast.success("Your email provider was removed.");
+                },
+                onError: () =>
+                  toast.error("Could not remove the provider. Try again.", {
+                    duration: Infinity,
+                  }),
+              })
+            }
+          >
+            {clearEmailApi.isPending ? "Removing…" : "Stop using this provider"}
+          </Button>
+        ) : null}
+      </div>
 
       <div className="mt-6 border-t border-foreground/10 pt-5">
         <h3 className="font-display text-sm font-bold tracking-tight text-foreground">
@@ -388,7 +483,9 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
 
         {!canSave ? (
           <p className="text-xs text-amber-700 dark:text-amber-300">
-            A mailbox needs a server, a username and a password.
+            {wantsApi && !apiIsComplete
+              ? "A provider needs an API key."
+              : "A mailbox needs a server, a username and a password."}
           </p>
         ) : null}
       </div>

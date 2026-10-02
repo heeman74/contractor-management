@@ -514,6 +514,9 @@ export interface Company {
   smtp_use_tls: boolean;
   smtp_user: string | null;
   smtp_configured: boolean;
+  // A provider that sends over HTTPS, for hosts that block outgoing SMTP.
+  email_api_provider: string | null;
+  email_api_configured: boolean;
   version: number;
   created_at: string;
   updated_at: string;
@@ -540,11 +543,15 @@ export interface CompanyUpdate {
   smtp_user?: string | null;
   // Write-only: sent in plaintext, stored encrypted, never returned.
   smtp_password?: string | null;
+  email_api_provider?: string | null;
+  // Write-only: sent once, stored encrypted, never returned.
+  email_api_key?: string | null;
 }
 
 /** What would happen if this company sent mail right now. */
 export interface EmailStatus {
   mailbox_configured: boolean;
+  api_configured: boolean;
   relay_available: boolean;
   can_send: boolean;
   transport: string;

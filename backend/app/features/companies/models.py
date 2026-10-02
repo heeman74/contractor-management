@@ -43,6 +43,12 @@ class Company(BaseEntityModel):
     smtp_user: Mapped[str | None] = mapped_column(String, nullable=True)
     smtp_password_encrypted: Mapped[str | None] = mapped_column(String, nullable=True)
 
+    # A provider that sends over HTTPS, for hosts that block outgoing SMTP —
+    # which this one does, on every port. Preferred over SMTP when set, because
+    # a company only configures it when SMTP cannot work.
+    email_api_provider: Mapped[str | None] = mapped_column(String, nullable=True)
+    email_api_key_encrypted: Mapped[str | None] = mapped_column(String, nullable=True)
+
     @property
     def smtp_configured(self) -> bool:
         """Whether this company has its own mailbox to send from.
@@ -51,6 +57,11 @@ class Company(BaseEntityModel):
         whether a mailbox is set, never what the password is.
         """
         return bool(self.smtp_host and self.smtp_user and self.smtp_password_encrypted)
+
+    @property
+    def email_api_configured(self) -> bool:
+        """Whether this company sends through a provider's HTTPS API."""
+        return bool(self.email_api_provider and self.email_api_key_encrypted)
 
     invoice_prefix: Mapped[str] = mapped_column(String, nullable=False, server_default="'INV'")
     invoice_sequence: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")

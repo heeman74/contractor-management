@@ -76,6 +76,7 @@ def test_a_silent_drop_is_reported_as_a_block_rather_than_a_password_problem(
     assert "smtp.gmail.com:587" in message
     assert "blocked" in message, "a drop is a network symptom, not a credential one"
     assert "465" in message, "it should name the alternative worth trying"
+    assert "blocked" in message
     assert str(SMTP_TIMEOUT_SECONDS) in message
 
 
@@ -166,3 +167,19 @@ def test_starttls_is_still_used_on_587(monkeypatch: pytest.MonkeyPatch) -> None:
     _REAL_SEND_SMTP(service, "to@example.com", "subject", "text", "<p>html</p>")
 
     assert calls == ["starttls", "login", "send"], calls
+
+
+def test_a_timeout_on_465_does_not_suggest_465(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Advising the port someone just tried reads as advice already taken."""
+
+    def _hang(*_args, **_kwargs):
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr(_IPv4SMTPS, "__init__", _hang)
+
+    with pytest.raises(MailTransportError) as exc:
+        EmailService._connect(_transport("smtp.gmail.com", IMPLICIT_TLS_PORT))
+
+    message = str(exc.value)
+    assert "Port 465 is worth trying" not in message
+    assert "only a provider that sends over HTTPS will work" in message

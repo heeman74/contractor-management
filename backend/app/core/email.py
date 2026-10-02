@@ -28,6 +28,7 @@ from email.utils import formataddr, parseaddr
 from typing import TYPE_CHECKING
 
 from app.core.config import settings
+from app.core.email_providers import send_via_api
 from app.core.secrets import decrypt_secret
 
 if TYPE_CHECKING:
@@ -91,6 +92,7 @@ SMTP_TIMEOUT_SECONDS = 30
 
 # Named in logs so a send that reached nobody is distinguishable from one that
 # left the building. The three are otherwise identical from the outside.
+TRANSPORT_API = "company-api"
 TRANSPORT_COMPANY = "company-smtp"
 TRANSPORT_RELAY = "relay"
 TRANSPORT_DEV = "dev-outbox"
@@ -108,6 +110,14 @@ class MailTransport:
 
 
 @dataclass(frozen=True)
+class MailApiCredentials:
+    """A provider that sends over HTTPS, and the key to use with it."""
+
+    provider: str
+    api_key: str
+
+
+@dataclass(frozen=True)
 class MailSender:
     """How one message is addressed, and what carries it.
 
@@ -119,11 +129,12 @@ class MailSender:
     reply_to: str | None
     transport: MailTransport | None
     label: str
+    api: MailApiCredentials | None = None
 
     @property
     def delivers(self) -> bool:
         """False when sending would succeed without the message going anywhere."""
-        return self.transport is not None
+        return self.transport is not None or self.api is not None
 
 
 def _instance_sender() -> MailSender:
@@ -157,6 +168,21 @@ def _company_sender(company: Company) -> MailSender:
     name and Reply-To are theirs, the sender address stays the authenticated one.
     """
     display_name = company.email_from_name or company.name
+
+    # Preferred when set, because a company only configures it where SMTP cannot
+    # work — and on this host, outgoing SMTP does not work at all.
+    if company.email_api_provider and company.email_api_key_encrypted:
+        address = company.email_from_address or ""
+        return MailSender(
+            from_header=formataddr((display_name, address)),
+            reply_to=None,
+            transport=None,
+            label=TRANSPORT_API,
+            api=MailApiCredentials(
+                provider=company.email_api_provider,
+                api_key=decrypt_secret(company.email_api_key_encrypted),
+            ),
+        )
 
     if company.smtp_host and company.smtp_user and company.smtp_password_encrypted:
         # Their address, since their server is now vouching for it.
@@ -221,7 +247,19 @@ class EmailService:
         return self._sender.reply_to
 
     async def send(self, *, to: str, subject: str, text_body: str, html_body: str) -> None:
-        """Send one message. Falls back to the dev outbox when no SMTP is set."""
+        """Send one message. Falls back to the dev outbox when nothing can carry it."""
+        if self._sender.api is not None:
+            await send_via_api(
+                provider_name=self._sender.api.provider,
+                api_key=self._sender.api.api_key,
+                sender=self._sender.from_header,
+                to=to,
+                subject=subject,
+                text_body=text_body,
+                html_body=html_body,
+            )
+            return
+
         if self._sender.transport is not None:
             await asyncio.to_thread(self._send_smtp, to, subject, text_body, html_body)
             return
@@ -276,12 +314,19 @@ class EmailService:
         try:
             return client(transport.host, transport.port, timeout=SMTP_TIMEOUT_SECONDS)
         except TimeoutError as exc:
+            # Suggesting the alternative port only while it is still an
+            # alternative: advising 465 to someone who just tried 465 reads as
+            # advice that has already been taken and failed.
+            alternative = (
+                "" if transport.port == IMPLICIT_TLS_PORT else " Port 465 is worth trying."
+            )
             raise MailTransportError(
                 f"No answer from {where} within {SMTP_TIMEOUT_SECONDS}s. The "
-                "server never replied, which usually means outbound mail on "
-                "this port is blocked between here and there rather than "
-                "anything being wrong with the address or password. Port 465 is "
-                "worth trying, or a provider that sends over HTTPS."
+                "server never replied, which means outbound mail on this port is "
+                "blocked between here and there rather than anything being wrong "
+                f"with the address or password.{alternative} If both ports behave "
+                "this way, this host does not allow outgoing mail at all and only "
+                "a provider that sends over HTTPS will work."
             ) from exc
         except ConnectionRefusedError as exc:
             raise MailTransportError(

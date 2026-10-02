@@ -118,7 +118,15 @@ class CompanyService(BaseService[Company]):
         With no key configured the write is refused rather than performed in the
         clear — this is a customer's mailbox password, not ours.
         """
-        password = update_data.pop("smtp_password", None)
+        for field, column in (
+            ("smtp_password", "smtp_password_encrypted"),
+            ("email_api_key", "email_api_key_encrypted"),
+        ):
+            CompanyService._encrypt_one(update_data, field, column)
+
+    @staticmethod
+    def _encrypt_one(update_data: dict, field: str, column: str) -> None:
+        password = update_data.pop(field, None)
         if password is None:
             return
 
@@ -131,7 +139,17 @@ class CompanyService(BaseService[Company]):
                     "CREDENTIALS_ENCRYPTION_KEY."
                 ),
             )
-        update_data["smtp_password_encrypted"] = encrypt_secret(password)
+        update_data[column] = encrypt_secret(password)
+
+    async def clear_email_api(self, entity_id: uuid.UUID) -> Company | None:
+        """Forget the HTTPS provider, falling back to SMTP or the relay.
+
+        A separate operation for the same reason as clearing the mailbox: the two
+        columns are constrained to travel together.
+        """
+        return await self.repository.update(
+            entity_id, {"email_api_provider": None, "email_api_key_encrypted": None}
+        )
 
     async def clear_smtp(self, entity_id: uuid.UUID) -> Company | None:
         """Forget a company's own mailbox, falling back to the instance relay.
