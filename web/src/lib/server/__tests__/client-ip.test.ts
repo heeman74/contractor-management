@@ -9,7 +9,12 @@
  * whole world — `5/minute` on login meant five logins a minute across all users,
  * and a person testing collected 429s somebody else had earned.
  */
-import { CLIENT_IP_HEADER, clientIpHeaders, clientIpOf } from "../upstream";
+import {
+  CLIENT_IP_HEADER,
+  clientIpHeaders,
+  clientIpOf,
+  upstreamErrorBody,
+} from "../upstream";
 
 const requestWith = (headers: Record<string, string>) =>
   new Request("https://app.test/api/auth/login", { headers });
@@ -49,4 +54,46 @@ it("builds the header the API reads", () => {
 
 it("builds no header at all when there is nothing to say", () => {
   expect(clientIpHeaders(requestWith({}))).toEqual({});
+});
+
+/**
+ * An upstream error that is not JSON did not come from the API.
+ *
+ * The platform throttling this app's own calls to the API arrived at the browser
+ * as "Login failed" — a credential message for a network event, which sent the
+ * search in entirely the wrong direction for hours.
+ */
+describe("upstreamErrorBody", () => {
+  it("passes the API's own detail through untouched", async () => {
+    const response = new Response(
+      JSON.stringify({ detail: "Invalid email or password" }),
+      { status: 401, headers: { "content-type": "application/json" } }
+    );
+
+    expect(await upstreamErrorBody(response, "Login failed.")).toEqual({
+      detail: "Invalid email or password",
+    });
+  });
+
+  it("says the request never reached the API when the body is not JSON", async () => {
+    const response = new Response("<html>429 from somewhere else</html>", {
+      status: 429,
+      headers: { "content-type": "text/html" },
+    });
+
+    const { detail } = await upstreamErrorBody(response, "Login failed.");
+
+    expect(detail).toContain("429");
+    expect(detail).toContain("did not reach the application");
+    expect(detail).not.toBe("Login failed.");
+  });
+
+  it("does the same for an empty body", async () => {
+    const { detail } = await upstreamErrorBody(
+      new Response(null, { status: 502 }),
+      "Login failed."
+    );
+
+    expect(detail).toContain("502");
+  });
 });

@@ -72,6 +72,34 @@ export function clientIpOf(request: Request): string | null {
   return request.headers.get("x-real-ip");
 }
 
+/**
+ * The error body to return for an upstream failure.
+ *
+ * An upstream error whose body is not JSON did not come from the API — it is
+ * something between here and there answering on its behalf, and replacing it
+ * with a generic message of our own hides that completely. A 429 from the
+ * platform throttling this app's calls to the API arrived at the browser as
+ * "Login failed", which reads as a credential problem and is nothing of the
+ * kind; it cost hours of looking in the wrong place.
+ */
+export async function upstreamErrorBody(
+  response: Response,
+  fallbackDetail: string
+): Promise<{ detail: string }> {
+  try {
+    const parsed = await response.json();
+    if (parsed && typeof parsed.detail === "string") return { detail: parsed.detail };
+  } catch {
+    // Not JSON, so not the API's own answer — say so below.
+  }
+  return {
+    detail:
+      `${fallbackDetail} The service answered ${response.status} without a ` +
+      "message, which means the request did not reach the application — it was " +
+      "stopped between this app and the API.",
+  };
+}
+
 /** Headers identifying the browser, for a request this app makes on its behalf. */
 export function clientIpHeaders(request: Request): Record<string, string> {
   const ip = clientIpOf(request);

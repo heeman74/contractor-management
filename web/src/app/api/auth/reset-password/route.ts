@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
 UPSTREAM_UNREACHABLE_DETAIL,
   clientIpHeaders,
+  upstreamErrorBody,
   fetchUpstream,
 } from "@/lib/server/upstream";
 
@@ -37,6 +38,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return new NextResponse(null, { status: 204 });
   }
 
-  const data = await fastapiRes.json().catch(() => ({ detail: "Reset failed" }));
+  const data = await upstreamErrorBody(fastapiRes, "Reset failed.");
   return NextResponse.json(data, { status: fastapiRes.status });
 }

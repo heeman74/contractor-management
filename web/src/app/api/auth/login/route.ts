@@ -4,6 +4,7 @@ import type { TokenResponse, AuthUser } from "@/types/api";
 import {
 UPSTREAM_UNREACHABLE_DETAIL,
   clientIpHeaders,
+  upstreamErrorBody,
   fetchUpstream,
 } from "@/lib/server/upstream";
 
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   if (!fastapiRes.ok) {
-    const errorBody = await fastapiRes.json().catch(() => ({ detail: "Login failed" }));
+    const errorBody = await upstreamErrorBody(fastapiRes, "Login failed.");
     // Carried through so a throttled caller can wait the right amount of time
     // rather than guess — the API states it, and dropping it here would lose
     // the only number that makes the refusal actionable.
