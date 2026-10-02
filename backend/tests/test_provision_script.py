@@ -10,7 +10,13 @@ import argparse
 import pytest
 from httpx import AsyncClient
 
-from scripts.provision import add_user, create_company, set_password, set_status
+from scripts.provision import (
+    add_user,
+    create_company,
+    list_users,
+    set_password,
+    set_status,
+)
 
 pytestmark = pytest.mark.asyncio
 
@@ -320,3 +326,51 @@ async def test_set_status_on_an_unknown_company_stops(tenant_a_client: AsyncClie
         )
 
     assert "no company matching" in str(exit_info.value)
+
+
+async def test_list_users_shows_who_can_sign_in(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict, capsys
+):
+    """Being locked out and unsure which address is the admin is a bad place to
+    be when password reset needs email and email is not working."""
+    await add_user(
+        _ns(
+            company="Tenant A Corp",
+            email="crew@example.com",
+            role="worker",
+            first="Cass",
+            last="Crew",
+            phone=None,
+            password="crewpass123",
+        )
+    )
+
+    await list_users(_ns(company="Tenant A Corp"))
+
+    printed = capsys.readouterr().out
+    assert "admin@tenant-a.com" in printed
+    assert "crew@example.com" in printed
+    assert "worker" in printed
+    assert "can sign in" in printed
+
+
+async def test_list_users_names_an_account_that_can_never_sign_in(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict, capsys
+):
+    """A user with no password hash fails every attempt as "invalid email or
+    password" — identical to a wrong password, and retrying can never work."""
+    from sqlalchemy import text
+
+    from app.core.database import async_session_factory
+
+    company_id = seed_two_tenants["tenant_a_id"]
+    async with async_session_factory() as session:
+        await session.execute(text(f"SET LOCAL app.current_company_id = '{company_id}'"))
+        await session.execute(
+            text("UPDATE users SET password_hash = NULL WHERE email = 'admin@tenant-a.com'")
+        )
+        await session.commit()
+
+    await list_users(_ns(company="Tenant A Corp"))
+
+    assert "NO PASSWORD SET" in capsys.readouterr().out

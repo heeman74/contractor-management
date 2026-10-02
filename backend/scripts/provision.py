@@ -374,6 +374,38 @@ async def list_status_tables(args: argparse.Namespace) -> None:
             print(f"{table}: {clauses[0] if clauses else '(no CHECK constraint)'}")
 
 
+async def list_users(args: argparse.Namespace) -> None:
+    """Show who can sign in to a company, and whether they have a password.
+
+    Being locked out and unsure which address is the admin is a bad place to be
+    when password reset needs email and email is not working yet. A user with no
+    password hash can never sign in and says so here, because every attempt
+    against it fails as "invalid email or password" — indistinguishable from a
+    wrong password, and no amount of retrying will ever work.
+    """
+    async with _db_session() as session:
+        company = await _find_company(session, args.company)
+        if company is None:
+            sys.exit(f"Error: no company matching {args.company!r}.")
+        await _set_tenant_context(session, company.id)
+
+        rows = await session.execute(
+            text(
+                "SELECT u.email, u.password_hash IS NOT NULL AS has_password, "
+                "COALESCE(string_agg(r.role, ', ' ORDER BY r.role), '-') AS roles "
+                "FROM users u "
+                "LEFT JOIN user_roles r ON r.user_id = u.id AND r.deleted_at IS NULL "
+                "WHERE u.company_id = :cid AND u.deleted_at IS NULL "
+                "GROUP BY u.id, u.email, u.password_hash ORDER BY u.email"
+            ),
+            {"cid": str(company.id)},
+        )
+        print(f"{company.name}:")
+        for email, has_password, roles in rows:
+            state = "can sign in" if has_password else "NO PASSWORD SET"
+            print(f"  {email:40} {roles:28} {state}")
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="provision",
@@ -407,6 +439,12 @@ def _build_parser() -> argparse.ArgumentParser:
 
     listing = sub.add_parser("list-companies", help="List all companies with their IDs.")
     listing.set_defaults(func=list_companies)
+
+    users = sub.add_parser(
+        "list-users", help="List a company's users, their roles, and who can sign in."
+    )
+    users.add_argument("--company", required=True, help="Company: UUID or exact name.")
+    users.set_defaults(func=list_users)
 
     status_cmd = sub.add_parser(
         "set-status",

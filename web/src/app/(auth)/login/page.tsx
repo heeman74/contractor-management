@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -30,6 +30,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submittingRef = useRef(false);
 
   const {
     register,
@@ -57,6 +58,13 @@ export default function LoginPage() {
   }, []);
 
   const onSubmit = async (data: LoginFormValues) => {
+    // A ref, not the state below: setIsSubmitting does not take effect until the
+    // next render, so a double-click sends the request twice before the button
+    // disables. Two attempts per click spends a failed-login budget at twice the
+    // rate, which is how a mistyped password reaches a lockout in half the tries.
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+
     setIsSubmitting(true);
     setLoginError(null);
 
@@ -102,6 +110,7 @@ export default function LoginPage() {
         "The server is still starting up. Wait a moment and try again."
       );
     } finally {
+      submittingRef.current = false;
       setIsSubmitting(false);
     }
   };
