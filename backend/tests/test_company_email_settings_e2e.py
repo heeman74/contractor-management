@@ -244,6 +244,7 @@ async def test_the_test_send_names_the_relay_when_that_is_what_carries_it(
     assert body["delivered"] is True
     assert body["transport"] == TRANSPORT_RELAY
     assert "reply-to" in body["detail"]
+    assert "Accepted for delivery" in body["detail"]
     assert sent["reply_to"] == "q@acme.com"
     assert "Tenant A Corp" in sent["from"]
 
@@ -283,6 +284,8 @@ async def test_the_test_send_uses_the_companys_own_mailbox_when_set(
     assert body["delivered"] is True
     assert body["transport"] == TRANSPORT_COMPANY
     assert "own mailbox" in body["detail"]
+    # Accepted is all an SMTP handshake proves; spam filtering leaves no trace here.
+    assert "spam folder" in body["detail"]
     assert used["host"] == "smtp.gmail.com"
     assert used["password"] == _APP_PASSWORD, "decrypted on the way to the server"
     assert used["from"] == "Tenant A Corp <steve@acme.com>"

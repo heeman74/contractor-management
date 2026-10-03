@@ -128,6 +128,7 @@ async def test_the_provider_is_preferred_over_smtp(
     assert body["delivered"] is True
     assert body["transport"] == TRANSPORT_API
     assert "email provider" in body["detail"]
+    assert "Accepted for delivery" in body["detail"]
     assert sent["provider_name"] == "resend"
     assert sent["api_key"] == _API_KEY, "decrypted on the way to the provider"
     assert sent["sender"] == "Tenant A Corp <quotes@acme.com>"

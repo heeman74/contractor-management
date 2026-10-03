@@ -24,7 +24,7 @@ import smtplib
 import socket
 from dataclasses import dataclass
 from email.message import EmailMessage
-from email.utils import formataddr, parseaddr
+from email.utils import formataddr, formatdate, make_msgid, parseaddr
 from typing import TYPE_CHECKING
 
 from app.core.config import settings
@@ -210,6 +210,17 @@ def _company_sender(company: Company) -> MailSender:
     )
 
 
+def _sender_domain(from_header: str) -> str:
+    """The domain a Message-ID should claim — the sender's own.
+
+    An id whose domain does not match the sender reads as forged. Falls back to
+    the local hostname, which is what make_msgid does unaided.
+    """
+    address = _address_of(from_header)
+    _, _, domain = address.partition("@")
+    return domain or "localhost"
+
+
 def _address_of(from_header: str) -> str:
     """The bare address out of a possibly display-named From."""
     return parseaddr(from_header)[1]
@@ -286,6 +297,13 @@ class EmailService:
         message["From"] = self._sender.from_header
         message["To"] = to
         message["Subject"] = subject
+        # Date is required by RFC 5322, and a message with no Message-ID is one
+        # of the oldest signals of mail that no real client wrote. Python adds
+        # neither, and smtplib does not add them on the way out, so without this
+        # every message left here missing both: accepted at the handshake and
+        # then discarded, arriving in no folder at all, not even spam.
+        message["Date"] = formatdate(localtime=False)
+        message["Message-ID"] = make_msgid(domain=_sender_domain(self._sender.from_header))
         if self._sender.reply_to:
             message["Reply-To"] = self._sender.reply_to
         message.set_content(text_body)

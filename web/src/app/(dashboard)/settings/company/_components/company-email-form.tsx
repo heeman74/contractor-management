@@ -425,7 +425,7 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
         >
           <p className="font-semibold">
             {lastTest.delivered
-              ? `Test sent to ${lastTest.recipient}`
+              ? `Handed to the mail server, addressed to ${lastTest.recipient}`
               : "Nothing was sent"}
           </p>
           <p className="mt-0.5">{lastTest.detail}</p>

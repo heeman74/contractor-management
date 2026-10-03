@@ -233,7 +233,17 @@ async def send_test_email(
         delivered=True,
         transport=service.transport_label,
         recipient=user.email,
-        detail=f"Sent via {sending_as}.",
+        # Accepted, not arrived. The mail server taking a message is the last
+        # thing this app can observe: what happens after — spam filtering, a
+        # later bounce, a provider refusing an unverified sender — leaves no
+        # trace here. Claiming delivery on the strength of an acceptance is the
+        # same overstatement as treating a 200 on send as proof a client was
+        # emailed, which is what started all of this.
+        detail=(
+            f"Accepted for delivery via {sending_as}. If it does not arrive "
+            "within a few minutes, check the spam folder, and the sending "
+            "account's own inbox for a bounce message."
+        ),
     )
 
 

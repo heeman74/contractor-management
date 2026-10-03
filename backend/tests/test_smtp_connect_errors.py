@@ -183,3 +183,81 @@ def test_a_timeout_on_465_does_not_suggest_465(monkeypatch: pytest.MonkeyPatch) 
     message = str(exc.value)
     assert "Port 465 is worth trying" not in message
     assert "only a provider that sends over HTTPS will work" in message
+
+
+# ---------------------------------------------------------------------------
+# What actually goes on the wire
+#
+# A message with no Date and no Message-ID is accepted at the SMTP handshake and
+# then discarded: it arrived in no folder at all, not even spam. Date is required
+# by RFC 5322, and the absence of a Message-ID is one of the oldest signals of
+# mail no real client wrote. Python adds neither and smtplib does not add them on
+# the way out, so they have to be set here.
+# ---------------------------------------------------------------------------
+
+
+class _CapturingServer:
+    """Stands in for the SMTP server, keeping what it was handed."""
+
+    def __init__(self) -> None:
+        self.message = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
+
+    def starttls(self) -> None:
+        pass
+
+    def login(self, _user, _password) -> None:
+        pass
+
+    def send_message(self, message) -> None:
+        self.message = message
+
+
+def _sent_message(monkeypatch: pytest.MonkeyPatch, from_header: str):
+    server = _CapturingServer()
+    monkeypatch.setattr(EmailService, "_connect", staticmethod(lambda _t: server))
+    service = EmailService(
+        MailSender(
+            from_header=from_header,
+            reply_to=None,
+            transport=_transport("smtp.example.com", 587),
+            label="company-smtp",
+        )
+    )
+    _REAL_SEND_SMTP(service, "client@example.com", "Subject", "text", "<p>html</p>")
+    return server.message
+
+
+def test_every_message_carries_a_date(monkeypatch: pytest.MonkeyPatch) -> None:
+    message = _sent_message(monkeypatch, "Acme <quotes@acme.com>")
+
+    assert message["Date"], "RFC 5322 requires it; mail without it is discarded"
+
+
+def test_every_message_carries_a_message_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    message = _sent_message(monkeypatch, "Acme <quotes@acme.com>")
+
+    assert message["Message-ID"], "its absence is a decades-old spam signal"
+
+
+def test_the_message_id_claims_the_senders_own_domain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An id whose domain does not match the sender reads as forged."""
+    message = _sent_message(monkeypatch, "Acme <quotes@acme.com>")
+
+    assert message["Message-ID"].endswith("@acme.com>"), message["Message-ID"]
+
+
+def test_a_sender_without_a_domain_still_produces_a_message_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Malformed configuration must not stop mail going out entirely."""
+    message = _sent_message(monkeypatch, "nonsense-without-an-at-sign")
+
+    assert message["Message-ID"]

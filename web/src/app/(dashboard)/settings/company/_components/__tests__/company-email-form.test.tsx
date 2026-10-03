@@ -192,7 +192,9 @@ it("reports a delivered test with the address it reached", async () => {
   fireEvent.click(screen.getByRole("button", { name: /Send a test to myself/ }));
 
   await waitFor(() =>
-    expect(screen.getByText("Test sent to admin@acme.com")).toBeInTheDocument()
+    expect(
+      screen.getByText(/Handed to the mail server, addressed to admin@acme.com/)
+    ).toBeInTheDocument()
   );
   expect(
     screen.getByText("Sent via this company's own mailbox.")
