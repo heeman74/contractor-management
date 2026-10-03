@@ -402,7 +402,7 @@ class EmailService:
             "(the link expires in 1 hour).</p>"
             "<p>If you didn't request this, you can safely ignore this email.</p>"
         )
-        await self.send(to=to, subject=subject, text_body=text_body, html_body=html_body)
+        return await self.send(to=to, subject=subject, text_body=text_body, html_body=html_body)
 
     async def send_quote_to_client(
         self,
@@ -413,8 +413,12 @@ class EmailService:
         total: str,
         quote_url: str,
         expiry_date: str | None,
-    ) -> None:
-        """Send a quote to the client it is addressed to."""
+    ) -> str | None:
+        """Send a quote to the client it is addressed to.
+
+        Returns the mail server's receipt where there is one, so a quote that is
+        later said never to have arrived has a queue id to search for.
+        """
         subject = f"Quote {quote_number} from {company_name}"
         validity = (
             f"This quote is valid through {expiry_date}.\n\n" if expiry_date is not None else ""
@@ -434,4 +438,4 @@ class EmailService:
             f"{html_validity}"
             f'<p><a href="{quote_url}">Review and approve this quote</a></p>'
         )
-        await self.send(to=to, subject=subject, text_body=text_body, html_body=html_body)
+        return await self.send(to=to, subject=subject, text_body=text_body, html_body=html_body)

@@ -294,3 +294,39 @@ async def test_each_company_sends_from_its_own_mailbox(
         "Tenant A Corp <a@acme.com>",
         "Tenant B Corp <b@bravo.com>",
     ], senders
+
+
+@pytest.mark.asyncio
+async def test_a_sent_quote_records_the_mail_servers_receipt(
+    tenant_a_client: AsyncClient,
+    seed_two_tenants: dict,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+):
+    """A client saying a quote never arrived is otherwise unanswerable.
+
+    The queue id the mail server answers with is the one handle a provider's
+    tooling searches by, and it is gone the moment the connection closes.
+    """
+    import logging
+
+    await _configure_mailbox(tenant_a_client, seed_two_tenants["tenant_a_id"])
+
+    monkeypatch.setattr(
+        email_module.EmailService,
+        "_send_smtp",
+        lambda self, to, subject, text_body, html_body: (
+            "250 2.0.0 OK 1791007096 d9443c01a7336 - gsmtp"
+        ),
+    )
+
+    client_id = await ensure_client(tenant_a_client, email="receipted@example.com")
+    quote = await _draft_quote_for(tenant_a_client, str(client_id))
+
+    with caplog.at_level(logging.INFO):
+        send = await tenant_a_client.post(f"/api/v1/quotes/{quote['id']}/send")
+    assert send.status_code == 200, send.text
+
+    sent = [r for r in caplog.records if "quote_email_sent" in r.getMessage()]
+    assert sent, "a successful send should say so"
+    assert "1791007096" in sent[-1].getMessage(), sent[-1].getMessage()

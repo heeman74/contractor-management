@@ -588,7 +588,7 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
         total = QuoteResponse.from_orm_with_totals(quote).total
 
         try:
-            await email_service.send_quote_to_client(
+            receipt = await email_service.send_quote_to_client(
                 to=client.email,
                 quote_number=f"#{quote.quote_number}",
                 company_name=company.name,
@@ -635,6 +635,10 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
             quote_id=str(quote.id),
             recipient=client.email,
             transport=email_service.transport_label,
+            # The queue id the mail server answered with. A client saying a
+            # quote never arrived is otherwise unanswerable from here: this is
+            # the one handle the provider's own tooling searches by.
+            receipt=receipt,
         )
 
     async def record_view(self, quote_id: uuid.UUID, viewer_id: uuid.UUID) -> Quote:
