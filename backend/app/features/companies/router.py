@@ -199,7 +199,7 @@ async def send_test_email(
         )
 
     try:
-        await service.send(
+        receipt = await service.send(
             to=user.email,
             subject=f"{company.name} — mail settings test",
             text_body=(
@@ -240,9 +240,13 @@ async def send_test_email(
         # same overstatement as treating a 200 on send as proof a client was
         # emailed, which is what started all of this.
         detail=(
-            f"Accepted for delivery via {sending_as}. If it does not arrive "
-            "within a few minutes, check the spam folder, and the sending "
-            "account's own inbox for a bounce message."
+            f"Accepted for delivery via {sending_as}."
+            # The server's own words, which carry the queue id — the only handle
+            # anyone has on a message once it has left here. Without it there is
+            # nothing to search for when it does not arrive.
+            + (f" The mail server replied: {receipt}." if receipt else "")
+            + " If it does not arrive within a few minutes, check the spam"
+            " folder, and the sending account's own inbox for a bounce message."
         ),
     )
 

@@ -214,8 +214,9 @@ class _CapturingServer:
     def login(self, _user, _password) -> None:
         pass
 
-    def send_message(self, message) -> None:
+    def send_message(self, message):
         self.message = message
+        return {}
 
 
 def _sent_message(monkeypatch: pytest.MonkeyPatch, from_header: str):
@@ -261,3 +262,75 @@ def test_a_sender_without_a_domain_still_produces_a_message_id(
     message = _sent_message(monkeypatch, "nonsense-without-an-at-sign")
 
     assert message["Message-ID"]
+
+
+# ---------------------------------------------------------------------------
+# The server's receipt
+#
+# A mail server that accepts a message answers with a queue id, and that id is
+# the only handle anyone has on it afterwards. Discarding it leaves "accepted"
+# as a claim with nothing behind it — which is what a message that is accepted
+# and then dropped looks like from this end.
+# ---------------------------------------------------------------------------
+
+
+class _ReceiptServer(_CapturingServer):
+    last_reply = (250, b"2.0.0 OK  1759456789 d9443c01a7336 - gsmtp")
+
+    def send_message(self, message):
+        self.message = message
+        return {}
+
+
+class _RefusingServer(_CapturingServer):
+    def send_message(self, message):
+        self.message = message
+        return {"client@example.com": (550, b"5.1.1 No such user")}
+
+
+def _service(monkeypatch: pytest.MonkeyPatch, server) -> EmailService:
+    monkeypatch.setattr(EmailService, "_connect", staticmethod(lambda _t: server))
+    return EmailService(
+        MailSender(
+            from_header="Acme <quotes@acme.com>",
+            reply_to=None,
+            transport=_transport("smtp.example.com", 587),
+            label="company-smtp",
+        )
+    )
+
+
+def test_the_servers_receipt_reaches_the_caller(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = _service(monkeypatch, _ReceiptServer())
+
+    receipt = _REAL_SEND_SMTP(service, "client@example.com", "Subject", "text", "<p>html</p>")
+
+    assert receipt is not None
+    assert receipt.startswith("250")
+    assert "gsmtp" in receipt, "the queue id is the part worth keeping"
+
+
+def test_a_refused_recipient_is_not_reported_as_sent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A refusal the caller never hears about is how "sent" starts meaning
+    nothing."""
+    service = _service(monkeypatch, _RefusingServer())
+
+    with pytest.raises(MailTransportError) as exc:
+        _REAL_SEND_SMTP(service, "client@example.com", "Subject", "text", "<p>html</p>")
+
+    assert "refused the recipient" in str(exc.value)
+
+
+def test_a_server_that_says_nothing_is_not_an_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Not every server records a reply; that is not a failure to send."""
+    service = _service(monkeypatch, _CapturingServer())
+
+    receipt = _REAL_SEND_SMTP(service, "client@example.com", "Subject", "text", "<p>html</p>")
+
+    assert receipt is None

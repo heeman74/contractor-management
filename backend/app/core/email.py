@@ -53,6 +53,18 @@ class _IPv4SMTP(smtplib.SMTP):
     provider we target (Gmail included) publishes an IPv4 endpoint.
     """
 
+    #: The server's last reply, as (code, text). A mail server that accepts a
+    #: message answers with a queue id — "250 2.0.0 OK 1759…  - gsmtp" — and that
+    #: id is the only handle anyone has on a message after it leaves. Discarding
+    #: it leaves "accepted" as a claim with nothing behind it, which is exactly
+    #: where a message that is accepted and then dropped becomes untraceable.
+    last_reply: tuple[int, bytes] | None = None
+
+    def getreply(self):
+        code, text = super().getreply()
+        self.last_reply = (code, text)
+        return code, text
+
     def _get_socket(self, host: str, port: int, timeout: float) -> socket.socket:
         last_exc: OSError | None = None
         for *_meta, sockaddr in socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM):
@@ -210,6 +222,19 @@ def _company_sender(company: Company) -> MailSender:
     )
 
 
+def _receipt_of(server: smtplib.SMTP) -> str | None:
+    """What the server said when it took the message, if it said anything.
+
+    Carries the queue id on every provider worth using, which is what turns
+    "accepted" from a claim into something traceable.
+    """
+    reply = getattr(server, "last_reply", None)
+    if reply is None:
+        return None
+    code, text = reply
+    return f"{code} {text.decode(errors='replace')}".strip()
+
+
 def _sender_domain(from_header: str) -> str:
     """The domain a Message-ID should claim — the sender's own.
 
@@ -257,8 +282,11 @@ class EmailService:
         """Where a reply would go, when that differs from the sender."""
         return self._sender.reply_to
 
-    async def send(self, *, to: str, subject: str, text_body: str, html_body: str) -> None:
-        """Send one message. Falls back to the dev outbox when nothing can carry it."""
+    async def send(self, *, to: str, subject: str, text_body: str, html_body: str) -> str | None:
+        """Send one message, returning the server's receipt where there is one.
+
+        Falls back to the dev outbox when nothing can carry it.
+        """
         if self._sender.api is not None:
             await send_via_api(
                 provider_name=self._sender.api.provider,
@@ -269,11 +297,10 @@ class EmailService:
                 text_body=text_body,
                 html_body=html_body,
             )
-            return
+            return None
 
         if self._sender.transport is not None:
-            await asyncio.to_thread(self._send_smtp, to, subject, text_body, html_body)
-            return
+            return await asyncio.to_thread(self._send_smtp, to, subject, text_body, html_body)
 
         sent_emails.append({"to": to, "subject": subject, "text": text_body, "html": html_body})
         if settings.debug:
@@ -288,8 +315,9 @@ class EmailService:
                 to,
                 subject,
             )
+        return None
 
-    def _send_smtp(self, to: str, subject: str, text_body: str, html_body: str) -> None:
+    def _send_smtp(self, to: str, subject: str, text_body: str, html_body: str) -> str | None:
         transport = self._sender.transport
         assert transport is not None  # send() only reaches here with one
 
@@ -315,7 +343,13 @@ class EmailService:
                 server.starttls()
             if transport.user and transport.password:
                 server.login(transport.user, transport.password)
-            server.send_message(message)
+            refused = server.send_message(message)
+            if refused:
+                # One recipient here, so this is belt and braces — but a refusal
+                # the caller never hears about is how "sent" starts meaning
+                # nothing.
+                raise MailTransportError(f"The server refused the recipient: {refused}")
+            return _receipt_of(server)
 
     @staticmethod
     def _connect(transport: MailTransport) -> smtplib.SMTP:
