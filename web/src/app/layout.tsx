@@ -1,26 +1,37 @@
 import type { Metadata } from "next";
-import { Archivo, Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { StoreProvider } from "@/store/provider";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { Toaster } from "@/components/ui/sonner";
 import NextTopLoader from "nextjs-toploader";
 
-const geistSans = Geist({
+// Self-hosted rather than fetched through next/font/google, which downloads
+// them during the build: the deploy build failed when the builder could not
+// reach Google Fonts, and a web deploy that cannot build ships nothing. See
+// ./fonts/README.md.
+//
+// Each file is the variable version covering the whole weight axis, so one
+// declaration serves every weight the app uses.
+const geistSans = localFont({
+  src: "./fonts/geist-latin.woff2",
   variable: "--font-geist-sans",
-  subsets: ["latin"],
+  weight: "100 900",
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
+const geistMono = localFont({
+  src: "./fonts/geist-mono-latin.woff2",
   variable: "--font-geist-mono",
-  subsets: ["latin"],
+  weight: "100 900",
+  display: "swap",
 });
 
 // Archivo — industrial grotesque used with restraint on display headings.
-const archivo = Archivo({
+const archivo = localFont({
+  src: "./fonts/archivo-latin.woff2",
   variable: "--font-archivo",
-  subsets: ["latin"],
-  weight: ["600", "700", "800"],
+  weight: "600 800",
   display: "swap",
 });
 
