@@ -17,7 +17,7 @@ jest.mock("@/lib/hooks/usePermissions", () => ({
 
 const mockUpdate = jest.fn();
 const mockTest = jest.fn();
-const mockClear = jest.fn();
+const mockClearSmtp = jest.fn();
 const mockUseCompany = jest.fn();
 const mockUseEmailStatus = jest.fn();
 const mockClearApi = jest.fn();
@@ -27,7 +27,7 @@ jest.mock("@/lib/api/contracts", () => ({
   useCompanyEmailStatus: (...args: unknown[]) => mockUseEmailStatus(...args),
   useUpdateCompany: () => ({ mutate: mockUpdate, isPending: false }),
   useTestCompanyEmail: () => ({ mutate: mockTest, isPending: false }),
-  useClearCompanySmtp: () => ({ mutate: mockClear, isPending: false }),
+  useClearCompanySmtp: () => ({ mutate: mockClearSmtp, isPending: false }),
 }));
 
 jest.mock("sonner", () => ({ toast: { success: jest.fn(), error: jest.fn() } }));
@@ -104,292 +104,234 @@ it("is hidden from anyone without the settings permission", () => {
   expect(screen.queryByText("Sending email")).not.toBeInTheDocument();
 });
 
-it("saves the sender without requiring a mailbox", async () => {
-  renderForm();
-
-  fireEvent.change(screen.getByLabelText("Reply-to address"), {
-    target: { value: "quotes@acme.com" },
-  });
-  fireEvent.click(screen.getByRole("button", { name: "Save email settings" }));
-
-  await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
-  const payload = mockUpdate.mock.calls[0][0];
-  expect(payload.email_from_address).toBe("quotes@acme.com");
-  expect(payload).not.toHaveProperty("smtp_host");
-});
-
-it("will not save half a mailbox", () => {
-  // The columns are constrained to travel together, so a partial save would
-  // only come back as a database rejection.
-  renderForm();
-
-  fireEvent.change(screen.getByLabelText("SMTP server"), {
-    target: { value: "smtp.gmail.com" },
-  });
-
-  expect(screen.getByRole("button", { name: "Save email settings" })).toBeDisabled();
-  expect(
-    screen.getByText("A mailbox needs a server, a username and a password.")
-  ).toBeInTheDocument();
-});
-
-it("sends the password once a whole mailbox is filled in", async () => {
-  renderForm();
-
-  fireEvent.change(screen.getByLabelText("SMTP server"), {
-    target: { value: "smtp.gmail.com" },
-  });
-  fireEvent.change(screen.getByLabelText("Username"), {
-    target: { value: "steve@acme.com" },
-  });
-  fireEvent.change(screen.getByLabelText("Password"), {
-    target: { value: "abcd efgh ijkl mnop" },
-  });
-  fireEvent.click(screen.getByRole("button", { name: "Save email settings" }));
-
-  await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
-  const payload = mockUpdate.mock.calls[0][0];
-  expect(payload.smtp_host).toBe("smtp.gmail.com");
-  expect(payload.smtp_password).toBe("abcd efgh ijkl mnop");
-});
-
-it("never prefills the password, and leaves it alone when blank", async () => {
-  // The server does not return it, so there is nothing to prefill — and a blank
-  // field has to mean "keep what is stored", not "clear it".
-  renderForm({ smtp_configured: true, smtp_host: "smtp.gmail.com", smtp_user: "s@acme.com" });
-
-  expect(screen.getByLabelText("Replace password")).toHaveValue("");
-
-  fireEvent.click(screen.getByRole("button", { name: "Save email settings" }));
-
-  await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
-  expect(mockUpdate.mock.calls[0][0]).not.toHaveProperty("smtp_password");
-});
-
-it("offers to stop using the mailbox only once one is configured", () => {
-  renderForm();
-  expect(
-    screen.queryByRole("button", { name: "Stop using my mailbox" })
-  ).not.toBeInTheDocument();
-
-  renderForm({ smtp_configured: true });
-  expect(
-    screen.getByRole("button", { name: "Stop using my mailbox" })
-  ).toBeInTheDocument();
-});
-
-it("reports a delivered test with the address it reached", async () => {
-  renderForm();
-  mockTest.mockImplementation((_arg, options) =>
-    options.onSuccess({
-      delivered: true,
-      transport: "company-smtp",
-      recipient: "admin@acme.com",
-      detail: "Sent via this company's own mailbox.",
-    })
-  );
-
-  fireEvent.click(screen.getByRole("button", { name: /Send a test to myself/ }));
-
-  await waitFor(() =>
-    expect(
-      screen.getByText(/Handed to the mail server, addressed to admin@acme.com/)
-    ).toBeInTheDocument()
-  );
-  expect(
-    screen.getByText("Sent via this company's own mailbox.")
-  ).toBeInTheDocument();
-});
-
-it("shows a refusal in full rather than as a generic failure", async () => {
-  // The provider's own words are the answer to "why did nothing arrive".
-  renderForm();
-  mockTest.mockImplementation((_arg, options) =>
-    options.onSuccess({
-      delivered: false,
-      transport: "company-smtp",
-      recipient: "admin@acme.com",
-      detail: "SMTPAuthenticationError: (535, '5.7.8 Username and Password not accepted.')",
-    })
-  );
-
-  fireEvent.click(screen.getByRole("button", { name: /Send a test to myself/ }));
-
-  await waitFor(() =>
-    expect(screen.getByText("Nothing was sent")).toBeInTheDocument()
-  );
-  expect(screen.getByText(/5\.7\.8/)).toBeInTheDocument();
-});
-
-
 /**
- * "It says optional — should that be a requirement?"
+ * One method carries the mail, and the screen says which.
  *
- * It is optional only when the server has a mail account to fall back on. On a
- * server without one, the company's mailbox is the single thing standing between
- * them and being able to email a quote, and calling it optional is false.
+ * Both used to be fillable at once, with the server quietly preferring the
+ * provider — so the settings could not be read to find out what would actually
+ * happen.
  */
-describe("whether the mailbox is optional", () => {
-  it("says optional when the server can send on their behalf", () => {
-    renderForm({}, { relay_available: true, can_send: true });
+describe("choosing how mail is sent", () => {
+  const chooseMethod = (name: RegExp) =>
+    fireEvent.click(screen.getByRole("radio", { name }));
 
-    expect(screen.getByText(/^Optional\./)).toBeInTheDocument();
-    expect(screen.queryByText("Required")).not.toBeInTheDocument();
+  it("starts on the server's account when nothing is configured", () => {
+    renderForm();
+
+    expect(screen.getByRole("radio", { name: /server's mail account/ })).toBeChecked();
+    // The other methods' fields stay out of the way until chosen.
+    expect(screen.queryByLabelText("Provider")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("SMTP server")).not.toBeInTheDocument();
   });
 
-  it("marks it required when the server has no mail account", () => {
+  it("starts on the provider when one is configured", () => {
+    renderForm({ email_api_provider: "resend", email_api_configured: true });
+
+    expect(screen.getByRole("radio", { name: /email provider/ })).toBeChecked();
+    expect(screen.getByLabelText("Provider")).toHaveValue("resend");
+    expect(screen.queryByLabelText("SMTP server")).not.toBeInTheDocument();
+  });
+
+  it("starts on the mailbox when only that is configured", () => {
+    renderForm({ smtp_configured: true, smtp_host: "smtp.gmail.com" });
+
+    expect(screen.getByRole("radio", { name: /own mailbox/ })).toBeChecked();
+    expect(screen.getByLabelText("SMTP server")).toHaveValue("smtp.gmail.com");
+    expect(screen.queryByLabelText("Provider")).not.toBeInTheDocument();
+  });
+
+  it("prefers the provider when both are somehow stored, as the server does", () => {
+    renderForm({
+      email_api_provider: "resend",
+      email_api_configured: true,
+      smtp_configured: true,
+      smtp_host: "smtp.gmail.com",
+    });
+
+    expect(screen.getByRole("radio", { name: /email provider/ })).toBeChecked();
+  });
+
+  it("shows only the chosen method's fields", () => {
+    renderForm();
+
+    chooseMethod(/email provider/);
+    expect(screen.getByLabelText("Provider")).toBeInTheDocument();
+    expect(screen.queryByLabelText("SMTP server")).not.toBeInTheDocument();
+
+    chooseMethod(/own mailbox/);
+    expect(screen.getByLabelText("SMTP server")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Provider")).not.toBeInTheDocument();
+  });
+
+  it("does not offer the server's account when the server has none", () => {
     renderForm({}, { relay_available: false, can_send: false });
 
-    expect(screen.getByText("Required")).toBeInTheDocument();
-    expect(screen.getByText("Quotes cannot be emailed yet")).toBeInTheDocument();
-    expect(screen.queryByText(/^Optional\./)).not.toBeInTheDocument();
-  });
-
-  it("shows the address clients will actually see", () => {
-    renderForm(
-      {},
-      {
-        can_send: true,
-        sender: "Acme Trades <steve@acme.com>",
-        reply_to: null,
-      }
-    );
-
-    expect(screen.getByText("Acme Trades <steve@acme.com>")).toBeInTheDocument();
-  });
-
-  it("names where replies go when that differs from the sender", () => {
-    renderForm({}, { can_send: true, reply_to: "quotes@acme.com" });
-
-    expect(screen.getByText("quotes@acme.com")).toBeInTheDocument();
-  });
-
-  it("says nothing either way until the status is known", () => {
-    renderForm({}, null);
-
-    expect(screen.queryByText("Required")).not.toBeInTheDocument();
-    expect(
-      screen.queryByText("Quotes cannot be emailed yet")
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /server's mail account/ })).toBeDisabled();
   });
 });
 
-it("explains that the provider's key goes in the password field", () => {
-  // "Where is the SMTP key?" — there is no such field: SMTP authenticates with
-  // a username and a password, and the key is the password.
-  renderForm();
+describe("saving a choice", () => {
+  beforeEach(() => mockUpdate.mockImplementation((_p, o) => o.onSuccess()));
 
-  expect(screen.getByText(/no separate key field/)).toBeInTheDocument();
-  expect(screen.getByText(/app password/)).toBeInTheDocument();
-});
+  it("sends only the chosen method's settings", async () => {
+    renderForm();
 
-/**
- * The test exercises what the server has stored, not what is on screen.
- *
- * Changing the port and pressing test reported a failure against the *old* port
- * — naming a number the user could see they had just changed. So the test saves
- * first, and unsaved changes say so.
- */
-describe("testing what is on screen", () => {
-  const CONFIGURED: Partial<Company> = {
-    smtp_configured: true,
-    smtp_host: "smtp.gmail.com",
-    smtp_port: 587,
-    smtp_user: "steve@acme.com",
-  };
-
-  it("saves first when something has been changed", async () => {
-    renderForm(CONFIGURED);
-    mockUpdate.mockImplementation((_payload, options) => options.onSuccess());
-
-    fireEvent.change(screen.getByLabelText("Port"), { target: { value: "465" } });
-    fireEvent.click(screen.getByRole("button", { name: /Save and send a test/ }));
+    fireEvent.change(screen.getByLabelText("Reply-to address"), {
+      target: { value: "quotes@acme.com" },
+    });
+    fireEvent.click(screen.getByRole("radio", { name: /email provider/ }));
+    fireEvent.change(screen.getByLabelText("Provider"), {
+      target: { value: "resend" },
+    });
+    fireEvent.change(screen.getByLabelText("API key"), {
+      target: { value: "re_secret" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save email settings" }));
 
     await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
-    expect(mockUpdate.mock.calls[0][0].smtp_port).toBe(465);
-    // And only then does it test, so the result describes the new port.
-    await waitFor(() => expect(mockTest).toHaveBeenCalled());
+    const payload = mockUpdate.mock.calls[0][0];
+    expect(payload.email_api_provider).toBe("resend");
+    expect(payload.email_api_key).toBe("re_secret");
+    expect(payload).not.toHaveProperty("smtp_host");
   });
 
-  it("tests directly when nothing has been changed", async () => {
-    renderForm(CONFIGURED);
+  it("removes the mailbox when switching to a provider", async () => {
+    // Otherwise both are stored and an invisible preference order decides.
+    renderForm({
+      smtp_configured: true,
+      smtp_host: "smtp.gmail.com",
+      smtp_user: "s@acme.com",
+      email_from_address: "quotes@acme.com",
+    });
 
-    fireEvent.click(screen.getByRole("button", { name: /Send a test to myself/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /email provider/ }));
+    fireEvent.change(screen.getByLabelText("Provider"), {
+      target: { value: "resend" },
+    });
+    fireEvent.change(screen.getByLabelText("API key"), {
+      target: { value: "re_secret" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save email settings" }));
 
-    await waitFor(() => expect(mockTest).toHaveBeenCalled());
-    expect(mockUpdate).not.toHaveBeenCalled();
+    await waitFor(() => expect(mockClearSmtp).toHaveBeenCalled());
   });
 
-  it("renames the button while there are unsaved changes", () => {
-    renderForm(CONFIGURED);
+  it("removes the provider when switching to a mailbox", async () => {
+    renderForm({
+      email_api_provider: "resend",
+      email_api_configured: true,
+      email_from_address: "quotes@acme.com",
+    });
 
+    fireEvent.click(screen.getByRole("radio", { name: /own mailbox/ }));
+    fireEvent.change(screen.getByLabelText("SMTP server"), {
+      target: { value: "smtp.gmail.com" },
+    });
+    fireEvent.change(screen.getByLabelText("Username"), {
+      target: { value: "s@acme.com" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "app pass" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save email settings" }));
+
+    await waitFor(() => expect(mockClearApi).toHaveBeenCalled());
+  });
+
+  it("removes both when going back to the server's account", async () => {
+    renderForm({
+      email_api_provider: "resend",
+      email_api_configured: true,
+      smtp_configured: true,
+      smtp_host: "smtp.gmail.com",
+    });
+
+    fireEvent.click(screen.getByRole("radio", { name: /server's mail account/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Save email settings" }));
+
+    await waitFor(() => expect(mockClearSmtp).toHaveBeenCalled());
+  });
+
+  it("will not save a provider with no key", () => {
+    renderForm();
+
+    fireEvent.change(screen.getByLabelText("Reply-to address"), {
+      target: { value: "quotes@acme.com" },
+    });
+    fireEvent.click(screen.getByRole("radio", { name: /email provider/ }));
+
+    expect(screen.getByRole("button", { name: "Save email settings" })).toBeDisabled();
     expect(
-      screen.getByRole("button", { name: /Send a test to myself/ })
+      screen.getByText("A provider needs to be chosen, with its API key.")
     ).toBeInTheDocument();
+  });
 
-    fireEvent.change(screen.getByLabelText("Port"), { target: { value: "465" } });
+  it("will not save half a mailbox", () => {
+    renderForm();
 
+    fireEvent.change(screen.getByLabelText("Reply-to address"), {
+      target: { value: "quotes@acme.com" },
+    });
+    fireEvent.click(screen.getByRole("radio", { name: /own mailbox/ }));
+    fireEvent.change(screen.getByLabelText("SMTP server"), {
+      target: { value: "smtp.gmail.com" },
+    });
+
+    expect(screen.getByRole("button", { name: "Save email settings" })).toBeDisabled();
     expect(
-      screen.getByRole("button", { name: /Save and send a test/ })
+      screen.getByText("A mailbox needs a server, a username and a password.")
     ).toBeInTheDocument();
   });
 
-  it("warns that an old result does not describe the current screen", async () => {
-    renderForm(CONFIGURED);
-    mockTest.mockImplementation((_arg, options) =>
-      options.onSuccess({
-        delivered: false,
-        transport: "company-smtp",
-        recipient: "admin@acme.com",
-        detail: "No answer from smtp.gmail.com:587 within 30s.",
-      })
-    );
+  it("will not send through a provider with no address to send from", () => {
+    // A provider refuses a message with an empty From, and the refusal is
+    // about the malformed address rather than the empty field behind it.
+    renderForm();
 
-    fireEvent.click(screen.getByRole("button", { name: /Send a test to myself/ }));
-    await waitFor(() => expect(screen.getByText("Nothing was sent")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("radio", { name: /email provider/ }));
+    fireEvent.change(screen.getByLabelText("Provider"), {
+      target: { value: "resend" },
+    });
+    fireEvent.change(screen.getByLabelText("API key"), {
+      target: { value: "re_secret" },
+    });
 
-    fireEvent.change(screen.getByLabelText("Port"), { target: { value: "465" } });
-
-    expect(screen.getByText(/unsaved changes/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save email settings" })).toBeDisabled();
+    expect(screen.getByText(/A sending address is needed/)).toBeInTheDocument();
   });
-});
 
-describe("the port stays editable after it has been saved", () => {
-  const SAVED: Partial<Company> = {
-    smtp_configured: true,
-    smtp_host: "smtp.gmail.com",
-    smtp_port: 587,
-    smtp_user: "steve@acme.com",
-  };
+  it("never prefills a stored credential, and leaves it alone when blank", async () => {
+    renderForm({
+      email_api_provider: "resend",
+      email_api_configured: true,
+      email_from_address: "quotes@acme.com",
+    });
 
-  it("accepts a new value", () => {
-    renderForm(SAVED);
+    expect(screen.getByLabelText("Replace API key")).toHaveValue("");
+
+    fireEvent.click(screen.getByRole("button", { name: "Save email settings" }));
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
+    expect(mockUpdate.mock.calls[0][0]).not.toHaveProperty("email_api_key");
+  });
+
+  it("keeps the port editable on a saved mailbox", () => {
+    renderForm({
+      smtp_configured: true,
+      smtp_host: "smtp.gmail.com",
+      smtp_port: 587,
+      smtp_user: "s@acme.com",
+    });
+
     const port = screen.getByLabelText("Port");
-    expect(port).toHaveValue("587");
     expect(port).not.toBeDisabled();
-
     fireEvent.change(port, { target: { value: "465" } });
 
     expect(port).toHaveValue("465");
   });
 
-  it("sends the new value even though the password is left blank", async () => {
-    // After a save the password field is empty by design, which must not stop
-    // the rest of the mailbox from being edited.
-    renderForm(SAVED);
-    mockUpdate.mockImplementation((_payload, options) => options.onSuccess());
-
-    fireEvent.change(screen.getByLabelText("Port"), { target: { value: "465" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save email settings" }));
-
-    await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
-    const payload = mockUpdate.mock.calls[0][0];
-    expect(payload.smtp_port).toBe(465);
-    expect(payload).not.toHaveProperty("smtp_password");
-  });
-
-  it("ignores anything that is not a digit", () => {
-    renderForm(SAVED);
+  it("ignores anything that is not a digit in the port", () => {
+    renderForm({ smtp_configured: true, smtp_host: "smtp.gmail.com", smtp_user: "s@a.com" });
 
     fireEvent.change(screen.getByLabelText("Port"), { target: { value: "4a6b5" } });
 
@@ -397,113 +339,83 @@ describe("the port stays editable after it has been saved", () => {
   });
 });
 
-it("lets a saved mailbox be edited even if smtp_configured is missing", () => {
-  // A backend that does not report that flag must not strand the form: the
-  // password field is blank by design after a save, and treating that as
-  // incomplete greys out Save and makes the port impossible to change.
-  renderForm({
-    smtp_configured: false,
-    smtp_host: "smtp.gmail.com",
-    smtp_port: 587,
-    smtp_user: "steve@acme.com",
-  });
-
-  fireEvent.change(screen.getByLabelText("Port"), { target: { value: "465" } });
-
-  expect(screen.getByRole("button", { name: "Save email settings" })).toBeEnabled();
-  expect(
-    screen.queryByText("A mailbox needs a server, a username and a password.")
-  ).not.toBeInTheDocument();
-});
-
-/**
- * Sending over HTTPS, for a host that blocks outgoing SMTP.
- *
- * Both 587 and 465 time out from the deployed instance with no answer at all,
- * so a provider's API is the only way mail can leave. The key is a customer's
- * credential and is treated like the SMTP password beside it.
- */
-describe("the email provider", () => {
-  it("is not used until one is chosen", () => {
-    renderForm();
-
-    expect(screen.getByLabelText("Provider")).toHaveValue("");
-    expect(screen.getByLabelText("API key")).toBeDisabled();
-  });
-
-  it("sends the provider and key once both are given", async () => {
-    renderForm();
-    mockUpdate.mockImplementation((_payload, options) => options.onSuccess());
-
-    fireEvent.change(screen.getByLabelText("Provider"), {
-      target: { value: "resend" },
+describe("the test send", () => {
+  it("saves first when something has been changed", async () => {
+    renderForm({
+      smtp_configured: true,
+      smtp_host: "smtp.gmail.com",
+      smtp_port: 587,
+      smtp_user: "s@acme.com",
+      email_from_address: "quotes@acme.com",
     });
-    fireEvent.change(screen.getByLabelText("API key"), {
-      target: { value: "re_secret_key" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Save email settings" }));
+    mockUpdate.mockImplementation((_p, o) => o.onSuccess());
+
+    fireEvent.change(screen.getByLabelText("Port"), { target: { value: "465" } });
+    fireEvent.click(screen.getByRole("button", { name: /Save and send a test/ }));
 
     await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
-    const payload = mockUpdate.mock.calls[0][0];
-    expect(payload.email_api_provider).toBe("resend");
-    expect(payload.email_api_key).toBe("re_secret_key");
+    expect(mockUpdate.mock.calls[0][0].smtp_port).toBe(465);
+    await waitFor(() => expect(mockTest).toHaveBeenCalled());
   });
 
-  it("will not save a provider with no key", () => {
+  it("tests directly when nothing has been changed", async () => {
+    renderForm({ email_api_configured: true, email_api_provider: "resend" });
+
+    fireEvent.click(screen.getByRole("button", { name: /Send a test to myself/ }));
+
+    await waitFor(() => expect(mockTest).toHaveBeenCalled());
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("reports a refusal in full rather than as a generic failure", async () => {
     renderForm();
+    mockTest.mockImplementation((_arg, options) =>
+      options.onSuccess({
+        delivered: false,
+        transport: "company-smtp",
+        recipient: "admin@acme.com",
+        detail:
+          "SMTPAuthenticationError: (535, '5.7.8 Username and Password not accepted.')",
+      })
+    );
 
-    fireEvent.change(screen.getByLabelText("Provider"), {
-      target: { value: "sendgrid" },
-    });
+    fireEvent.click(screen.getByRole("button", { name: /Send a test to myself/ }));
 
-    expect(screen.getByRole("button", { name: "Save email settings" })).toBeDisabled();
-    expect(screen.getByText("A provider needs an API key.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Nothing was sent")).toBeInTheDocument());
+    expect(screen.getByText(/5\.7\.8/)).toBeInTheDocument();
   });
 
-  it("never prefills the key, and leaves it alone when blank", async () => {
-    renderForm({ email_api_provider: "postmark", email_api_configured: true });
-    mockUpdate.mockImplementation((_payload, options) => options.onSuccess());
-
-    expect(screen.getByLabelText("Replace API key")).toHaveValue("");
-
-    fireEvent.click(screen.getByRole("button", { name: "Save email settings" }));
-
-    await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
-    const payload = mockUpdate.mock.calls[0][0];
-    expect(payload.email_api_provider).toBe("postmark");
-    expect(payload).not.toHaveProperty("email_api_key");
-  });
-
-  it("offers to stop only once a provider is configured", () => {
+  it("does not claim a message arrived, only that it was accepted", async () => {
     renderForm();
-    expect(
-      screen.queryByRole("button", { name: "Stop using this provider" })
-    ).not.toBeInTheDocument();
+    mockTest.mockImplementation((_arg, options) =>
+      options.onSuccess({
+        delivered: true,
+        transport: "company-api",
+        recipient: "admin@acme.com",
+        detail: "Accepted for delivery via this company's email provider.",
+      })
+    );
 
-    renderForm({ email_api_provider: "resend", email_api_configured: true });
-    expect(
-      screen.getByRole("button", { name: "Stop using this provider" })
-    ).toBeInTheDocument();
-  });
+    fireEvent.click(screen.getByRole("button", { name: /Send a test to myself/ }));
 
-  it("explains when this is the option to reach for", () => {
-    renderForm();
-
-    expect(screen.getByText(/when SMTP times out/)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.getByText(/Handed to the mail server, addressed to admin@acme.com/)
+      ).toBeInTheDocument()
+    );
   });
 });
 
 it("offers a way to test a provider before DNS is set up", () => {
-  // Domain verification takes a DNS round trip; Resend's shared sender does
-  // not, and a first test that works today is worth more than a correct one
-  // tomorrow.
   renderForm();
+  fireEvent.click(screen.getByRole("radio", { name: /email provider/ }));
 
   expect(screen.getByText("onboarding@resend.dev")).toBeInTheDocument();
 });
 
-it("says what a provider gives you that SMTP does not", () => {
+it("explains that the provider's key goes in the password field", () => {
   renderForm();
+  fireEvent.click(screen.getByRole("radio", { name: /own mailbox/ }));
 
-  expect(screen.getByText(/delivered, bounced or marked as spam/)).toBeInTheDocument();
+  expect(screen.getByText(/no separate key field/)).toBeInTheDocument();
 });
