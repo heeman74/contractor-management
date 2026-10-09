@@ -319,3 +319,23 @@ async def test_sending_a_quote_uses_the_provider(
     assert sent["to"] == "recipient@example.com"
     assert sent["provider_name"] == "resend"
     assert "600.00" in sent["text_body"]
+
+
+@pytest.mark.asyncio
+async def test_a_provider_with_no_sender_address_says_which_setting_is_missing() -> None:
+    """Otherwise the From goes out as "Acme <>" and the provider complains about
+    a malformed address rather than the setting that caused it."""
+    with pytest.raises(MailApiError) as exc:
+        await providers_module.send_via_api(
+            provider_name="resend",
+            api_key="KEY",
+            sender="Acme <>",
+            to="client@example.com",
+            subject="s",
+            text_body="t",
+            html_body="<p>h</p>",
+        )
+
+    message = str(exc.value)
+    assert "No sender address is set" in message
+    assert "verified with your provider" in message

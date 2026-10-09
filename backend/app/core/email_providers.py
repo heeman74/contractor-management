@@ -129,6 +129,19 @@ async def send_via_api(
     provider said no" is not actionable, and the reason is almost always a sender
     address it has not been asked to verify.
     """
+    # An "@" rather than mere non-emptiness: _bare_address falls back to the
+    # whole header when parsing finds no address, so "Acme <>" comes back
+    # truthy and would sail past a simple check — straight into a network call
+    # and a refusal about something else entirely.
+    if "@" not in _bare_address(sender):
+        # Otherwise the From goes out as "Acme <>", and the provider's refusal
+        # is about a malformed address rather than the missing setting that
+        # caused it.
+        raise MailApiError(
+            "No sender address is set, so there is nothing to send from. Set "
+            "the reply-to address, on a domain verified with your provider."
+        )
+
     provider = PROVIDERS.get(provider_name)
     if provider is None:
         raise MailApiError(

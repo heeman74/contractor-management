@@ -492,3 +492,18 @@ describe("the email provider", () => {
     expect(screen.getByText(/when SMTP times out/)).toBeInTheDocument();
   });
 });
+
+it("offers a way to test a provider before DNS is set up", () => {
+  // Domain verification takes a DNS round trip; Resend's shared sender does
+  // not, and a first test that works today is worth more than a correct one
+  // tomorrow.
+  renderForm();
+
+  expect(screen.getByText("onboarding@resend.dev")).toBeInTheDocument();
+});
+
+it("says what a provider gives you that SMTP does not", () => {
+  renderForm();
+
+  expect(screen.getByText(/delivered, bounced or marked as spam/)).toBeInTheDocument();
+});

@@ -243,8 +243,17 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
         <p className="mt-1 text-sm text-muted-foreground">
           Sends over HTTPS instead of SMTP. Use this when SMTP times out — some
           hosts block outgoing mail on every port, and then this is the only way
-          mail can leave. Your sending domain has to be verified with the
-          provider.
+          mail can leave. It also shows you, per message, whether it was
+          delivered, bounced or marked as spam, which SMTP never tells you.
+        </p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Your sending domain has to be verified with the provider. To try it
+          before setting up DNS, Resend accepts{" "}
+          <code className="rounded bg-muted px-1 py-0.5 text-xs">
+            onboarding@resend.dev
+          </code>{" "}
+          as the reply-to address above — it only delivers to the address your
+          Resend account is registered with, which is enough for a test.
         </p>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
