@@ -73,47 +73,63 @@ def test_each_dockerfile_sits_inside_its_build_context() -> None:
 # ---------------------------------------------------------------------------
 # The root Dockerfile
 #
-# It exists only to turn "open Dockerfile: no such file or directory" — which
-# names neither the service nor the setting that caused it — into instructions,
-# in the build log the operator is already reading. It must never build
-# something, because a service pointed at the root is misconfigured and
-# succeeding would hide that.
+# It builds the web app from the repository root, because a service is
+# configured with the root as its build context and four deploys failed on
+# "open Dockerfile: no such file or directory". It is web/Dockerfile with the
+# paths rebased, and the risk is that the two drift: a change made in one and
+# not the other would ship a different image depending on which settings the
+# service happens to have.
 # ---------------------------------------------------------------------------
 
 _ROOT_DOCKERFILE = _REPO / "Dockerfile"
+_WEB_DOCKERFILE = _REPO / "web" / "Dockerfile"
 
 
-def test_the_root_dockerfile_refuses_to_build() -> None:
-    assert _ROOT_DOCKERFILE.is_file()
-    assert "exit 1" in _ROOT_DOCKERFILE.read_text()
-
-
-def test_it_names_both_real_dockerfiles() -> None:
-    """Whichever service lands here, the way out is in front of them."""
-    contents = _ROOT_DOCKERFILE.read_text()
-
-    assert "web/Dockerfile" in contents
-    assert "backend/Dockerfile" in contents
-
-
-def test_it_does_not_copy_an_application_into_itself() -> None:
-    """Building the web app from here would mean a misconfigured API service
-    quietly deploys the wrong application, and succeeds doing it.
-
-    Reads instructions rather than the whole file: the explanation mentions the
-    web image's first COPY, and matching prose would fail on the comment that
-    exists to prevent exactly this.
-    """
-    instructions = [
-        line.split()[0].upper()
-        for line in _ROOT_DOCKERFILE.read_text().splitlines()
+def _instructions(path: pathlib.Path) -> list[str]:
+    """Instruction lines only, so prose and comments do not count."""
+    return [
+        " ".join(line.split())
+        for line in path.read_text().splitlines()
         if line.strip() and not line.lstrip().startswith("#")
     ]
 
-    assert "COPY" not in instructions, instructions
-    assert "ADD" not in instructions, instructions
+
+def test_the_root_dockerfile_builds_the_web_app() -> None:
+    assert _ROOT_DOCKERFILE.is_file()
+    assert "npm run build" in _ROOT_DOCKERFILE.read_text()
 
 
-def test_the_blueprint_still_points_elsewhere() -> None:
-    """Adding a root Dockerfile must not become the path anything uses."""
+def test_it_takes_its_sources_from_web() -> None:
+    """Rebased paths are the whole difference; without them the build fails on
+    a package.json it cannot find."""
+    contents = _ROOT_DOCKERFILE.read_text()
+
+    assert "COPY web/package.json" in contents
+    assert "COPY web/ ./" in contents
+
+
+def test_the_two_dockerfiles_have_not_drifted() -> None:
+    """Same stages, same base images, same command — only the paths differ."""
+    root = _instructions(_ROOT_DOCKERFILE)
+    web = _instructions(_WEB_DOCKERFILE)
+
+    def shape(lines: list[str]) -> list[str]:
+        return [
+            line
+            for line in lines
+            if line.startswith(("FROM ", "WORKDIR ", "USER ", "EXPOSE ", "CMD ", "ENV "))
+        ]
+
+    assert shape(root) == shape(web), (
+        "the root Dockerfile and web/Dockerfile have diverged beyond their paths"
+    )
+    assert len([line for line in root if line.startswith("RUN ")]) == len(
+        [line for line in web if line.startswith("RUN ")]
+    )
+
+
+def test_the_blueprint_still_points_at_the_real_one() -> None:
+    """The root file is a workaround for a misconfigured service, not the path
+    anything should be configured to use."""
     assert "./Dockerfile" not in _values("dockerfilePath")
+    assert "./web/Dockerfile" in _values("dockerfilePath")
