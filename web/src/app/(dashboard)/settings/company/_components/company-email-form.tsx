@@ -496,7 +496,7 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
           <p className="font-semibold">
             {lastTest.delivered
               ? `Handed to the mail server, addressed to ${lastTest.recipient}`
-              : "Nothing was sent"}
+              : `Nothing was sent to ${lastTest.recipient}`}
           </p>
           <p className="mt-0.5">{lastTest.detail}</p>
           {isDirty ? (
@@ -555,6 +555,13 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
             </>
           )}
         </Button>
+
+        <p className="w-full text-xs text-muted-foreground">
+          The test goes to your own address, never one typed here — otherwise
+          this page would send mail as your company to anyone. A provider&apos;s
+          trial sender may only deliver to the address its own account uses, so
+          those two have to match until a domain is verified.
+        </p>
 
         {!canSave ? (
           <p className="text-xs text-amber-700 dark:text-amber-300">

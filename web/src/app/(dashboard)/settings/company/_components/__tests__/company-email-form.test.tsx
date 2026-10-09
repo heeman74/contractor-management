@@ -381,7 +381,11 @@ describe("the test send", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Send a test to myself/ }));
 
-    await waitFor(() => expect(screen.getByText("Nothing was sent")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(
+        screen.getByText("Nothing was sent to admin@acme.com")
+      ).toBeInTheDocument()
+    );
     expect(screen.getByText(/5\.7\.8/)).toBeInTheDocument();
   });
 
@@ -418,4 +422,13 @@ it("explains that the provider's key goes in the password field", () => {
   fireEvent.click(screen.getByRole("radio", { name: /own mailbox/ }));
 
   expect(screen.getByText(/no separate key field/)).toBeInTheDocument();
+});
+
+
+it("names who the test goes to, so a mismatch is visible before pressing", () => {
+  // A provider's trial sender may only deliver to its own account's address;
+  // the test always goes to the signed-in user's, and those can differ.
+  renderForm();
+
+  expect(screen.getByText(/test goes to your own address/)).toBeInTheDocument();
 });
