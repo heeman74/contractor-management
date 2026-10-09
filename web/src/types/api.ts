@@ -548,6 +548,9 @@ export interface CompanyUpdate {
   email_api_key?: string | null;
 }
 
+/** Which known address a test should go to. Never a free-text address. */
+export type EmailTestTarget = "me" | "sender";
+
 /** What would happen if this company sent mail right now. */
 export interface EmailStatus {
   mailbox_configured: boolean;

@@ -121,3 +121,19 @@ class EmailStatus(BaseModel):
     # The From a client would see, so the sender is never a guess.
     sender: str
     reply_to: str | None
+
+
+class EmailTestRequest(BaseModel):
+    """Which of two known addresses a test should go to.
+
+    Not a free-text address: this endpoint would otherwise be a way to send
+    mail as a company to anyone who could be named. Both choices are addresses
+    the company or the caller already owns —
+
+    - "me": the signed-in user's own address.
+    - "sender": the company's reply-to address, which is also the one a
+      provider's trial sender is likely to be registered with. Without this a
+      trial sender cannot be tested at all unless the two happen to coincide.
+    """
+
+    to: Literal["me", "sender"] = "me"

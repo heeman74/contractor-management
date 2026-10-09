@@ -9,6 +9,7 @@ import type {
   ContractTemplate,
   ContractTemplateUpdate,
   EmailStatus,
+  EmailTestTarget,
   EmailTestResult,
   SendContractResponse,
 } from "@/types/api";
@@ -134,9 +135,11 @@ export function useCompanyEmailStatus(companyId: string) {
  * configuration, and the refusal is the answer.
  */
 export function useTestCompanyEmail(companyId: string) {
-  return useMutation<EmailTestResult, Error, void>({
-    mutationFn: () =>
-      apiPost<EmailTestResult>(`/api/v1/companies/${companyId}/email/test`, {}),
+  return useMutation<EmailTestResult, Error, EmailTestTarget>({
+    mutationFn: (to) =>
+      apiPost<EmailTestResult>(`/api/v1/companies/${companyId}/email/test`, {
+        to,
+      }),
   });
 }
 

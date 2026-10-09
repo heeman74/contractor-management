@@ -186,22 +186,6 @@ async def test_another_tenant_cannot_read_or_change_these_settings(
 
 
 @pytest.mark.asyncio
-async def test_the_test_send_goes_to_the_caller_not_an_address_they_supply(
-    tenant_a_client: AsyncClient, seed_two_tenants: dict
-):
-    """Otherwise this is a relay for sending mail as a company to anyone."""
-    company_id = seed_two_tenants["tenant_a_id"]
-
-    resp = await tenant_a_client.post(
-        f"/api/v1/companies/{company_id}/email/test",
-        json={"to": "victim@example.com"},
-    )
-    assert resp.status_code == 200, resp.text
-    assert resp.json()["recipient"] == "admin@tenant-a.com"
-    assert all(m["to"] != "victim@example.com" for m in sent_emails), sent_emails
-
-
-@pytest.mark.asyncio
 async def test_the_test_send_reports_that_nothing_was_delivered_without_a_server(
     tenant_a_client: AsyncClient, seed_two_tenants: dict, monkeypatch: pytest.MonkeyPatch
 ):
@@ -425,3 +409,67 @@ async def test_status_is_not_readable_by_another_tenant(
         f"/api/v1/companies/{seed_two_tenants['tenant_a_id']}/email/status"
     )
     assert resp.status_code == 404, resp.text
+
+
+@pytest.mark.asyncio
+async def test_a_test_can_go_to_the_companys_own_reply_to_address(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    """A provider's trial sender only delivers to its own account's address.
+
+    When that differs from whoever is signed in — and it usually does — a test
+    to the caller is refused by the provider and the settings cannot be checked
+    at all.
+    """
+    company_id = seed_two_tenants["tenant_a_id"]
+    await tenant_a_client.patch(
+        f"/api/v1/companies/{company_id}",
+        json={"email_from_address": "owner@acme.com"},
+    )
+
+    resp = await tenant_a_client.post(
+        f"/api/v1/companies/{company_id}/email/test", json={"to": "sender"}
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["recipient"] == "owner@acme.com"
+
+
+@pytest.mark.asyncio
+async def test_the_default_is_still_the_caller(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    company_id = seed_two_tenants["tenant_a_id"]
+    await tenant_a_client.patch(
+        f"/api/v1/companies/{company_id}",
+        json={"email_from_address": "owner@acme.com"},
+    )
+
+    resp = await tenant_a_client.post(f"/api/v1/companies/{company_id}/email/test")
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["recipient"] == "admin@tenant-a.com"
+
+
+@pytest.mark.asyncio
+async def test_an_arbitrary_address_is_still_refused(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    """The whole point of offering a choice of two rather than a text field."""
+    company_id = seed_two_tenants["tenant_a_id"]
+
+    resp = await tenant_a_client.post(
+        f"/api/v1/companies/{company_id}/email/test",
+        json={"to": "victim@example.com"},
+    )
+    assert resp.status_code == 422, resp.text
+
+
+@pytest.mark.asyncio
+async def test_asking_for_the_sender_with_none_set_says_so(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict
+):
+    resp = await tenant_a_client.post(
+        f"/api/v1/companies/{seed_two_tenants['tenant_a_id']}/email/test",
+        json={"to": "sender"},
+    )
+    assert resp.status_code == 400, resp.text
+    assert "no reply-to address" in resp.json()["detail"]

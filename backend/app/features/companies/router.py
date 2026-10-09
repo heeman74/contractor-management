@@ -26,6 +26,7 @@ from app.features.companies.schemas import (
     CompanyResponse,
     CompanyUpdate,
     EmailStatus,
+    EmailTestRequest,
     EmailTestResult,
 )
 from app.features.companies.service import CompanyService
@@ -163,24 +164,39 @@ async def update_own_company(
 
 async def send_test_email(
     company_id: uuid.UUID,
+    choice: EmailTestRequest = EmailTestRequest(),
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> EmailTestResult:
     """Send a test message with this company's settings, to the caller.
 
     Exists so a company finds out their mail settings are wrong while setting
-    them, rather than when a quote fails to reach a client. The recipient is
-    always the caller's own address — never one supplied in the request, which
-    would make this an open relay for sending mail as a company.
+    them, rather than when a quote fails to reach a client.
+
+    The recipient is one of two addresses already known here — the caller's own,
+    or the company's reply-to — never one supplied in the request, which would
+    make this a way to send mail as a company to anyone who could be named. The
+    second choice exists because a provider's trial sender only delivers to the
+    address its own account uses, so testing one is impossible when that differs
+    from whoever happens to be signed in.
     """
     company = await _company_for_settings(company_id, current_user, db)
 
-    user = await db.get(User, current_user.user_id)
-    if user is None or not user.email:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Your account has no email address to send a test to.",
-        )
+    if choice.to == "sender":
+        recipient = company.email_from_address
+        if not recipient:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=("There is no reply-to address set, so there is nothing to send a test to."),
+            )
+    else:
+        user = await db.get(User, current_user.user_id)
+        if user is None or not user.email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Your account has no email address to send a test to.",
+            )
+        recipient = user.email
 
     try:
         service = EmailService.for_company(company)
@@ -191,7 +207,7 @@ async def send_test_email(
         return EmailTestResult(
             delivered=False,
             transport=service.transport_label,
-            recipient=user.email,
+            recipient=recipient,
             detail=(
                 "No mail server is configured, for this company or for the "
                 "server, so nothing was sent."
@@ -200,7 +216,7 @@ async def send_test_email(
 
     try:
         receipt = await service.send(
-            to=user.email,
+            to=recipient,
             subject=f"{company.name} — mail settings test",
             text_body=(
                 "This is a test of your ContractorHub mail settings.\n\n"
@@ -219,7 +235,7 @@ async def send_test_email(
         return EmailTestResult(
             delivered=False,
             transport=service.transport_label,
-            recipient=user.email,
+            recipient=recipient,
             detail=f"{type(exc).__name__}: {exc}",
         )
 
@@ -232,7 +248,7 @@ async def send_test_email(
     return EmailTestResult(
         delivered=True,
         transport=service.transport_label,
-        recipient=user.email,
+        recipient=recipient,
         # Accepted, not arrived. The mail server taking a message is the last
         # thing this app can observe: what happens after — spam filtering, a
         # later bounce, a provider refusing an unverified sender — leaves no

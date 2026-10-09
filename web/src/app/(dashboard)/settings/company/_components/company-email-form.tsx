@@ -16,7 +16,7 @@ import {
   useUpdateCompany,
 } from "@/lib/api/contracts";
 import { usePermissions } from "@/lib/hooks/usePermissions";
-import type { EmailTestResult } from "@/types/api";
+import type { EmailTestResult, EmailTestTarget } from "@/types/api";
 
 /**
  * Where this company's mail comes from.
@@ -91,6 +91,7 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
   const [apiKey, setApiKey] = useState("");
   const [method, setMethod] = useState<SendMethod>("relay");
   const [lastTest, setLastTest] = useState<EmailTestResult | null>(null);
+  const [testTarget, setTestTarget] = useState<EmailTestTarget>("me");
 
   // Render-time sync, matching the profile form: seed the fields once the
   // company loads rather than setting state from an effect.
@@ -278,7 +279,7 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="email-from-address">Reply-to address</Label>
+          <Label htmlFor="email-from-address">Sending address</Label>
           <Input
             id="email-from-address"
             type="email"
@@ -286,8 +287,16 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
             onChange={(event) => setFromAddress(event.target.value)}
             placeholder="quotes@yourcompany.com"
           />
+          {/* It was labelled "reply-to", which is what it becomes on only one
+              of the three methods. On the other two it is the From a client
+              sees — so the label read as though the From were fixed somewhere
+              out of reach. */}
           <p className="text-xs text-muted-foreground">
-            Where client replies go.
+            {method === "relay"
+              ? "The server's account sends, so this is where client replies go."
+              : method === "provider"
+                ? "The From address your clients see. It must be on a domain verified with your provider — a trial sender like onboarding@resend.dev works only for testing."
+                : "The From address your clients see. It usually has to match the mailbox you sign in to below."}
           </p>
         </div>
       </div>
@@ -530,7 +539,7 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
           }
           onClick={() => {
             const runTest = () =>
-              testEmail.mutate(undefined, {
+              testEmail.mutate(testTarget, {
                 onSuccess: setLastTest,
                 onError: (error) =>
                   toast.error(error.message || "Could not run the test.", {
@@ -556,12 +565,29 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
           )}
         </Button>
 
-        <p className="w-full text-xs text-muted-foreground">
-          The test goes to your own address, never one typed here — otherwise
-          this page would send mail as your company to anyone. A provider&apos;s
-          trial sender may only deliver to the address its own account uses, so
-          those two have to match until a domain is verified.
-        </p>
+        <div className="w-full space-y-1.5">
+          <Label htmlFor="test-target">Send the test to</Label>
+          <select
+            id="test-target"
+            value={testTarget}
+            onChange={(event) =>
+              setTestTarget(event.target.value as EmailTestTarget)
+            }
+            className="h-10 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <option value="me">My own address</option>
+            <option value="sender" disabled={fromAddress.trim() === ""}>
+              The reply-to address
+              {fromAddress.trim() === "" ? " — none set" : ` (${fromAddress})`}
+            </option>
+          </select>
+          <p className="text-xs text-muted-foreground">
+            One of these two, never an address typed in — otherwise this page
+            would send mail as your company to anyone. A provider&apos;s trial
+            sender usually only delivers to the address its own account uses,
+            which is the reply-to one here, not yours.
+          </p>
+        </div>
 
         {!canSave ? (
           <p className="text-xs text-amber-700 dark:text-amber-300">

@@ -176,7 +176,7 @@ describe("saving a choice", () => {
   it("sends only the chosen method's settings", async () => {
     renderForm();
 
-    fireEvent.change(screen.getByLabelText("Reply-to address"), {
+    fireEvent.change(screen.getByLabelText("Sending address"), {
       target: { value: "quotes@acme.com" },
     });
     fireEvent.click(screen.getByRole("radio", { name: /email provider/ }));
@@ -255,7 +255,7 @@ describe("saving a choice", () => {
   it("will not save a provider with no key", () => {
     renderForm();
 
-    fireEvent.change(screen.getByLabelText("Reply-to address"), {
+    fireEvent.change(screen.getByLabelText("Sending address"), {
       target: { value: "quotes@acme.com" },
     });
     fireEvent.click(screen.getByRole("radio", { name: /email provider/ }));
@@ -269,7 +269,7 @@ describe("saving a choice", () => {
   it("will not save half a mailbox", () => {
     renderForm();
 
-    fireEvent.change(screen.getByLabelText("Reply-to address"), {
+    fireEvent.change(screen.getByLabelText("Sending address"), {
       target: { value: "quotes@acme.com" },
     });
     fireEvent.click(screen.getByRole("radio", { name: /own mailbox/ }));
@@ -425,10 +425,96 @@ it("explains that the provider's key goes in the password field", () => {
 });
 
 
-it("names who the test goes to, so a mismatch is visible before pressing", () => {
-  // A provider's trial sender may only deliver to its own account's address;
-  // the test always goes to the signed-in user's, and those can differ.
+it("explains why the recipient is restricted to two known addresses", () => {
+  // A free-text field here would be a way to send mail as the company to
+  // anyone; a trial sender's own-account-only rule is why there are two rather
+  // than one.
   renderForm();
 
-  expect(screen.getByText(/test goes to your own address/)).toBeInTheDocument();
+  expect(screen.getByText(/never an address typed in/)).toBeInTheDocument();
+});
+
+/**
+ * A provider's trial sender only delivers to the address its own account uses.
+ * That is almost never the signed-in user's, so a test that can only go to the
+ * caller cannot check a trial sender at all — which is where several rounds of
+ * identical 403s came from.
+ */
+describe("where the test is sent", () => {
+  it("goes to the caller by default", async () => {
+    renderForm({ email_from_address: "owner@acme.com" });
+
+    fireEvent.click(screen.getByRole("button", { name: /Send a test to myself/ }));
+
+    await waitFor(() => expect(mockTest).toHaveBeenCalledWith("me", expect.anything()));
+  });
+
+  it("can be sent to the reply-to address instead", async () => {
+    renderForm({ email_from_address: "owner@acme.com" });
+
+    fireEvent.change(screen.getByLabelText("Send the test to"), {
+      target: { value: "sender" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Send a test to myself/ }));
+
+    await waitFor(() =>
+      expect(mockTest).toHaveBeenCalledWith("sender", expect.anything())
+    );
+  });
+
+  it("names the reply-to address in the choice", () => {
+    renderForm({ email_from_address: "owner@acme.com" });
+
+    expect(screen.getByRole("option", { name: /owner@acme.com/ })).toBeInTheDocument();
+  });
+
+  it("cannot choose the reply-to address when there is none", () => {
+    renderForm({ email_from_address: null });
+
+    expect(screen.getByRole("option", { name: /none set/ })).toBeDisabled();
+  });
+
+  it("offers no way to type an address", () => {
+    // The restriction that keeps this from being a way to send mail as the
+    // company to anyone.
+    renderForm({ email_from_address: "owner@acme.com" });
+
+    const choice = screen.getByLabelText("Send the test to");
+    expect(choice.tagName).toBe("SELECT");
+    expect(
+      Array.from(choice.querySelectorAll("option")).map((o) => o.getAttribute("value"))
+    ).toEqual(["me", "sender"]);
+  });
+});
+
+
+/**
+ * The From a client sees is this field — it was labelled "reply-to", which is
+ * what it becomes on only one of the three methods, so the From read as though
+ * it were fixed somewhere out of reach.
+ */
+describe("what the sending address is for", () => {
+  it("is a reply-to when the server's account sends", () => {
+    renderForm();
+
+    expect(screen.getByText(/where client replies go/)).toBeInTheDocument();
+  });
+
+  it("is the From, and must be a verified domain, with a provider", () => {
+    renderForm();
+    fireEvent.click(screen.getByRole("radio", { name: /email provider/ }));
+
+    expect(
+      screen.getByText(/From address your clients see.*verified with your provider/)
+    ).toBeInTheDocument();
+  });
+
+  it("is the From, and must match the mailbox, over SMTP", () => {
+    renderForm();
+    fireEvent.click(screen.getByRole("radio", { name: /own mailbox/ }));
+
+    expect(
+      screen.getByText(/From address your clients see.*match the mailbox/)
+    ).toBeInTheDocument();
+  });
 });
