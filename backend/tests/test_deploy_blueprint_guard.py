@@ -68,3 +68,52 @@ def test_each_dockerfile_sits_inside_its_build_context() -> None:
         resolved_file = (_REPO / dockerfile.lstrip("./")).resolve()
         resolved_context = (_REPO / context.lstrip("./")).resolve()
         assert resolved_context in resolved_file.parents, f"{dockerfile} is not inside {context}"
+
+
+# ---------------------------------------------------------------------------
+# The root Dockerfile
+#
+# It exists only to turn "open Dockerfile: no such file or directory" — which
+# names neither the service nor the setting that caused it — into instructions,
+# in the build log the operator is already reading. It must never build
+# something, because a service pointed at the root is misconfigured and
+# succeeding would hide that.
+# ---------------------------------------------------------------------------
+
+_ROOT_DOCKERFILE = _REPO / "Dockerfile"
+
+
+def test_the_root_dockerfile_refuses_to_build() -> None:
+    assert _ROOT_DOCKERFILE.is_file()
+    assert "exit 1" in _ROOT_DOCKERFILE.read_text()
+
+
+def test_it_names_both_real_dockerfiles() -> None:
+    """Whichever service lands here, the way out is in front of them."""
+    contents = _ROOT_DOCKERFILE.read_text()
+
+    assert "web/Dockerfile" in contents
+    assert "backend/Dockerfile" in contents
+
+
+def test_it_does_not_copy_an_application_into_itself() -> None:
+    """Building the web app from here would mean a misconfigured API service
+    quietly deploys the wrong application, and succeeds doing it.
+
+    Reads instructions rather than the whole file: the explanation mentions the
+    web image's first COPY, and matching prose would fail on the comment that
+    exists to prevent exactly this.
+    """
+    instructions = [
+        line.split()[0].upper()
+        for line in _ROOT_DOCKERFILE.read_text().splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+
+    assert "COPY" not in instructions, instructions
+    assert "ADD" not in instructions, instructions
+
+
+def test_the_blueprint_still_points_elsewhere() -> None:
+    """Adding a root Dockerfile must not become the path anything uses."""
+    assert "./Dockerfile" not in _values("dockerfilePath")
