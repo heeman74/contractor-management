@@ -330,3 +330,46 @@ async def test_a_sent_quote_records_the_mail_servers_receipt(
     sent = [r for r in caplog.records if "quote_email_sent" in r.getMessage()]
     assert sent, "a successful send should say so"
     assert "1791007096" in sent[-1].getMessage(), sent[-1].getMessage()
+
+
+@pytest.mark.asyncio
+async def test_a_provider_refusal_reaches_the_person_sending_the_quote(
+    tenant_a_client: AsyncClient, seed_two_tenants: dict, monkeypatch: pytest.MonkeyPatch
+):
+    """Resend refuses an unverified sender domain and says exactly that.
+
+    Replacing it with "could not email the quote" sends someone looking at the
+    quote, when the fix is a DNS record.
+    """
+    from app.core.email_providers import MailApiError
+
+    company_id = seed_two_tenants["tenant_a_id"]
+    await tenant_a_client.patch(
+        f"/api/v1/companies/{company_id}",
+        json={
+            "email_from_address": "quotes@acme.com",
+            "email_api_provider": "resend",
+            "email_api_key": "re_key",
+        },
+    )
+
+    async def _refuse(**_kwargs):
+        raise MailApiError(
+            "Resend refused the message (403): You can only send testing emails "
+            "to your own email address. Verify a domain at resend.com/domains."
+        )
+
+    monkeypatch.setattr(email_module, "send_via_api", _refuse)
+
+    client_id = await ensure_client(tenant_a_client, email="client@example.com")
+    quote = await _draft_quote_for(tenant_a_client, str(client_id))
+
+    send = await tenant_a_client.post(f"/api/v1/quotes/{quote['id']}/send")
+    assert send.status_code == 502, send.text
+
+    detail = send.json()["detail"]
+    assert "resend.com/domains" in detail, detail
+    assert "still a draft" in detail
+
+    after = await tenant_a_client.get(f"/api/v1/quotes/{quote['id']}")
+    assert after.json()["status"] == "draft"

@@ -37,7 +37,8 @@ from sqlalchemy.orm import selectinload
 
 from app.core.base_service import TenantScopedService, entity_or_404
 from app.core.config import settings
-from app.core.email import EmailService
+from app.core.email import EmailService, MailTransportError
+from app.core.email_providers import MailApiError
 from app.core.logging_config import get_logger
 from app.core.secrets import SecretDecryptionError
 from app.features.companies.models import Company
@@ -616,6 +617,22 @@ class QuoteService(JobEventsMixin, TenantScopedService[Quote]):
                     "was not sent and is still a draft. Check the company's email "
                     "settings — retrying will not help."
                 ),
+            ) from exc
+        except (MailApiError, MailTransportError) as exc:
+            # These carry the provider's or the server's own explanation, which
+            # is the whole point of them: "could not email the quote" sends
+            # someone looking at the quote, when the answer is usually a sender
+            # domain nobody has verified yet.
+            logger.error(
+                "quote_email_refused",
+                quote_id=str(quote.id),
+                recipient=client.email,
+                transport=email_service.transport_label,
+                reason=str(exc),
+            )
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"{exc} The quote is still a draft.",
             ) from exc
         except Exception as exc:
             logger.error(
