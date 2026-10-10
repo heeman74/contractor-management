@@ -581,7 +581,15 @@ describe("a sending domain a provider can never verify", () => {
     chooseProvider();
     typeSender("onboarding@resend.dev");
 
-    expect(screen.getByText(/only delivers to the address your provider/)).toBeInTheDocument();
+    const note = screen
+      .getAllByRole("status")
+      .map((node) => node.textContent?.replace(/\s+/g, " ") ?? "")
+      .find((text) => text.includes("trial sender"));
+
+    // Both halves of the rule: it is a valid From, and it limits the recipient.
+    expect(note).toContain("accepted as a From");
+    expect(note).toContain("only delivers to the address your provider account");
+    expect(note).toContain("also your signed-in address");
     expect(screen.queryByText(/can never be verified/)).not.toBeInTheDocument();
   });
 });

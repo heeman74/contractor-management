@@ -351,9 +351,11 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
               role="status"
               className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-800 ring-1 ring-amber-500/30 dark:text-amber-200"
             >
-              A trial sender: it only delivers to the address your provider
-              account is registered with, so it will reach you but never a
-              client. Verify your own domain before sending quotes.
+              A trial sender. It is accepted as a From, but it only delivers
+              to the address your provider account is registered with — so a
+              test reaches you only if that is also your signed-in address, and
+              it can never reach a client. Verify a domain you own before
+              sending quotes from it.
             </p>
           ) : null}
         </div>
