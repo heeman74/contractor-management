@@ -518,3 +518,70 @@ describe("what the sending address is for", () => {
     ).toBeInTheDocument();
   });
 });
+
+/**
+ * "The gmail.com domain is not verified" reads like a setup step still to be
+ * done. It is one that can never be done: the domain belongs to Google, so
+ * there is no DNS record its user could add. Worth saying before the 403.
+ */
+describe("a sending domain a provider can never verify", () => {
+  const chooseProvider = () =>
+    fireEvent.click(screen.getByRole("radio", { name: /email provider/ }));
+
+  const typeSender = (value: string) =>
+    fireEvent.change(screen.getByLabelText("Sending address"), {
+      target: { value },
+    });
+
+  it("says so for a consumer mailbox", () => {
+    renderForm();
+    chooseProvider();
+    typeSender("bestconstruction1020@gmail.com");
+
+    expect(screen.getByText(/can never be verified with a/)).toBeInTheDocument();
+    expect(screen.getByText("gmail.com")).toBeInTheDocument();
+  });
+
+  it("points at the two ways out", () => {
+    renderForm();
+    chooseProvider();
+    typeSender("someone@yahoo.com");
+
+    // One element, read whole: the sentence is broken up by <strong> and
+    // typographic entities, so fragments of it match nothing on their own.
+    const warning = screen
+      .getAllByRole("status")
+      .map((node) => node.textContent?.replace(/\s+/g, " ") ?? "")
+      .find((text) => text.includes("can never be verified"));
+
+    expect(warning).toContain("verify a domain you own");
+    expect(warning).toContain("own mailbox over SMTP");
+  });
+
+  it("stays quiet for a domain that can be verified", () => {
+    renderForm();
+    chooseProvider();
+    typeSender("quotes@bestconstruction.com");
+
+    expect(screen.queryByText(/can never be verified/)).not.toBeInTheDocument();
+  });
+
+  it("stays quiet when sending over SMTP, where a consumer mailbox is normal", () => {
+    // Gmail over SMTP is exactly what SMTP is for: it authenticates as that
+    // address, so it is allowed to send as it.
+    renderForm();
+    fireEvent.click(screen.getByRole("radio", { name: /own mailbox/ }));
+    typeSender("bestconstruction1020@gmail.com");
+
+    expect(screen.queryByText(/can never be verified/)).not.toBeInTheDocument();
+  });
+
+  it("flags a trial sender as reaching only your own account", () => {
+    renderForm();
+    chooseProvider();
+    typeSender("onboarding@resend.dev");
+
+    expect(screen.getByText(/only delivers to the address your provider/)).toBeInTheDocument();
+    expect(screen.queryByText(/can never be verified/)).not.toBeInTheDocument();
+  });
+});

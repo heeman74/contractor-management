@@ -61,6 +61,31 @@ interface CompanyEmailFormProps {
   companyId: string;
 }
 
+// Mail a provider can never be made to send from: the domain belongs to the
+// mailbox host, so there is no DNS record its owner could add to verify it.
+// Saying so here saves a round trip to a 403 that reads like a setup step still
+// to be done, when it is one that can never be done.
+const CONSUMER_MAIL_DOMAINS = [
+  "gmail.com",
+  "googlemail.com",
+  "yahoo.com",
+  "outlook.com",
+  "hotmail.com",
+  "live.com",
+  "icloud.com",
+  "me.com",
+  "aol.com",
+  "proton.me",
+  "protonmail.com",
+];
+
+/** A provider's own trial sender, which needs no domain of yours. */
+const TRIAL_SENDER_DOMAINS = ["resend.dev"];
+
+function domainOf(address: string): string {
+  return address.trim().split("@").pop()?.toLowerCase() ?? "";
+}
+
 const PASSWORD_HELP =
   "Your provider's key goes here — SMTP has no separate key field. Gmail needs " +
   "an app password, not your account password (generate one with 2-step " +
@@ -169,6 +194,14 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
     senderReady &&
     (method === "relay" ||
       (method === "mailbox" ? mailboxReady : providerReady));
+
+  // Only meaningful for a provider: sending from a consumer mailbox over SMTP
+  // is exactly what SMTP is for, and the relay never uses this as the From.
+  const senderDomain = domainOf(fromAddress);
+  const senderCannotBeVerified =
+    method === "provider" && CONSUMER_MAIL_DOMAINS.includes(senderDomain);
+  const senderIsTrialOnly =
+    method === "provider" && TRIAL_SENDER_DOMAINS.includes(senderDomain);
 
   const incompleteReason = !senderReady
     ? "A sending address is needed, so there is something to send from."
@@ -298,6 +331,31 @@ export function CompanyEmailForm({ companyId }: CompanyEmailFormProps) {
                 ? "The From address your clients see. It must be on a domain verified with your provider — a trial sender like onboarding@resend.dev works only for testing."
                 : "The From address your clients see. It usually has to match the mailbox you sign in to below."}
           </p>
+
+          {senderCannotBeVerified ? (
+            <p
+              role="status"
+              className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-800 ring-1 ring-amber-500/30 dark:text-amber-200"
+            >
+              <strong>{senderDomain}</strong> can never be verified with a
+              provider — the domain belongs to the mailbox host, not to you, so
+              there is no DNS record you could add. Either verify a domain you
+              own and send from that, or choose &ldquo;your own mailbox over
+              SMTP&rdquo; below, which signs in to this address and is therefore
+              allowed to send as it.
+            </p>
+          ) : null}
+
+          {senderIsTrialOnly ? (
+            <p
+              role="status"
+              className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-800 ring-1 ring-amber-500/30 dark:text-amber-200"
+            >
+              A trial sender: it only delivers to the address your provider
+              account is registered with, so it will reach you but never a
+              client. Verify your own domain before sending quotes.
+            </p>
+          ) : null}
         </div>
       </div>
 
